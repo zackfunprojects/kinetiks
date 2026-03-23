@@ -1,0 +1,194 @@
+/**
+ * GET  /api/connections     - List all connections for the authenticated user
+ * POST /api/connections     - Initiate a new connection (OAuth redirect or API key storage)
+ */
+
+import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
+import { NextResponse } from "next/server";
+import {
+  getConnections,
+  getConnectionByProvider,
+  createConnection,
+  buildAuthorizationUrl,
+  isValidProvider,
+} from "@/lib/connections";
+import type { StoredApiKeyCredentials } from "@/lib/connections";
+import { getProvider } from "@/lib/connections/providers";
+import type { ConnectionProvider } from "@kinetiks/types";
+
+export async function GET() {
+  const serverClient = createClient();
+  const {
+    data: { user },
+    error: authError,
+  } = await serverClient.auth.getUser();
+
+  if (authError || !user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const admin = createAdminClient();
+
+  const { data: account } = await admin
+    .from("kinetiks_accounts")
+    .select("id")
+    .eq("user_id", user.id)
+    .single();
+
+  if (!account) {
+    return NextResponse.json(
+      { error: "Kinetiks account not found" },
+      { status: 404 }
+    );
+  }
+
+  try {
+    const connections = await getConnections(admin, account.id);
+    return NextResponse.json({ connections });
+  } catch (err) {
+    console.error("Failed to fetch connections:", err);
+    return NextResponse.json(
+      { error: "Failed to fetch connections" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(request: Request) {
+  const serverClient = createClient();
+  const {
+    data: { user },
+    error: authError,
+  } = await serverClient.auth.getUser();
+
+  if (authError || !user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  let body: Record<string, unknown>;
+  try {
+    const parsed: unknown = await request.json();
+    if (!parsed || typeof parsed !== "object") {
+      return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    }
+    body = parsed as Record<string, unknown>;
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
+
+  const { provider, api_key } = body as {
+    provider?: string;
+    api_key?: string;
+  };
+
+  if (!provider || typeof provider !== "string" || !isValidProvider(provider)) {
+    return NextResponse.json(
+      { error: "Missing or invalid 'provider' field" },
+      { status: 400 }
+    );
+  }
+
+  const admin = createAdminClient();
+
+  const { data: account } = await admin
+    .from("kinetiks_accounts")
+    .select("id")
+    .eq("user_id", user.id)
+    .single();
+
+  if (!account) {
+    return NextResponse.json(
+      { error: "Kinetiks account not found" },
+      { status: 404 }
+    );
+  }
+
+  // Check for existing connection
+  const existing = await getConnectionByProvider(
+    admin,
+    account.id,
+    provider as ConnectionProvider
+  );
+  if (existing && existing.status !== "revoked") {
+    return NextResponse.json(
+      { error: `Already connected to ${provider}. Disconnect first.` },
+      { status: 409 }
+    );
+  }
+
+  const providerDef = getProvider(provider as ConnectionProvider);
+
+  // API key providers - store directly
+  if (providerDef.authType === "api_key") {
+    if (!api_key || typeof api_key !== "string" || api_key.trim().length === 0) {
+      return NextResponse.json(
+        { error: "Missing 'api_key' for this provider" },
+        { status: 400 }
+      );
+    }
+
+    const credentials: StoredApiKeyCredentials = {
+      type: "api_key",
+      api_key: api_key.trim(),
+    };
+
+    try {
+      const connection = await createConnection(
+        admin,
+        account.id,
+        provider as ConnectionProvider,
+        credentials
+      );
+
+      return NextResponse.json({
+        connection: {
+          id: connection.id,
+          provider: connection.provider,
+          status: connection.status,
+          created_at: connection.created_at,
+        },
+      });
+    } catch (err) {
+      console.error("Failed to create API key connection:", err);
+      return NextResponse.json(
+        { error: "Failed to create connection" },
+        { status: 500 }
+      );
+    }
+  }
+
+  // OAuth providers - build authorization URL and return it
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://id.kinetiks.ai";
+  const redirectUri = `${appUrl}/api/connections/callback`;
+
+  // State encodes provider + account ID for the callback
+  const state = Buffer.from(
+    JSON.stringify({
+      provider,
+      account_id: account.id,
+      ts: Date.now(),
+    })
+  ).toString("base64url");
+
+  try {
+    const authUrl = buildAuthorizationUrl(
+      provider as ConnectionProvider,
+      redirectUri,
+      state
+    );
+
+    return NextResponse.json({ authorization_url: authUrl });
+  } catch (err) {
+    console.error("Failed to build authorization URL:", err);
+    return NextResponse.json(
+      {
+        error:
+          err instanceof Error
+            ? err.message
+            : "Failed to initiate OAuth flow",
+      },
+      { status: 500 }
+    );
+  }
+}
