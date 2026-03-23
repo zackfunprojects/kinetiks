@@ -16,6 +16,7 @@
     "@kinetiks/synapse": "workspace:*",
     "@kinetiks/types": "workspace:*",
     "@kinetiks/ui": "workspace:*",
+    "@mendable/firecrawl-js": "^4.16.0",
     "@supabase/ssr": "^0.5.0",
     "@supabase/supabase-js": "^2.49.0",
     "cron-parser": "^5.5.0",
