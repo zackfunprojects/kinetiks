@@ -1,12 +1,12 @@
 import Firecrawl from "@mendable/firecrawl-js";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { ContextLayer, Proposal } from "@kinetiks/types";
-import { evaluateProposal } from "@/lib/cortex/evaluate";
+import type { ContextLayer } from "@kinetiks/types";
 import type { EvaluationResult } from "@/lib/cortex/evaluate";
 import { extractBrand } from "./extract-brand";
 import { extractOrg } from "./extract-org";
 import { extractVoice } from "./extract-voice";
 import { extractSocial } from "./extract-social";
+import { submitProposal, logToLedger } from "./submit";
 import type { CrawlResult, ExtractionResult, ProposalInsert } from "./types";
 
 /**
@@ -77,60 +77,7 @@ export function buildProposal(
 }
 
 /**
- * Insert a proposal into the database and evaluate it through the Cortex pipeline.
- * Insert failures throw. Evaluation failures are captured and returned so the
- * caller always gets the proposal ID when the insert succeeded.
- */
-async function submitProposal(
-  admin: SupabaseClient,
-  proposal: ProposalInsert
-): Promise<{ proposalId: string; result: EvaluationResult }> {
-  const { data, error } = await admin
-    .from("kinetiks_proposals")
-    .insert({
-      ...proposal,
-      status: "submitted",
-      submitted_at: new Date().toISOString(),
-    })
-    .select("*")
-    .single();
-
-  if (error || !data) {
-    throw new Error(`Failed to insert proposal: ${error?.message ?? "no data returned"}`);
-  }
-
-  // Runtime validation of required fields before casting
-  const row = data as Record<string, unknown>;
-  if (typeof row.id !== "string" || typeof row.status !== "string") {
-    throw new Error(
-      `Invalid proposal row returned: missing id or status (got id=${typeof row.id}, status=${typeof row.status})`
-    );
-  }
-
-  const proposalId = row.id as string;
-  const fullProposal = row as unknown as Proposal;
-
-  // Evaluation errors are captured, not thrown - the insert already succeeded
-  try {
-    const result = await evaluateProposal(admin, fullProposal);
-    return { proposalId, result };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    console.error(`Proposal ${proposalId} inserted but evaluation failed:`, message);
-    return {
-      proposalId,
-      result: {
-        proposal_id: proposalId,
-        status: "submitted",
-        decline_reason: `evaluation_error: ${message}`,
-        routed: false,
-      },
-    };
-  }
-}
-
-/**
- * Log a crawl event to the Learning Ledger.
+ * Log a crawl event to the Learning Ledger using the shared utility.
  */
 async function logCrawlToLedger(
   admin: SupabaseClient,
@@ -139,25 +86,12 @@ async function logCrawlToLedger(
   success: boolean,
   proposalCount: number
 ): Promise<void> {
-  const { error } = await admin.from("kinetiks_ledger").insert({
-    account_id: accountId,
-    event_type: "cartographer_crawl",
-    source_app: "cartographer",
+  await logToLedger(admin, accountId, "cartographer_crawl", {
     source_operator: "cartographer_crawl",
-    detail: {
-      url,
-      success,
-      proposals_submitted: proposalCount,
-      crawled_at: new Date().toISOString(),
-    },
+    url,
+    success,
+    proposals_submitted: proposalCount,
   });
-
-  if (error) {
-    console.error(
-      `Failed to log crawl to ledger (account=${accountId}, url=${url}):`,
-      error.message
-    );
-  }
 }
 
 /**
