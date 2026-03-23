@@ -59,6 +59,21 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Cannot resolve account" }, { status: 400 });
   }
 
+  // Verify thread belongs to this account before reading messages
+  const { data: thread } = await admin
+    .from("kinetiks_marcus_threads")
+    .select("id")
+    .eq("id", thread_id)
+    .eq("account_id", accountId)
+    .single();
+
+  if (!thread) {
+    return NextResponse.json(
+      { error: "Thread not found" },
+      { status: 404 }
+    );
+  }
+
   // Get the last user message and last Marcus response from the thread
   const { data: messages } = await admin
     .from("kinetiks_marcus_messages")

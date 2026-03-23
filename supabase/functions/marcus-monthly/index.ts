@@ -3,7 +3,7 @@
  *
  * Runs every 15 minutes. Queries for monthly reviews that are due.
  *
- * CRON schedule: */15 * * * * (every 15 minutes)
+ * CRON schedule: every 15 minutes ("*/15 * * * *")
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.0";

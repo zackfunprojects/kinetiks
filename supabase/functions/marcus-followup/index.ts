@@ -5,7 +5,7 @@
  * that are due (delivered = false, scheduled_for <= now).
  * Delivers as a new message in the original thread.
  *
- * CRON schedule: */5 * * * * (every 5 minutes)
+ * CRON schedule: every 5 minutes ("*/5 * * * *")
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.0";

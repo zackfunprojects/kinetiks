@@ -16,8 +16,8 @@ import {
  * Process a Marcus conversation message through the full pipeline.
  *
  * Pipeline:
- * 1. Classify intent
- * 2. Get or create thread
+ * 1. Get or create thread (validates ownership)
+ * 2. Classify intent
  * 3. Save user message
  * 4. Assemble context (token-budgeted per intent)
  * 5. Build system prompt
@@ -36,14 +36,14 @@ export async function processMarcusMessage(
   threadId?: string,
   channel: MarcusChannel = "web"
 ): Promise<MarcusChatResponse> {
-  // 1. Classify intent
+  // 1. Get or create thread (validates ownership before any reads)
+  const thread = await getOrCreateThread(admin, accountId, threadId, channel);
+
+  // 2. Classify intent using validated thread history
   const recentMessages = threadId
-    ? (await getThreadMessages(admin, threadId, 5)).map((m) => m.content)
+    ? (await getThreadMessages(admin, thread.id, 5)).map((m) => m.content)
     : undefined;
   const intent = await classifyIntent(message, recentMessages);
-
-  // 2. Get or create thread
-  const thread = await getOrCreateThread(admin, accountId, threadId, channel);
 
   // 3. Save user message
   await addMessage(admin, thread.id, "user", message, channel);
@@ -103,14 +103,14 @@ export async function streamMarcusMessage(
   threadId?: string,
   channel: MarcusChannel = "web"
 ): Promise<{ stream: ReadableStream; threadId: string }> {
-  // 1. Classify intent
+  // 1. Get or create thread (validates ownership before any reads)
+  const thread = await getOrCreateThread(admin, accountId, threadId, channel);
+
+  // 2. Classify intent using validated thread history
   const recentMessages = threadId
-    ? (await getThreadMessages(admin, threadId, 5)).map((m) => m.content)
+    ? (await getThreadMessages(admin, thread.id, 5)).map((m) => m.content)
     : undefined;
   const intent = await classifyIntent(message, recentMessages);
-
-  // 2. Get or create thread
-  const thread = await getOrCreateThread(admin, accountId, threadId, channel);
 
   // 3. Save user message
   await addMessage(admin, thread.id, "user", message, channel);
