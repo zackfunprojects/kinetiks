@@ -61,6 +61,26 @@ export async function POST(request: Request) {
     );
   }
 
+  // Validate target_layer is a known ContextLayer
+  const validLayers: ContextLayer[] = [
+    "org", "products", "voice", "customers",
+    "narrative", "competitive", "market", "brand",
+  ];
+  if (!validLayers.includes(target_layer)) {
+    return NextResponse.json(
+      { error: `Invalid target_layer: '${target_layer}'. Must be one of: ${validLayers.join(", ")}` },
+      { status: 400 }
+    );
+  }
+
+  // Validate changes is a plain non-null object
+  if (typeof changes !== "object" || Array.isArray(changes)) {
+    return NextResponse.json(
+      { error: "changes must be a plain object" },
+      { status: 400 }
+    );
+  }
+
   const admin = createAdminClient();
 
   // If not internal service call, verify the user owns the target account

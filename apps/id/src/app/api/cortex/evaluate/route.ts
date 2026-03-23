@@ -35,12 +35,29 @@ export async function POST(request: Request) {
   const body = await request.json();
   const admin = createAdminClient();
 
-  // Support single or batch evaluation
-  const proposalIds: string[] = body.proposal_ids ?? [body.proposal_id];
+  // Validate and normalize proposal IDs
+  let proposalIds: string[];
 
-  if (!proposalIds.length || !proposalIds[0]) {
+  if (Array.isArray(body.proposal_ids)) {
+    // Batch mode: every element must be a non-empty string
+    if (
+      body.proposal_ids.length === 0 ||
+      !body.proposal_ids.every(
+        (id: unknown) => typeof id === "string" && id.length > 0
+      )
+    ) {
+      return NextResponse.json(
+        { error: "proposal_ids must be a non-empty array of non-empty strings" },
+        { status: 400 }
+      );
+    }
+    proposalIds = body.proposal_ids as string[];
+  } else if (typeof body.proposal_id === "string" && body.proposal_id.length > 0) {
+    // Single mode
+    proposalIds = [body.proposal_id];
+  } else {
     return NextResponse.json(
-      { error: "Missing proposal_id or proposal_ids" },
+      { error: "Missing or invalid proposal_id (string) or proposal_ids (string[])" },
       { status: 400 }
     );
   }

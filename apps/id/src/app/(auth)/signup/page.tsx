@@ -78,7 +78,7 @@ function SignupForm() {
 
     // Redirect to onboarding with from param preserved
     const onboardingUrl = fromApp
-      ? `/onboarding?from=${fromApp}`
+      ? `/onboarding?from=${encodeURIComponent(fromApp)}`
       : "/onboarding";
     router.push(onboardingUrl);
   }

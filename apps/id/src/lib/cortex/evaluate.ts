@@ -1,11 +1,7 @@
 import type { Proposal, ProposalStatus, ContextLayer } from "@kinetiks/types";
 import { SupabaseClient } from "@supabase/supabase-js";
 import { detectConflict } from "./conflict";
-
-/**
- * Recency throttle window: don't route the same layer+app within this window.
- */
-const RECENCY_THROTTLE_MS = 5 * 60 * 1000; // 5 minutes
+import { executeRoutes } from "./route";
 
 /**
  * Valid target layers for schema validation
@@ -346,100 +342,32 @@ async function mergeProposal(
 
 /**
  * Step 5: After accepting a proposal, create routing events for relevant Synapses.
+ * Delegates to the shared routing module (route.ts) which handles relevance gating,
+ * recency throttle (fail-closed), error checking, and ledger logging.
  * Returns true if any routing events were created.
- * Honors the 5-minute recency throttle per app+layer.
  */
 async function routeAfterAccept(
   admin: SupabaseClient,
   proposal: Proposal
 ): Promise<boolean> {
-  // Get all registered Synapses for this account, excluding the source app
-  const { data: synapses, error: synapseError } = await admin
-    .from("kinetiks_synapses")
-    .select("app_name, read_layers")
-    .eq("account_id", proposal.account_id)
-    .eq("status", "active")
-    .neq("app_name", proposal.source_app);
-
-  if (synapseError) {
+  try {
+    const routedCount = await executeRoutes(
+      admin,
+      proposal.account_id,
+      proposal.source_app,
+      proposal.target_layer,
+      proposal.id,
+      proposal.payload,
+      proposal.confidence
+    );
+    return routedCount > 0;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
     console.error(
-      `Failed to fetch synapses for routing: ${synapseError.message}`
+      `Routing failed for proposal ${proposal.id}: ${message}`
     );
     return false;
   }
-
-  if (!synapses || synapses.length === 0) return false;
-
-  // Filter to Synapses that have read access to the affected layer
-  const relevantSynapses = synapses.filter((s) => {
-    const readLayers = s.read_layers as string[];
-    return readLayers.includes(proposal.target_layer);
-  });
-
-  if (relevantSynapses.length === 0) return false;
-
-  // Apply recency throttle: skip synapses that received this layer recently
-  const throttleWindow = new Date(
-    Date.now() - RECENCY_THROTTLE_MS
-  ).toISOString();
-
-  const unthrottledSynapses = [];
-  for (const synapse of relevantSynapses) {
-    const appName = synapse.app_name as string;
-    const { count } = await admin
-      .from("kinetiks_routing_events")
-      .select("id", { count: "exact", head: true })
-      .eq("account_id", proposal.account_id)
-      .eq("target_app", appName)
-      .gte("created_at", throttleWindow)
-      .contains("payload", { layer: proposal.target_layer });
-
-    if ((count ?? 0) === 0) {
-      unthrottledSynapses.push(synapse);
-    }
-  }
-
-  if (unthrottledSynapses.length === 0) return false;
-
-  // Create routing events
-  const routingEvents = unthrottledSynapses.map((synapse) => ({
-    account_id: proposal.account_id,
-    target_app: synapse.app_name,
-    source_proposal_id: proposal.id,
-    payload: {
-      layer: proposal.target_layer,
-      action: proposal.action,
-      changes: proposal.payload,
-      confidence: proposal.confidence,
-    },
-    relevance_note: `${proposal.target_layer} ${proposal.action} from ${proposal.source_app}`,
-  }));
-
-  const { error: routeInsertError } = await admin
-    .from("kinetiks_routing_events")
-    .insert(routingEvents);
-
-  if (routeInsertError) {
-    console.error(
-      `Failed to insert routing events: ${routeInsertError.message}`
-    );
-    return false;
-  }
-
-  // Log routing (batched insert)
-  const ledgerEntries = routingEvents.map((event) => ({
-    account_id: proposal.account_id,
-    event_type: "routing_sent",
-    source_app: proposal.source_app,
-    target_layer: proposal.target_layer,
-    detail: {
-      target_app: event.target_app,
-      proposal_id: proposal.id,
-    },
-  }));
-  await admin.from("kinetiks_ledger").insert(ledgerEntries);
-
-  return true;
 }
 
 /**

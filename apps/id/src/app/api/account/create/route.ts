@@ -29,11 +29,12 @@ export async function POST() {
 
   // Generate unique codename
   const codename = await generateUniqueCodename(async (candidate) => {
-    const { data } = await admin
+    const { data, error } = await admin
       .from("kinetiks_accounts")
       .select("id")
       .eq("codename", candidate)
-      .single();
+      .maybeSingle();
+    if (error) throw new Error(`Codename availability check failed: ${error.message}`);
     return !data;
   });
 
@@ -79,10 +80,21 @@ export async function POST() {
 
   if (confidenceError || billingError) {
     // Rollback: delete the partially-created account
-    await admin
+    const { error: rollbackError } = await admin
       .from("kinetiks_accounts")
       .delete()
       .eq("id", account.id);
+
+    if (rollbackError) {
+      console.error(
+        `Rollback failed for account ${account.id}: ${rollbackError.message}`,
+        { confidenceError, billingError }
+      );
+      return NextResponse.json(
+        { error: "Failed to initialize account and rollback failed" },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json(
       { error: "Failed to initialize account records" },
