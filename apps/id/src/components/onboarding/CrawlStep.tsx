@@ -1,16 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
-
-interface CrawlResult {
-  url: string;
-  crawl_success: boolean;
-  extractions: Record<
-    string,
-    { success: boolean; data: unknown; error: string | null }
-  >;
-  proposals_submitted: string[];
-}
+import type { CrawlResult } from "@/lib/cartographer/types";
 
 interface CrawlStepProps {
   onComplete: (result: CrawlResult) => void;

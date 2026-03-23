@@ -1,4 +1,3 @@
-import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 
@@ -6,6 +5,7 @@ import { NextResponse } from "next/server";
  * PATCH /api/account/onboarding-complete
  *
  * Mark the authenticated user's account as onboarding complete.
+ * Uses the authenticated server client so RLS enforces access control.
  */
 export async function PATCH() {
   const serverClient = createClient();
@@ -18,8 +18,7 @@ export async function PATCH() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const admin = createAdminClient();
-  const { error: updateError } = await admin
+  const { error: updateError } = await serverClient
     .from("kinetiks_accounts")
     .update({
       onboarding_complete: true,

@@ -218,7 +218,8 @@ export async function processCalibrationChoice(
   };
 
   try {
-    const { proposalId } = await submitProposal(admin, proposal);
+    const { proposalId, result } = await submitProposal(admin, proposal);
+    const accepted = result.status === "accepted";
 
     await logToLedger(admin, accountId, "cartographer_calibrate", {
       source_operator: "cartographer_calibrate",
@@ -227,14 +228,15 @@ export async function processCalibrationChoice(
       choice,
       chosen_direction: chosenDirection,
       adjusted_from: currentValue,
-      adjusted_to: newValue,
+      adjusted_to: accepted ? newValue : currentValue,
+      proposal_status: result.status,
     });
 
     return {
-      success: true,
+      success: accepted,
       proposalId,
       dimension: exercise.dimension,
-      adjustedTo: newValue,
+      adjustedTo: accepted ? newValue : currentValue,
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";

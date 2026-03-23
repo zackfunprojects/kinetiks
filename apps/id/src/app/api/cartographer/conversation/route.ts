@@ -54,7 +54,11 @@ export async function POST(request: Request) {
   }
 
   const accountId = account.id as string;
-  const action = body.action as string;
+
+  if (typeof body.action !== "string") {
+    return NextResponse.json({ error: "Missing action" }, { status: 400 });
+  }
+  const action = body.action;
 
   if (action === "next_question") {
     const questionHistory = Array.isArray(body.questionHistory)

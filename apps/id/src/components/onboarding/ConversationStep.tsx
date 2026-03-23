@@ -1,14 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-
-interface ConversationQuestion {
-  question: string;
-  targetLayers: string[];
-  inputType: "text" | "textarea" | "select";
-  options?: string[];
-  hint?: string;
-}
+import type { ConversationQuestion } from "@/lib/cartographer/conversation";
 
 interface ConversationStepProps {
   fromApp: string | null;
@@ -27,7 +20,9 @@ export function ConversationStep({
   const [questionCount, setQuestionCount] = useState(0);
   const [questionHistory, setQuestionHistory] = useState<string[]>([]);
   const [feedback, setFeedback] = useState<string | null>(null);
-  const inputRef = useRef<HTMLTextAreaElement | HTMLInputElement | null>(null);
+  const inputRef = useRef<
+    HTMLTextAreaElement | HTMLInputElement | HTMLSelectElement | null
+  >(null);
 
   const fetchNextQuestion = async (history: string[]) => {
     setLoading(true);
@@ -56,7 +51,6 @@ export function ConversationStep({
 
       setCurrentQuestion(data.question);
     } catch {
-      // On failure, proceed rather than blocking
       onComplete();
     } finally {
       setLoading(false);
@@ -102,13 +96,25 @@ export function ConversationStep({
       // Brief pause to show feedback
       await new Promise((resolve) => setTimeout(resolve, 1200));
 
-      fetchNextQuestion(newHistory);
+      await fetchNextQuestion(newHistory);
     } catch {
       setFeedback("Something went wrong. Let's move on.");
       await new Promise((resolve) => setTimeout(resolve, 1000));
       onComplete();
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+      handleSubmit();
+    }
+  };
+
+  const handleInputKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      handleSubmit();
     }
   };
 
@@ -173,8 +179,10 @@ export function ConversationStep({
               {currentQuestion.inputType === "select" &&
               currentQuestion.options ? (
                 <select
+                  ref={inputRef as React.RefObject<HTMLSelectElement>}
                   value={answer}
                   onChange={(e) => setAnswer(e.target.value)}
+                  onKeyDown={handleInputKeyDown}
                   className="w-full rounded-lg border border-gray-200 px-4 py-3 text-sm text-gray-900 focus:border-[#6C5CE7] focus:outline-none"
                 >
                   <option value="">Select an option</option>
@@ -189,9 +197,7 @@ export function ConversationStep({
                   ref={inputRef as React.RefObject<HTMLTextAreaElement>}
                   value={answer}
                   onChange={(e) => setAnswer(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && e.metaKey) handleSubmit();
-                  }}
+                  onKeyDown={handleKeyDown}
                   rows={4}
                   placeholder="Type your answer..."
                   disabled={submitting}
@@ -203,9 +209,7 @@ export function ConversationStep({
                   type="text"
                   value={answer}
                   onChange={(e) => setAnswer(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") handleSubmit();
-                  }}
+                  onKeyDown={handleInputKeyDown}
                   placeholder="Type your answer..."
                   disabled={submitting}
                   className="w-full rounded-lg border border-gray-200 px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[#6C5CE7] focus:outline-none disabled:opacity-50"

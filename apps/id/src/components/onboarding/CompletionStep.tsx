@@ -1,14 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-
-interface ContextFillStatus {
-  layers: Record<
-    string,
-    { filled: number; total: number; percentage: number }
-  >;
-  aggregate: number;
-}
+import type { ContextFillStatus } from "@/lib/cartographer/conversation";
 
 interface CompletionStepProps {
   codename: string;
@@ -34,38 +27,60 @@ const APP_URLS: Record<string, string> = {
   litmus: "https://lt.kinetiks.ai",
 };
 
+function getRedirectTarget(fromApp: string | null): string {
+  return fromApp && APP_URLS[fromApp] ? APP_URLS[fromApp] : "/";
+}
+
+function redirect(target: string): void {
+  if (target.startsWith("http")) {
+    window.location.href = target;
+  } else {
+    window.location.pathname = target;
+  }
+}
+
 export function CompletionStep({
   codename,
   fromApp,
   fillStatus,
 }: CompletionStepProps) {
   const [countdown, setCountdown] = useState(5);
+  const [ready, setReady] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const markedCompleteRef = useRef(false);
 
   useEffect(() => {
     if (markedCompleteRef.current) return;
     markedCompleteRef.current = true;
 
-    fetch("/api/account/onboarding-complete", { method: "PATCH" }).catch(
-      () => {}
-    );
+    async function markComplete() {
+      try {
+        const res = await fetch("/api/account/onboarding-complete", {
+          method: "PATCH",
+        });
+        if (res.ok) {
+          setReady(true);
+        } else {
+          setError("Failed to finalize onboarding. You can continue manually.");
+          setReady(true);
+        }
+      } catch {
+        setError("Network error. You can continue manually.");
+        setReady(true);
+      }
+    }
+    markComplete();
   }, []);
 
+  // Start countdown only after PATCH completes
   useEffect(() => {
+    if (!ready) return;
+
     const timer = setInterval(() => {
       setCountdown((c) => {
         if (c <= 1) {
           clearInterval(timer);
-          const target =
-            fromApp && APP_URLS[fromApp]
-              ? APP_URLS[fromApp]
-              : "/";
-
-          if (target.startsWith("http")) {
-            window.location.href = target;
-          } else {
-            window.location.pathname = target;
-          }
+          redirect(getRedirectTarget(fromApp));
           return 0;
         }
         return c - 1;
@@ -73,21 +88,13 @@ export function CompletionStep({
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [fromApp]);
+  }, [ready, fromApp]);
 
   const aggregate = fillStatus?.aggregate ?? 0;
-  const layers = fillStatus?.layers ?? {};
-
-  const handleRedirect = () => {
-    const target =
-      fromApp && APP_URLS[fromApp] ? APP_URLS[fromApp] : "/";
-
-    if (target.startsWith("http")) {
-      window.location.href = target;
-    } else {
-      window.location.pathname = target;
-    }
-  };
+  const layers = (fillStatus?.layers ?? {}) as Record<
+    string,
+    { filled: number; total: number; percentage: number }
+  >;
 
   return (
     <div className="flex min-h-[60vh] items-center justify-center">
@@ -128,14 +135,19 @@ export function CompletionStep({
           ))}
         </div>
 
+        {error && (
+          <p className="mt-4 text-xs text-red-400">{error}</p>
+        )}
+
         <p className="mt-6 text-xs text-gray-400">
           To improve your ID further, connect GA4, upload brand assets, or chat
           with Marcus.
         </p>
 
         <button
-          onClick={handleRedirect}
-          className="mt-6 w-full rounded-lg bg-[#6C5CE7] py-3 text-sm font-semibold text-white transition-colors hover:bg-[#5b4bd6]"
+          onClick={() => redirect(getRedirectTarget(fromApp))}
+          disabled={!ready}
+          className="mt-6 w-full rounded-lg bg-[#6C5CE7] py-3 text-sm font-semibold text-white transition-colors hover:bg-[#5b4bd6] disabled:opacity-50"
         >
           {fromApp
             ? `Go to ${fromApp.replace("_", " ")}`
@@ -143,7 +155,9 @@ export function CompletionStep({
         </button>
 
         <p className="mt-3 text-xs text-gray-400">
-          Redirecting in {countdown}s...
+          {ready
+            ? `Redirecting in ${countdown}s...`
+            : "Finalizing your profile..."}
         </p>
       </div>
     </div>

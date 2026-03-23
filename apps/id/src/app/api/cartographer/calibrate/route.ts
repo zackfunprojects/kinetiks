@@ -53,7 +53,11 @@ export async function POST(request: Request) {
   }
 
   const accountId = account.id as string;
-  const action = body.action as string;
+
+  if (typeof body.action !== "string") {
+    return NextResponse.json({ error: "Missing action" }, { status: 400 });
+  }
+  const action = body.action;
 
   if (action === "generate") {
     const count =
@@ -79,10 +83,26 @@ export async function POST(request: Request) {
   }
 
   if (action === "submit_choice") {
-    const exercise = body.exercise as CalibrationExercise | undefined;
+    const exercise = body.exercise as Record<string, unknown> | undefined;
     const choice = body.choice as string | undefined;
 
-    if (!exercise || !exercise.id || !exercise.dimension) {
+    const VALID_DIMENSIONS = ["formality", "warmth", "humor", "authority"];
+    const VALID_DIRECTIONS = ["high", "low"];
+
+    if (
+      !exercise ||
+      typeof exercise.id !== "string" ||
+      typeof exercise.exercise !== "string" ||
+      typeof exercise.scenario !== "string" ||
+      typeof exercise.optionA !== "string" ||
+      typeof exercise.optionB !== "string" ||
+      typeof exercise.dimension !== "string" ||
+      !VALID_DIMENSIONS.includes(exercise.dimension) ||
+      typeof exercise.aDirection !== "string" ||
+      !VALID_DIRECTIONS.includes(exercise.aDirection) ||
+      typeof exercise.bDirection !== "string" ||
+      !VALID_DIRECTIONS.includes(exercise.bDirection)
+    ) {
       return NextResponse.json(
         { error: "Missing or invalid exercise" },
         { status: 400 }
@@ -95,11 +115,22 @@ export async function POST(request: Request) {
       );
     }
 
+    const validatedExercise: CalibrationExercise = {
+      id: exercise.id,
+      exercise: exercise.exercise,
+      scenario: exercise.scenario,
+      optionA: exercise.optionA,
+      optionB: exercise.optionB,
+      dimension: exercise.dimension as CalibrationExercise["dimension"],
+      aDirection: exercise.aDirection as CalibrationExercise["aDirection"],
+      bDirection: exercise.bDirection as CalibrationExercise["bDirection"],
+    };
+
     try {
       const result = await processCalibrationChoice(
         admin,
         accountId,
-        exercise,
+        validatedExercise,
         choice
       );
       return NextResponse.json({ result });

@@ -1,17 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-
-interface CalibrationExercise {
-  id: string;
-  exercise: string;
-  scenario: string;
-  optionA: string;
-  optionB: string;
-  dimension: string;
-  aDirection: string;
-  bDirection: string;
-}
+import type { CalibrationExercise } from "@/lib/cartographer/calibrate";
 
 interface CalibrationStepProps {
   onComplete: () => void;
@@ -23,6 +13,7 @@ export function CalibrationStep({ onComplete }: CalibrationStepProps) {
   const [selected, setSelected] = useState<"A" | "B" | null>(null);
   const [generating, setGenerating] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -50,11 +41,12 @@ export function CalibrationStep({ onComplete }: CalibrationStepProps) {
   const handleConfirm = async () => {
     if (!selected || submitting) return;
     setSubmitting(true);
+    setSubmitError(null);
 
     const exercise = exercises[currentIndex];
 
     try {
-      await fetch("/api/cartographer/calibrate", {
+      const res = await fetch("/api/cartographer/calibrate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -63,8 +55,17 @@ export function CalibrationStep({ onComplete }: CalibrationStepProps) {
           choice: selected,
         }),
       });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setSubmitError(data.error ?? "Failed to save choice. Try again.");
+        setSubmitting(false);
+        return;
+      }
     } catch {
-      // Non-critical - proceed anyway
+      setSubmitError("Network error. Try again.");
+      setSubmitting(false);
+      return;
     }
 
     setSubmitting(false);
@@ -129,6 +130,10 @@ export function CalibrationStep({ onComplete }: CalibrationStepProps) {
           Which sounds more like you?
         </h2>
         <p className="mt-1 text-sm text-gray-500">{exercise.scenario}</p>
+
+        {submitError && (
+          <p className="mt-3 text-sm text-red-500">{submitError}</p>
+        )}
 
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
           <button

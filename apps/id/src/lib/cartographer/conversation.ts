@@ -12,6 +12,7 @@ import {
   CONVERSATION_ANSWER_EXTRACTION_PROMPT,
   EXPECTED_FIELDS,
   LAYER_WEIGHTS,
+  APP_LAYER_PRIORITIES,
   buildQuestionGenerationPrompt,
   buildAnswerExtractionPrompt,
   buildContextSummaryForQuestions,
@@ -66,10 +67,23 @@ const ALL_LAYERS = Object.keys(LAYER_TABLE_MAP) as ContextLayer[];
 /**
  * Check if a field value counts as "filled".
  */
-function isFieldFilled(value: unknown): boolean {
+function isFieldFilled(value: unknown, fieldName?: string): boolean {
   if (value === null || value === undefined) return false;
   if (typeof value === "string") return value.trim().length > 0;
-  if (Array.isArray(value)) return value.length > 0;
+  if (Array.isArray(value)) {
+    if (value.length === 0) return false;
+    if (fieldName === "products" || fieldName === "personas" || fieldName === "competitors") {
+      return value.some(
+        (item) =>
+          item &&
+          typeof item === "object" &&
+          "name" in item &&
+          typeof (item as Record<string, unknown>).name === "string" &&
+          (item as Record<string, unknown>).name !== ""
+      );
+    }
+    return true;
+  }
   if (typeof value === "object") return Object.keys(value).length > 0;
   return true;
 }
@@ -106,7 +120,7 @@ export async function getContextFillStatus(
 
     if (data) {
       for (const field of expected) {
-        if (isFieldFilled(data[field])) filledCount++;
+        if (isFieldFilled(data[field], field)) filledCount++;
       }
     }
 
@@ -141,10 +155,20 @@ export async function getContextFillStatus(
 // Adaptive Question Generation
 // ---------------------------------------------------------------------------
 
-const PRIORITY_LAYERS: ContextLayer[] = ["products", "voice", "customers"];
+const DEFAULT_PRIORITY_LAYERS: ContextLayer[] = ["products", "voice", "customers"];
 const MIN_AGGREGATE_FILL = 50;
 const MIN_PRIORITY_FILL = 40;
 const MAX_QUESTIONS = 8;
+
+/**
+ * Get priority layers based on the entry app. Falls back to defaults.
+ */
+function getPriorityLayers(fromApp: string | null): ContextLayer[] {
+  if (fromApp && APP_LAYER_PRIORITIES[fromApp]) {
+    return APP_LAYER_PRIORITIES[fromApp];
+  }
+  return DEFAULT_PRIORITY_LAYERS;
+}
 
 /**
  * Generate the next adaptive question. Returns null when the conversation is done.
@@ -159,8 +183,9 @@ export async function generateNextQuestion(
 
   const fillStatus = await getContextFillStatus(admin, accountId);
 
-  // Check completion criteria
-  const priorityLayersFilled = PRIORITY_LAYERS.every(
+  // Check completion criteria using app-specific priority layers
+  const priorityLayers = getPriorityLayers(fromApp);
+  const priorityLayersFilled = priorityLayers.every(
     (l) => fillStatus.layers[l].percentage >= MIN_PRIORITY_FILL
   );
   if (fillStatus.aggregate >= MIN_AGGREGATE_FILL && priorityLayersFilled) {
@@ -258,9 +283,11 @@ export async function processAnswer(
     };
 
     try {
-      const { proposalId } = await submitProposal(admin, proposal);
+      const { proposalId, result } = await submitProposal(admin, proposal);
       submittedIds.push(proposalId);
-      updatedLayers.push(layer);
+      if (result.status === "accepted") {
+        updatedLayers.push(layer);
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown error";
       console.error(

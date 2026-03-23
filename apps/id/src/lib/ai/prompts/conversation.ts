@@ -98,6 +98,7 @@ customers: { personas: [{ name, role, company_type, pain_points[], buying_trigge
 narrative: { origin_story, founder_thesis, why_now, brand_arc, media_positioning }
 competitive: { competitors: [{ name, website, positioning, strengths[], weaknesses[] }], positioning_gaps[], differentiation_vectors[] }
 market: { trends: [{ topic, direction (rising|falling|stable|emerging), relevance (direct|adjacent|background) }] }
+brand: { colors: { primary, secondary, accent }, typography: { heading_font, body_font }, tokens: { border_radius (sharp|subtle|rounded|pill), density (tight|balanced|airy) }, imagery: { style (photography|illustration|3d|abstract|mixed), treatment (warm|cool|neutral) }, accessibility: { wcag_level (AA|AAA) } }
 
 Rules:
 - Return a JSON object keyed by layer name. Only include layers where the answer provides CLEAR data.
@@ -283,11 +284,45 @@ export { EXPECTED_FIELDS };
 
 /**
  * Check if a field value counts as "filled" (non-null, non-empty).
+ * For arrays of objects (like products, personas, competitors), validates
+ * that at least one entry has required subfields.
  */
-function isFieldFilled(value: unknown): boolean {
+function isFieldFilled(value: unknown, fieldName?: string): boolean {
   if (value === null || value === undefined) return false;
   if (typeof value === "string") return value.trim().length > 0;
-  if (Array.isArray(value)) return value.length > 0;
+  if (Array.isArray(value)) {
+    if (value.length === 0) return false;
+    // For known array-of-object fields, verify entries have required subfields
+    if (fieldName === "products") {
+      return value.some(
+        (item) =>
+          item &&
+          typeof item === "object" &&
+          "name" in item &&
+          typeof (item as Record<string, unknown>).name === "string" &&
+          (item as Record<string, unknown>).name !== ""
+      );
+    }
+    if (fieldName === "personas") {
+      return value.some(
+        (item) =>
+          item &&
+          typeof item === "object" &&
+          "name" in item &&
+          typeof (item as Record<string, unknown>).name === "string"
+      );
+    }
+    if (fieldName === "competitors") {
+      return value.some(
+        (item) =>
+          item &&
+          typeof item === "object" &&
+          "name" in item &&
+          typeof (item as Record<string, unknown>).name === "string"
+      );
+    }
+    return true;
+  }
   if (typeof value === "object") return Object.keys(value).length > 0;
   return true;
 }
@@ -315,7 +350,7 @@ export function buildContextSummaryForQuestions(
     const missing: string[] = [];
 
     for (const field of expected) {
-      if (isFieldFilled(data[field])) {
+      if (isFieldFilled(data[field], field)) {
         filled.push(field);
       } else {
         missing.push(field);

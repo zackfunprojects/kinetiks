@@ -1,5 +1,3 @@
-"use client";
-
 interface ProgressBarProps {
   currentStep: number;
   steps: string[];

@@ -118,7 +118,8 @@ export function WritingSampleStep({ onComplete }: WritingSampleStepProps) {
           </button>
           <button
             onClick={onComplete}
-            className="text-sm text-gray-500 hover:text-gray-700"
+            disabled={analyzing}
+            className="text-sm text-gray-500 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {samplesSubmitted > 0 ? "Continue" : "Skip"}
           </button>

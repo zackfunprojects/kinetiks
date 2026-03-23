@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import type { ContextFillStatus } from "@/lib/cartographer/conversation";
 import { ProgressBar } from "./ProgressBar";
 import { EducationScreen } from "./EducationScreen";
 import { CrawlStep } from "./CrawlStep";
@@ -12,14 +13,6 @@ import { CompletionStep } from "./CompletionStep";
 interface Account {
   id: string;
   codename: string;
-}
-
-interface ContextFillStatus {
-  layers: Record<
-    string,
-    { filled: number; total: number; percentage: number }
-  >;
-  aggregate: number;
 }
 
 interface OnboardingFlowProps {

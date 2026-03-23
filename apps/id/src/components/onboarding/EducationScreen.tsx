@@ -6,36 +6,37 @@ interface EducationScreenProps {
   onContinue: () => void;
 }
 
-const APP_FRAMING: Record<string, { heading: string; body: string }> = {
-  dark_madder: {
-    heading: "Dark Madder is powered by Kinetiks",
-    body: "We're going to spend about 15 minutes learning your business so everything we create sounds like you. Your Kinetiks ID also powers other growth tools you can activate later.",
-  },
-  harvest: {
-    heading: "Harvest is powered by Kinetiks",
-    body: "We're going to learn your business so your outreach hits the right people with the right message. Your Kinetiks ID also powers other growth tools you can activate later.",
-  },
-  hypothesis: {
-    heading: "Hypothesis is powered by Kinetiks",
-    body: "We're going to learn your business so every landing page converts. Your Kinetiks ID also powers other growth tools you can activate later.",
-  },
-  litmus: {
-    heading: "Litmus is powered by Kinetiks",
-    body: "We're going to learn your business so your PR lands with the right journalists. Your Kinetiks ID also powers other growth tools you can activate later.",
-  },
+const APP_DISPLAY_NAMES: Record<string, string> = {
+  dark_madder: "Dark Madder",
+  harvest: "Harvest",
+  hypothesis: "Hypothesis",
+  litmus: "Litmus",
 };
 
+const SHARED_BODY =
+  "We'll spend about 15 minutes learning your business - your voice, your customers, your story. Your Kinetiks ID also powers other growth tools you can activate later.";
+
 const DEFAULT_FRAMING = {
-  heading: "Welcome to Kinetiks",
-  body: "Build your business identity once, and it powers every tool in the ecosystem. We'll spend about 15 minutes learning your business - your voice, your customers, your story.",
+  heading: "Build your business identity",
+  body: SHARED_BODY,
 };
+
+function getFraming(fromApp: string | null): { heading: string; body: string } {
+  if (!fromApp) return DEFAULT_FRAMING;
+  const displayName = APP_DISPLAY_NAMES[fromApp];
+  if (!displayName) return DEFAULT_FRAMING;
+  return {
+    heading: `Learn your voice for ${displayName}`,
+    body: SHARED_BODY,
+  };
+}
 
 export function EducationScreen({
   fromApp,
   codename,
   onContinue,
 }: EducationScreenProps) {
-  const framing = fromApp ? APP_FRAMING[fromApp] ?? DEFAULT_FRAMING : DEFAULT_FRAMING;
+  const framing = getFraming(fromApp);
 
   return (
     <div className="flex min-h-[60vh] items-center justify-center">
