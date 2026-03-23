@@ -91,7 +91,7 @@ Deno.serve(async () => {
 
       // Deliver the brief
       if (briefContent && schedule.channel !== "email") {
-        await admin.from("kinetiks_marcus_alerts").insert({
+        const { error: alertErr } = await admin.from("kinetiks_marcus_alerts").insert({
           account_id: schedule.account_id,
           trigger_type: "gap",
           severity: "info",
@@ -100,9 +100,12 @@ Deno.serve(async () => {
           source_app: "marcus",
           delivered_via: [schedule.channel],
         });
+        if (alertErr) {
+          console.error(`[marcus-monthly] Alert insert failed for schedule ${schedule.id}:`, alertErr);
+        }
       }
 
-      await admin.from("kinetiks_ledger").insert({
+      const { error: ledgerErr } = await admin.from("kinetiks_ledger").insert({
         account_id: schedule.account_id,
         event_type: "marcus_monthly_review",
         source_operator: "marcus",
@@ -112,15 +115,21 @@ Deno.serve(async () => {
           delivered: briefContent.length > 0,
         },
       });
+      if (ledgerErr) {
+        console.error(`[marcus-monthly] Ledger insert failed for schedule ${schedule.id}:`, ledgerErr);
+      }
 
       const nextSend = computeNextMonthlySend(schedule.next_send_at);
-      await admin
+      const { error: updateErr } = await admin
         .from("kinetiks_marcus_schedules")
         .update({
           last_sent_at: new Date().toISOString(),
           next_send_at: nextSend,
         })
         .eq("id", schedule.id);
+      if (updateErr) {
+        console.error(`[marcus-monthly] Schedule update failed for ${schedule.id} (nextSend: ${nextSend}):`, updateErr);
+      }
 
       processed++;
     } catch (err) {

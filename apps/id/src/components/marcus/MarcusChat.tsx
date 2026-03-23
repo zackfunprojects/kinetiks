@@ -19,6 +19,8 @@ export function MarcusChat({ initialThreads }: MarcusChatProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchAbortRef = useRef<AbortController | null>(null);
+  const searchSeqRef = useRef<number>(0);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -26,10 +28,11 @@ export function MarcusChat({ initialThreads }: MarcusChatProps) {
 
   useEffect(scrollToBottom, [messages, streamingText]);
 
-  // Cleanup abort controller on unmount
+  // Cleanup on unmount
   useEffect(() => {
     return () => {
       abortControllerRef.current?.abort();
+      searchAbortRef.current?.abort();
       if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
     };
   }, []);
@@ -67,22 +70,30 @@ export function MarcusChat({ initialThreads }: MarcusChatProps) {
     setIsStreaming(false);
   }, []);
 
-  // Debounced search - waits 300ms after last keystroke
+  // Debounced search with stale-request protection
   const handleSearch = useCallback(async (query: string) => {
     if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    searchAbortRef.current?.abort();
+
+    const seq = ++searchSeqRef.current;
 
     searchTimeoutRef.current = setTimeout(async () => {
+      const controller = new AbortController();
+      searchAbortRef.current = controller;
+
       const url = query.trim()
         ? `/api/marcus/threads?search=${encodeURIComponent(query)}`
         : "/api/marcus/threads";
       try {
-        const res = await fetch(url);
-        if (res.ok) {
+        const res = await fetch(url, { signal: controller.signal });
+        // Only apply result if this is still the latest search
+        if (res.ok && searchSeqRef.current === seq) {
           const data = await res.json();
           setThreads(data.threads ?? []);
         }
-      } catch {
-        // Keep current threads
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        // Keep current threads on other errors
       }
     }, 300);
   }, []);

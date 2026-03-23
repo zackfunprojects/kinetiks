@@ -183,11 +183,11 @@ export async function executeActions(
           } catch {
             // Non-critical - proposal stays as submitted
           }
-        }
 
-        disclosures.push(
-          `Proposed ${action.action} to ${action.target_layer} layer (${action.confidence}): ${action.evidence_summary}`
-        );
+          disclosures.push(
+            `Proposed ${action.action} to ${action.target_layer} layer (${action.confidence}): ${action.evidence_summary}`
+          );
+        }
         break;
       }
 

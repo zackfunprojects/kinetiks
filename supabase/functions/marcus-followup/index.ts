@@ -52,7 +52,7 @@ Deno.serve(async () => {
       // Only proceed if we actually updated a row (another CRON instance didn't get it first).
       const { count } = await admin
         .from("kinetiks_marcus_follow_ups")
-        .update({ delivered: true })
+        .update({ delivered: true }, { count: "exact" })
         .eq("id", followUp.id)
         .eq("delivered", false);
 
@@ -61,32 +61,44 @@ Deno.serve(async () => {
         continue;
       }
 
-      // If there's a thread, add the follow-up as a Marcus message
-      if (followUp.thread_id) {
-        await admin.from("kinetiks_marcus_messages").insert({
-          thread_id: followUp.thread_id,
-          role: "marcus",
-          content: followUp.message,
-          channel: "web",
+      // Deliver the follow-up. If any step fails, revert the claim.
+      try {
+        // If there's a thread, add the follow-up as a Marcus message
+        if (followUp.thread_id) {
+          const { error: msgErr } = await admin.from("kinetiks_marcus_messages").insert({
+            thread_id: followUp.thread_id,
+            role: "marcus",
+            content: followUp.message,
+            channel: "web",
+          });
+          if (msgErr) throw new Error(`Message insert failed: ${msgErr.message}`);
+
+          // Touch thread updated_at
+          await admin
+            .from("kinetiks_marcus_threads")
+            .update({ updated_at: new Date().toISOString() })
+            .eq("id", followUp.thread_id);
+        }
+
+        // Create an alert for the follow-up
+        const { error: alertErr } = await admin.from("kinetiks_marcus_alerts").insert({
+          account_id: followUp.account_id,
+          trigger_type: "gap",
+          severity: "info",
+          title: "Marcus follow-up",
+          body: followUp.message,
         });
+        if (alertErr) throw new Error(`Alert insert failed: ${alertErr.message}`);
 
-        // Touch thread updated_at
+        delivered++;
+      } catch (deliveryErr) {
+        // Revert the claim so the follow-up can be retried
+        console.error(`[marcus-followup] Delivery failed for ${followUp.id}, reverting claim:`, deliveryErr);
         await admin
-          .from("kinetiks_marcus_threads")
-          .update({ updated_at: new Date().toISOString() })
-          .eq("id", followUp.thread_id);
+          .from("kinetiks_marcus_follow_ups")
+          .update({ delivered: false }, { count: "exact" })
+          .eq("id", followUp.id);
       }
-
-      // Create an alert for the follow-up
-      await admin.from("kinetiks_marcus_alerts").insert({
-        account_id: followUp.account_id,
-        trigger_type: "gap",
-        severity: "info",
-        title: "Marcus follow-up",
-        body: followUp.message,
-      });
-
-      delivered++;
     } catch (err) {
       console.error(`[marcus-followup] Failed to process follow-up ${followUp.id}:`, err);
     }

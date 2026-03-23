@@ -43,7 +43,8 @@ export async function assembleContext(
   admin: SupabaseClient,
   accountId: string,
   intent: MarcusIntent,
-  threadId?: string
+  threadId?: string,
+  userMessage?: string
 ): Promise<string> {
   const budget = CONTEXT_BUDGETS[intent];
   const sections: string[] = [];
@@ -78,9 +79,9 @@ export async function assembleContext(
     if (history) sections.push(history);
   }
 
-  // Load docs for support queries
-  if (budget.docs > 0) {
-    const docsContext = assembleDocs(threadId ?? "", budget.docs);
+  // Load docs for support queries - use user message as search query
+  if (budget.docs > 0 && userMessage) {
+    const docsContext = assembleDocs(userMessage, budget.docs);
     if (docsContext) sections.push(docsContext);
   }
 

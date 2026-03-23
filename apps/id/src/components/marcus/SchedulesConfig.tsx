@@ -55,7 +55,7 @@ export function SchedulesConfig({ schedules }: SchedulesConfigProps) {
   // Track separate saving states for toggle and send-now to prevent collisions
   const [savingToggle, setSavingToggle] = useState<string | null>(null);
   const [savingSendNow, setSavingSendNow] = useState<string | null>(null);
-  const [sendNowStatus, setSendNowStatus] = useState<Record<string, "success" | "error">>({});
+  const [sendNowStatus, setSendNowStatus] = useState<Record<string, "success" | "error" | undefined>>({});
 
   const handleToggle = async (schedule: MarcusSchedule) => {
     setSavingToggle(schedule.id);
@@ -79,7 +79,7 @@ export function SchedulesConfig({ schedules }: SchedulesConfigProps) {
 
   const handleSendNow = async (type: string) => {
     setSavingSendNow(type);
-    setSendNowStatus((prev) => ({ ...prev, [type]: undefined as unknown as "success" }));
+    setSendNowStatus((prev) => ({ ...prev, [type]: undefined }));
     try {
       const res = await fetch("/api/marcus/brief", {
         method: "POST",
@@ -93,6 +93,13 @@ export function SchedulesConfig({ schedules }: SchedulesConfigProps) {
       setSavingSendNow(null);
     }
   };
+
+  function getSendNowLabel(type: string): string {
+    if (savingSendNow === type) return "Sending...";
+    if (sendNowStatus[type] === "success") return "Sent";
+    if (sendNowStatus[type] === "error") return "Failed";
+    return "Send Now";
+  }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -131,13 +138,7 @@ export function SchedulesConfig({ schedules }: SchedulesConfigProps) {
                   color: "#6C5CE7",
                 }}
               >
-                {savingSendNow === schedule.type
-                  ? "Sending..."
-                  : sendNowStatus[schedule.type] === "success"
-                    ? "Sent"
-                    : sendNowStatus[schedule.type] === "error"
-                      ? "Failed"
-                      : "Send Now"}
+                {getSendNowLabel(schedule.type)}
               </button>
               <button
                 onClick={() => handleToggle(schedule)}

@@ -66,7 +66,7 @@ export async function POST(request: Request) {
 
   // Resolve account
   let accountId: string;
-  if (isServiceCall && bodyAccountId) {
+  if (isServiceCall && typeof bodyAccountId === "string" && bodyAccountId) {
     accountId = bodyAccountId;
   } else if (user) {
     const { data: account } = await admin

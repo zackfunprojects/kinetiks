@@ -1,23 +1,30 @@
 import Anthropic from "@anthropic-ai/sdk";
 
 /**
- * Cache keyed by API key to avoid creating new clients on every call,
- * while ensuring BYOK users never share a client with other users.
+ * Cached client for the shared env key only.
+ * BYOK (user-supplied) keys are never cached to avoid unbounded memory
+ * growth and retaining user secrets longer than necessary.
  */
-const clientCache = new Map<string, Anthropic>();
+let envClient: Anthropic | null = null;
+let envClientKey: string | null = null;
 
 export function createClaudeClient(apiKey?: string): Anthropic {
-  const key = apiKey ?? process.env.ANTHROPIC_API_KEY;
+  const key: string = apiKey ?? process.env.ANTHROPIC_API_KEY ?? "";
   if (!key) {
     throw new Error("Missing ANTHROPIC_API_KEY");
   }
 
-  const cached = clientCache.get(key);
-  if (cached) return cached;
+  // User-supplied BYOK key: create fresh client, never cache
+  if (apiKey) {
+    return new Anthropic({ apiKey: key });
+  }
 
-  const newClient = new Anthropic({ apiKey: key });
-  clientCache.set(key, newClient);
-  return newClient;
+  // Shared env key: cache a singleton
+  if (envClient && envClientKey === key) return envClient;
+
+  envClient = new Anthropic({ apiKey: key });
+  envClientKey = key;
+  return envClient;
 }
 
 interface AskClaudeOptions {

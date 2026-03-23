@@ -248,7 +248,7 @@ export async function togglePin(
 ): Promise<void> {
   const { error, count } = await admin
     .from("kinetiks_marcus_threads")
-    .update({ pinned })
+    .update({ pinned }, { count: "exact" })
     .eq("id", threadId)
     .eq("account_id", accountId);
 

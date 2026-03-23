@@ -55,7 +55,8 @@ export async function processMarcusMessage(
     admin,
     accountId,
     intent,
-    thread.id
+    thread.id,
+    message
   );
 
   // 6. Build system prompt
@@ -125,7 +126,8 @@ export async function streamMarcusMessage(
     admin,
     accountId,
     intent,
-    thread.id
+    thread.id,
+    message
   );
 
   // 6. Build system prompt
