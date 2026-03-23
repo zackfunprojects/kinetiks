@@ -1,4 +1,19 @@
-export type { ContextStructure, ContextLayer } from "./context";
+export type {
+  ContextStructure,
+  ContextLayer,
+  OrgData,
+  ProductsData,
+  Product,
+  VoiceData,
+  VoiceTone,
+  CustomersData,
+  Persona,
+  NarrativeData,
+  CompetitiveData,
+  Competitor,
+  MarketData,
+  MarketTrend,
+} from "./context";
 export type {
   Proposal,
   ProposalAction,
