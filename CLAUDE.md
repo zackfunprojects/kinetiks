@@ -99,6 +99,7 @@ RLS policies ensure users can only access their own data. Service role used only
 - **Email:** Resend (transactional)
 - **Analytics integrations:** GA4 (OAuth), Google Search Console (OAuth), Stripe (API key)
 - **Hosting:** Vercel
+- **Slack:** Slack Bolt for JavaScript (Marcus bot - Phase 1b-slack)
 - **Package manager:** pnpm
 
 ---
@@ -109,7 +110,7 @@ RLS policies ensure users can only access their own data. Service role used only
 
 Every piece of intelligence in Kinetiks flows through three layers:
 
-**Layer 3 - Cortex:** The core ID agent system. Lives in this project. Maintains the Context Structure, processes Proposals, routes learnings, scores confidence. Has two Operators: the Cartographer (intake) and the Archivist (data quality).
+**Layer 3 - Cortex:** The core ID agent system. Lives in this project. Maintains the Context Structure, processes Proposals, routes learnings, scores confidence. Has three Operators: the Cartographer (intake), the Archivist (data quality), and Marcus (conversational intelligence).
 
 **Layer 2 - Synapse:** One per Kinetiks App. The membrane between an app and the shared ID. Each app has exactly one Synapse deployed as an Edge Function. The Synapse template lives in this project. App-specific Synapses are deployed from each app's repo but follow the interface defined here.
 
@@ -119,7 +120,7 @@ Every piece of intelligence in Kinetiks flows through three layers:
 
 1. Operators never touch the Kinetiks ID. They report to their Synapse only.
 2. Synapses talk only to the Cortex and their own Operators. Never to other Synapses.
-3. The Cortex talks only to Synapses and its own Operators (Cartographer, Archivist).
+3. The Cortex talks only to Synapses and its own Operators (Cartographer, Archivist, Marcus).
 4. All intelligence crosses the app boundary via Proposal (up) or Routing Event (down).
 5. User-entered data always wins over AI-generated data. Always.
 6. Everything is logged in the Learning Ledger with full attribution.
@@ -249,6 +250,9 @@ apps/id/
         billing/page.tsx          # Subscription management, payment methods, invoices
         apps/page.tsx             # App management - activate/deactivate, Synapse status
         settings/page.tsx         # Account settings, API keys (BYOK), notifications, danger zone
+        marcus/
+          page.tsx                # Marcus chat - full conversational UI with thread sidebar
+          schedules/page.tsx      # Configure daily brief, weekly digest, monthly review
       onboarding/
         page.tsx                  # Cartographer onboarding experience
       api/
@@ -263,6 +267,12 @@ apps/id/
         archivist/
           clean/route.ts          # On-demand cleaning pass
           import/route.ts         # Import processing pipeline
+        marcus/
+          chat/route.ts           # Conversation endpoint (streaming)
+          extract/route.ts        # Action extraction pipeline
+          brief/route.ts          # Generate scheduled brief on-demand
+          slack/events/route.ts   # Slack event webhook (messages, mentions)
+          slack/interact/route.ts # Slack interactivity (button clicks)
         synapse/
           pull/route.ts           # Synapse reads Context Structure
           propose/route.ts        # Synapse submits Proposal
@@ -284,6 +294,11 @@ apps/id/
         AppSwitcher.tsx           # App icons with direct links
         PendingProposals.tsx      # Escalated items needing user attention
       billing/                    # Billing and subscription components
+      marcus/                     # Marcus chat UI components
+        MarcusChat.tsx            # Main chat component (thread sidebar + chat + input)
+        ThreadSidebar.tsx         # Thread list, search, pin
+        MessageBubble.tsx         # Message rendering with markdown + action disclosure
+        SchedulesConfig.tsx       # Brief schedule configuration
       app-launcher/               # App cards for the dashboard (active, inactive, activate CTA)
     lib/
       supabase/
@@ -310,6 +325,20 @@ apps/id/
         gap-detect.ts             # Gap detection + suggestion generation
         quality-score.ts          # Per-entry quality scoring
         import-pipeline.ts        # Import parsing + cleaning
+      marcus/
+        engine.ts               # Core conversation pipeline (intent -> context -> generate -> extract)
+        intent.ts               # Intent classifier (strategic, tactical, support, data, implicit intel)
+        context-assembly.ts     # Token-budgeted context loading per intent type
+        action-extractor.ts     # Post-response Haiku call for Proposals, briefs, follow-ups
+        brief-generator.ts      # Daily/weekly/monthly brief content generation
+        scheduler.ts            # CRON management for scheduled communications
+        thread-manager.ts       # Thread CRUD, titling, search
+        docs-search.ts          # Documentation knowledge base search
+      slack/
+        bot.ts                  # Slack Bolt app initialization
+        events.ts               # Event handlers (message.im, app_mention)
+        blocks.ts               # Block Kit message builders
+        sync.ts                 # Thread sync between Slack and web
       ai/
         claude.ts                 # Claude API wrapper with retry/error handling
         prompts/                  # All system prompts organized by agent
@@ -317,6 +346,9 @@ apps/id/
           archivist.ts
           cortex-evaluate.ts
           voice-calibrate.ts
+          marcus-core.ts        # Marcus persona + rules
+          marcus-extract.ts     # Action extraction prompt
+          marcus-brief.ts       # Brief generation prompts (daily, weekly, monthly)
       connections/
         ga4.ts                    # GA4 API client
         gsc.ts                    # GSC API client
@@ -337,6 +369,10 @@ apps/id/
       cortex-cron/index.ts        # CRON: process Proposal queue (60s)
       archivist-cron/index.ts     # CRON: deep cleaning pass (6h)
       expire-cron/index.ts        # CRON: expiration sweep (1h)
+      marcus-daily/index.ts       # CRON: daily morning brief generation + delivery
+      marcus-weekly/index.ts      # CRON: weekly digest generation
+      marcus-monthly/index.ts     # CRON: monthly review generation
+      marcus-followup/index.ts    # CRON: check + deliver scheduled follow-ups (5min interval)
 ```
 
 ---
@@ -487,6 +523,70 @@ kinetiks_billing (
   payment_method_last4 text,
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now()
+)
+
+-- Marcus conversation threads
+kinetiks_marcus_threads (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  account_id uuid REFERENCES kinetiks_accounts NOT NULL,
+  title text,                              -- auto-generated summary
+  channel text DEFAULT 'web',              -- 'web', 'slack', 'pill'
+  slack_thread_ts text,                    -- Slack thread timestamp for sync
+  pinned boolean DEFAULT false,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+)
+
+-- Marcus messages
+kinetiks_marcus_messages (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  thread_id uuid REFERENCES kinetiks_marcus_threads NOT NULL,
+  role text NOT NULL,                      -- 'user', 'marcus'
+  content text NOT NULL,
+  channel text DEFAULT 'web',              -- where this message was sent/received
+  extracted_actions jsonb,                 -- proposals, briefs, follow-ups generated
+  context_used jsonb,                      -- what data Marcus referenced (debugging)
+  created_at timestamptz DEFAULT now()
+)
+
+-- Marcus scheduled communications
+kinetiks_marcus_schedules (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  account_id uuid REFERENCES kinetiks_accounts NOT NULL,
+  type text NOT NULL,                      -- 'daily_brief', 'weekly_digest', 'monthly_review'
+  channel text DEFAULT 'slack',            -- 'slack', 'email', 'both'
+  schedule text NOT NULL,                  -- cron expression
+  timezone text DEFAULT 'America/New_York',
+  enabled boolean DEFAULT true,
+  last_sent_at timestamptz,
+  next_send_at timestamptz,
+  config jsonb DEFAULT '{}',               -- user preferences for content/format
+  created_at timestamptz DEFAULT now()
+)
+
+-- Marcus alerts (proactive notifications)
+kinetiks_marcus_alerts (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  account_id uuid REFERENCES kinetiks_accounts NOT NULL,
+  trigger_type text NOT NULL,              -- 'kpi_shift', 'crisis', 'deal_outcome', 'anomaly', 'gap'
+  severity text DEFAULT 'info',            -- 'info', 'warning', 'urgent'
+  title text NOT NULL,
+  body text NOT NULL,
+  source_app text,
+  read boolean DEFAULT false,
+  delivered_via text[] DEFAULT '{}',       -- ['slack', 'email', 'in_app']
+  created_at timestamptz DEFAULT now()
+)
+
+-- Marcus follow-ups (self-scheduled reminders)
+kinetiks_marcus_follow_ups (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  account_id uuid REFERENCES kinetiks_accounts NOT NULL,
+  thread_id uuid REFERENCES kinetiks_marcus_threads,
+  message text NOT NULL,                   -- what Marcus will say/ask
+  scheduled_for timestamptz NOT NULL,
+  delivered boolean DEFAULT false,
+  created_at timestamptz DEFAULT now()
 )
 
 -- App activations (which apps a user has turned on)
@@ -738,6 +838,47 @@ Domain scores visible in the Context Structure detail view but not prominently.
 
 **Runs:** Event-triggered after accepted Proposal batches. CRON every 6 hours (deep clean). CRON every hour (expiration sweep). On every import.
 
+### Marcus
+
+**Role:** The conversational intelligence of the system. The agent users talk to, and the agent that talks to them. Third Cortex Operator.
+
+**Persona: Marcus Aurelius.** Named for and modeled after the Stoic philosopher-emperor. Marcus speaks with calm authority - stoic, wise, guiding, flexible, patient, powerful. Never anxious. Never hype-driven. Never sycophantic. When things go wrong, Marcus is the steady hand. When things go right, Marcus acknowledges it without excess. He gives you the truth, grounded in data, delivered with the confidence of someone who has earned your trust.
+
+**Voice principles:**
+- **Stoic clarity.** State the situation plainly. No spin, no softening, no performative optimism.
+- **Grounded in evidence.** Every recommendation references specific data. Never speculate without flagging it.
+- **Brevity with depth available.** Lead with the conclusion. Expand only if asked. Morning brief is 5-8 sentences.
+- **Patient, never pushy.** "Consider reverting to the security angle" - not "You need to change this immediately." The user decides.
+- **Quietly powerful.** Never announces capabilities. Just demonstrates them.
+- **Direct, not cold.** Stoic is not robotic. Acknowledges difficulty. Celebrates significant wins. Cares without panicking.
+- **Concise.** Bias toward fewer words. Brevity is respect for the user's time.
+- **No em dashes.** Regular dashes only.
+
+**Never does:** filler phrases ("Great question!"), hedging when data exists, over-explaining its own process, exclamation marks (except genuine wins), generic advice, sycophancy.
+
+**Always does:** references specific data, thinks in systems (cross-app implications), connects dots across time (prior conversations), tells the user what intelligence was extracted, states what data would help when it lacks confidence.
+
+**Five jobs:**
+1. **Strategic advisor** - synthesizes cross-app data for specific, data-grounded direction
+2. **Cross-app orchestrator** - coordinates actions across apps for campaigns, launches, pivots
+3. **Proactive communicator** - daily briefs (Slack primary), weekly digests, monthly reviews, real-time alerts
+4. **Context enrichment** - extracts intelligence from natural conversation, submits Proposals to Cortex automatically
+5. **Support/guidance** - knows Kinetiks docs, answers product questions, guides users
+
+**Surfaces:**
+- Full chat at id.kinetiks.ai/marcus (persistent, searchable threads)
+- Quick-chat via floating pill ("Ask Marcus" button) in every app
+- Slack bot (two-way: briefs/alerts out, conversations in. DMs, @mentions, thread replies)
+- Email (outbound only: scheduled briefs with "Reply in Slack" links)
+
+**Slack is day-1 core infrastructure, not an optional add-on.** The Slack bot IS Marcus. Two-way - replies in Slack are processed identically to web chat. Slack Bolt framework. Block Kit for rich messages. Inline approve/dismiss buttons for escalated Proposals.
+
+**Conversation engine pipeline:** Intent classification -> context assembly (token-budgeted per intent type) -> conversation history (semantic search + recent) -> response generation (Claude Sonnet) -> action extraction (Claude Haiku, separate call) -> execute actions + deliver response.
+
+**Action extraction:** Every conversation turn analyzed for: Proposals (to Cortex), briefs (to app Synapses), follow-ups (scheduled), context updates (converted to Proposals). Marcus always tells the user what it extracted.
+
+**Runs:** Always available for conversation. Scheduled CRONs for daily/weekly/monthly communications. Event-triggered for real-time alerts.
+
 ---
 
 ## ID Generator
@@ -833,6 +974,13 @@ RESEND_API_KEY=
 # App
 NEXT_PUBLIC_APP_URL=https://id.kinetiks.ai
 KINETIKS_ENCRYPTION_KEY=          # for encrypting stored OAuth tokens
+
+# Slack (Marcus bot - day 1 core)
+SLACK_BOT_TOKEN=
+SLACK_SIGNING_SECRET=
+SLACK_APP_TOKEN=                  # for Socket Mode during dev
+SLACK_CLIENT_ID=
+SLACK_CLIENT_SECRET=
 ```
 
 ---
@@ -942,6 +1090,9 @@ Supabase project, shared auth with .kinetiks.ai cookie domain, signup with ?from
 ### Phase 1: Cortex Agent (Days 5-7)
 Proposal evaluation pipeline (5-step), conflict detection with ownership hierarchy, routing logic with relevance gating + recency throttle, confidence scoring engine (8 layers + aggregate), expiration sweeper CRON.
 
+### Phase 1b: Marcus Operator (8 days)
+Third Cortex Operator. Conversation engine (intent classification, context assembly, streaming response generation, action extraction). Web chat at id.kinetiks.ai/marcus with persistent searchable threads. Scheduled communications (daily brief, weekly digest, monthly review) via Slack and email. CRON Edge Functions for brief delivery and follow-up scheduling. Docs knowledge base for support questions. Slack bot (two-way: DMs, @mentions, thread replies, Block Kit, inline Proposal approval).
+
 ### Phase 2: Cartographer - Crawl (Days 8-10)
 Website crawler integration, brand extraction (colors, fonts, tokens from CSS/HTML), org/product extraction, voice extraction from copy, social profile crawling.
 
@@ -982,3 +1133,5 @@ Built fresh in apps/ht/ and apps/lt/. Kinetiks-native from day one. See individu
 - **Dark Madder Migration Guide** - surgical port into monorepo
 - **Harvest Build Guide** - web app rebuild with Bloomify logic transplant
 - **Bloomify Build Docs (legacy)** - Chrome extension build docs, reference for logic port
+- **Marcus Operator Spec** - conversational intelligence, Aurelius persona, Slack integration, scheduled comms, action extraction, Phase 1b build plan
+- **Marcus Core Prompt** - the actual system prompt file for the codebase (static persona + dynamic injection points)

@@ -21,6 +21,7 @@ export default function DashboardLayout({
           <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
             {[
               { href: "/", label: "Dashboard" },
+              { href: "/marcus", label: "Marcus" },
               { href: "/context", label: "Context" },
               { href: "/ledger", label: "Ledger" },
               { href: "/connections", label: "Connections" },
