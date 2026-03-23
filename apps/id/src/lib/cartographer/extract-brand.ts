@@ -68,7 +68,41 @@ function extractColorValues(css: string): string[] {
 }
 
 /**
+ * Convert R, G, B integers (0-255) to a 6-digit hex string.
+ */
+function rgbToHex(r: number, g: number, b: number): string {
+  const clamp = (v: number) => Math.max(0, Math.min(255, Math.round(v)));
+  return `#${clamp(r).toString(16).padStart(2, "0")}${clamp(g).toString(16).padStart(2, "0")}${clamp(b).toString(16).padStart(2, "0")}`;
+}
+
+/**
+ * Convert HSL values to RGB. h in [0,360], s and l in [0,100].
+ */
+function hslToRgb(h: number, s: number, l: number): [number, number, number] {
+  const sNorm = s / 100;
+  const lNorm = l / 100;
+  const c = (1 - Math.abs(2 * lNorm - 1)) * sNorm;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = lNorm - c / 2;
+
+  let r1 = 0, g1 = 0, b1 = 0;
+  if (h < 60) { r1 = c; g1 = x; }
+  else if (h < 120) { r1 = x; g1 = c; }
+  else if (h < 180) { g1 = c; b1 = x; }
+  else if (h < 240) { g1 = x; b1 = c; }
+  else if (h < 300) { r1 = x; b1 = c; }
+  else { r1 = c; b1 = x; }
+
+  return [
+    Math.round((r1 + m) * 255),
+    Math.round((g1 + m) * 255),
+    Math.round((b1 + m) * 255),
+  ];
+}
+
+/**
  * Normalize a color value to 6-digit hex for comparison.
+ * Supports: hex, comma-separated rgb/rgba, space-separated rgb/rgba, hsl/hsla.
  */
 function normalizeToHex(color: string): string | null {
   color = color.trim().toLowerCase();
@@ -84,15 +118,54 @@ function normalizeToHex(color: string): string | null {
     return null;
   }
 
-  // rgb/rgba
-  const rgbMatch = color.match(
+  // rgb/rgba - comma-separated: rgb(255, 0, 0) or rgba(255, 0, 0, 0.5)
+  const rgbCommaMatch = color.match(
     /rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/
   );
-  if (rgbMatch) {
-    const r = parseInt(rgbMatch[1], 10);
-    const g = parseInt(rgbMatch[2], 10);
-    const b = parseInt(rgbMatch[3], 10);
-    return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
+  if (rgbCommaMatch) {
+    return rgbToHex(
+      parseInt(rgbCommaMatch[1], 10),
+      parseInt(rgbCommaMatch[2], 10),
+      parseInt(rgbCommaMatch[3], 10)
+    );
+  }
+
+  // rgb/rgba - space-separated: rgb(255 0 0) or rgb(255 0 0 / 0.5)
+  const rgbSpaceMatch = color.match(
+    /rgba?\(\s*(\d+)\s+(\d+)\s+(\d+)/
+  );
+  if (rgbSpaceMatch) {
+    return rgbToHex(
+      parseInt(rgbSpaceMatch[1], 10),
+      parseInt(rgbSpaceMatch[2], 10),
+      parseInt(rgbSpaceMatch[3], 10)
+    );
+  }
+
+  // hsl/hsla - comma-separated: hsl(120, 50%, 50%) or hsla(120, 50%, 50%, 0.5)
+  const hslCommaMatch = color.match(
+    /hsla?\(\s*([\d.]+)\s*,\s*([\d.]+)%\s*,\s*([\d.]+)%/
+  );
+  if (hslCommaMatch) {
+    const [r, g, b] = hslToRgb(
+      parseFloat(hslCommaMatch[1]),
+      parseFloat(hslCommaMatch[2]),
+      parseFloat(hslCommaMatch[3])
+    );
+    return rgbToHex(r, g, b);
+  }
+
+  // hsl/hsla - space-separated: hsl(120 50% 50%) or hsl(120 50% 50% / 0.5)
+  const hslSpaceMatch = color.match(
+    /hsla?\(\s*([\d.]+)\s+([\d.]+)%\s+([\d.]+)%/
+  );
+  if (hslSpaceMatch) {
+    const [r, g, b] = hslToRgb(
+      parseFloat(hslSpaceMatch[1]),
+      parseFloat(hslSpaceMatch[2]),
+      parseFloat(hslSpaceMatch[3])
+    );
+    return rgbToHex(r, g, b);
   }
 
   return null;
@@ -294,44 +367,70 @@ function detectLogos(html: string, baseUrl: string): {
   wordmark_url: string | null;
   icon_url: string | null;
 } {
-  // Look for img tags within header/nav, with logo-related attributes, or with logo filenames
-  const logoPatterns = [
-    /<(?:header|nav)[^>]*>[\s\S]*?<img[^>]+src="([^"]+)"[^>]*>/gi,
+  // Prioritized buckets: explicit logo hints first, then header/nav imgs, then filename matches
+  const explicitLogoUrls: string[] = [];
+  const headerNavUrls: string[] = [];
+  const filenameUrls: string[] = [];
+
+  // 1. Explicit logo hints: class/id/alt containing "logo"
+  const explicitPatterns = [
     /<img[^>]+(?:class|id|alt)="[^"]*logo[^"]*"[^>]+src="([^"]+)"/gi,
     /<img[^>]+src="([^"]+)"[^>]+(?:class|id|alt)="[^"]*logo[^"]*"/gi,
-    /<img[^>]+src="([^"]*logo(?:[-_]?[^"]*)?\.(?:svg|png|jpg|jpeg|gif|ico))"/gi,
   ];
-
-  const logoUrls: string[] = [];
-
-  for (const pattern of logoPatterns) {
+  for (const pattern of explicitPatterns) {
     let match: RegExpExecArray | null;
     while ((match = pattern.exec(html)) !== null) {
-      logoUrls.push(match[1]);
+      explicitLogoUrls.push(match[1]);
     }
+  }
+
+  // 2. All imgs inside header/nav blocks
+  const headerNavRegex = /<(header|nav)\b[^>]*>([\s\S]*?)<\/\1>/gi;
+  let blockMatch: RegExpExecArray | null;
+  while ((blockMatch = headerNavRegex.exec(html)) !== null) {
+    const blockContent = blockMatch[2];
+    const imgSrcRegex = /<img[^>]+src="([^"]+)"/gi;
+    let imgMatch: RegExpExecArray | null;
+    while ((imgMatch = imgSrcRegex.exec(blockContent)) !== null) {
+      headerNavUrls.push(imgMatch[1]);
+    }
+  }
+
+  // 3. Filename-based: src contains "logo" as a distinct token (word boundary or path segment)
+  // Uses (?:^|[/_-]) to ensure "logo" is a path segment, not part of "catalog"
+  const filenameRegex = /<img[^>]+src="([^"]*(?:^|[/_-])logo(?:[-_][^"]*)?\.(?:svg|png|jpg|jpeg|gif|ico))"/gi;
+  let fnMatch: RegExpExecArray | null;
+  while ((fnMatch = filenameRegex.exec(html)) !== null) {
+    filenameUrls.push(fnMatch[1]);
   }
 
   // Also check for SVG logos in header/nav
   const svgLogoRegex =
-    /<(?:header|nav)[^>]*>[\s\S]*?<svg[^>]*class="[^"]*logo[^"]*"/gi;
+    /<(?:header|nav)\b[^>]*>[\s\S]*?<svg[^>]*class="[^"]*logo[^"]*"/gi;
   const hasSvgLogo = svgLogoRegex.test(html);
 
-  // Resolve relative URLs
-  const resolvedUrls = logoUrls.map((u) => {
+  // Resolve and deduplicate, preserving priority order
+  const resolveUrl = (u: string): string => {
     try {
       return new URL(u, baseUrl).href;
     } catch {
       return u;
     }
-  });
+  };
 
-  // Deduplicate
-  const unique = [...new Set(resolvedUrls)];
+  const seen = new Set<string>();
+  const ordered: string[] = [];
+  for (const raw of [...explicitLogoUrls, ...headerNavUrls, ...filenameUrls]) {
+    const resolved = resolveUrl(raw);
+    if (!seen.has(resolved)) {
+      seen.add(resolved);
+      ordered.push(resolved);
+    }
+  }
 
   return {
-    wordmark_url: unique[0] ?? null,
-    icon_url: unique[1] ?? (hasSvgLogo ? "svg-inline" : null),
-    // Note: "svg-inline" signals that a logo exists but is inlined SVG
+    wordmark_url: ordered[0] ?? null,
+    icon_url: ordered[1] ?? (hasSvgLogo ? "svg-inline" : null),
   };
 }
 

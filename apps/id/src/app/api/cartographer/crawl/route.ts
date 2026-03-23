@@ -43,10 +43,9 @@ export async function POST(request: Request) {
     );
   }
 
-  // Validate URL format
+  // Validate URL format (crawlAndExtract also normalizes, but we check early to reject bad input)
   try {
-    const normalized = url.startsWith("http") ? url : `https://${url}`;
-    new URL(normalized);
+    new URL(url.startsWith("http") ? url : `https://${url}`);
   } catch {
     return NextResponse.json(
       { error: "Invalid URL format" },

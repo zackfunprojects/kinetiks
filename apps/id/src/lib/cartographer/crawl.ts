@@ -131,17 +131,18 @@ async function logCrawlToLedger(
 }
 
 /**
- * Extract a settled result value or null.
+ * Extract a settled result value, preserving the source URL on rejection.
  */
 function settledValue<T>(
-  result: PromiseSettledResult<ExtractionResult<T>>
+  result: PromiseSettledResult<ExtractionResult<T>>,
+  sourceUrl: string
 ): ExtractionResult<T> {
   if (result.status === "fulfilled") return result.value;
   return {
     success: false,
     data: null,
     error: result.reason instanceof Error ? result.reason.message : "Unknown error",
-    source_url: "",
+    source_url: sourceUrl,
   };
 }
 
@@ -204,10 +205,10 @@ export async function crawlAndExtract(
       extractSocial(html, markdown, normalizedUrl),
     ]);
 
-  const orgResult = settledValue(orgSettled);
-  const voiceResult = settledValue(voiceSettled);
-  const brandResult = settledValue(brandSettled);
-  const socialResult = settledValue(socialSettled);
+  const orgResult = settledValue(orgSettled, normalizedUrl);
+  const voiceResult = settledValue(voiceSettled, normalizedUrl);
+  const brandResult = settledValue(brandSettled, normalizedUrl);
+  const socialResult = settledValue(socialSettled, normalizedUrl);
 
   // ── Step 3: Build and submit Proposals ──
   const proposals: ProposalInsert[] = [];
@@ -265,18 +266,22 @@ export async function crawlAndExtract(
     );
   }
 
-  // Submit all proposals
+  // Submit all proposals in parallel
   const submittedIds: string[] = [];
   const evalResults: EvaluationResult[] = [];
 
-  for (const proposal of proposals) {
-    try {
-      const { proposalId, result } = await submitProposal(admin, proposal);
-      submittedIds.push(proposalId);
-      evalResults.push(result);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Unknown error";
-      console.error(`Failed to submit proposal for ${proposal.target_layer}:`, message);
+  const settled = await Promise.allSettled(
+    proposals.map((p) => submitProposal(admin, p))
+  );
+
+  for (let i = 0; i < settled.length; i++) {
+    const outcome = settled[i];
+    if (outcome.status === "fulfilled") {
+      submittedIds.push(outcome.value.proposalId);
+      evalResults.push(outcome.value.result);
+    } else {
+      const message = outcome.reason instanceof Error ? outcome.reason.message : "Unknown error";
+      console.error(`Failed to submit proposal for ${proposals[i].target_layer}:`, message);
     }
   }
 
