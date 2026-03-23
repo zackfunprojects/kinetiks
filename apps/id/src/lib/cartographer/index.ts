@@ -1,4 +1,4 @@
-export { crawlAndExtract } from "./crawl";
+export { crawlAndExtract, buildProposal } from "./crawl";
 export { extractBrand } from "./extract-brand";
 export { extractOrg } from "./extract-org";
 export { extractVoice } from "./extract-voice";

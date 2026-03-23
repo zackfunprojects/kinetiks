@@ -38,16 +38,17 @@ function createFirecrawlClient(): Firecrawl {
 /**
  * Build a Proposal insert record for a given layer extraction.
  */
-function buildProposal(
+export function buildProposal(
   accountId: string,
   targetLayer: ContextLayer,
   payload: Record<string, unknown>,
-  url: string
+  url: string,
+  operator: string = "cartographer_crawl"
 ): ProposalInsert {
   return {
     account_id: accountId,
     source_app: "cartographer",
-    source_operator: "cartographer_crawl",
+    source_operator: operator,
     target_layer: targetLayer,
     action: "add",
     confidence: "inferred",
@@ -56,7 +57,7 @@ function buildProposal(
       {
         type: "url",
         value: url,
-        context: `Extracted from website crawl of ${url}`,
+        context: `Extracted from ${url}`,
         date: new Date().toISOString(),
       },
     ],
@@ -85,7 +86,15 @@ async function submitProposal(
     throw new Error(`Failed to insert proposal: ${error?.message ?? "no data returned"}`);
   }
 
-  const fullProposal = data as unknown as Proposal;
+  // Runtime validation of required fields before casting
+  const row = data as Record<string, unknown>;
+  if (typeof row.id !== "string" || typeof row.status !== "string") {
+    throw new Error(
+      `Invalid proposal row returned: missing id or status (got id=${typeof row.id}, status=${typeof row.status})`
+    );
+  }
+
+  const fullProposal = row as unknown as Proposal;
   const result = await evaluateProposal(admin, fullProposal);
   return { proposalId: fullProposal.id, result };
 }
@@ -100,7 +109,7 @@ async function logCrawlToLedger(
   success: boolean,
   proposalCount: number
 ): Promise<void> {
-  await admin.from("kinetiks_ledger").insert({
+  const { error } = await admin.from("kinetiks_ledger").insert({
     account_id: accountId,
     event_type: "cartographer_crawl",
     source_app: "cartographer",
@@ -112,6 +121,13 @@ async function logCrawlToLedger(
       crawled_at: new Date().toISOString(),
     },
   });
+
+  if (error) {
+    console.error(
+      `Failed to log crawl to ledger (account=${accountId}, url=${url}):`,
+      error.message
+    );
+  }
 }
 
 /**

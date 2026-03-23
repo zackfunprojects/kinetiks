@@ -70,7 +70,14 @@ export async function POST(request: Request) {
     );
   }
 
-  const accountId = account.id as string;
+  if (typeof account.id !== "string") {
+    return NextResponse.json(
+      { error: "Invalid account data" },
+      { status: 500 }
+    );
+  }
+
+  const accountId = account.id;
 
   // Rate limit: check for recent crawl events (within last 5 minutes)
   const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();

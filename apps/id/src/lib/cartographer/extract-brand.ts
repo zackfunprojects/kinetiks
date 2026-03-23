@@ -294,11 +294,12 @@ function detectLogos(html: string, baseUrl: string): {
   wordmark_url: string | null;
   icon_url: string | null;
 } {
-  // Look for img tags within header/nav or with logo-related attributes
+  // Look for img tags within header/nav, with logo-related attributes, or with logo filenames
   const logoPatterns = [
     /<(?:header|nav)[^>]*>[\s\S]*?<img[^>]+src="([^"]+)"[^>]*>/gi,
     /<img[^>]+(?:class|id|alt)="[^"]*logo[^"]*"[^>]+src="([^"]+)"/gi,
     /<img[^>]+src="([^"]+)"[^>]+(?:class|id|alt)="[^"]*logo[^"]*"/gi,
+    /<img[^>]+src="([^"]*logo(?:[-_]?[^"]*)?\.(?:svg|png|jpg|jpeg|gif|ico))"/gi,
   ];
 
   const logoUrls: string[] = [];

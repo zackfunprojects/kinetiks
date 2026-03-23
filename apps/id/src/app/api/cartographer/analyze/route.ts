@@ -7,6 +7,7 @@ import { extractBrand } from "@/lib/cartographer/extract-brand";
 import { extractOrg } from "@/lib/cartographer/extract-org";
 import { extractVoice } from "@/lib/cartographer/extract-voice";
 import { extractSocial } from "@/lib/cartographer/extract-social";
+import { buildProposal } from "@/lib/cartographer/crawl";
 import type { ProposalInsert } from "@/lib/cartographer/types";
 import { NextResponse } from "next/server";
 
@@ -20,6 +21,15 @@ const VALID_LAYERS: ContextLayer[] = [
   "market",
   "brand",
 ];
+
+/** Layers that require markdown content. */
+const MARKDOWN_LAYERS: ContextLayer[] = ["org", "products", "voice"];
+/** Layers that require HTML content. */
+const HTML_LAYERS: ContextLayer[] = ["brand"];
+/** Layers that work with either content type. */
+const EITHER_LAYERS: ContextLayer[] = ["narrative"];
+
+const OPERATOR = "cartographer_analyze";
 
 /**
  * POST /api/cartographer/analyze
@@ -107,17 +117,40 @@ export async function POST(request: Request) {
     );
   }
 
-  const accountId = account.id as string;
+  if (typeof account.id !== "string") {
+    return NextResponse.json(
+      { error: "Invalid account data" },
+      { status: 500 }
+    );
+  }
+
+  const accountId = account.id;
   const url = source_url ?? "direct-upload";
 
   // Determine what to extract based on content type and requested layers
   const shouldExtract = (layer: ContextLayer): boolean => {
-    if (!layers) return true; // Extract all if not specified
+    if (!layers) return true;
     return layers.includes(layer);
   };
 
   const markdown = content_type === "markdown" ? content : "";
   const html = content_type === "html" ? content : "";
+
+  // Compute compatibility warnings for requested layers vs content type
+  const warnings: string[] = [];
+  const requestedLayers = layers ?? VALID_LAYERS;
+  for (const layer of requestedLayers) {
+    if (MARKDOWN_LAYERS.includes(layer) && !markdown) {
+      warnings.push(
+        `Layer "${layer}" requires markdown content but content_type is "html" - skipped`
+      );
+    }
+    if (HTML_LAYERS.includes(layer) && !html) {
+      warnings.push(
+        `Layer "${layer}" requires HTML content but content_type is "markdown" - skipped`
+      );
+    }
+  }
 
   const results: Record<string, unknown> = {};
   const proposals: ProposalInsert[] = [];
@@ -128,30 +161,14 @@ export async function POST(request: Request) {
     results.org = orgResult;
     if (orgResult.success && orgResult.data) {
       if (orgResult.data.org && Object.keys(orgResult.data.org).length > 1) {
-        proposals.push({
-          account_id: accountId,
-          source_app: "cartographer",
-          source_operator: "cartographer_analyze",
-          target_layer: "org",
-          action: "add",
-          confidence: "inferred",
-          payload: orgResult.data.org as Record<string, unknown>,
-          evidence: [{ type: "url", value: url, context: "Extracted from provided content", date: new Date().toISOString() }],
-          expires_at: null,
-        });
+        proposals.push(
+          buildProposal(accountId, "org", orgResult.data.org as Record<string, unknown>, url, OPERATOR)
+        );
       }
       if (orgResult.data.products?.products && orgResult.data.products.products.length > 0) {
-        proposals.push({
-          account_id: accountId,
-          source_app: "cartographer",
-          source_operator: "cartographer_analyze",
-          target_layer: "products",
-          action: "add",
-          confidence: "inferred",
-          payload: orgResult.data.products as unknown as Record<string, unknown>,
-          evidence: [{ type: "url", value: url, context: "Extracted from provided content", date: new Date().toISOString() }],
-          expires_at: null,
-        });
+        proposals.push(
+          buildProposal(accountId, "products", orgResult.data.products as unknown as Record<string, unknown>, url, OPERATOR)
+        );
       }
     }
   }
@@ -160,17 +177,9 @@ export async function POST(request: Request) {
     const voiceResult = await extractVoice(markdown, url);
     results.voice = voiceResult;
     if (voiceResult.success && voiceResult.data) {
-      proposals.push({
-        account_id: accountId,
-        source_app: "cartographer",
-        source_operator: "cartographer_analyze",
-        target_layer: "voice",
-        action: "add",
-        confidence: "inferred",
-        payload: voiceResult.data as Record<string, unknown>,
-        evidence: [{ type: "url", value: url, context: "Extracted from provided content", date: new Date().toISOString() }],
-        expires_at: null,
-      });
+      proposals.push(
+        buildProposal(accountId, "voice", voiceResult.data as Record<string, unknown>, url, OPERATOR)
+      );
     }
   }
 
@@ -178,17 +187,9 @@ export async function POST(request: Request) {
     const brandResult = await extractBrand(html, url);
     results.brand = brandResult;
     if (brandResult.success && brandResult.data) {
-      proposals.push({
-        account_id: accountId,
-        source_app: "cartographer",
-        source_operator: "cartographer_analyze",
-        target_layer: "brand",
-        action: "add",
-        confidence: "inferred",
-        payload: brandResult.data as Record<string, unknown>,
-        evidence: [{ type: "url", value: url, context: "Extracted from provided HTML", date: new Date().toISOString() }],
-        expires_at: null,
-      });
+      proposals.push(
+        buildProposal(accountId, "brand", brandResult.data as Record<string, unknown>, url, OPERATOR)
+      );
     }
   }
 
@@ -196,17 +197,9 @@ export async function POST(request: Request) {
     const socialResult = await extractSocial(html, markdown, url);
     results.narrative = socialResult;
     if (socialResult.success && socialResult.data?.narrative_hints && Object.keys(socialResult.data.narrative_hints).length > 0) {
-      proposals.push({
-        account_id: accountId,
-        source_app: "cartographer",
-        source_operator: "cartographer_analyze",
-        target_layer: "narrative",
-        action: "add",
-        confidence: "inferred",
-        payload: socialResult.data.narrative_hints as Record<string, unknown>,
-        evidence: [{ type: "url", value: url, context: "Extracted from provided content", date: new Date().toISOString() }],
-        expires_at: null,
-      });
+      proposals.push(
+        buildProposal(accountId, "narrative", socialResult.data.narrative_hints as Record<string, unknown>, url, OPERATOR)
+      );
     }
   }
 
@@ -226,23 +219,33 @@ export async function POST(request: Request) {
         .select("*")
         .single();
 
-      if (error || !data) continue;
+      if (error || !data) {
+        console.error(
+          `Failed to insert proposal for layer "${proposal.target_layer}" (account=${accountId}):`,
+          error?.message ?? "no data returned"
+        );
+        continue;
+      }
 
       const fullProposal = data as unknown as Proposal;
       const result = await evaluateProposal(admin, fullProposal);
       submittedIds.push(fullProposal.id);
       evalResults.push(result);
     } catch (err) {
-      console.error("Proposal submission failed:", err);
+      const message = err instanceof Error ? err.message : "Unknown error";
+      console.error(
+        `Proposal submission failed for layer "${proposal.target_layer}" (account=${accountId}):`,
+        message
+      );
     }
   }
 
   // Log to ledger
-  await admin.from("kinetiks_ledger").insert({
+  const { error: ledgerError } = await admin.from("kinetiks_ledger").insert({
     account_id: accountId,
     event_type: "cartographer_analyze",
     source_app: "cartographer",
-    source_operator: "cartographer_analyze",
+    source_operator: OPERATOR,
     detail: {
       source_url: url,
       content_type,
@@ -251,9 +254,17 @@ export async function POST(request: Request) {
     },
   });
 
+  if (ledgerError) {
+    console.error(
+      `Failed to log analyze event to ledger (account=${accountId}, url=${url}, content_type=${content_type}):`,
+      ledgerError.message
+    );
+  }
+
   return NextResponse.json({
     extractions: results,
     proposals_submitted: submittedIds,
     evaluation_results: evalResults,
+    ...(warnings.length > 0 ? { warnings } : {}),
   });
 }

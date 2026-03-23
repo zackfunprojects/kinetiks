@@ -50,12 +50,12 @@ const SOCIAL_PLATFORMS: Array<{
 function extractSocialLinks(html: string): Record<string, string> {
   const links: Record<string, string> = {};
 
-  // Extract all href values from anchor tags
-  const hrefRegex = /href="([^"]+)"/gi;
+  // Extract all href values from anchor tags (both single and double quotes)
+  const hrefRegex = /href=(["'])([^"']+)\1/gi;
   const hrefs: string[] = [];
   let match: RegExpExecArray | null;
   while ((match = hrefRegex.exec(html)) !== null) {
-    hrefs.push(match[1]);
+    hrefs.push(match[2]);
   }
 
   for (const href of hrefs) {
