@@ -300,15 +300,28 @@ async function mergeProposal(
   // Determine the source label for this data
   const source = `synapse:${proposal.source_app}`;
 
-  await admin
-    .from(tableName)
-    .update({
-      data: mergedData,
-      source,
-      source_detail: proposal.source_operator ?? proposal.source_app,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("account_id", proposal.account_id);
+  if (existing) {
+    // Row exists - update it
+    await admin
+      .from(tableName)
+      .update({
+        data: mergedData,
+        source,
+        source_detail: proposal.source_operator ?? proposal.source_app,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("account_id", proposal.account_id);
+  } else {
+    // No row - insert a new one
+    await admin
+      .from(tableName)
+      .insert({
+        account_id: proposal.account_id,
+        data: mergedData,
+        source,
+        source_detail: proposal.source_operator ?? proposal.source_app,
+      });
+  }
 }
 
 /**
@@ -353,19 +366,18 @@ async function routeAfterAccept(
 
   await admin.from("kinetiks_routing_events").insert(routingEvents);
 
-  // Log routing
-  for (const event of routingEvents) {
-    await admin.from("kinetiks_ledger").insert({
-      account_id: proposal.account_id,
-      event_type: "routing_sent",
-      source_app: proposal.source_app,
-      target_layer: proposal.target_layer,
-      detail: {
-        target_app: event.target_app,
-        proposal_id: proposal.id,
-      },
-    });
-  }
+  // Log routing (batched insert)
+  const ledgerEntries = routingEvents.map((event) => ({
+    account_id: proposal.account_id,
+    event_type: "routing_sent",
+    source_app: proposal.source_app,
+    target_layer: proposal.target_layer,
+    detail: {
+      target_app: event.target_app,
+      proposal_id: proposal.id,
+    },
+  }));
+  await admin.from("kinetiks_ledger").insert(ledgerEntries);
 
   return true;
 }

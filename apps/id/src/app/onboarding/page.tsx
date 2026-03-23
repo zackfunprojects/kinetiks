@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 
 interface Account {
@@ -24,8 +24,12 @@ function OnboardingContent() {
   const [account, setAccount] = useState<Account | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const hasInitRef = useRef(false);
 
   useEffect(() => {
+    if (hasInitRef.current) return;
+    hasInitRef.current = true;
+
     async function initAccount() {
       try {
         const res = await fetch("/api/account/create", { method: "POST" });

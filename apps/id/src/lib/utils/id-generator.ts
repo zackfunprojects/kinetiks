@@ -37,14 +37,25 @@ export function generateCodename(): string {
 export async function generateUniqueCodename(
   isAvailable: (codename: string) => Promise<boolean>
 ): Promise<string> {
-  const maxAttempts = 20;
-  for (let i = 0; i < maxAttempts; i++) {
+  // Phase 1: try base codenames (adjective-animal)
+  const maxBaseAttempts = 20;
+  for (let i = 0; i < maxBaseAttempts; i++) {
     const codename = generateCodename();
     if (await isAvailable(codename)) {
       return codename;
     }
   }
-  // Fallback: append random digits
-  const codename = `${generateCodename()}-${Math.floor(Math.random() * 999)}`;
-  return codename;
+
+  // Phase 2: append random digits and verify uniqueness
+  const maxSuffixAttempts = 20;
+  for (let i = 0; i < maxSuffixAttempts; i++) {
+    const codename = `${generateCodename()}-${Math.floor(Math.random() * 9999)}`;
+    if (await isAvailable(codename)) {
+      return codename;
+    }
+  }
+
+  throw new Error(
+    "Failed to generate a unique codename after 40 attempts. This likely indicates a collision-heavy namespace."
+  );
 }

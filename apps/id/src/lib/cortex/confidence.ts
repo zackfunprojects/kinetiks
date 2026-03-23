@@ -131,14 +131,14 @@ export async function recalculateConfidence(
     aggregate: Math.round(aggregate * 100) / 100,
   };
 
-  // Persist to database
+  // Persist to database (upsert to handle missing rows)
   await admin
     .from("kinetiks_confidence")
-    .update({
+    .upsert({
+      account_id: accountId,
       ...scores,
       updated_at: new Date().toISOString(),
-    })
-    .eq("account_id", accountId);
+    }, { onConflict: "account_id" });
 
   return scores;
 }

@@ -2,6 +2,7 @@
 
 import { Suspense, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
 export default function SignupPage() {
@@ -198,9 +199,12 @@ function SignupForm() {
 
         <p style={{ textAlign: "center", marginTop: 20, fontSize: 13, color: "#666" }}>
           Already have an account?{" "}
-          <a href="/login" style={{ color: "#6C5CE7", textDecoration: "none" }}>
+          <Link
+            href={fromApp ? `/login?from=${encodeURIComponent(fromApp)}` : "/login"}
+            style={{ color: "#6C5CE7", textDecoration: "none" }}
+          >
             Log in
-          </a>
+          </Link>
         </p>
       </div>
     </main>

@@ -2,7 +2,26 @@
 
 import { Suspense, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+
+/**
+ * Validate a redirect target is a safe same-origin relative path.
+ * Returns the path if safe, or "/" as fallback.
+ */
+function validateRedirect(redirect: string | null): string {
+  if (!redirect) return "/";
+  // Block absolute URLs, protocol-relative, and non-path values
+  if (redirect.startsWith("//")) return "/";
+  if (!redirect.startsWith("/")) return "/";
+  try {
+    const url = new URL(redirect, window.location.origin);
+    if (url.origin !== window.location.origin) return "/";
+    return url.pathname + url.search + url.hash;
+  } catch {
+    return "/";
+  }
+}
 
 export default function LoginPage() {
   return (
@@ -16,11 +35,20 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const redirect = searchParams.get("redirect");
+  const from = searchParams.get("from");
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Build signup URL preserving both redirect and from params
+  const signupParams = new URLSearchParams();
+  if (from) signupParams.set("from", from);
+  if (redirect) signupParams.set("redirect", redirect);
+  const signupHref = signupParams.toString()
+    ? `/signup?${signupParams.toString()}`
+    : "/signup";
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -40,7 +68,8 @@ function LoginForm() {
     }
 
     // Redirect to where they came from, or dashboard
-    router.push(redirect ?? "/");
+    const safeRedirect = validateRedirect(redirect);
+    router.push(safeRedirect);
     router.refresh();
   }
 
@@ -158,10 +187,10 @@ function LoginForm() {
         </form>
 
         <p style={{ textAlign: "center", marginTop: 20, fontSize: 13, color: "#666" }}>
-          Don't have an account?{" "}
-          <a href="/signup" style={{ color: "#6C5CE7", textDecoration: "none" }}>
+          Don&apos;t have an account?{" "}
+          <Link href={signupHref} style={{ color: "#6C5CE7", textDecoration: "none" }}>
             Sign up
-          </a>
+          </Link>
         </p>
       </div>
     </main>

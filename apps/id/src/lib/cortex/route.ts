@@ -177,20 +177,19 @@ export async function executeRoutes(
 
   await admin.from("kinetiks_routing_events").insert(routingEvents);
 
-  // Log each routing event
-  for (const event of routingEvents) {
-    await admin.from("kinetiks_ledger").insert({
-      account_id: accountId,
-      event_type: "routing_sent",
-      source_app: sourceApp,
-      target_layer: targetLayer,
-      detail: {
-        target_app: event.target_app,
-        proposal_id: proposalId,
-        relevance_note: event.relevance_note,
-      },
-    });
-  }
+  // Log routing events (batched insert)
+  const ledgerEntries = routingEvents.map((event) => ({
+    account_id: accountId,
+    event_type: "routing_sent",
+    source_app: sourceApp,
+    target_layer: targetLayer,
+    detail: {
+      target_app: event.target_app,
+      proposal_id: proposalId,
+      relevance_note: event.relevance_note,
+    },
+  }));
+  await admin.from("kinetiks_ledger").insert(ledgerEntries);
 
   return toRoute.length;
 }

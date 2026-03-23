@@ -11,23 +11,24 @@
     "clean": "rm -rf .next"
   },
   "dependencies": {
-    "@kinetiks/types": "workspace:*",
-    "@kinetiks/ui": "workspace:*",
+    "@kinetiks/ai": "workspace:*",
     "@kinetiks/supabase": "workspace:*",
     "@kinetiks/synapse": "workspace:*",
-    "@kinetiks/ai": "workspace:*",
-    "@supabase/supabase-js": "^2.49.0",
+    "@kinetiks/types": "workspace:*",
+    "@kinetiks/ui": "workspace:*",
     "@supabase/ssr": "^0.5.0",
+    "@supabase/supabase-js": "^2.49.0",
     "next": "14.2.23",
     "react": "^18.3.0",
-    "react-dom": "^18.3.0"
+    "react-dom": "^18.3.0",
+    "server-only": "^0.0.1"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "^4.0.0",
     "@types/node": "^20.0.0",
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
-    "typescript": "^5.7.0",
     "tailwindcss": "^4.0.0",
-    "@tailwindcss/postcss": "^4.0.0"
+    "typescript": "^5.7.0"
   }
 }

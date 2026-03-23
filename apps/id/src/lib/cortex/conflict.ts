@@ -9,6 +9,7 @@ const SOURCE_PRIORITY: Record<string, number> = {
   user_explicit: 5,
   user_implicit: 4,
   validated: 3,
+  synapse: 2,
   inferred: 2,
   speculative: 1,
 };
@@ -58,8 +59,24 @@ export async function detectConflict(
     .eq("account_id", proposal.account_id)
     .single();
 
-  if (error || !existing) {
-    // No existing data - no conflict
+  // Distinguish DB errors from "no row"
+  if (error) {
+    // PGRST116 = "no rows returned" from .single() - this is expected for empty layers
+    if (error.code === "PGRST116") {
+      return {
+        has_conflict: false,
+        action: "accept",
+        reason: null,
+        existing_source: null,
+      };
+    }
+    // Actual DB error - don't silently accept, surface the issue
+    throw new Error(
+      `Conflict detection failed for ${tableName}: ${error.message} (code: ${error.code})`
+    );
+  }
+
+  if (!existing) {
     return {
       has_conflict: false,
       action: "accept",
@@ -98,11 +115,12 @@ export async function detectConflict(
   }
 
   // There are conflicting fields - apply ownership hierarchy
-  const existingPriority = SOURCE_PRIORITY[existingSource] ?? 0;
-  const proposalPriority =
-    CONFIDENCE_PRIORITY[proposal.confidence] ??
-    SOURCE_PRIORITY[`synapse:${proposal.source_app}`] ??
-    1;
+  // Normalize synapse sources: "synapse:dark_madder" -> "synapse"
+  const normalizedExistingSource = existingSource.startsWith("synapse:")
+    ? "synapse"
+    : existingSource;
+  const existingPriority = SOURCE_PRIORITY[normalizedExistingSource] ?? 0;
+  const proposalPriority = CONFIDENCE_PRIORITY[proposal.confidence] ?? 1;
 
   // Rule 1: User explicit data is SACRED
   if (existingSource === "user_explicit") {
@@ -171,10 +189,37 @@ function findConflictingFields(
     }
 
     // Values exist in both - this is a conflict
-    if (JSON.stringify(existingVal) !== JSON.stringify(proposed[key])) {
+    if (!deepEqual(existingVal, proposed[key])) {
       conflicts.push(key);
     }
   }
 
   return conflicts;
+}
+
+/**
+ * Deep equality check that is order-agnostic for object keys.
+ */
+function deepEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (a === null || b === null) return false;
+  if (typeof a !== typeof b) return false;
+
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length !== b.length) return false;
+    return a.every((val, i) => deepEqual(val, b[i]));
+  }
+
+  if (typeof a === "object" && typeof b === "object") {
+    const aObj = a as Record<string, unknown>;
+    const bObj = b as Record<string, unknown>;
+    const aKeys = Object.keys(aObj).sort();
+    const bKeys = Object.keys(bObj).sort();
+    if (aKeys.length !== bKeys.length) return false;
+    return aKeys.every(
+      (key, i) => key === bKeys[i] && deepEqual(aObj[key], bObj[key])
+    );
+  }
+
+  return false;
 }

@@ -61,6 +61,23 @@ export async function POST(request: Request) {
 
   const admin = createAdminClient();
 
+  // If not service role, verify the user owns the target account
+  if (!isServiceRole && user) {
+    const { data: account } = await admin
+      .from("kinetiks_accounts")
+      .select("id")
+      .eq("id", account_id)
+      .eq("user_id", user.id)
+      .single();
+
+    if (!account) {
+      return NextResponse.json(
+        { error: "Forbidden: account does not belong to you" },
+        { status: 403 }
+      );
+    }
+  }
+
   const routedCount = await executeRoutes(
     admin,
     account_id,

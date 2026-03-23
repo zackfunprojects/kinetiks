@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export default function DashboardLayout({
   children,
 }: {
@@ -28,7 +30,7 @@ export default function DashboardLayout({
               { href: "/settings", label: "Settings" },
             ].map((item) => (
               <li key={item.href} style={{ marginBottom: 8 }}>
-                <a
+                <Link
                   href={item.href}
                   style={{
                     color: "#333",
@@ -37,7 +39,7 @@ export default function DashboardLayout({
                   }}
                 >
                   {item.label}
-                </a>
+                </Link>
               </li>
             ))}
           </ul>

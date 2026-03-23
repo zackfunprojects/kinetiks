@@ -65,6 +65,30 @@ export async function POST(request: Request) {
     );
   }
 
+  // If not service role, verify the authenticated user owns all proposals
+  if (!isServiceRole && user) {
+    // Get account IDs the user owns
+    const { data: userAccounts } = await admin
+      .from("kinetiks_accounts")
+      .select("id")
+      .eq("user_id", user.id);
+
+    const ownedAccountIds = new Set(
+      (userAccounts ?? []).map((a) => a.id as string)
+    );
+
+    const unauthorizedProposal = proposals.find(
+      (p) => !ownedAccountIds.has(p.account_id as string)
+    );
+
+    if (unauthorizedProposal) {
+      return NextResponse.json(
+        { error: "Forbidden: proposal does not belong to your account" },
+        { status: 403 }
+      );
+    }
+  }
+
   // Evaluate each proposal
   const results = [];
   const affectedAccounts = new Set<string>();

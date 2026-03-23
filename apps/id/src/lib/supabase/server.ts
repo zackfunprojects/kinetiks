@@ -1,8 +1,16 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
+function getCookieDomain(): string | undefined {
+  if (process.env.COOKIE_DOMAIN) return process.env.COOKIE_DOMAIN;
+  // In production, derive from known kinetiks.ai domain
+  if (process.env.NODE_ENV === "production") return ".kinetiks.ai";
+  return undefined;
+}
+
 export function createClient() {
   const cookieStore = cookies();
+  const domain = getCookieDomain();
 
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -17,10 +25,7 @@ export function createClient() {
             cookiesToSet.forEach(({ name, value, options }) =>
               cookieStore.set(name, value, {
                 ...options,
-                domain:
-                  process.env.NODE_ENV === "production"
-                    ? ".kinetiks.ai"
-                    : undefined,
+                domain,
               })
             );
           } catch {
