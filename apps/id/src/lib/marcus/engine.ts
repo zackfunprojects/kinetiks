@@ -8,7 +8,7 @@ import { assembleContext } from "./context-assembly";
 import {
   getOrCreateThread,
   addMessage,
-  getThreadMessages,
+  getRecentThreadMessages,
   autoTitleThread,
 } from "./thread-manager";
 
@@ -41,7 +41,7 @@ export async function processMarcusMessage(
 
   // 2. Classify intent using validated thread history
   const recentMessages = threadId
-    ? (await getThreadMessages(admin, thread.id, 5)).map((m) => m.content)
+    ? (await getRecentThreadMessages(admin, thread.id, 5)).map((m) => m.content)
     : undefined;
   const intent = await classifyIntent(message, recentMessages);
 
@@ -60,7 +60,7 @@ export async function processMarcusMessage(
   const systemPrompt = buildMarcusSystemPrompt({ contextSummary });
 
   // 6. Build messages array from thread history
-  const history = await getThreadMessages(admin, thread.id, 20);
+  const history = await getRecentThreadMessages(admin, thread.id, 20);
   const conversationMessages: ConversationMessage[] = history.map((m) => ({
     role: m.role === "user" ? "user" as const : "assistant" as const,
     content: m.content,
@@ -76,8 +76,8 @@ export async function processMarcusMessage(
   // 8. Save Marcus response
   await addMessage(admin, thread.id, "marcus", responseText, channel);
 
-  // 9. Auto-title if this is the first exchange (2 messages: user + marcus)
-  if (history.length <= 2 && !thread.title) {
+  // 9. Auto-title if this is the first exchange (only the user message in history)
+  if (history.length <= 1 && !thread.title) {
     autoTitleThread(admin, thread.id).catch(() => {
       // Non-critical - don't block response
     });
@@ -108,7 +108,7 @@ export async function streamMarcusMessage(
 
   // 2. Classify intent using validated thread history
   const recentMessages = threadId
-    ? (await getThreadMessages(admin, thread.id, 5)).map((m) => m.content)
+    ? (await getRecentThreadMessages(admin, thread.id, 5)).map((m) => m.content)
     : undefined;
   const intent = await classifyIntent(message, recentMessages);
 
@@ -127,7 +127,7 @@ export async function streamMarcusMessage(
   const systemPrompt = buildMarcusSystemPrompt({ contextSummary });
 
   // 6. Build messages array from thread history
-  const history = await getThreadMessages(admin, thread.id, 20);
+  const history = await getRecentThreadMessages(admin, thread.id, 20);
   const conversationMessages: ConversationMessage[] = history.map((m) => ({
     role: m.role === "user" ? "user" as const : "assistant" as const,
     content: m.content,

@@ -53,13 +53,14 @@ Deno.serve(async () => {
       if (!response.ok) continue;
 
       const { content } = await response.json();
+      const briefContent = content ?? "";
 
       // Log to ledger
       await admin.from("kinetiks_ledger").insert({
         account_id: schedule.account_id,
         event_type: "marcus_daily_brief",
         source_operator: "marcus",
-        detail: { brief_content_length: content.length, channel: schedule.channel },
+        detail: { brief_content_length: briefContent.length, channel: schedule.channel },
       });
 
       // Calculate next send and update schedule
@@ -74,8 +75,8 @@ Deno.serve(async () => {
         .eq("id", schedule.id);
 
       processed++;
-    } catch {
-      // Continue processing other schedules
+    } catch (err) {
+      console.error(`[marcus-daily] Failed to process schedule ${schedule.id}:`, err);
     }
   }
 

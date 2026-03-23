@@ -118,6 +118,26 @@ export async function getThreadMessages(
 }
 
 /**
+ * Get the most recent messages for a thread, returned in chronological order.
+ * Fetches newest N messages (desc) then reverses so callers get chronological order.
+ */
+export async function getRecentThreadMessages(
+  admin: SupabaseClient,
+  threadId: string,
+  limit = 10
+): Promise<MarcusMessage[]> {
+  const { data, error } = await admin
+    .from("kinetiks_marcus_messages")
+    .select()
+    .eq("thread_id", threadId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (error) throw new Error(`Failed to get recent messages: ${error.message}`);
+  return ((data ?? []) as MarcusMessage[]).reverse();
+}
+
+/**
  * Auto-generate a thread title from the first exchange.
  * Uses Haiku for speed.
  */

@@ -66,8 +66,8 @@ Deno.serve(async () => {
         .eq("id", followUp.id);
 
       delivered++;
-    } catch {
-      // Continue processing other follow-ups
+    } catch (err) {
+      console.error(`[marcus-followup] Failed to process follow-up ${followUp.id}:`, err);
     }
   }
 

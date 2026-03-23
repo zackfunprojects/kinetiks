@@ -48,12 +48,13 @@ Deno.serve(async () => {
       if (!response.ok) continue;
 
       const { content } = await response.json();
+      const briefContent = content ?? "";
 
       await admin.from("kinetiks_ledger").insert({
         account_id: schedule.account_id,
         event_type: "marcus_monthly_review",
         source_operator: "marcus",
-        detail: { brief_content_length: content.length, channel: schedule.channel },
+        detail: { brief_content_length: briefContent.length, channel: schedule.channel },
       });
 
       // Next send: ~30 days
@@ -67,8 +68,8 @@ Deno.serve(async () => {
         .eq("id", schedule.id);
 
       processed++;
-    } catch {
-      // Continue
+    } catch (err) {
+      console.error(`[marcus-monthly] Failed to process schedule ${schedule.id}:`, err);
     }
   }
 
