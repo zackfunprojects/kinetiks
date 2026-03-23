@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import { OnboardingFlow } from "@/components/onboarding/OnboardingFlow";
 
 interface Account {
   id: string;
@@ -49,50 +50,25 @@ function OnboardingContent() {
     initAccount();
   }, []);
 
-  const framingText = fromApp
-    ? `Let's learn your business so ${fromApp.replace("_", " ")} can work its magic.`
-    : "Let's build your business identity.";
-
   if (loading) {
     return (
-      <main
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          minHeight: "100vh",
-          fontFamily: "system-ui, sans-serif",
-        }}
-      >
-        <p style={{ color: "#666" }}>Setting up your Kinetiks ID...</p>
+      <main className="flex min-h-screen items-center justify-center bg-[#FAFAFA]">
+        <div className="flex items-center gap-3">
+          <div className="h-4 w-4 animate-spin rounded-full border-2 border-[#6C5CE7] border-t-transparent" />
+          <p className="text-sm text-gray-500">Setting up your Kinetiks ID...</p>
+        </div>
       </main>
     );
   }
 
   if (error) {
     return (
-      <main
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          minHeight: "100vh",
-          fontFamily: "system-ui, sans-serif",
-        }}
-      >
-        <div style={{ textAlign: "center" }}>
-          <p style={{ color: "#e74c3c" }}>{error}</p>
+      <main className="flex min-h-screen items-center justify-center bg-[#FAFAFA]">
+        <div className="text-center">
+          <p className="text-sm text-red-500">{error}</p>
           <button
             onClick={() => router.push("/login")}
-            style={{
-              marginTop: 16,
-              padding: "8px 24px",
-              background: "#6C5CE7",
-              color: "#fff",
-              border: "none",
-              borderRadius: 8,
-              cursor: "pointer",
-            }}
+            className="mt-4 rounded-lg bg-[#6C5CE7] px-6 py-2.5 text-sm font-semibold text-white hover:bg-[#5b4bd6]"
           >
             Back to login
           </button>
@@ -101,90 +77,7 @@ function OnboardingContent() {
     );
   }
 
-  return (
-    <main
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        minHeight: "100vh",
-        fontFamily: "system-ui, sans-serif",
-        background: "#FAFAFA",
-      }}
-    >
-      <div
-        style={{
-          width: "100%",
-          maxWidth: 560,
-          padding: 48,
-          background: "#fff",
-          borderRadius: 16,
-          boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
-          textAlign: "center",
-        }}
-      >
-        <div
-          style={{
-            display: "inline-block",
-            padding: "6px 16px",
-            background: "#f0eeff",
-            borderRadius: 999,
-            color: "#6C5CE7",
-            fontSize: 14,
-            fontWeight: 600,
-            marginBottom: 24,
-          }}
-        >
-          {account?.codename}
-        </div>
+  if (!account) return null;
 
-        <h1 style={{ fontSize: 28, fontWeight: 700, margin: 0, color: "#111" }}>
-          Welcome to Kinetiks
-        </h1>
-        <p style={{ color: "#666", marginTop: 8, fontSize: 15, lineHeight: 1.5 }}>
-          {framingText}
-        </p>
-
-        <p
-          style={{
-            color: "#999",
-            marginTop: 32,
-            fontSize: 13,
-            fontStyle: "italic",
-          }}
-        >
-          The Cartographer onboarding experience will be built in Phase 3.
-        </p>
-
-        <button
-          onClick={() => {
-            if (fromApp === "dark_madder") {
-              window.location.href = "https://dm.kinetiks.ai";
-            } else if (fromApp === "harvest") {
-              window.location.href = "https://hv.kinetiks.ai";
-            } else if (fromApp === "hypothesis") {
-              window.location.href = "https://ht.kinetiks.ai";
-            } else if (fromApp === "litmus") {
-              window.location.href = "https://lt.kinetiks.ai";
-            } else {
-              router.push("/");
-            }
-          }}
-          style={{
-            marginTop: 24,
-            padding: "12px 32px",
-            background: "#6C5CE7",
-            color: "#fff",
-            border: "none",
-            borderRadius: 8,
-            fontSize: 14,
-            fontWeight: 600,
-            cursor: "pointer",
-          }}
-        >
-          {fromApp ? "Continue to app" : "Go to dashboard"}
-        </button>
-      </div>
-    </main>
-  );
+  return <OnboardingFlow account={account} fromApp={fromApp} />;
 }
