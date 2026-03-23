@@ -154,7 +154,26 @@ export async function crawlAndExtract(
   accountId: string,
   url: string
 ): Promise<CrawlResult> {
-  const normalizedUrl = normalizeUrl(url);
+  let normalizedUrl: string;
+  try {
+    normalizedUrl = normalizeUrl(url);
+  } catch {
+    const fallbackUrl = url.trim() || "invalid-url";
+    return {
+      url: fallbackUrl,
+      crawl_success: false,
+      extractions: {
+        org: { success: false, data: null, error: "invalid_url", source_url: fallbackUrl },
+        products: { success: false, data: null, error: "invalid_url", source_url: fallbackUrl },
+        voice: { success: false, data: null, error: "invalid_url", source_url: fallbackUrl },
+        brand: { success: false, data: null, error: "invalid_url", source_url: fallbackUrl },
+        narrative: { success: false, data: null, error: "invalid_url", source_url: fallbackUrl },
+        social_links: { success: false, data: null, error: "invalid_url", source_url: fallbackUrl },
+      },
+      proposals_submitted: [],
+      evaluation_results: [],
+    };
+  }
 
   const emptyResult = (error: string): CrawlResult => ({
     url: normalizedUrl,

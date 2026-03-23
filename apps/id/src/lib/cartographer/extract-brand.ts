@@ -22,10 +22,10 @@ function extractCSS(html: string): string {
     styleBlocks.push(match[1]);
   }
 
-  // Extract inline style attributes
-  const inlineRegex = /style="([^"]*)"/gi;
+  // Extract inline style attributes (double or single quoted)
+  const inlineRegex = /style=(["'])([^"']*)\1/gi;
   while ((match = inlineRegex.exec(html)) !== null) {
-    styleBlocks.push(match[1]);
+    styleBlocks.push(match[2]);
   }
 
   return styleBlocks.join("\n");
@@ -637,6 +637,21 @@ export async function extractBrand(
         wordmark_url: logo.wordmark_url,
         icon_url: logo.icon_url,
         monochrome_url: null,
+      };
+    }
+
+    // Check if we extracted any real data beyond defaults
+    const hasColors = Object.keys(colors).length > 0;
+    const hasTypography = Object.keys(typography).length > 0;
+    const hasLogo = logo.wordmark_url !== null || logo.icon_url !== null;
+    const hasSubjective = subjective !== null;
+
+    if (!hasColors && !hasTypography && !hasLogo && !hasSubjective) {
+      return {
+        success: false,
+        data: null,
+        error: "no_meaningful_brand_data",
+        source_url: url,
       };
     }
 
