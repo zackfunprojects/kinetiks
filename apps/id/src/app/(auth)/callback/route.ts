@@ -2,14 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-
-function getCookieDomain(request: NextRequest): string | undefined {
-  const cookieDomain = process.env.COOKIE_DOMAIN;
-  if (cookieDomain) return cookieDomain;
-  const host = request.headers.get("host") ?? "";
-  if (host.endsWith(".kinetiks.ai")) return ".kinetiks.ai";
-  return undefined;
-}
+import { getCookieDomain } from "@/lib/supabase/server";
 
 /**
  * Validate the `next` redirect param to prevent open redirects.
@@ -33,7 +26,7 @@ export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
   const next = validateRedirectPath(searchParams.get("next"), origin);
-  const domain = getCookieDomain(request);
+  const domain = getCookieDomain(request.headers.get("host") ?? undefined);
 
   if (code) {
     const cookieStore = cookies();

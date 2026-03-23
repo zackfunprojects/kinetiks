@@ -122,7 +122,12 @@ export async function POST() {
   );
 
   const failedLayers = layerResults
-    .map((r, i) => (r.status === "rejected" ? layers[i] : null))
+    .map((r, i) => {
+      if (r.status === "rejected") return layers[i];
+      // Supabase returns fulfilled promises with error field on failure
+      if (r.status === "fulfilled" && r.value?.error) return layers[i];
+      return null;
+    })
     .filter(Boolean);
 
   if (failedLayers.length > 0) {

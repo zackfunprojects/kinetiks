@@ -15,19 +15,20 @@ import { NextResponse } from "next/server";
  * Body: { proposal_id: string } or { proposal_ids: string[] }
  */
 export async function POST(request: Request) {
-  // Auth check - only authenticated users or service role
+  // Auth check - only authenticated users or internal service calls
   const serverClient = createClient();
   const {
     data: { user },
     error: authError,
   } = await serverClient.auth.getUser();
 
-  // Also check for service role header (Edge Functions)
+  // Check for dedicated internal service secret (used by Edge Functions / CRON)
   const authHeader = request.headers.get("authorization");
-  const isServiceRole =
-    authHeader === `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`;
+  const internalSecret = process.env.INTERNAL_SERVICE_SECRET;
+  const isServiceCall =
+    !!internalSecret && authHeader === `Bearer ${internalSecret}`;
 
-  if ((authError || !user) && !isServiceRole) {
+  if ((authError || !user) && !isServiceCall) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -65,9 +66,8 @@ export async function POST(request: Request) {
     );
   }
 
-  // If not service role, verify the authenticated user owns all proposals
-  if (!isServiceRole && user) {
-    // Get account IDs the user owns
+  // If not internal service call, verify the authenticated user owns all proposals
+  if (!isServiceCall && user) {
     const { data: userAccounts } = await admin
       .from("kinetiks_accounts")
       .select("id")
@@ -89,23 +89,51 @@ export async function POST(request: Request) {
     }
   }
 
-  // Evaluate each proposal
-  const results = [];
+  // Evaluate each proposal with per-proposal error handling
+  const results: Array<{
+    proposal_id: string;
+    status: string;
+    decline_reason: string | null;
+    routed: boolean;
+    error?: string;
+  }> = [];
   const affectedAccounts = new Set<string>();
 
   for (const row of proposals) {
     const proposal = row as unknown as Proposal;
-    const result = await evaluateProposal(admin, proposal);
-    results.push(result);
-
-    if (result.status === "accepted") {
-      affectedAccounts.add(proposal.account_id);
+    try {
+      const result = await evaluateProposal(admin, proposal);
+      results.push(result);
+      if (result.status === "accepted") {
+        affectedAccounts.add(proposal.account_id);
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      console.error(
+        `Failed to evaluate proposal ${proposal.id}:`,
+        message
+      );
+      results.push({
+        proposal_id: proposal.id,
+        status: "error",
+        decline_reason: null,
+        routed: false,
+        error: message,
+      });
     }
   }
 
-  // Recalculate confidence for all affected accounts
+  // Recalculate confidence for all affected accounts (individually guarded)
   for (const accountId of affectedAccounts) {
-    await recalculateConfidence(admin, accountId);
+    try {
+      await recalculateConfidence(admin, accountId);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      console.error(
+        `Failed to recalculate confidence for account ${accountId}:`,
+        message
+      );
+    }
   }
 
   return NextResponse.json({
@@ -114,5 +142,6 @@ export async function POST(request: Request) {
     accepted: results.filter((r) => r.status === "accepted").length,
     declined: results.filter((r) => r.status === "declined").length,
     escalated: results.filter((r) => r.status === "escalated").length,
+    errors: results.filter((r) => r.status === "error").length,
   });
 }

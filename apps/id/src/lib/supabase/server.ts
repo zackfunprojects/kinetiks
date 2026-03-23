@@ -1,10 +1,18 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
-function getCookieDomain(): string | undefined {
+/**
+ * Derive the cookie domain. Priority:
+ * 1. COOKIE_DOMAIN env var (explicit override)
+ * 2. Host-based detection (if host ends with .kinetiks.ai)
+ * 3. undefined (no domain restriction - works for localhost etc.)
+ */
+export function getCookieDomain(host?: string): string | undefined {
   if (process.env.COOKIE_DOMAIN) return process.env.COOKIE_DOMAIN;
-  // In production, derive from known kinetiks.ai domain
-  if (process.env.NODE_ENV === "production") return ".kinetiks.ai";
+  if (host) {
+    const hostname = host.split(":")[0]; // strip port
+    if (hostname.endsWith(".kinetiks.ai")) return ".kinetiks.ai";
+  }
   return undefined;
 }
 

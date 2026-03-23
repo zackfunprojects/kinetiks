@@ -3,6 +3,11 @@ import { SupabaseClient } from "@supabase/supabase-js";
 import { detectConflict } from "./conflict";
 
 /**
+ * Recency throttle window: don't route the same layer+app within this window.
+ */
+const RECENCY_THROTTLE_MS = 5 * 60 * 1000; // 5 minutes
+
+/**
  * Valid target layers for schema validation
  */
 const VALID_LAYERS: ContextLayer[] = [
@@ -213,13 +218,20 @@ function validateSchema(proposal: Proposal): string | null {
     return "empty_payload";
   }
 
-  // Check that at least one field matches the target layer schema
   const validFields = LAYER_FIELDS[proposal.target_layer];
   const payloadFields = Object.keys(proposal.payload);
-  const hasValidField = payloadFields.some((f) => validFields.includes(f));
 
+  // Reject unknown fields that don't belong to this layer
+  const unknownFields = payloadFields.filter((f) => !validFields.includes(f));
+  if (unknownFields.length > 0) {
+    return `unknown_payload_fields: [${unknownFields.join(", ")}] are not valid for layer '${proposal.target_layer}'. Allowed: [${validFields.join(", ")}]`;
+  }
+
+  // Check that at least one field is present (already guaranteed by empty check above,
+  // but kept for clarity)
+  const hasValidField = payloadFields.some((f) => validFields.includes(f));
   if (!hasValidField) {
-    return `invalid_payload_fields: none of [${payloadFields.join(", ")}] are valid for layer '${proposal.target_layer}'. Expected one of: [${validFields.join(", ")}]`;
+    return `invalid_payload_fields: none of [${payloadFields.join(", ")}] are valid for layer '${proposal.target_layer}'`;
   }
 
   return null;
@@ -227,12 +239,6 @@ function validateSchema(proposal: Proposal): string | null {
 
 /**
  * Step 3: Score the relevance of a proposal based on evidence quality.
- *
- * Factors:
- * - Evidence count (more evidence = higher score)
- * - Evidence recency (newer = higher)
- * - Evidence type diversity (multiple types = higher)
- * - Confidence level (validated > inferred > speculative)
  */
 function scoreRelevance(proposal: Proposal): number {
   let score = 0;
@@ -279,30 +285,33 @@ async function mergeProposal(
 ): Promise<void> {
   const tableName = `kinetiks_context_${proposal.target_layer}`;
 
-  const { data: existing } = await admin
+  const { data: existing, error: selectError } = await admin
     .from(tableName)
     .select("data")
     .eq("account_id", proposal.account_id)
     .single();
+
+  // PGRST116 = no rows, which is fine (we'll insert)
+  if (selectError && selectError.code !== "PGRST116") {
+    throw new Error(
+      `Failed to read ${tableName} for merge: ${selectError.message}`
+    );
+  }
 
   const existingData = (existing?.data as Record<string, unknown>) ?? {};
 
   let mergedData: Record<string, unknown>;
 
   if (proposal.action === "add") {
-    // Add: merge, with arrays concatenated and deduped
     mergedData = deepMerge(existingData, proposal.payload);
   } else {
-    // Update: proposal values overwrite existing (already cleared by conflict detection)
     mergedData = { ...existingData, ...proposal.payload };
   }
 
-  // Determine the source label for this data
   const source = `synapse:${proposal.source_app}`;
 
   if (existing) {
-    // Row exists - update it
-    await admin
+    const { error: updateError } = await admin
       .from(tableName)
       .update({
         data: mergedData,
@@ -311,9 +320,14 @@ async function mergeProposal(
         updated_at: new Date().toISOString(),
       })
       .eq("account_id", proposal.account_id);
+
+    if (updateError) {
+      throw new Error(
+        `Failed to update ${tableName}: ${updateError.message}`
+      );
+    }
   } else {
-    // No row - insert a new one
-    await admin
+    const { error: insertError } = await admin
       .from(tableName)
       .insert({
         account_id: proposal.account_id,
@@ -321,24 +335,38 @@ async function mergeProposal(
         source,
         source_detail: proposal.source_operator ?? proposal.source_app,
       });
+
+    if (insertError) {
+      throw new Error(
+        `Failed to insert into ${tableName}: ${insertError.message}`
+      );
+    }
   }
 }
 
 /**
  * Step 5: After accepting a proposal, create routing events for relevant Synapses.
  * Returns true if any routing events were created.
+ * Honors the 5-minute recency throttle per app+layer.
  */
 async function routeAfterAccept(
   admin: SupabaseClient,
   proposal: Proposal
 ): Promise<boolean> {
   // Get all registered Synapses for this account, excluding the source app
-  const { data: synapses } = await admin
+  const { data: synapses, error: synapseError } = await admin
     .from("kinetiks_synapses")
     .select("app_name, read_layers")
     .eq("account_id", proposal.account_id)
     .eq("status", "active")
     .neq("app_name", proposal.source_app);
+
+  if (synapseError) {
+    console.error(
+      `Failed to fetch synapses for routing: ${synapseError.message}`
+    );
+    return false;
+  }
 
   if (!synapses || synapses.length === 0) return false;
 
@@ -350,8 +378,31 @@ async function routeAfterAccept(
 
   if (relevantSynapses.length === 0) return false;
 
+  // Apply recency throttle: skip synapses that received this layer recently
+  const throttleWindow = new Date(
+    Date.now() - RECENCY_THROTTLE_MS
+  ).toISOString();
+
+  const unthrottledSynapses = [];
+  for (const synapse of relevantSynapses) {
+    const appName = synapse.app_name as string;
+    const { count } = await admin
+      .from("kinetiks_routing_events")
+      .select("id", { count: "exact", head: true })
+      .eq("account_id", proposal.account_id)
+      .eq("target_app", appName)
+      .gte("created_at", throttleWindow)
+      .contains("payload", { layer: proposal.target_layer });
+
+    if ((count ?? 0) === 0) {
+      unthrottledSynapses.push(synapse);
+    }
+  }
+
+  if (unthrottledSynapses.length === 0) return false;
+
   // Create routing events
-  const routingEvents = relevantSynapses.map((synapse) => ({
+  const routingEvents = unthrottledSynapses.map((synapse) => ({
     account_id: proposal.account_id,
     target_app: synapse.app_name,
     source_proposal_id: proposal.id,
@@ -364,7 +415,16 @@ async function routeAfterAccept(
     relevance_note: `${proposal.target_layer} ${proposal.action} from ${proposal.source_app}`,
   }));
 
-  await admin.from("kinetiks_routing_events").insert(routingEvents);
+  const { error: routeInsertError } = await admin
+    .from("kinetiks_routing_events")
+    .insert(routingEvents);
+
+  if (routeInsertError) {
+    console.error(
+      `Failed to insert routing events: ${routeInsertError.message}`
+    );
+    return false;
+  }
 
   // Log routing (batched insert)
   const ledgerEntries = routingEvents.map((event) => ({
@@ -391,7 +451,7 @@ async function updateProposalStatus(
   status: ProposalStatus,
   declineReason: string | null
 ): Promise<void> {
-  await admin
+  const { error } = await admin
     .from("kinetiks_proposals")
     .update({
       status,
@@ -400,6 +460,12 @@ async function updateProposalStatus(
       evaluated_by: "cortex",
     })
     .eq("id", proposalId);
+
+  if (error) {
+    throw new Error(
+      `Failed to update proposal ${proposalId} status: ${error.message}`
+    );
+  }
 }
 
 /**
@@ -456,7 +522,6 @@ function deepMerge(
       !Array.isArray(targetVal) &&
       targetVal !== null
     ) {
-      // Recursively merge objects
       result[key] = deepMerge(
         targetVal as Record<string, unknown>,
         sourceVal as Record<string, unknown>

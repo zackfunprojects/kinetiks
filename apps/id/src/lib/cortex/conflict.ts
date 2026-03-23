@@ -55,7 +55,7 @@ export async function detectConflict(
 
   const { data: existing, error } = await admin
     .from(tableName)
-    .select("data, source, confidence_score")
+    .select("data, source")
     .eq("account_id", proposal.account_id)
     .single();
 

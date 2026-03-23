@@ -27,11 +27,13 @@ export async function POST(request: Request) {
     error: authError,
   } = await serverClient.auth.getUser();
 
+  // Check for dedicated internal service secret (used by Edge Functions / CRON)
   const authHeader = request.headers.get("authorization");
-  const isServiceRole =
-    authHeader === `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`;
+  const internalSecret = process.env.INTERNAL_SERVICE_SECRET;
+  const isServiceCall =
+    !!internalSecret && authHeader === `Bearer ${internalSecret}`;
 
-  if ((authError || !user) && !isServiceRole) {
+  if ((authError || !user) && !isServiceCall) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -61,8 +63,8 @@ export async function POST(request: Request) {
 
   const admin = createAdminClient();
 
-  // If not service role, verify the user owns the target account
-  if (!isServiceRole && user) {
+  // If not internal service call, verify the user owns the target account
+  if (!isServiceCall && user) {
     const { data: account } = await admin
       .from("kinetiks_accounts")
       .select("id")

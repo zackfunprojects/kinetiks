@@ -76,16 +76,21 @@ export async function determineRoutes(
   admin: SupabaseClient,
   accountId: string,
   sourceApp: string,
-  targetLayer: ContextLayer,
-  proposalId: string
+  targetLayer: ContextLayer
 ): Promise<RouteDecision[]> {
   // Get all active Synapses for this account, excluding the source
-  const { data: synapses } = await admin
+  const { data: synapses, error: synapseError } = await admin
     .from("kinetiks_synapses")
     .select("app_name, read_layers")
     .eq("account_id", accountId)
     .eq("status", "active")
     .neq("app_name", sourceApp);
+
+  if (synapseError) {
+    throw new Error(
+      `Failed to fetch synapses for account ${accountId}: ${synapseError.message}`
+    );
+  }
 
   if (!synapses || synapses.length === 0) return [];
 
@@ -152,8 +157,7 @@ export async function executeRoutes(
     admin,
     accountId,
     sourceApp,
-    targetLayer,
-    proposalId
+    targetLayer
   );
 
   const toRoute = decisions.filter(
@@ -175,7 +179,15 @@ export async function executeRoutes(
     relevance_note: decision.relevance_note,
   }));
 
-  await admin.from("kinetiks_routing_events").insert(routingEvents);
+  const { error: routeError } = await admin
+    .from("kinetiks_routing_events")
+    .insert(routingEvents);
+
+  if (routeError) {
+    throw new Error(
+      `Failed to insert routing events: ${routeError.message}`
+    );
+  }
 
   // Log routing events (batched insert)
   const ledgerEntries = routingEvents.map((event) => ({
@@ -189,13 +201,24 @@ export async function executeRoutes(
       relevance_note: event.relevance_note,
     },
   }));
-  await admin.from("kinetiks_ledger").insert(ledgerEntries);
+
+  const { error: ledgerError } = await admin
+    .from("kinetiks_ledger")
+    .insert(ledgerEntries);
+
+  if (ledgerError) {
+    // Routing events were already inserted - log but don't fail
+    console.error(
+      `Failed to log routing events to ledger: ${ledgerError.message}`
+    );
+  }
 
   return toRoute.length;
 }
 
 /**
  * Check if we've already routed this layer to this app recently.
+ * Fails closed (returns true = throttled) on DB errors to prevent flooding.
  */
 async function checkRecencyThrottle(
   admin: SupabaseClient,
@@ -207,13 +230,28 @@ async function checkRecencyThrottle(
     Date.now() - RECENCY_THROTTLE_MS
   ).toISOString();
 
-  const { count } = await admin
-    .from("kinetiks_routing_events")
-    .select("id", { count: "exact", head: true })
-    .eq("account_id", accountId)
-    .eq("target_app", targetApp)
-    .gte("created_at", throttleWindow)
-    .contains("payload", { layer: targetLayer });
+  try {
+    const { count, error } = await admin
+      .from("kinetiks_routing_events")
+      .select("id", { count: "exact", head: true })
+      .eq("account_id", accountId)
+      .eq("target_app", targetApp)
+      .gte("created_at", throttleWindow)
+      .contains("payload", { layer: targetLayer });
 
-  return (count ?? 0) > 0;
+    if (error) {
+      console.error(
+        `Recency throttle query failed for ${targetApp}/${targetLayer}: ${error.message}`
+      );
+      return true; // Fail closed - throttle on error
+    }
+
+    return (count ?? 0) > 0;
+  } catch (err) {
+    console.error(
+      `Recency throttle check threw for ${targetApp}/${targetLayer}:`,
+      err
+    );
+    return true; // Fail closed
+  }
 }

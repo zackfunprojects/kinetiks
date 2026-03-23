@@ -130,7 +130,6 @@ function LoginForm() {
                 border: "1px solid #ddd",
                 borderRadius: 8,
                 fontSize: 14,
-                outline: "none",
                 boxSizing: "border-box",
               }}
             />
@@ -155,7 +154,6 @@ function LoginForm() {
                 border: "1px solid #ddd",
                 borderRadius: 8,
                 fontSize: 14,
-                outline: "none",
                 boxSizing: "border-box",
               }}
             />
