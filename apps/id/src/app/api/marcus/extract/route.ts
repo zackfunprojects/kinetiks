@@ -2,6 +2,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { extractActions, executeActions } from "@/lib/marcus/action-extractor";
 import { assembleContext } from "@/lib/marcus/context-assembly";
+import { timingSafeCompare } from "@/lib/utils/timing-safe";
 import { NextResponse } from "next/server";
 
 /**
@@ -23,13 +24,20 @@ export async function POST(request: Request) {
   const authHeader = request.headers.get("authorization");
   const internalSecret = process.env.INTERNAL_SERVICE_SECRET;
   const isServiceCall =
-    !!internalSecret && authHeader === `Bearer ${internalSecret}`;
+    !!internalSecret &&
+    !!authHeader &&
+    timingSafeCompare(authHeader, `Bearer ${internalSecret}`);
 
   if ((authError || !user) && !isServiceCall) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const body = await request.json();
+  let body: Record<string, unknown>;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
   const { thread_id } = body;
 
   if (typeof thread_id !== "string" || !thread_id) {
@@ -43,7 +51,7 @@ export async function POST(request: Request) {
 
   // Get account ID
   let accountId: string;
-  if (isServiceCall && body.account_id) {
+  if (isServiceCall && typeof body.account_id === "string") {
     accountId = body.account_id;
   } else if (user) {
     const { data: account } = await admin

@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { MarcusIntent, ContextBudget } from "@kinetiks/types";
 import { CONTEXT_BUDGETS } from "@kinetiks/types";
 import { getThreadMessages } from "./thread-manager";
+import { searchDocs } from "./docs-search";
 
 /**
  * Approximate token count from character count.
@@ -77,6 +78,12 @@ export async function assembleContext(
     if (history) sections.push(history);
   }
 
+  // Load docs for support queries
+  if (budget.docs > 0) {
+    const docsContext = assembleDocs(threadId ?? "", budget.docs);
+    if (docsContext) sections.push(docsContext);
+  }
+
   return sections.join("\n\n");
 }
 
@@ -87,13 +94,17 @@ async function assembleLayerSummary(
   intent: MarcusIntent
 ): Promise<string> {
   const parts: string[] = [];
-  const budgetPerLayer = Math.floor(tokenBudget / LAYER_TABLES.length);
 
-  // For tactical intents, prioritize certain layers
+  // Distribute budget so priority layers get 2x share while staying within total.
+  // If 4 priority + 4 normal layers: 4*2 + 4*1 = 12 shares, each share = budget/12.
+  // Priority layers get budget/6, normal get budget/12. Total = budget.
   const priorityLayers = getPriorityLayers(intent);
+  const totalShares =
+    priorityLayers.length * 2 + (LAYER_TABLES.length - priorityLayers.length);
+  const shareSize = Math.floor(tokenBudget / totalShares);
 
   for (const layer of LAYER_TABLES) {
-    const { data } = await admin
+    const { data, error } = await admin
       .from(`kinetiks_context_${layer}`)
       .select("data, confidence_score, source")
       .eq("account_id", accountId)
@@ -101,11 +112,11 @@ async function assembleLayerSummary(
       .limit(1)
       .single();
 
-    if (!data?.data || Object.keys(data.data).length === 0) continue;
+    if (error || !data?.data || Object.keys(data.data).length === 0) continue;
 
     const layerBudget = priorityLayers.includes(layer)
-      ? budgetPerLayer * 2
-      : budgetPerLayer;
+      ? shareSize * 2
+      : shareSize;
 
     const content = JSON.stringify(data.data, null, 0);
     const truncated = truncateToTokenBudget(content, layerBudget);
@@ -220,4 +231,17 @@ async function assembleHistory(
   );
 
   return truncateToTokenBudget(lines.join("\n"), tokenBudget);
+}
+
+function assembleDocs(query: string, tokenBudget: number): string {
+  try {
+    const results = searchDocs(query, 3);
+    if (results.length === 0) return "";
+    return truncateToTokenBudget(
+      `DOCUMENTATION:\n${results.join("\n\n")}`,
+      tokenBudget
+    );
+  } catch {
+    return "";
+  }
 }

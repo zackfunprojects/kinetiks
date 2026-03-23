@@ -191,6 +191,7 @@ export async function listThreads(
 
 /**
  * Search threads by message content (basic text search).
+ * Scoped to account by joining through threads first, preventing cross-account leaks.
  */
 export async function searchThreads(
   admin: SupabaseClient,
@@ -198,23 +199,37 @@ export async function searchThreads(
   query: string,
   limit = 20
 ): Promise<MarcusThread[]> {
-  // First find matching message thread IDs
+  // Escape LIKE wildcards in user input to prevent unintended matching
+  const escapedQuery = query.replace(/[%_\\]/g, "\\$&");
+
+  // First get this account's thread IDs to scope the message search
+  const { data: accountThreads, error: threadLookupError } = await admin
+    .from("kinetiks_marcus_threads")
+    .select("id")
+    .eq("account_id", accountId);
+
+  if (threadLookupError || !accountThreads?.length) return [];
+
+  const accountThreadIds = accountThreads.map((t) => t.id);
+
+  // Search messages only within this account's threads
   const { data: messages, error: msgError } = await admin
     .from("kinetiks_marcus_messages")
     .select("thread_id")
-    .ilike("content", `%${query}%`)
+    .in("thread_id", accountThreadIds)
+    .ilike("content", `%${escapedQuery}%`)
     .limit(limit);
 
   if (msgError || !messages?.length) return [];
 
-  const threadIds = [...new Set(messages.map((m) => m.thread_id))];
+  const matchedThreadIds = [...new Set(messages.map((m) => m.thread_id))];
 
-  // Then load those threads, filtered by account
+  // Load the matching threads
   const { data: threads, error: threadError } = await admin
     .from("kinetiks_marcus_threads")
     .select()
     .eq("account_id", accountId)
-    .in("id", threadIds)
+    .in("id", matchedThreadIds)
     .order("updated_at", { ascending: false });
 
   if (threadError) return [];
@@ -223,16 +238,20 @@ export async function searchThreads(
 
 /**
  * Toggle pin status on a thread.
+ * Requires accountId to verify ownership.
  */
 export async function togglePin(
   admin: SupabaseClient,
+  accountId: string,
   threadId: string,
   pinned: boolean
 ): Promise<void> {
-  const { error } = await admin
+  const { error, count } = await admin
     .from("kinetiks_marcus_threads")
     .update({ pinned })
-    .eq("id", threadId);
+    .eq("id", threadId)
+    .eq("account_id", accountId);
 
   if (error) throw new Error(`Failed to toggle pin: ${error.message}`);
+  if (count === 0) throw new Error("Thread not found");
 }

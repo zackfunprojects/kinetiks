@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import type { MarcusThread, MarcusMessage, ExtractedAction } from "@kinetiks/types";
+import type { MarcusThread, MarcusMessage } from "@kinetiks/types";
 import { MessageBubble } from "./MessageBubble";
 import { ThreadSidebar } from "./ThreadSidebar";
 
@@ -17,12 +17,22 @@ export function MarcusChat({ initialThreads }: MarcusChatProps) {
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingText, setStreamingText] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
   useEffect(scrollToBottom, [messages, streamingText]);
+
+  // Cleanup abort controller on unmount
+  useEffect(() => {
+    return () => {
+      abortControllerRef.current?.abort();
+      if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    };
+  }, []);
 
   // Load messages when thread changes
   const loadMessages = useCallback(async (threadId: string) => {
@@ -39,44 +49,42 @@ export function MarcusChat({ initialThreads }: MarcusChatProps) {
 
   const handleSelectThread = useCallback(
     (threadId: string) => {
+      // Abort any in-flight stream when switching threads
+      abortControllerRef.current?.abort();
       setCurrentThreadId(threadId);
       setStreamingText("");
+      setIsStreaming(false);
       loadMessages(threadId);
     },
     [loadMessages]
   );
 
   const handleNewThread = useCallback(() => {
+    abortControllerRef.current?.abort();
     setCurrentThreadId(undefined);
     setMessages([]);
     setStreamingText("");
+    setIsStreaming(false);
   }, []);
 
+  // Debounced search - waits 300ms after last keystroke
   const handleSearch = useCallback(async (query: string) => {
-    if (!query.trim()) {
-      // Reload all threads
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+
+    searchTimeoutRef.current = setTimeout(async () => {
+      const url = query.trim()
+        ? `/api/marcus/threads?search=${encodeURIComponent(query)}`
+        : "/api/marcus/threads";
       try {
-        const res = await fetch("/api/marcus/threads");
+        const res = await fetch(url);
         if (res.ok) {
           const data = await res.json();
           setThreads(data.threads ?? []);
         }
       } catch {
-        // Use initial threads
+        // Keep current threads
       }
-      return;
-    }
-    try {
-      const res = await fetch(
-        `/api/marcus/threads?search=${encodeURIComponent(query)}`
-      );
-      if (res.ok) {
-        const data = await res.json();
-        setThreads(data.threads ?? []);
-      }
-    } catch {
-      // Keep current threads
-    }
+    }, 300);
   }, []);
 
   const handleSend = async () => {
@@ -86,6 +94,11 @@ export function MarcusChat({ initialThreads }: MarcusChatProps) {
     setInput("");
     setIsStreaming(true);
     setStreamingText("");
+
+    // Abort any previous stream
+    abortControllerRef.current?.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
     // Optimistically add user message
     const userMsg: MarcusMessage = {
@@ -109,6 +122,7 @@ export function MarcusChat({ initialThreads }: MarcusChatProps) {
           thread_id: currentThreadId,
           channel: "web",
         }),
+        signal: controller.signal,
       });
 
       if (!res.ok || !res.body) {
@@ -119,46 +133,66 @@ export function MarcusChat({ initialThreads }: MarcusChatProps) {
       const decoder = new TextDecoder();
       let fullText = "";
       let threadId = currentThreadId;
+      let lineBuffer = ""; // Buffer for incomplete SSE lines across chunks
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
 
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split("\n");
+          // Append new chunk to buffer, then split into lines
+          lineBuffer += decoder.decode(value, { stream: true });
+          const lines = lineBuffer.split("\n");
+          // Keep the last (potentially incomplete) line in the buffer
+          lineBuffer = lines.pop() ?? "";
 
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          const jsonStr = line.slice(6).trim();
-          if (!jsonStr) continue;
+          for (const line of lines) {
+            if (!line.startsWith("data: ")) continue;
+            const jsonStr = line.slice(6).trim();
+            if (!jsonStr) continue;
 
-          try {
-            const event = JSON.parse(jsonStr);
+            try {
+              const event = JSON.parse(jsonStr);
 
-            if (event.type === "thread_id") {
-              threadId = event.thread_id;
-              if (!currentThreadId) {
-                setCurrentThreadId(threadId);
-              }
-            } else if (event.type === "text") {
-              fullText += event.text;
-              setStreamingText(fullText);
-            } else if (event.type === "extraction") {
-              // Add extraction disclosure as part of the message
-              if (event.disclosure) {
-                fullText += `\n\n---\n${event.disclosure}`;
+              if (event.type === "thread_id") {
+                threadId = event.thread_id;
+                if (!currentThreadId) {
+                  setCurrentThreadId(threadId);
+                }
+              } else if (event.type === "text") {
+                fullText += event.text;
+                setStreamingText(fullText);
+              } else if (event.type === "extraction") {
+                if (event.disclosure) {
+                  fullText += `\n\n---\n${event.disclosure}`;
+                  setStreamingText(fullText);
+                }
+              } else if (event.type === "error") {
+                fullText += `\n\n[Error: ${event.error}]`;
                 setStreamingText(fullText);
               }
-            } else if (event.type === "done") {
-              // Stream complete
-            } else if (event.type === "error") {
-              fullText += `\n\n[Error: ${event.error}]`;
-              setStreamingText(fullText);
+            } catch {
+              // Skip malformed SSE events
             }
-          } catch {
-            // Skip malformed SSE events
           }
         }
+
+        // Process any remaining data in the buffer
+        if (lineBuffer.startsWith("data: ")) {
+          const jsonStr = lineBuffer.slice(6).trim();
+          if (jsonStr) {
+            try {
+              const event = JSON.parse(jsonStr);
+              if (event.type === "text") {
+                fullText += event.text;
+              }
+            } catch {
+              // Skip
+            }
+          }
+        }
+      } finally {
+        reader.releaseLock();
       }
 
       // Add the complete Marcus message
@@ -175,13 +209,21 @@ export function MarcusChat({ initialThreads }: MarcusChatProps) {
       setMessages((prev) => [...prev, marcusMsg]);
       setStreamingText("");
 
-      // Refresh thread list
-      const threadRes = await fetch("/api/marcus/threads");
-      if (threadRes.ok) {
-        const threadData = await threadRes.json();
-        setThreads(threadData.threads ?? []);
+      // Refresh thread list (separate try/catch so failures don't show error to user)
+      try {
+        const threadRes = await fetch("/api/marcus/threads");
+        if (threadRes.ok) {
+          const threadData = await threadRes.json();
+          setThreads(threadData.threads ?? []);
+        }
+      } catch {
+        // Non-critical - thread list will refresh on next action
       }
-    } catch {
+    } catch (err) {
+      // Don't show error if we intentionally aborted (thread switch / unmount)
+      if (err instanceof DOMException && err.name === "AbortError") {
+        return;
+      }
       setMessages((prev) => [
         ...prev,
         {
@@ -296,6 +338,7 @@ export function MarcusChat({ initialThreads }: MarcusChatProps) {
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Ask Marcus anything..."
+              aria-label="Message Marcus"
               rows={1}
               style={{
                 flex: 1,

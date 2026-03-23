@@ -17,15 +17,16 @@ import {
  *
  * Pipeline:
  * 1. Get or create thread (validates ownership)
- * 2. Classify intent
- * 3. Save user message
- * 4. Assemble context (token-budgeted per intent)
- * 5. Build system prompt
- * 6. Build messages array from thread history
- * 7. Generate response
- * 8. Save Marcus response
- * 9. Auto-title thread if first exchange
- * 10. Return response
+ * 2. Fetch prior history (before saving new message to avoid duplication)
+ * 3. Classify intent
+ * 4. Save user message
+ * 5. Assemble context (token-budgeted per intent)
+ * 6. Build system prompt
+ * 7. Build messages array from history + new user message
+ * 8. Generate response
+ * 9. Save Marcus response
+ * 10. Auto-title thread if first exchange
+ * 11. Return response
  *
  * Action extraction happens separately after response delivery (see action-extractor.ts).
  */
@@ -39,16 +40,17 @@ export async function processMarcusMessage(
   // 1. Get or create thread (validates ownership before any reads)
   const thread = await getOrCreateThread(admin, accountId, threadId, channel);
 
-  // 2. Classify intent using validated thread history
-  const recentMessages = threadId
-    ? (await getRecentThreadMessages(admin, thread.id, 5)).map((m) => m.content)
-    : undefined;
-  const intent = await classifyIntent(message, recentMessages);
+  // 2. Fetch prior history BEFORE saving user message to avoid duplication
+  const history = await getRecentThreadMessages(admin, thread.id, 20);
 
-  // 3. Save user message
+  // 3. Classify intent using recent history
+  const recentContent = history.slice(-5).map((m) => m.content);
+  const intent = await classifyIntent(message, recentContent.length > 0 ? recentContent : undefined);
+
+  // 4. Save user message (after history fetch to prevent it appearing in history)
   await addMessage(admin, thread.id, "user", message, channel);
 
-  // 4. Assemble context
+  // 5. Assemble context
   const contextSummary = await assembleContext(
     admin,
     accountId,
@@ -56,34 +58,36 @@ export async function processMarcusMessage(
     thread.id
   );
 
-  // 5. Build system prompt
+  // 6. Build system prompt
   const systemPrompt = buildMarcusSystemPrompt({ contextSummary });
 
-  // 6. Build messages array from thread history
-  const history = await getRecentThreadMessages(admin, thread.id, 20);
-  const conversationMessages: ConversationMessage[] = history.map((m) => ({
-    role: m.role === "user" ? "user" as const : "assistant" as const,
-    content: m.content,
-  }));
+  // 7. Build messages array: prior history + new user message
+  const conversationMessages: ConversationMessage[] = [
+    ...history.map((m) => ({
+      role: m.role === "user" ? "user" as const : "assistant" as const,
+      content: m.content,
+    })),
+    { role: "user" as const, content: message },
+  ];
 
-  // 7. Generate response
+  // 8. Generate response
   const responseText = await askClaudeMultiTurn(conversationMessages, {
     system: systemPrompt,
     model: "claude-sonnet-4-20250514",
     maxTokens: 2048,
   });
 
-  // 8. Save Marcus response
+  // 9. Save Marcus response
   await addMessage(admin, thread.id, "marcus", responseText, channel);
 
-  // 9. Auto-title if this is the first exchange (only the user message in history)
-  if (history.length <= 1 && !thread.title) {
+  // 10. Auto-title if this is the first exchange (no prior history)
+  if (history.length === 0 && !thread.title) {
     autoTitleThread(admin, thread.id).catch(() => {
       // Non-critical - don't block response
     });
   }
 
-  // 10. Return
+  // 11. Return
   return {
     thread_id: thread.id,
     message: responseText,
@@ -106,16 +110,17 @@ export async function streamMarcusMessage(
   // 1. Get or create thread (validates ownership before any reads)
   const thread = await getOrCreateThread(admin, accountId, threadId, channel);
 
-  // 2. Classify intent using validated thread history
-  const recentMessages = threadId
-    ? (await getRecentThreadMessages(admin, thread.id, 5)).map((m) => m.content)
-    : undefined;
-  const intent = await classifyIntent(message, recentMessages);
+  // 2. Fetch prior history BEFORE saving user message to avoid duplication
+  const history = await getRecentThreadMessages(admin, thread.id, 20);
 
-  // 3. Save user message
+  // 3. Classify intent using recent history
+  const recentContent = history.slice(-5).map((m) => m.content);
+  const intent = await classifyIntent(message, recentContent.length > 0 ? recentContent : undefined);
+
+  // 4. Save user message (after history fetch)
   await addMessage(admin, thread.id, "user", message, channel);
 
-  // 4. Assemble context
+  // 5. Assemble context
   const contextSummary = await assembleContext(
     admin,
     accountId,
@@ -123,17 +128,19 @@ export async function streamMarcusMessage(
     thread.id
   );
 
-  // 5. Build system prompt
+  // 6. Build system prompt
   const systemPrompt = buildMarcusSystemPrompt({ contextSummary });
 
-  // 6. Build messages array from thread history
-  const history = await getRecentThreadMessages(admin, thread.id, 20);
-  const conversationMessages: ConversationMessage[] = history.map((m) => ({
-    role: m.role === "user" ? "user" as const : "assistant" as const,
-    content: m.content,
-  }));
+  // 7. Build messages array: prior history + new user message
+  const conversationMessages: ConversationMessage[] = [
+    ...history.map((m) => ({
+      role: m.role === "user" ? "user" as const : "assistant" as const,
+      content: m.content,
+    })),
+    { role: "user" as const, content: message },
+  ];
 
-  // 7. Create streaming response
+  // 8. Create streaming response
   const claudeStream = streamClaude(conversationMessages, {
     system: systemPrompt,
     model: "claude-sonnet-4-20250514",
@@ -141,6 +148,7 @@ export async function streamMarcusMessage(
   });
 
   let fullResponse = "";
+  const isFirstExchange = history.length === 0 && !thread.title;
 
   const readableStream = new ReadableStream({
     async start(controller) {
@@ -170,7 +178,7 @@ export async function streamMarcusMessage(
         await addMessage(admin, thread.id, "marcus", fullResponse, channel);
 
         // Auto-title if first exchange
-        if (history.length <= 1 && !thread.title) {
+        if (isFirstExchange) {
           autoTitleThread(admin, thread.id).catch(() => {});
         }
 

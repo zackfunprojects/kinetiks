@@ -1,7 +1,17 @@
 "use client";
 
 import type { ExtractedAction } from "@kinetiks/types";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+
+// Inject blink keyframes once
+let blinkInjected = false;
+function injectBlinkKeyframes() {
+  if (blinkInjected || typeof document === "undefined") return;
+  const style = document.createElement("style");
+  style.textContent = `@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }`;
+  document.head.appendChild(style);
+  blinkInjected = true;
+}
 
 interface MessageBubbleProps {
   role: "user" | "marcus";
@@ -20,6 +30,10 @@ export function MessageBubble({
 }: MessageBubbleProps) {
   const [showActions, setShowActions] = useState(false);
   const isUser = role === "user";
+
+  useEffect(() => {
+    if (isStreaming) injectBlinkKeyframes();
+  }, [isStreaming]);
 
   return (
     <div
@@ -64,6 +78,7 @@ export function MessageBubble({
           <div style={{ marginTop: 8, borderTop: "1px solid rgba(0,0,0,0.1)", paddingTop: 8 }}>
             <button
               onClick={() => setShowActions(!showActions)}
+              aria-expanded={showActions}
               style={{
                 background: "none",
                 border: "none",
@@ -86,12 +101,12 @@ export function MessageBubble({
                     )}
                     {action.type === "brief" && (
                       <span>
-                        Brief to {action.target_app}: {action.content.slice(0, 60)}
+                        Brief to {action.target_app}: {(action.content ?? "").slice(0, 60)}
                       </span>
                     )}
                     {action.type === "follow_up" && (
                       <span>
-                        Follow-up in {action.delay_hours}h: {action.message.slice(0, 60)}
+                        Follow-up in {action.delay_hours}h: {(action.message ?? "").slice(0, 60)}
                       </span>
                     )}
                   </li>

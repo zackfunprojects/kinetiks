@@ -22,13 +22,43 @@ const SCHEDULE_DESCRIPTIONS: Record<string, string> = {
     "Comprehensive performance analysis, Context Structure evolution, strategic adjustments.",
 };
 
+/**
+ * Convert a cron expression to a human-readable string.
+ * Handles common patterns; falls back to the raw expression.
+ */
+function cronToHuman(cron: string): string {
+  const parts = cron.trim().split(/\s+/);
+  if (parts.length !== 5) return cron;
+
+  const [minute, hour, , , dow] = parts;
+
+  const hourNum = parseInt(hour, 10);
+  const minuteNum = parseInt(minute, 10);
+  if (isNaN(hourNum) || isNaN(minuteNum)) return cron;
+
+  const period = hourNum >= 12 ? "PM" : "AM";
+  const displayHour = hourNum === 0 ? 12 : hourNum > 12 ? hourNum - 12 : hourNum;
+  const displayMin = minuteNum.toString().padStart(2, "0");
+  const timeStr = `${displayHour}:${displayMin} ${period}`;
+
+  if (dow === "*") return `Daily at ${timeStr}`;
+  if (dow === "1-5") return `Weekdays at ${timeStr}`;
+  if (dow === "0" || dow === "7") return `Sundays at ${timeStr}`;
+  if (dow === "1") return `Mondays at ${timeStr}`;
+
+  return `${timeStr} (${cron})`;
+}
+
 export function SchedulesConfig({ schedules }: SchedulesConfigProps) {
   const [localSchedules, setLocalSchedules] =
     useState<MarcusSchedule[]>(schedules);
-  const [saving, setSaving] = useState<string | null>(null);
+  // Track separate saving states for toggle and send-now to prevent collisions
+  const [savingToggle, setSavingToggle] = useState<string | null>(null);
+  const [savingSendNow, setSavingSendNow] = useState<string | null>(null);
+  const [sendNowStatus, setSendNowStatus] = useState<Record<string, "success" | "error">>({});
 
   const handleToggle = async (schedule: MarcusSchedule) => {
-    setSaving(schedule.id);
+    setSavingToggle(schedule.id);
     try {
       const res = await fetch(`/api/marcus/schedules/${schedule.id}`, {
         method: "PATCH",
@@ -43,20 +73,24 @@ export function SchedulesConfig({ schedules }: SchedulesConfigProps) {
         );
       }
     } finally {
-      setSaving(null);
+      setSavingToggle(null);
     }
   };
 
   const handleSendNow = async (type: string) => {
-    setSaving(type);
+    setSavingSendNow(type);
+    setSendNowStatus((prev) => ({ ...prev, [type]: undefined as unknown as "success" }));
     try {
-      await fetch("/api/marcus/brief", {
+      const res = await fetch("/api/marcus/brief", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type }),
       });
+      setSendNowStatus((prev) => ({ ...prev, [type]: res.ok ? "success" : "error" }));
+    } catch {
+      setSendNowStatus((prev) => ({ ...prev, [type]: "error" }));
     } finally {
-      setSaving(null);
+      setSavingSendNow(null);
     }
   };
 
@@ -86,22 +120,28 @@ export function SchedulesConfig({ schedules }: SchedulesConfigProps) {
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
               <button
                 onClick={() => handleSendNow(schedule.type)}
-                disabled={saving === schedule.type}
+                disabled={savingSendNow === schedule.type}
                 style={{
                   padding: "6px 12px",
                   border: "1px solid #e5e5ea",
                   borderRadius: 6,
                   background: "#fff",
                   fontSize: 12,
-                  cursor: "pointer",
+                  cursor: savingSendNow === schedule.type ? "not-allowed" : "pointer",
                   color: "#6C5CE7",
                 }}
               >
-                Send Now
+                {savingSendNow === schedule.type
+                  ? "Sending..."
+                  : sendNowStatus[schedule.type] === "success"
+                    ? "Sent"
+                    : sendNowStatus[schedule.type] === "error"
+                      ? "Failed"
+                      : "Send Now"}
               </button>
               <button
                 onClick={() => handleToggle(schedule)}
-                disabled={saving === schedule.id}
+                disabled={savingToggle === schedule.id}
                 style={{
                   padding: "6px 16px",
                   border: "none",
@@ -109,7 +149,7 @@ export function SchedulesConfig({ schedules }: SchedulesConfigProps) {
                   backgroundColor: schedule.enabled ? "#6C5CE7" : "#e5e5ea",
                   color: schedule.enabled ? "#fff" : "#666",
                   fontSize: 12,
-                  cursor: "pointer",
+                  cursor: savingToggle === schedule.id ? "not-allowed" : "pointer",
                   fontWeight: 500,
                 }}
               >
@@ -131,7 +171,7 @@ export function SchedulesConfig({ schedules }: SchedulesConfigProps) {
             }}
           >
             <div>
-              <strong>Schedule:</strong> {schedule.schedule}
+              <strong>Schedule:</strong> {cronToHuman(schedule.schedule)}
             </div>
             <div>
               <strong>Channel:</strong> {schedule.channel}
