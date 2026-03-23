@@ -17,7 +17,13 @@ let cachedIndex: DocChunk[] | null = null;
 export function loadDocsIndex(): DocChunk[] {
   if (cachedIndex) return cachedIndex;
 
-  const docsDir = join(process.cwd(), "../../docs");
+  // Try multiple paths to find docs - process.cwd() varies between dev and Vercel
+  const candidates = [
+    join(process.cwd(), "docs"),
+    join(process.cwd(), "../../docs"),
+    join(process.cwd(), "../docs"),
+  ];
+  const docsDir = candidates.find((d) => existsSync(d)) ?? candidates[0];
 
   if (!existsSync(docsDir)) {
     cachedIndex = [];
@@ -102,18 +108,20 @@ export function searchDocs(query: string, limit = 3): string[] {
 
   if (queryWords.length === 0) return [];
 
-  // Score each chunk by keyword matches
+  // Score each chunk by keyword matches (using indexOf for safety - no regex on user input)
   const scored = index.map((chunk) => {
     const lower = chunk.content.toLowerCase();
     let score = 0;
 
     for (const word of queryWords) {
-      // Count occurrences
-      const regex = new RegExp(word, "gi");
-      const matches = lower.match(regex);
-      if (matches) {
-        score += matches.length;
+      // Count occurrences using indexOf to avoid ReDoS from user input
+      let pos = 0;
+      let count = 0;
+      while ((pos = lower.indexOf(word, pos)) !== -1) {
+        count++;
+        pos += word.length;
       }
+      score += count;
     }
 
     // Boost chunks that match multiple query words

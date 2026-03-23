@@ -8,6 +8,7 @@ import {
   buildWeeklyDigestPrompt,
   buildMonthlyReviewPrompt,
 } from "@/lib/ai/prompts/marcus-brief";
+import { timingSafeCompare } from "@/lib/utils/timing-safe";
 import type { MarcusScheduleType } from "@kinetiks/types";
 
 /**
@@ -29,13 +30,20 @@ export async function POST(request: Request) {
   const authHeader = request.headers.get("authorization");
   const internalSecret = process.env.INTERNAL_SERVICE_SECRET;
   const isServiceCall =
-    !!internalSecret && authHeader === `Bearer ${internalSecret}`;
+    !!internalSecret &&
+    !!authHeader &&
+    timingSafeCompare(authHeader, `Bearer ${internalSecret}`);
 
   if ((authError || !user) && !isServiceCall) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const body = await request.json();
+  let body: Record<string, unknown>;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
   const { type, account_id: bodyAccountId } = body as {
     type?: MarcusScheduleType;
     account_id?: string;
@@ -58,7 +66,7 @@ export async function POST(request: Request) {
 
   // Resolve account
   let accountId: string;
-  if (isServiceCall && bodyAccountId) {
+  if (isServiceCall && typeof bodyAccountId === "string" && bodyAccountId) {
     accountId = bodyAccountId;
   } else if (user) {
     const { data: account } = await admin

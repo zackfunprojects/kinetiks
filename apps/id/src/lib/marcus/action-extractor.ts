@@ -183,17 +183,17 @@ export async function executeActions(
           } catch {
             // Non-critical - proposal stays as submitted
           }
-        }
 
-        disclosures.push(
-          `Updated ${action.target_layer} layer (${action.action}, ${action.confidence}): ${action.evidence_summary}`
-        );
+          disclosures.push(
+            `Proposed ${action.action} to ${action.target_layer} layer (${action.confidence}): ${action.evidence_summary}`
+          );
+        }
         break;
       }
 
       case "brief": {
         // Create routing event for the target app
-        await admin.from("kinetiks_routing_events").insert({
+        const { error: briefError } = await admin.from("kinetiks_routing_events").insert({
           account_id: accountId,
           target_app: action.target_app,
           payload: {
@@ -204,9 +204,11 @@ export async function executeActions(
           relevance_note: `Marcus brief: ${action.content.slice(0, 100)}`,
         });
 
-        disclosures.push(
-          `Queued brief for ${action.target_app}: ${action.content.slice(0, 80)}`
-        );
+        if (!briefError) {
+          disclosures.push(
+            `Queued brief for ${action.target_app}: ${action.content.slice(0, 80)}`
+          );
+        }
         break;
       }
 
@@ -215,16 +217,18 @@ export async function executeActions(
           Date.now() + action.delay_hours * 60 * 60 * 1000
         ).toISOString();
 
-        await admin.from("kinetiks_marcus_follow_ups").insert({
+        const { error: followUpError } = await admin.from("kinetiks_marcus_follow_ups").insert({
           account_id: accountId,
           thread_id: threadId,
           message: action.message,
           scheduled_for: scheduledFor,
         });
 
-        disclosures.push(
-          `Scheduled follow-up in ${action.delay_hours}h: ${action.message.slice(0, 80)}`
-        );
+        if (!followUpError) {
+          disclosures.push(
+            `Scheduled follow-up in ${action.delay_hours}h: ${action.message.slice(0, 80)}`
+          );
+        }
         break;
       }
     }
