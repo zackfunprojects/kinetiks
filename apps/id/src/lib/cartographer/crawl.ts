@@ -14,9 +14,20 @@ import type { CrawlResult, ExtractionResult, ProposalInsert } from "./types";
  */
 function normalizeUrl(url: string): string {
   let normalized = url.trim();
-  if (!normalized.startsWith("http://") && !normalized.startsWith("https://")) {
+
+  // Check if a scheme already exists (case-insensitive)
+  const schemeMatch = normalized.match(/^([a-zA-Z][a-zA-Z0-9+.-]*):\/\//);
+  if (schemeMatch) {
+    const scheme = schemeMatch[1].toLowerCase();
+    if (scheme !== "http" && scheme !== "https") {
+      throw new Error(`Unsupported URL scheme: ${schemeMatch[1]}`);
+    }
+    // Normalize scheme to lowercase
+    normalized = `${scheme}${normalized.slice(schemeMatch[1].length)}`;
+  } else {
     normalized = `https://${normalized}`;
   }
+
   // Validate by constructing a URL object
   new URL(normalized);
   return normalized;
@@ -67,6 +78,8 @@ export function buildProposal(
 
 /**
  * Insert a proposal into the database and evaluate it through the Cortex pipeline.
+ * Insert failures throw. Evaluation failures are captured and returned so the
+ * caller always gets the proposal ID when the insert succeeded.
  */
 async function submitProposal(
   admin: SupabaseClient,
@@ -94,9 +107,26 @@ async function submitProposal(
     );
   }
 
+  const proposalId = row.id as string;
   const fullProposal = row as unknown as Proposal;
-  const result = await evaluateProposal(admin, fullProposal);
-  return { proposalId: fullProposal.id, result };
+
+  // Evaluation errors are captured, not thrown - the insert already succeeded
+  try {
+    const result = await evaluateProposal(admin, fullProposal);
+    return { proposalId, result };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    console.error(`Proposal ${proposalId} inserted but evaluation failed:`, message);
+    return {
+      proposalId,
+      result: {
+        proposal_id: proposalId,
+        status: "submitted",
+        decline_reason: `evaluation_error: ${message}`,
+        routed: false,
+      },
+    };
+  }
 }
 
 /**
@@ -311,30 +341,20 @@ export async function crawlAndExtract(
     url: normalizedUrl,
     crawl_success: true,
     extractions: {
-      org: orgResult.success && orgResult.data?.org
+      org: orgResult.data?.org && Object.keys(orgResult.data.org).length > 0
         ? { success: true, data: orgResult.data.org, error: null, source_url: normalizedUrl }
-        : { success: false, data: null, error: orgResult.error, source_url: normalizedUrl },
-      products: orgResult.success && orgResult.data?.products
+        : { success: false, data: null, error: orgResult.error ?? "no_org_data", source_url: normalizedUrl },
+      products: orgResult.data?.products?.products && orgResult.data.products.products.length > 0
         ? { success: true, data: orgResult.data.products, error: null, source_url: normalizedUrl }
-        : { success: false, data: null, error: orgResult.error, source_url: normalizedUrl },
+        : { success: false, data: null, error: orgResult.error ?? "no_products_data", source_url: normalizedUrl },
       voice: voiceResult,
       brand: brandResult,
-      narrative: socialResult.success && socialResult.data?.narrative_hints
-        ? {
-            success: Object.keys(socialResult.data.narrative_hints).length > 0,
-            data: socialResult.data.narrative_hints,
-            error: null,
-            source_url: normalizedUrl,
-          }
-        : { success: false, data: null, error: socialResult.error, source_url: normalizedUrl },
-      social_links: socialResult.success && socialResult.data?.social_links
-        ? {
-            success: Object.keys(socialResult.data.social_links).length > 0,
-            data: socialResult.data.social_links,
-            error: null,
-            source_url: normalizedUrl,
-          }
-        : { success: false, data: null, error: socialResult.error, source_url: normalizedUrl },
+      narrative: socialResult.data?.narrative_hints && Object.keys(socialResult.data.narrative_hints).length > 0
+        ? { success: true, data: socialResult.data.narrative_hints, error: null, source_url: normalizedUrl }
+        : { success: false, data: null, error: socialResult.error ?? "no_narrative_data", source_url: normalizedUrl },
+      social_links: socialResult.data?.social_links && Object.keys(socialResult.data.social_links).length > 0
+        ? { success: true, data: socialResult.data.social_links, error: null, source_url: normalizedUrl }
+        : { success: false, data: null, error: socialResult.error ?? "no_social_links", source_url: normalizedUrl },
     },
     proposals_submitted: submittedIds,
     evaluation_results: evalResults,
