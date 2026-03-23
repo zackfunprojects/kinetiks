@@ -151,7 +151,7 @@ kinetiks_marcus_follow_ups (
 )
 ```
 
-RLS: all tables with account_id use a policy that joins to kinetiks_accounts to verify ownership: `account_id IN (SELECT id FROM kinetiks_accounts WHERE user_id = auth.uid())`. For kinetiks_marcus_messages (which has no account_id), the policy joins through kinetiks_marcus_threads: `thread_id IN (SELECT id FROM kinetiks_marcus_threads WHERE account_id IN (SELECT id FROM kinetiks_accounts WHERE user_id = auth.uid()))`. Service role for CRON Edge Functions (brief generation, follow-up delivery).
+RLS: all tables policy on account_id matching auth.uid(). Service role for CRON Edge Functions (brief generation, follow-up delivery).
 
 ---
 
@@ -239,7 +239,7 @@ Marcus provides value from day 1 even with minimal Context Structure - it can en
 
 Add to the related documents list:
 - **Marcus Operator Spec** - conversational intelligence, Aurelius persona, Slack integration, scheduled comms, action extraction, Phase 1b build plan
-- **Marcus Core Prompt.md** - the actual system prompt file for the codebase (static persona + dynamic injection points)
+- **marcus-core-prompt.md** - the actual system prompt file for the codebase (static persona + dynamic injection points)
 
 ---
 
@@ -247,4 +247,4 @@ Add to the related documents list:
 
 These files should be placed in the docs/ folder of the monorepo:
 - `docs/Marcus_Operator_Spec.docx` - full specification
-- `docs/Marcus Core Prompt.md` - system prompt (goes into lib/ai/prompts/marcus-core.ts at build time)
+- `docs/marcus-core-prompt.md` - system prompt (goes into lib/ai/prompts/marcus-core.ts at build time)
