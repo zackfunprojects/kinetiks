@@ -7,6 +7,9 @@ const nextConfig = {
     "@kinetiks/synapse",
     "@kinetiks/ai",
   ],
+  experimental: {
+    serverComponentsExternalPackages: ["@mendable/firecrawl-js"],
+  },
 };
 
 module.exports = nextConfig;

@@ -24,6 +24,8 @@ function normalizeUrl(url: string): string {
 
 /**
  * Create the Firecrawl client.
+ * Note: @mendable/firecrawl-js is listed in serverExternalPackages in next.config.js
+ * to avoid webpack bundling issues with its `undici` dependency.
  */
 function createFirecrawlClient(): Firecrawl {
   const apiKey = process.env.FIRECRAWL_API_KEY;
