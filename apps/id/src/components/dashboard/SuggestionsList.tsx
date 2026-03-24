@@ -1,3 +1,6 @@
+"use client";
+
+import Link from "next/link";
 import type { GapFinding } from "@/lib/archivist/types";
 import { LAYER_DISPLAY_NAMES } from "@/lib/utils/layer-display";
 
@@ -25,8 +28,9 @@ export function SuggestionsList({ findings }: SuggestionsListProps) {
       {findings.slice(0, 5).map((finding, i) => {
         const severity = SEVERITY_STYLES[finding.severity] || SEVERITY_STYLES.thin;
         return (
-          <div
+          <Link
             key={`${finding.layer}-${i}`}
+            href={`/context/${finding.layer}`}
             style={{
               display: "flex",
               alignItems: "flex-start",
@@ -34,6 +38,18 @@ export function SuggestionsList({ findings }: SuggestionsListProps) {
               padding: "8px 12px",
               borderRadius: 6,
               background: "var(--bg-surface-raised)",
+              textDecoration: "none",
+              transition: "background 0.15s, border-color 0.15s",
+              border: "1px solid transparent",
+              cursor: "pointer",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "var(--bg-surface-overlay)";
+              e.currentTarget.style.borderColor = "var(--border-default)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "var(--bg-surface-raised)";
+              e.currentTarget.style.borderColor = "transparent";
             }}
           >
             <div
@@ -66,7 +82,20 @@ export function SuggestionsList({ findings }: SuggestionsListProps) {
                 </span>
               </div>
             </div>
-          </div>
+            <svg
+              width={14}
+              height={14}
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="var(--text-tertiary)"
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              style={{ flexShrink: 0, marginTop: 4 }}
+            >
+              <path d="M9 18l6-6-6-6" />
+            </svg>
+          </Link>
         );
       })}
     </div>
