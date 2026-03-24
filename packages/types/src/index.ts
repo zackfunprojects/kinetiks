@@ -55,3 +55,18 @@ export type {
   DataExtractionResult,
   ConnectionSyncLog,
 } from "./connections";
+export type {
+  BillingPlan,
+  BillingPlanStatus,
+  BillingRecord,
+  AppActivationStatus,
+  KineticsAppName,
+  AppActivation,
+  SynapseStatus,
+  SynapseRecord,
+  ImportType,
+  ImportStatus,
+  ImportRecord,
+  LedgerEventType,
+  LedgerEntry,
+} from "./billing";
