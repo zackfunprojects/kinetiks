@@ -6,6 +6,7 @@
  */
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import {
   exchangeCodeForTokens,
@@ -47,6 +48,18 @@ export async function GET(request: Request) {
     return NextResponse.redirect(redirectUrl.toString());
   }
 
+  // Verify the user is authenticated before processing the callback
+  const serverClient = createClient();
+  const {
+    data: { user },
+  } = await serverClient.auth.getUser();
+
+  if (!user) {
+    const redirectUrl = new URL(connectionsUrl);
+    redirectUrl.searchParams.set("error", "not_authenticated");
+    return NextResponse.redirect(redirectUrl.toString());
+  }
+
   // Decode state
   let state: OAuthState;
   try {
@@ -73,10 +86,24 @@ export async function GET(request: Request) {
   }
 
   const provider = state.provider as ConnectionProvider;
-  const accountId = state.account_id;
   const redirectUri = `${appUrl}/api/connections/callback`;
 
   const admin = createAdminClient();
+
+  // Verify the state's account_id belongs to the authenticated user
+  const { data: account } = await admin
+    .from("kinetiks_accounts")
+    .select("id")
+    .eq("user_id", user.id)
+    .single();
+
+  if (!account || account.id !== state.account_id) {
+    const redirectUrl = new URL(connectionsUrl);
+    redirectUrl.searchParams.set("error", "account_mismatch");
+    return NextResponse.redirect(redirectUrl.toString());
+  }
+
+  const accountId = account.id;
 
   try {
     // Exchange code for tokens

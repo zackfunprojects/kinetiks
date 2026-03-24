@@ -5,7 +5,11 @@
  * which context layers they enrich, and categorization.
  */
 
-import type { ProviderDefinition, ConnectionProvider } from "@kinetiks/types";
+import type {
+  ProviderDefinition,
+  ConnectionProvider,
+  ProviderCategory,
+} from "@kinetiks/types";
 
 const PROVIDERS: Record<ConnectionProvider, ProviderDefinition> = {
   ga4: {
@@ -131,7 +135,7 @@ export function isValidProvider(value: string): value is ConnectionProvider {
  * List providers by category.
  */
 export function listProvidersByCategory(
-  category: string
+  category: ProviderCategory
 ): ProviderDefinition[] {
   return Object.values(PROVIDERS).filter((p) => p.category === category);
 }

@@ -29,6 +29,6 @@ export type {
   StoredOAuthCredentials,
   StoredApiKeyCredentials,
   ExtractionContext,
-  ExtractedProposal,
+  ConnectionExtractedProposal,
   OAuthEndpoints,
 } from "./types";

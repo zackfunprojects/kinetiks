@@ -133,18 +133,37 @@ export async function updateConnectionStatus(
   status: ConnectionStatus,
   errorMessage?: string
 ): Promise<void> {
-  const update: Record<string, unknown> = { status };
   if (errorMessage) {
-    update.metadata = { error: errorMessage };
-  }
+    // Fetch existing metadata to merge rather than overwrite
+    const { data: existing } = await admin
+      .from("kinetiks_connections")
+      .select("metadata")
+      .eq("id", connectionId)
+      .single();
 
-  const { error } = await admin
-    .from("kinetiks_connections")
-    .update(update)
-    .eq("id", connectionId);
+    const existingMeta =
+      (existing?.metadata as Record<string, unknown>) ?? {};
 
-  if (error) {
-    throw new Error(`Failed to update connection status: ${error.message}`);
+    const { error } = await admin
+      .from("kinetiks_connections")
+      .update({
+        status,
+        metadata: { ...existingMeta, error: errorMessage },
+      })
+      .eq("id", connectionId);
+
+    if (error) {
+      throw new Error(`Failed to update connection status: ${error.message}`);
+    }
+  } else {
+    const { error } = await admin
+      .from("kinetiks_connections")
+      .update({ status })
+      .eq("id", connectionId);
+
+    if (error) {
+      throw new Error(`Failed to update connection status: ${error.message}`);
+    }
   }
 }
 
@@ -194,7 +213,7 @@ export async function deleteConnection(
   admin: SupabaseClient,
   connectionId: string,
   accountId: string,
-  provider: string
+  provider: ConnectionProvider
 ): Promise<void> {
   const { error } = await admin
     .from("kinetiks_connections")

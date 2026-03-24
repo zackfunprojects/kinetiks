@@ -1,9 +1,10 @@
 -- Phase 4: Connection sync log table
 -- Tracks each data extraction attempt for auditing and debugging.
+-- connection_id is nullable with SET NULL so logs survive connection deletion.
 
 CREATE TABLE kinetiks_connection_sync_logs (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  connection_id uuid REFERENCES kinetiks_connections(id) ON DELETE CASCADE NOT NULL,
+  connection_id uuid REFERENCES kinetiks_connections(id) ON DELETE SET NULL,
   account_id uuid REFERENCES kinetiks_accounts(id) NOT NULL,
   status text NOT NULL CHECK (status IN ('success', 'error')),
   records_processed integer NOT NULL DEFAULT 0,

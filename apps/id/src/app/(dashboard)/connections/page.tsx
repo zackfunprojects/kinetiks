@@ -5,6 +5,8 @@ import { ConnectionsManager } from "@/components/connections/ConnectionsManager"
 import { listProviders } from "@/lib/connections/providers";
 import type { ConnectionPublic } from "@kinetiks/types";
 
+export const dynamic = "force-dynamic";
+
 export default async function ConnectionsPage() {
   const serverClient = createClient();
   const {
@@ -21,7 +23,7 @@ export default async function ConnectionsPage() {
     .eq("user_id", user.id)
     .single();
 
-  if (!account) redirect("/login");
+  if (!account) redirect("/login?redirect=/connections");
 
   const { data: connections } = await admin
     .from("kinetiks_connections")

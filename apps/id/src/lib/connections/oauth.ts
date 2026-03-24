@@ -172,9 +172,14 @@ export function buildAuthorizationUrl(
     response_type: "code",
     scope: endpoints.scopes.join(" "),
     state,
-    access_type: "offline",
-    prompt: "consent",
   });
+
+  // Google-specific params to get a refresh token
+  const isGoogle = provider === "ga4" || provider === "gsc";
+  if (isGoogle) {
+    params.set("access_type", "offline");
+    params.set("prompt", "consent");
+  }
 
   return `${endpoints.authorizationUrl}?${params.toString()}`;
 }
@@ -212,16 +217,28 @@ export async function exchangeCodeForTokens(
 
   const data = (await response.json()) as Record<string, unknown>;
 
+  if (
+    !data.access_token ||
+    typeof data.access_token !== "string" ||
+    data.access_token.length === 0
+  ) {
+    throw new Error(
+      `Token exchange for ${provider} returned no access_token`
+    );
+  }
+
   const expiresIn = typeof data.expires_in === "number" ? data.expires_in : null;
 
   return {
-    access_token: data.access_token as string,
-    refresh_token: (data.refresh_token as string) ?? null,
+    access_token: data.access_token,
+    refresh_token:
+      typeof data.refresh_token === "string" ? data.refresh_token : null,
     expires_at: expiresIn
       ? Math.floor(Date.now() / 1000) + expiresIn
       : null,
-    token_type: (data.token_type as string) ?? "Bearer",
-    scope: (data.scope as string) ?? null,
+    token_type:
+      typeof data.token_type === "string" ? data.token_type : "Bearer",
+    scope: typeof data.scope === "string" ? data.scope : null,
   };
 }
 
@@ -256,15 +273,29 @@ export async function refreshAccessToken(
 
   const data = (await response.json()) as Record<string, unknown>;
 
+  if (
+    !data.access_token ||
+    typeof data.access_token !== "string" ||
+    data.access_token.length === 0
+  ) {
+    throw new Error(
+      `Token refresh for ${provider} returned no access_token`
+    );
+  }
+
   const expiresIn = typeof data.expires_in === "number" ? data.expires_in : null;
 
   return {
-    access_token: data.access_token as string,
-    refresh_token: (data.refresh_token as string) ?? refreshToken,
+    access_token: data.access_token,
+    refresh_token:
+      typeof data.refresh_token === "string"
+        ? data.refresh_token
+        : refreshToken,
     expires_at: expiresIn
       ? Math.floor(Date.now() / 1000) + expiresIn
       : null,
-    token_type: (data.token_type as string) ?? "Bearer",
-    scope: (data.scope as string) ?? null,
+    token_type:
+      typeof data.token_type === "string" ? data.token_type : "Bearer",
+    scope: typeof data.scope === "string" ? data.scope : null,
   };
 }

@@ -10,9 +10,10 @@ import { NextResponse } from "next/server";
 import {
   getConnectionById,
   deleteConnection,
+  updateConnectionStatus,
 } from "@/lib/connections";
 import { runExtraction } from "@/lib/connections/extract";
-import type { ConnectionPublic } from "@kinetiks/types";
+import type { ConnectionPublic, ConnectionProvider } from "@kinetiks/types";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -109,7 +110,7 @@ export async function DELETE(request: Request, { params }: RouteParams) {
       admin,
       connectionId,
       account.id,
-      connection.provider
+      connection.provider as ConnectionProvider
     );
     return NextResponse.json({ success: true });
   } catch (err) {
@@ -171,14 +172,30 @@ export async function PATCH(request: Request, { params }: RouteParams) {
     );
   }
 
-  if (connection.status !== "active") {
+  // Block non-retryable statuses but allow "error" for manual retry
+  if (connection.status !== "active" && connection.status !== "error") {
     return NextResponse.json(
       { error: `Cannot sync a ${connection.status} connection` },
       { status: 400 }
     );
   }
 
-  // Rate limit: one sync per 5 minutes per connection
+  // Check for in-progress sync via sync_started_at metadata
+  const syncStartedAt = (connection.metadata as Record<string, unknown>)
+    ?.sync_started_at as string | undefined;
+  if (syncStartedAt) {
+    const startedMs = new Date(syncStartedAt).getTime();
+    const tenMinutes = 10 * 60 * 1000;
+    // If a sync started less than 10 minutes ago, reject (still in progress or stale)
+    if (Date.now() - startedMs < tenMinutes) {
+      return NextResponse.json(
+        { error: "A sync is already in progress. Please wait." },
+        { status: 429 }
+      );
+    }
+  }
+
+  // Rate limit: one sync per 5 minutes per connection (based on last successful sync)
   if (connection.last_sync_at) {
     const lastSync = new Date(connection.last_sync_at).getTime();
     const fiveMinutes = 5 * 60 * 1000;
@@ -191,9 +208,45 @@ export async function PATCH(request: Request, { params }: RouteParams) {
   }
 
   try {
+    // Set sync_started_at flag and reset status to active for error retries
+    await admin
+      .from("kinetiks_connections")
+      .update({
+        status: "active",
+        metadata: {
+          ...(connection.metadata as Record<string, unknown>),
+          sync_started_at: new Date().toISOString(),
+        },
+      })
+      .eq("id", connectionId);
+
     const result = await runExtraction(admin, connection, account.id);
+
+    // Clear sync_started_at on completion
+    await admin
+      .from("kinetiks_connections")
+      .update({
+        metadata: {
+          ...(connection.metadata as Record<string, unknown>),
+          sync_started_at: null,
+        },
+      })
+      .eq("id", connectionId);
+
     return NextResponse.json({ result });
   } catch (err) {
+    // Clear sync_started_at on failure
+    await admin
+      .from("kinetiks_connections")
+      .update({
+        metadata: {
+          ...(connection.metadata as Record<string, unknown>),
+          sync_started_at: null,
+        },
+      })
+      .eq("id", connectionId)
+      .then(() => {}, () => {});
+
     console.error("Sync failed:", err);
     return NextResponse.json(
       { error: "Sync failed" },

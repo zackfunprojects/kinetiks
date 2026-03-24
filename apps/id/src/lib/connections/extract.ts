@@ -22,7 +22,7 @@ import {
 } from "./manager";
 import type {
   ExtractionContext,
-  ExtractedProposal,
+  ConnectionExtractedProposal,
   StoredOAuthCredentials,
 } from "./types";
 
@@ -32,7 +32,7 @@ import type {
  */
 export type ExtractorFn = (
   context: ExtractionContext
-) => Promise<ExtractedProposal[]>;
+) => Promise<ConnectionExtractedProposal[]>;
 
 /**
  * Registry of provider extractors. Providers register their extractor here.
@@ -71,13 +71,17 @@ export async function runExtraction(
 
   const extractor = extractorRegistry.get(provider);
   if (!extractor) {
-    return {
+    const result: DataExtractionResult = {
       success: false,
       records_processed: 0,
       proposals_generated: 0,
       error: `No extractor registered for provider: ${provider}. This integration is not yet implemented.`,
       duration_ms: Date.now() - startTime,
     };
+
+    await logSyncResult(admin, connection.id, accountId, result);
+
+    return result;
   }
 
   try {
@@ -104,6 +108,9 @@ export async function runExtraction(
 
     // Submit each extracted proposal through the Cortex pipeline
     let proposalsSubmitted = 0;
+    let proposalsFailed = 0;
+    const failureMessages: string[] = [];
+
     for (const ep of extracted) {
       const proposalInsert: ProposalInsert = {
         account_id: accountId,
@@ -121,21 +128,30 @@ export async function runExtraction(
         await submitProposal(admin, proposalInsert);
         proposalsSubmitted++;
       } catch (err) {
+        proposalsFailed++;
+        const msg = err instanceof Error ? err.message : String(err);
+        failureMessages.push(msg);
         console.error(
           `Failed to submit proposal from ${provider} extractor:`,
-          err instanceof Error ? err.message : err
+          msg
         );
       }
     }
 
-    // Update sync timestamp
-    await updateLastSync(admin, connection.id);
+    const hasFailures = proposalsFailed > 0;
+
+    // Only update last_sync_at when all proposals succeeded
+    if (!hasFailures) {
+      await updateLastSync(admin, connection.id);
+    }
 
     const result: DataExtractionResult = {
-      success: true,
+      success: !hasFailures,
       records_processed: extracted.length,
       proposals_generated: proposalsSubmitted,
-      error: null,
+      error: hasFailures
+        ? `${proposalsFailed} of ${extracted.length} proposals failed to submit: ${failureMessages[0]}`
+        : null,
       duration_ms: Date.now() - startTime,
     };
 
@@ -147,8 +163,6 @@ export async function runExtraction(
     const errorMessage =
       err instanceof Error ? err.message : "Unknown extraction error";
 
-    await updateConnectionStatus(admin, connection.id, "error");
-
     const result: DataExtractionResult = {
       success: false,
       records_processed: 0,
@@ -157,7 +171,24 @@ export async function runExtraction(
       duration_ms: Date.now() - startTime,
     };
 
-    await logSyncResult(admin, connection.id, accountId, result);
+    // Wrap DB writes in try/catch so transient DB errors don't prevent returning the result
+    try {
+      await updateConnectionStatus(admin, connection.id, "error");
+    } catch (dbErr) {
+      console.error(
+        `Failed to update connection status after extraction error:`,
+        dbErr instanceof Error ? dbErr.message : dbErr
+      );
+    }
+
+    try {
+      await logSyncResult(admin, connection.id, accountId, result);
+    } catch (dbErr) {
+      console.error(
+        `Failed to log sync result after extraction error:`,
+        dbErr instanceof Error ? dbErr.message : dbErr
+      );
+    }
 
     return result;
   }

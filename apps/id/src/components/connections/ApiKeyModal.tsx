@@ -5,7 +5,7 @@ import type { ProviderDefinition } from "@kinetiks/types";
 
 interface ApiKeyModalProps {
   provider: ProviderDefinition;
-  onSubmit: (apiKey: string) => void;
+  onSubmit: (apiKey: string) => Promise<void> | void;
   onClose: () => void;
 }
 
