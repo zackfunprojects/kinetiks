@@ -1,7 +1,8 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
+import { requireAuth } from "@/lib/auth/require-auth";
 import { evaluateProposal } from "@/lib/cortex/evaluate";
 import { recalculateConfidence } from "@/lib/cortex/confidence";
+import { apiSuccess, apiError } from "@/lib/utils/api-response";
 import type {
   ContextLayer,
   Proposal,
@@ -9,7 +10,6 @@ import type {
   ProposalConfidence,
   Evidence,
 } from "@kinetiks/types";
-import { NextResponse } from "next/server";
 
 const VALID_LAYERS: ContextLayer[] = [
   "org",
@@ -48,39 +48,21 @@ interface ProposeRequest {
  * Inserts the proposal, runs it through the 5-step evaluation pipeline,
  * and returns the result.
  *
- * Auth: user session OR Authorization: Bearer {INTERNAL_SERVICE_SECRET}
+ * Auth: user session, API key, or internal service secret
  */
 export async function POST(request: Request) {
-  const serverClient = createClient();
-  const {
-    data: { user },
-    error: authError,
-  } = await serverClient.auth.getUser();
-
-  const authHeader = request.headers.get("authorization");
-  const internalSecret = process.env.INTERNAL_SERVICE_SECRET;
-  const isServiceCall =
-    !!internalSecret && authHeader === `Bearer ${internalSecret}`;
-
-  if ((authError || !user) && !isServiceCall) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const { auth, error } = await requireAuth(request, { allowInternal: true });
+  if (error) return error;
 
   let body: ProposeRequest;
   try {
     const parsed = await request.json();
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      return NextResponse.json(
-        { error: "Invalid JSON body" },
-        { status: 400 }
-      );
+      return apiError("Invalid JSON body", 400);
     }
     body = parsed as ProposeRequest;
   } catch {
-    return NextResponse.json(
-      { error: "Invalid JSON body" },
-      { status: 400 }
-    );
+    return apiError("Invalid JSON body", 400);
   }
 
   // Validate required fields
@@ -97,101 +79,66 @@ export async function POST(request: Request) {
   } = body;
 
   if (!account_id || typeof account_id !== "string") {
-    return NextResponse.json(
-      { error: "Missing or invalid account_id" },
-      { status: 400 }
-    );
+    return apiError("Missing or invalid account_id", 400);
   }
 
   if (!source_app || typeof source_app !== "string") {
-    return NextResponse.json(
-      { error: "Missing or invalid source_app" },
-      { status: 400 }
-    );
+    return apiError("Missing or invalid source_app", 400);
   }
 
   if (!VALID_LAYERS.includes(target_layer)) {
-    return NextResponse.json(
-      { error: `Invalid target_layer: ${target_layer}` },
-      { status: 400 }
-    );
+    return apiError(`Invalid target_layer: ${target_layer}`, 400);
   }
 
   if (!VALID_ACTIONS.includes(action)) {
-    return NextResponse.json(
-      { error: `Invalid action: ${action}. Must be add, update, or escalate` },
-      { status: 400 }
-    );
+    return apiError(`Invalid action: ${action}. Must be add, update, or escalate`, 400);
   }
 
   if (!VALID_CONFIDENCE.includes(confidence)) {
-    return NextResponse.json(
-      {
-        error: `Invalid confidence: ${confidence}. Must be validated, inferred, or speculative`,
-      },
-      { status: 400 }
+    return apiError(
+      `Invalid confidence: ${confidence}. Must be validated, inferred, or speculative`,
+      400
     );
   }
 
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
-    return NextResponse.json(
-      { error: "payload must be a non-null object" },
-      { status: 400 }
-    );
+    return apiError("payload must be a non-null object", 400);
   }
 
   if (Object.keys(payload).length === 0) {
-    return NextResponse.json(
-      { error: "payload must not be empty" },
-      { status: 400 }
-    );
+    return apiError("payload must not be empty", 400);
   }
 
   if (evidence !== undefined && !Array.isArray(evidence)) {
-    return NextResponse.json(
-      { error: "evidence must be an array" },
-      { status: 400 }
-    );
+    return apiError("evidence must be an array", 400);
   }
 
   if (source_operator !== undefined && (typeof source_operator !== "string" || source_operator.trim().length === 0)) {
-    return NextResponse.json(
-      { error: "source_operator must be a non-empty string or omitted" },
-      { status: 400 }
-    );
+    return apiError("source_operator must be a non-empty string or omitted", 400);
   }
 
   if (expires_at !== undefined) {
     if (typeof expires_at !== "string" || expires_at.trim().length === 0) {
-      return NextResponse.json(
-        { error: "expires_at must be a non-empty ISO timestamp string or omitted" },
-        { status: 400 }
-      );
+      return apiError("expires_at must be a non-empty ISO timestamp string or omitted", 400);
     }
     if (isNaN(Date.parse(expires_at))) {
-      return NextResponse.json(
-        { error: "expires_at must be a valid ISO timestamp" },
-        { status: 400 }
-      );
+      return apiError("expires_at must be a valid ISO timestamp", 400);
     }
   }
 
   const admin = createAdminClient();
 
-  // If user-authenticated, verify account ownership
-  if (!isServiceCall && user) {
+  // If not internal service call, verify account ownership
+  if (auth.auth_method !== "internal") {
     const { data: account } = await admin
       .from("kinetiks_accounts")
       .select("id")
       .eq("id", account_id)
-      .eq("user_id", user.id)
+      .eq("user_id", auth.user_id)
       .single();
 
     if (!account) {
-      return NextResponse.json(
-        { error: "Forbidden: account does not belong to you" },
-        { status: 403 }
-      );
+      return apiError("Forbidden: account does not belong to you", 403);
     }
   }
 
@@ -204,28 +151,21 @@ export async function POST(request: Request) {
     .single();
 
   if (synapseError || !synapse) {
-    return NextResponse.json(
-      { error: `No Synapse found for app '${source_app}' on this account` },
-      { status: 404 }
-    );
+    return apiError(`No Synapse found for app '${source_app}' on this account`, 404);
   }
 
   if (synapse.status !== "active") {
-    return NextResponse.json(
-      {
-        error: `Synapse for '${source_app}' is not active (status: ${synapse.status})`,
-      },
-      { status: 403 }
+    return apiError(
+      `Synapse for '${source_app}' is not active (status: ${synapse.status})`,
+      403
     );
   }
 
   const writeLayers = synapse.write_layers as string[];
   if (!writeLayers.includes(target_layer)) {
-    return NextResponse.json(
-      {
-        error: `Synapse '${source_app}' does not have write access to layer '${target_layer}'`,
-      },
-      { status: 403 }
+    return apiError(
+      `Synapse '${source_app}' does not have write access to layer '${target_layer}'`,
+      403
     );
   }
 
@@ -249,10 +189,7 @@ export async function POST(request: Request) {
 
   if (insertError || !inserted) {
     console.error("Failed to insert proposal:", insertError?.message);
-    return NextResponse.json(
-      { error: "Failed to create proposal" },
-      { status: 500 }
-    );
+    return apiError("Failed to create proposal", 500);
   }
 
   const proposal = inserted as unknown as Proposal;
@@ -274,7 +211,7 @@ export async function POST(request: Request) {
       }
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       proposal_id: proposal.id,
       evaluation: {
         status: evaluation.status,
@@ -289,7 +226,7 @@ export async function POST(request: Request) {
       message
     );
 
-    return NextResponse.json({
+    return apiSuccess({
       proposal_id: proposal.id,
       evaluation: {
         status: "error",

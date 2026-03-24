@@ -1,6 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
-import { NextResponse } from "next/server";
+import { requireAuth } from "@/lib/auth/require-auth";
 import { askClaude } from "@kinetiks/ai";
 import { assembleContext } from "@/lib/marcus/context-assembly";
 import {
@@ -8,8 +7,8 @@ import {
   buildWeeklyDigestPrompt,
   buildMonthlyReviewPrompt,
 } from "@/lib/ai/prompts/marcus-brief";
-import { timingSafeCompare } from "@/lib/utils/timing-safe";
 import type { MarcusScheduleType } from "@kinetiks/types";
+import { apiSuccess, apiError } from "@/lib/utils/api-response";
 
 /**
  * POST /api/marcus/brief
@@ -20,29 +19,14 @@ import type { MarcusScheduleType } from "@kinetiks/types";
  * Body: { type: 'daily_brief' | 'weekly_digest' | 'monthly_review', account_id?: string }
  */
 export async function POST(request: Request) {
-  // Auth - user or service
-  const serverClient = createClient();
-  const {
-    data: { user },
-    error: authError,
-  } = await serverClient.auth.getUser();
-
-  const authHeader = request.headers.get("authorization");
-  const internalSecret = process.env.INTERNAL_SERVICE_SECRET;
-  const isServiceCall =
-    !!internalSecret &&
-    !!authHeader &&
-    timingSafeCompare(authHeader, `Bearer ${internalSecret}`);
-
-  if ((authError || !user) && !isServiceCall) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const { auth, error } = await requireAuth(request, { permissions: "read-only", allowInternal: true });
+  if (error) return error;
 
   let body: Record<string, unknown>;
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    return apiError("Invalid JSON body", 400);
   }
   const { type, account_id: bodyAccountId } = body as {
     type?: MarcusScheduleType;
@@ -56,30 +40,17 @@ export async function POST(request: Request) {
   ];
 
   if (!type || !validTypes.includes(type)) {
-    return NextResponse.json(
-      { error: "type must be one of: daily_brief, weekly_digest, monthly_review" },
-      { status: 400 }
-    );
+    return apiError("type must be one of: daily_brief, weekly_digest, monthly_review", 400);
   }
 
   const admin = createAdminClient();
 
   // Resolve account
   let accountId: string;
-  if (isServiceCall && typeof bodyAccountId === "string" && bodyAccountId) {
+  if (auth.auth_method === "internal" && typeof bodyAccountId === "string" && bodyAccountId) {
     accountId = bodyAccountId;
-  } else if (user) {
-    const { data: account } = await admin
-      .from("kinetiks_accounts")
-      .select("id")
-      .eq("user_id", user.id)
-      .single();
-    if (!account) {
-      return NextResponse.json({ error: "Account not found" }, { status: 404 });
-    }
-    accountId = account.id;
   } else {
-    return NextResponse.json({ error: "Cannot resolve account" }, { status: 400 });
+    accountId = auth.account_id;
   }
 
   // Assemble context for the brief (strategic intent gets the most data)
@@ -112,7 +83,7 @@ export async function POST(request: Request) {
     maxTokens: type === "monthly_review" ? 4096 : 2048,
   });
 
-  return NextResponse.json({ type, content });
+  return apiSuccess({ type, content });
 }
 
 async function getRecentActivity(

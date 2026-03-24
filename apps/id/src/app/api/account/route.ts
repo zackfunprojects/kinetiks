@@ -1,6 +1,6 @@
-import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { requireAuth } from "@/lib/auth/require-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { apiSuccess, apiError } from "@/lib/utils/api-response";
 
 /**
  * PATCH /api/account
@@ -8,67 +8,50 @@ import { createAdminClient } from "@/lib/supabase/admin";
  * Body: { display_name: string }
  */
 export async function PATCH(request: Request) {
-  const serverClient = createClient();
-  const {
-    data: { user },
-  } = await serverClient.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const { auth, error } = await requireAuth(request, { permissions: "read-write" });
+  if (error) return error;
 
   const body = await request.json();
   const { display_name } = body as { display_name: string };
 
   if (typeof display_name !== "string") {
-    return NextResponse.json({ error: "Invalid display_name" }, { status: 400 });
+    return apiError("Invalid display_name", 400);
   }
 
   const admin = createAdminClient();
 
-  const { error } = await admin
+  const { error: updateError } = await admin
     .from("kinetiks_accounts")
     .update({
       display_name: display_name.trim() || null,
       updated_at: new Date().toISOString(),
     })
-    .eq("user_id", user.id);
+    .eq("id", auth.account_id);
 
-  if (error) {
-    return NextResponse.json({ error: "Failed to update account" }, { status: 500 });
+  if (updateError) {
+    return apiError("Failed to update account", 500);
   }
 
-  return NextResponse.json({ success: true });
+  return apiSuccess({ updated: true });
 }
 
 /**
  * DELETE /api/account
  * Delete account and all associated data
  */
-export async function DELETE() {
-  const serverClient = createClient();
-  const {
-    data: { user },
-  } = await serverClient.auth.getUser();
+export async function DELETE(request: Request) {
+  const { auth, error } = await requireAuth(request);
+  if (error) return error;
 
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  // Account deletion is too destructive for API keys - require session auth
+  if (auth.auth_method !== "session") {
+    return apiError("Account deletion requires session authentication", 403);
   }
 
   const admin = createAdminClient();
 
-  const { data: account } = await admin
-    .from("kinetiks_accounts")
-    .select("id")
-    .eq("user_id", user.id)
-    .single();
-
-  if (!account) {
-    return NextResponse.json({ error: "Account not found" }, { status: 404 });
-  }
-
   // Delete in order (respecting foreign keys)
-  const accountId = account.id;
+  const accountId = auth.account_id;
   const tables = [
     "kinetiks_marcus_messages",
     "kinetiks_marcus_follow_ups",
@@ -102,10 +85,7 @@ export async function DELETE() {
 
     if (deleteError) {
       console.error(`Failed to delete from ${table}:`, deleteError.message);
-      return NextResponse.json(
-        { error: `Failed to delete data from ${table}` },
-        { status: 500 }
-      );
+      return apiError(`Failed to delete data from ${table}`, 500);
     }
   }
 
@@ -117,22 +97,16 @@ export async function DELETE() {
 
   if (accountDeleteError) {
     console.error("Failed to delete account:", accountDeleteError.message);
-    return NextResponse.json(
-      { error: "Failed to delete account record" },
-      { status: 500 }
-    );
+    return apiError("Failed to delete account record", 500);
   }
 
   // Only delete auth user after all DB deletions succeed
-  const { error: authDeleteError } = await admin.auth.admin.deleteUser(user.id);
+  const { error: authDeleteError } = await admin.auth.admin.deleteUser(auth.user_id);
 
   if (authDeleteError) {
     console.error("Failed to delete auth user:", authDeleteError.message);
-    return NextResponse.json(
-      { error: "Account data deleted but failed to remove auth user" },
-      { status: 500 }
-    );
+    return apiError("Account data deleted but failed to remove auth user", 500);
   }
 
-  return NextResponse.json({ success: true });
+  return apiSuccess({ deleted: true });
 }

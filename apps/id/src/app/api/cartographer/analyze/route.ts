@@ -1,5 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
+import { requireAuth } from "@/lib/auth/require-auth";
 import type { ContextLayer, Proposal } from "@kinetiks/types";
 import { evaluateProposal } from "@/lib/cortex/evaluate";
 import type { EvaluationResult } from "@/lib/cortex/evaluate";
@@ -9,7 +9,7 @@ import { extractVoice } from "@/lib/cartographer/extract-voice";
 import { extractSocial } from "@/lib/cartographer/extract-social";
 import { buildProposal } from "@/lib/cartographer/crawl";
 import type { ProposalInsert } from "@/lib/cartographer/types";
-import { NextResponse } from "next/server";
+import { apiSuccess, apiError } from "@/lib/utils/api-response";
 
 const VALID_LAYERS: ContextLayer[] = [
   "org",
@@ -46,26 +46,18 @@ const OPERATOR = "cartographer_analyze";
  * }
  */
 export async function POST(request: Request) {
-  // Auth - user only
-  const serverClient = createClient();
-  const {
-    data: { user },
-    error: authError,
-  } = await serverClient.auth.getUser();
-
-  if (authError || !user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const { auth, error } = await requireAuth(request, { permissions: "read-write" });
+  if (error) return error;
 
   let body: Record<string, unknown>;
   try {
     const parsed: unknown = await request.json();
     if (!parsed || typeof parsed !== "object") {
-      return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+      return apiError("Invalid JSON body", 400);
     }
     body = parsed as Record<string, unknown>;
   } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    return apiError("Invalid JSON body", 400);
   }
 
   const {
@@ -81,17 +73,11 @@ export async function POST(request: Request) {
   };
 
   if (!content || typeof content !== "string" || content.trim().length === 0) {
-    return NextResponse.json(
-      { error: "Missing or empty 'content' field" },
-      { status: 400 }
-    );
+    return apiError("Missing or empty 'content' field", 400);
   }
 
   if (content_type !== "markdown" && content_type !== "html") {
-    return NextResponse.json(
-      { error: "content_type must be 'markdown' or 'html'" },
-      { status: 400 }
-    );
+    return apiError("content_type must be 'markdown' or 'html'", 400);
   }
 
   // Validate extract_layers if provided
@@ -102,29 +88,7 @@ export async function POST(request: Request) {
     : null;
 
   const admin = createAdminClient();
-
-  // Resolve account
-  const { data: account, error: accountError } = await admin
-    .from("kinetiks_accounts")
-    .select("id")
-    .eq("user_id", user.id)
-    .single();
-
-  if (accountError || !account) {
-    return NextResponse.json(
-      { error: "Kinetiks account not found" },
-      { status: 404 }
-    );
-  }
-
-  if (typeof account.id !== "string") {
-    return NextResponse.json(
-      { error: "Invalid account data" },
-      { status: 500 }
-    );
-  }
-
-  const accountId = account.id;
+  const accountId = auth.account_id;
   const url = source_url ?? "direct-upload";
 
   // Determine what to extract based on content type and requested layers
@@ -261,7 +225,7 @@ export async function POST(request: Request) {
     );
   }
 
-  return NextResponse.json({
+  return apiSuccess({
     extractions: results,
     proposals_submitted: submittedIds,
     evaluation_results: evalResults,

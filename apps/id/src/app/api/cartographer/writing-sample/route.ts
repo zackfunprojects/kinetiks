@@ -1,12 +1,13 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
+import { requireAuth } from "@/lib/auth/require-auth";
 import { askClaude } from "@kinetiks/ai";
 import {
   WRITING_SAMPLE_ANALYSIS_PROMPT,
   buildWritingSamplePrompt,
 } from "@/lib/ai/prompts/conversation";
 import { submitProposal, logToLedger } from "@/lib/cartographer/submit";
-import { NextResponse } from "next/server";
+import { apiSuccess, apiError } from "@/lib/utils/api-response";
+import { validateLayerPayload } from "@/lib/utils/context-schemas";
 
 const MAX_SAMPLES = 3;
 
@@ -88,53 +89,30 @@ function validateVoiceRefinements(
  * Body: { text: string, source?: string }
  */
 export async function POST(request: Request) {
-  const serverClient = createClient();
-  const {
-    data: { user },
-    error: authError,
-  } = await serverClient.auth.getUser();
-
-  if (authError || !user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const { auth, error } = await requireAuth(request, { permissions: "read-write" });
+  if (error) return error;
 
   let body: Record<string, unknown>;
   try {
     const parsed: unknown = await request.json();
     if (!parsed || typeof parsed !== "object") {
-      return NextResponse.json(
-        { error: "Invalid JSON body" },
-        { status: 400 }
-      );
+      return apiError("Invalid JSON body", 400);
     }
     body = parsed as Record<string, unknown>;
   } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    return apiError("Invalid JSON body", 400);
   }
 
   const text = body.text as string | undefined;
   if (!text || typeof text !== "string" || text.trim().length < 100) {
-    return NextResponse.json(
-      { error: "Writing sample must be at least 100 characters" },
-      { status: 400 }
-    );
+    return apiError("Writing sample must be at least 100 characters", 400);
   }
 
   const source =
     typeof body.source === "string" ? body.source : "onboarding_paste";
 
   const admin = createAdminClient();
-  const { data: account } = await admin
-    .from("kinetiks_accounts")
-    .select("id")
-    .eq("user_id", user.id)
-    .single();
-
-  if (!account) {
-    return NextResponse.json({ error: "Account not found" }, { status: 404 });
-  }
-
-  const accountId = account.id as string;
+  const accountId = auth.account_id;
 
   // Get current voice data for context
   const { data: voiceRow } = await admin
@@ -153,10 +131,7 @@ export async function POST(request: Request) {
     : [];
 
   if (existingSamples.length >= MAX_SAMPLES) {
-    return NextResponse.json(
-      { error: `Maximum of ${MAX_SAMPLES} writing samples allowed` },
-      { status: 400 }
-    );
+    return apiError(`Maximum of ${MAX_SAMPLES} writing samples allowed`, 400);
   }
 
   const voiceSummary = currentVoice
@@ -181,20 +156,14 @@ export async function POST(request: Request) {
       }
       voiceRefinements = JSON.parse(cleaned) as Record<string, unknown>;
     } catch {
-      return NextResponse.json(
-        { error: "Failed to parse voice analysis" },
-        { status: 500 }
-      );
+      return apiError("Failed to parse voice analysis", 500);
     }
 
     // Validate the voice refinements schema before submitting
     const validationError = validateVoiceRefinements(voiceRefinements);
     if (validationError) {
       console.error("Voice refinements validation failed:", validationError);
-      return NextResponse.json(
-        { error: "Voice analysis produced invalid data" },
-        { status: 500 }
-      );
+      return apiError("Voice analysis produced invalid data", 500);
     }
 
     const sampleEntry = {
@@ -207,6 +176,13 @@ export async function POST(request: Request) {
       ...voiceRefinements,
       writing_samples: [...existingSamples, sampleEntry],
     };
+
+    // Validate the complete payload against the voice layer schema
+    const layerValidationError = validateLayerPayload("voice", payload);
+    if (layerValidationError) {
+      console.error("Voice layer payload validation failed:", layerValidationError);
+      return apiError("Voice analysis produced invalid data", 500);
+    }
 
     const { proposalId } = await submitProposal(admin, {
       account_id: accountId,
@@ -233,15 +209,12 @@ export async function POST(request: Request) {
       source,
     });
 
-    return NextResponse.json({
+    return apiSuccess({
       result: { voiceRefinements, proposalId },
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     console.error("Writing sample analysis failed:", message);
-    return NextResponse.json(
-      { error: "Failed to analyze writing sample" },
-      { status: 500 }
-    );
+    return apiError("Failed to analyze writing sample", 500);
   }
 }

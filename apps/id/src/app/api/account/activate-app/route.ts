@@ -1,55 +1,38 @@
-import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { requireAuth } from "@/lib/auth/require-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { APP_REGISTRY } from "@/lib/utils/app-registry";
+import { apiSuccess, apiError } from "@/lib/utils/api-response";
 
 export async function POST(request: Request) {
-  const serverClient = createClient();
-  const {
-    data: { user },
-  } = await serverClient.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const { auth, error } = await requireAuth(request, { permissions: "read-write" });
+  if (error) return error;
 
   const body = await request.json();
   const { app_name } = body as { app_name: string };
 
   if (!app_name || !APP_REGISTRY[app_name]) {
-    return NextResponse.json({ error: "Invalid app name" }, { status: 400 });
+    return apiError("Invalid app name", 400);
   }
 
   const admin = createAdminClient();
-
-  const { data: account } = await admin
-    .from("kinetiks_accounts")
-    .select("id")
-    .eq("user_id", user.id)
-    .single();
-
-  if (!account) {
-    return NextResponse.json({ error: "Account not found" }, { status: 404 });
-  }
-
   const appInfo = APP_REGISTRY[app_name];
 
   // Check if already activated
   const { data: existing, error: selectError } = await admin
     .from("kinetiks_app_activations")
     .select("id, status")
-    .eq("account_id", account.id)
+    .eq("account_id", auth.account_id)
     .eq("app_name", app_name)
     .maybeSingle();
 
   if (selectError) {
     console.error("Failed to check activation:", selectError.message);
-    return NextResponse.json({ error: "Failed to check app status" }, { status: 500 });
+    return apiError("Failed to check app status", 500);
   }
 
   if (existing) {
     if (existing.status === "active") {
-      return NextResponse.json({ error: "App already active" }, { status: 409 });
+      return apiError("App already active", 409);
     }
     // Reactivate
     const { error: updateError } = await admin
@@ -59,14 +42,14 @@ export async function POST(request: Request) {
 
     if (updateError) {
       console.error("Failed to reactivate app:", updateError.message);
-      return NextResponse.json({ error: "Failed to reactivate app" }, { status: 500 });
+      return apiError("Failed to reactivate app", 500);
     }
   } else {
     // Create new activation
     const { error: insertError } = await admin
       .from("kinetiks_app_activations")
       .insert({
-        account_id: account.id,
+        account_id: auth.account_id,
         app_name,
         status: "active",
         activated_at: new Date().toISOString(),
@@ -74,7 +57,7 @@ export async function POST(request: Request) {
 
     if (insertError) {
       console.error("Failed to activate app:", insertError.message);
-      return NextResponse.json({ error: "Failed to activate app" }, { status: 500 });
+      return apiError("Failed to activate app", 500);
     }
   }
 
@@ -82,20 +65,20 @@ export async function POST(request: Request) {
   const { data: existingSynapse, error: synapseSelectError } = await admin
     .from("kinetiks_synapses")
     .select("id")
-    .eq("account_id", account.id)
+    .eq("account_id", auth.account_id)
     .eq("app_name", app_name)
     .maybeSingle();
 
   if (synapseSelectError) {
     console.error("Failed to check synapse:", synapseSelectError.message);
-    return NextResponse.json({ error: "Failed to check synapse status" }, { status: 500 });
+    return apiError("Failed to check synapse status", 500);
   }
 
   if (!existingSynapse) {
     const { error: synapseInsertError } = await admin
       .from("kinetiks_synapses")
       .insert({
-        account_id: account.id,
+        account_id: auth.account_id,
         app_name,
         app_url: appInfo.url,
         status: "active",
@@ -105,13 +88,13 @@ export async function POST(request: Request) {
 
     if (synapseInsertError) {
       console.error("Failed to create synapse:", synapseInsertError.message);
-      return NextResponse.json({ error: "Failed to create synapse" }, { status: 500 });
+      return apiError("Failed to create synapse", 500);
     }
   }
 
   // Log to ledger (non-fatal)
   const { error: ledgerError } = await admin.from("kinetiks_ledger").insert({
-    account_id: account.id,
+    account_id: auth.account_id,
     event_type: "app_activation",
     detail: {
       action: "app_activated",
@@ -124,5 +107,5 @@ export async function POST(request: Request) {
     console.error("Failed to log activation:", ledgerError.message);
   }
 
-  return NextResponse.json({ success: true, app_name });
+  return apiSuccess({ activated: true, app_name });
 }

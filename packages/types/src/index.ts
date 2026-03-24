@@ -71,6 +71,23 @@ export type {
   LedgerEntry,
 } from "./billing";
 export type {
+  ApiResponse,
+  ApiSuccessResponse,
+  ApiErrorResponse,
+  ApiResponseMeta,
+  ApiKeyPermission,
+  AuthMethod,
+  AuthenticatedContext,
+  ApiKeyRecord,
+  ApiKeyPublic,
+  RateLimitResult,
+  WebhookEventType,
+  WebhookConfig,
+  WebhookConfigPublic,
+  WebhookDelivery,
+  WebhookPayloadEnvelope,
+} from "./api";
+export type {
   SentinelVerdict,
   ReviewResolution,
   SentinelContentType,

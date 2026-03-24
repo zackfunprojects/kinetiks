@@ -1,7 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
+import { requireAuth } from "@/lib/auth/require-auth";
+import { apiSuccess, apiError } from "@/lib/utils/api-response";
 import type { ContextLayer } from "@kinetiks/types";
-import { NextResponse } from "next/server";
 
 const VALID_LAYERS: ContextLayer[] = [
   "org",
@@ -26,84 +26,60 @@ interface PullRequest {
  * Endpoint for app Synapses to pull Context Structure layers.
  * Returns only the layers the Synapse has read access to.
  *
- * Auth: user session OR Authorization: Bearer {INTERNAL_SERVICE_SECRET}
+ * Auth: user session, API key, or internal service secret
  * Body: { account_id: string, app_name: string, layers: ContextLayer[] }
  */
 export async function POST(request: Request) {
-  const serverClient = createClient();
-  const {
-    data: { user },
-    error: authError,
-  } = await serverClient.auth.getUser();
-
-  const authHeader = request.headers.get("authorization");
-  const internalSecret = process.env.INTERNAL_SERVICE_SECRET;
-  const isServiceCall =
-    !!internalSecret && authHeader === `Bearer ${internalSecret}`;
-
-  if ((authError || !user) && !isServiceCall) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const { auth, error } = await requireAuth(request, { allowInternal: true });
+  if (error) return error;
 
   let body: PullRequest;
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json(
-      { error: "Invalid JSON body" },
-      { status: 400 }
-    );
+    return apiError("Invalid JSON body", 400);
   }
 
   const { account_id, app_name, layers } = body;
 
   if (!account_id || typeof account_id !== "string") {
-    return NextResponse.json(
-      { error: "Missing or invalid account_id" },
-      { status: 400 }
-    );
+    return apiError("Missing or invalid account_id", 400);
   }
 
   if (!app_name || typeof app_name !== "string") {
-    return NextResponse.json(
-      { error: "Missing or invalid app_name" },
-      { status: 400 }
-    );
+    return apiError("Missing or invalid app_name", 400);
   }
 
   if (!Array.isArray(layers) || layers.length === 0) {
-    return NextResponse.json(
-      { error: "layers must be a non-empty array" },
-      { status: 400 }
-    );
+    return apiError("layers must be a non-empty array", 400);
   }
 
   const invalidLayers = layers.filter(
     (l) => !VALID_LAYERS.includes(l as ContextLayer)
   );
   if (invalidLayers.length > 0) {
-    return NextResponse.json(
-      { error: `Invalid layers: ${invalidLayers.join(", ")}` },
-      { status: 400 }
-    );
+    return apiError(`Invalid layers: ${invalidLayers.join(", ")}`, 400);
   }
 
   const admin = createAdminClient();
 
-  // If user-authenticated, verify they own this account
-  if (!isServiceCall && user) {
+  // For API key auth, enforce the key's account matches the requested account
+  if (auth.auth_method !== "internal" && account_id !== auth.account_id) {
+    return apiError("Forbidden: account mismatch", 403);
+  }
+
+  // Verify account ownership via user_id (covers session auth where
+  // auth.account_id may differ from the requested account_id)
+  if (auth.auth_method !== "internal") {
     const { data: account } = await admin
       .from("kinetiks_accounts")
       .select("id")
       .eq("id", account_id)
-      .eq("user_id", user.id)
+      .eq("user_id", auth.user_id)
       .single();
 
     if (!account) {
-      return NextResponse.json(
-        { error: "Forbidden: account does not belong to you" },
-        { status: 403 }
-      );
+      return apiError("Forbidden: account does not belong to you", 403);
     }
   }
 
@@ -116,27 +92,19 @@ export async function POST(request: Request) {
     .single();
 
   if (synapseError || !synapse) {
-    return NextResponse.json(
-      { error: `No Synapse found for app '${app_name}' on this account` },
-      { status: 404 }
-    );
+    return apiError(`No Synapse found for app '${app_name}' on this account`, 404);
   }
 
   if (synapse.status !== "active") {
-    return NextResponse.json(
-      { error: `Synapse for '${app_name}' is not active (status: ${synapse.status})` },
-      { status: 403 }
-    );
+    return apiError(`Synapse for '${app_name}' is not active (status: ${synapse.status})`, 403);
   }
 
   const readLayers = synapse.read_layers as string[];
   const unauthorizedLayers = layers.filter((l) => !readLayers.includes(l));
   if (unauthorizedLayers.length > 0) {
-    return NextResponse.json(
-      {
-        error: `Synapse '${app_name}' does not have read access to: ${unauthorizedLayers.join(", ")}`,
-      },
-      { status: 403 }
+    return apiError(
+      `Synapse '${app_name}' does not have read access to: ${unauthorizedLayers.join(", ")}`,
+      403
     );
   }
 
@@ -189,5 +157,5 @@ export async function POST(request: Request) {
     );
   }
 
-  return NextResponse.json({ layers: result });
+  return apiSuccess({ layers: result });
 }

@@ -1,8 +1,8 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
+import { requireAuth } from "@/lib/auth/require-auth";
 import { executeRoutes } from "@/lib/cortex/route";
+import { apiSuccess, apiError } from "@/lib/utils/api-response";
 import type { ContextLayer } from "@kinetiks/types";
-import { NextResponse } from "next/server";
 
 /**
  * POST /api/cortex/route
@@ -21,21 +21,8 @@ import { NextResponse } from "next/server";
  * }
  */
 export async function POST(request: Request) {
-  const serverClient = createClient();
-  const {
-    data: { user },
-    error: authError,
-  } = await serverClient.auth.getUser();
-
-  // Check for dedicated internal service secret (used by Edge Functions / CRON)
-  const authHeader = request.headers.get("authorization");
-  const internalSecret = process.env.INTERNAL_SERVICE_SECRET;
-  const isServiceCall =
-    !!internalSecret && authHeader === `Bearer ${internalSecret}`;
-
-  if ((authError || !user) && !isServiceCall) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const { auth, error } = await requireAuth(request, { allowInternal: true });
+  if (error) return error;
 
   const body = await request.json();
   const {
@@ -55,10 +42,7 @@ export async function POST(request: Request) {
   };
 
   if (!account_id || !source_app || !target_layer || !changes) {
-    return NextResponse.json(
-      { error: "Missing required fields: account_id, source_app, target_layer, changes" },
-      { status: 400 }
-    );
+    return apiError("Missing required fields: account_id, source_app, target_layer, changes", 400);
   }
 
   // Validate target_layer is a known ContextLayer
@@ -67,36 +51,32 @@ export async function POST(request: Request) {
     "narrative", "competitive", "market", "brand",
   ];
   if (!validLayers.includes(target_layer)) {
-    return NextResponse.json(
-      { error: `Invalid target_layer: '${target_layer}'. Must be one of: ${validLayers.join(", ")}` },
-      { status: 400 }
-    );
+    return apiError(`Invalid target_layer: '${target_layer}'. Must be one of: ${validLayers.join(", ")}`, 400);
   }
 
   // Validate changes is a plain non-null object
-  if (typeof changes !== "object" || Array.isArray(changes)) {
-    return NextResponse.json(
-      { error: "changes must be a plain object" },
-      { status: 400 }
-    );
+  if (changes === null || typeof changes !== "object" || Array.isArray(changes)) {
+    return apiError("changes must be a plain object", 400);
   }
 
   const admin = createAdminClient();
 
+  // For API key auth, enforce the key's account matches the requested account
+  if (auth.auth_method === "api_key" && account_id !== auth.account_id) {
+    return apiError("Forbidden: account mismatch", 403);
+  }
+
   // If not internal service call, verify the user owns the target account
-  if (!isServiceCall && user) {
+  if (auth.auth_method !== "internal") {
     const { data: account } = await admin
       .from("kinetiks_accounts")
       .select("id")
       .eq("id", account_id)
-      .eq("user_id", user.id)
+      .eq("user_id", auth.user_id)
       .single();
 
     if (!account) {
-      return NextResponse.json(
-        { error: "Forbidden: account does not belong to you" },
-        { status: 403 }
-      );
+      return apiError("Forbidden: account does not belong to you", 403);
     }
   }
 
@@ -110,7 +90,7 @@ export async function POST(request: Request) {
     confidence ?? "inferred"
   );
 
-  return NextResponse.json({
+  return apiSuccess({
     routed: routedCount,
     target_layer,
     source_app,

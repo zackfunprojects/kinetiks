@@ -1,7 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { generateUniqueCodename } from "@/lib/utils/id-generator";
-import { NextResponse } from "next/server";
+import { apiSuccess, apiError } from "@/lib/utils/api-response";
 
 export async function POST() {
   const serverClient = createClient();
@@ -11,7 +11,7 @@ export async function POST() {
   } = await serverClient.auth.getUser();
 
   if (authError || !user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return apiError("Unauthorized", 401);
   }
 
   const admin = createAdminClient();
@@ -24,7 +24,7 @@ export async function POST() {
     .single();
 
   if (existing) {
-    return NextResponse.json({ account: existing });
+    return apiSuccess({ account: existing });
   }
 
   // Generate unique codename
@@ -60,13 +60,10 @@ export async function POST() {
       .single();
 
     if (raceAccount) {
-      return NextResponse.json({ account: raceAccount });
+      return apiSuccess({ account: raceAccount });
     }
 
-    return NextResponse.json(
-      { error: "Failed to create account" },
-      { status: 500 }
-    );
+    return apiError("Failed to create account", 500);
   }
 
   // Create initial confidence and billing records with error handling
@@ -90,16 +87,10 @@ export async function POST() {
         `Rollback failed for account ${account.id}: ${rollbackError.message}`,
         { confidenceError, billingError }
       );
-      return NextResponse.json(
-        { error: "Failed to initialize account and rollback failed" },
-        { status: 500 }
-      );
+      return apiError("Failed to initialize account and rollback failed", 500);
     }
 
-    return NextResponse.json(
-      { error: "Failed to initialize account records" },
-      { status: 500 }
-    );
+    return apiError("Failed to initialize account records", 500);
   }
 
   // If from an app, create app activation
@@ -156,5 +147,5 @@ export async function POST() {
     detail: { codename, from_app: fromApp },
   });
 
-  return NextResponse.json({ account });
+  return apiSuccess({ account });
 }
