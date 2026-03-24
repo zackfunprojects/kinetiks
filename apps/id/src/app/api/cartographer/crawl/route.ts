@@ -12,7 +12,7 @@ import { apiSuccess, apiError } from "@/lib/utils/api-response";
  * Body: { url: string }
  */
 export async function POST(request: Request) {
-  const { auth, error } = await requireAuth(request);
+  const { auth, error } = await requireAuth(request, { permissions: "read-write" });
   if (error) return error;
 
   let body: Record<string, unknown>;

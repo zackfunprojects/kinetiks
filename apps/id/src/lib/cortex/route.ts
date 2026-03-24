@@ -214,12 +214,19 @@ export async function executeRoutes(
     );
   }
 
-  for (const event of routingEvents) {
-    dispatchEvent(accountId, "routing.sent", {
-      target_app: event.target_app,
-      source_proposal_id: proposalId,
-    });
-  }
+  await Promise.all(
+    routingEvents.map((event) =>
+      dispatchEvent(accountId, "routing.sent", {
+        target_app: event.target_app,
+        source_proposal_id: proposalId,
+      }).catch((err) => {
+        console.error(
+          `Failed to dispatch routing.sent for ${event.target_app}:`,
+          err
+        );
+      })
+    )
+  );
 
   return toRoute.length;
 }

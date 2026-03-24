@@ -144,7 +144,7 @@ export async function POST(request: Request) {
       },
     });
   } catch (err) {
-    const errorMsg = err instanceof Error ? err.message : "Unknown error";
-    return apiError(errorMsg, 500);
+    console.error("Marcus chat error:", err instanceof Error ? err.message : err, err instanceof Error ? err.stack : "");
+    return apiError("Internal server error", 500);
   }
 }
