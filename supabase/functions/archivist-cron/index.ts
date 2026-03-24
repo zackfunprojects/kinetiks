@@ -1,12 +1,8 @@
 // Archivist CRON Edge Function
 //
-// Runs every 6 hours. Performs a lightweight data quality pass across
-// all accounts' Context Structures: checks for empty layers (gap detection),
-// identifies stale data, and logs quality metrics.
-//
-// The full Archivist operator (dedup, normalize, deep cleaning) is built
-// in Phase 5. This CRON provides the scheduling infrastructure and basic
-// gap detection so the system is ready when the full operator lands.
+// Runs every 6 hours. Triggers a full clean pass for all onboarded accounts
+// via the /api/archivist/clean endpoint. The clean pass includes deduplication,
+// normalization, gap detection, and quality scoring.
 //
 // CRON schedule: every 6 hours ("0 */6 * * *")
 
@@ -14,31 +10,21 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.0";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+const INTERNAL_SERVICE_SECRET = Deno.env.get("INTERNAL_SERVICE_SECRET");
+const APP_URL =
+  Deno.env.get("NEXT_PUBLIC_APP_URL") || "https://id.kinetiks.ai";
 
-const CONTEXT_LAYERS = [
-  "org",
-  "products",
-  "voice",
-  "customers",
-  "narrative",
-  "competitive",
-  "market",
-  "brand",
-] as const;
+/** Maximum accounts to process per CRON run. */
+const ACCOUNT_LIMIT = 200;
 
-/** Data older than 90 days without updates is flagged as stale. */
-const STALE_DATA_THRESHOLD_MS = 90 * 24 * 60 * 60 * 1000;
+/** Accounts per API call (clean pass is heavier than evaluate). */
+const API_BATCH_SIZE = 5;
 
-interface AccountQuality {
-  account_id: string;
-  empty_layers: string[];
-  stale_layers: string[];
-  total_layers: number;
-  populated_layers: number;
-}
+/** Timeout for each clean API call in milliseconds. */
+const FETCH_TIMEOUT_MS = 60_000;
 
 Deno.serve(async () => {
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !INTERNAL_SERVICE_SECRET) {
     console.error("[archivist-cron] Missing required environment variables");
     return new Response(JSON.stringify({ error: "Missing env vars" }), {
       status: 500,
@@ -48,12 +34,12 @@ Deno.serve(async () => {
 
   const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-  // Get all active accounts
+  // Get all onboarded accounts
   const { data: accounts, error: accountsErr } = await admin
     .from("kinetiks_accounts")
     .select("id")
     .eq("onboarding_complete", true)
-    .limit(200);
+    .limit(ACCOUNT_LIMIT);
 
   if (accountsErr) {
     console.error("[archivist-cron] Failed to query accounts:", accountsErr);
@@ -70,122 +56,77 @@ Deno.serve(async () => {
     );
   }
 
-  const now = Date.now();
-  const staleThreshold = new Date(now - STALE_DATA_THRESHOLD_MS).toISOString();
+  const allIds = accounts.map((a) => a.id as string);
   let accountsProcessed = 0;
-  let totalGaps = 0;
-  let totalStale = 0;
+  let totalErrors = 0;
 
-  for (const account of accounts) {
-    const accountId = account.id as string;
-    const quality: AccountQuality = {
-      account_id: accountId,
-      empty_layers: [],
-      stale_layers: [],
-      total_layers: CONTEXT_LAYERS.length,
-      populated_layers: 0,
-    };
+  // Process in batches
+  for (let i = 0; i < allIds.length; i += API_BATCH_SIZE) {
+    const batchIds = allIds.slice(i, i + API_BATCH_SIZE);
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
     try {
-      // Query all context layers in parallel to avoid N+1
-      const layerResults = await Promise.all(
-        CONTEXT_LAYERS.map(async (layer) => {
-          const tableName = `kinetiks_context_${layer}`;
-          const { data: rows, error: layerErr } = await admin
-            .from(tableName)
-            .select("id, data, updated_at")
-            .eq("account_id", accountId)
-            .limit(1);
-          return { layer, rows, error: layerErr };
-        })
-      );
+      const response = await fetch(`${APP_URL}/api/archivist/clean`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${INTERNAL_SERVICE_SECRET}`,
+        },
+        body: JSON.stringify({ account_ids: batchIds }),
+        signal: controller.signal,
+      });
 
-      for (const { layer, rows, error: layerErr } of layerResults) {
-        if (layerErr) {
-          console.error(
-            `[archivist-cron] Failed to query kinetiks_context_${layer} for account ${accountId}:`,
-            layerErr
-          );
-          continue;
-        }
-
-        if (!rows || rows.length === 0) {
-          quality.empty_layers.push(layer);
-        } else {
-          quality.populated_layers++;
-
-          const row = rows[0];
-          if (row.updated_at && row.updated_at < staleThreshold) {
-            quality.stale_layers.push(layer);
-          }
-
-          const data = row.data as Record<string, unknown> | null;
-          if (!data || Object.keys(data).length === 0) {
-            quality.empty_layers.push(layer);
-            quality.populated_layers--;
-          }
-        }
+      if (!response.ok) {
+        console.error(
+          `[archivist-cron] Clean API returned ${response.status} for batch starting at index ${i}`
+        );
+        totalErrors += batchIds.length;
+        continue;
       }
 
-      totalGaps += quality.empty_layers.length;
-      totalStale += quality.stale_layers.length;
-
-      // Log quality findings for this account if there are issues
-      if (quality.empty_layers.length > 0 || quality.stale_layers.length > 0) {
-        const { error: ledgerErr } = await admin
-          .from("kinetiks_ledger")
-          .insert({
-            account_id: accountId,
-            event_type: "archivist_quality_check",
-            source_operator: "archivist",
-            detail: {
-              empty_layers: quality.empty_layers,
-              stale_layers: quality.stale_layers,
-              populated_layers: quality.populated_layers,
-              total_layers: quality.total_layers,
-              quality_score: Math.round(
-                (quality.populated_layers / quality.total_layers) * 100
-              ),
-            },
-          });
-
-        if (ledgerErr) {
-          console.error(
-            `[archivist-cron] Ledger insert failed for account ${accountId}:`,
-            ledgerErr
-          );
-        }
-      }
-
-      accountsProcessed++;
+      // Response contains either a single result or { results: [...] }
+      const result = await response.json();
+      const resultCount = result.accounts_processed ?? 1;
+      accountsProcessed += resultCount;
     } catch (err) {
-      console.error(
-        `[archivist-cron] Failed to process account ${accountId}:`,
-        err
-      );
+      if (err instanceof DOMException && err.name === "AbortError") {
+        console.error(
+          `[archivist-cron] Clean API timed out after ${FETCH_TIMEOUT_MS}ms for batch starting at index ${i}`
+        );
+      } else {
+        console.error(
+          `[archivist-cron] Failed to call clean API for batch starting at index ${i}:`,
+          err
+        );
+      }
+      totalErrors += batchIds.length;
+    } finally {
+      clearTimeout(timer);
     }
   }
 
   // Log summary to ledger
-  const { error: summaryErr } = await admin.from("kinetiks_ledger").insert({
+  const { error: ledgerErr } = await admin.from("kinetiks_ledger").insert({
     account_id: null,
     event_type: "archivist_cron_run",
     source_operator: "archivist",
     detail: {
+      accounts_queued: allIds.length,
       accounts_processed: accountsProcessed,
-      total_gaps: totalGaps,
-      total_stale: totalStale,
+      errors: totalErrors,
       timestamp: new Date().toISOString(),
     },
   });
-  if (summaryErr) {
-    console.error("[archivist-cron] Summary ledger insert failed:", summaryErr);
+  if (ledgerErr) {
+    console.error("[archivist-cron] Ledger insert failed:", ledgerErr);
   }
 
   const summary = {
+    accounts_queued: allIds.length,
     accounts_processed: accountsProcessed,
-    total_gaps: totalGaps,
-    total_stale: totalStale,
+    errors: totalErrors,
   };
 
   console.log("[archivist-cron] Run complete:", JSON.stringify(summary));
