@@ -128,7 +128,7 @@ export function listProviders(): ProviderDefinition[] {
  * Check if a string is a valid ConnectionProvider.
  */
 export function isValidProvider(value: string): value is ConnectionProvider {
-  return value in PROVIDERS;
+  return Object.prototype.hasOwnProperty.call(PROVIDERS, value);
 }
 
 /**

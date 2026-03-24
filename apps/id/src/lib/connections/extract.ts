@@ -141,17 +141,23 @@ export async function runExtraction(
     const hasFailures = proposalsFailed > 0;
 
     // Only update last_sync_at when all proposals succeeded
+    let syncTimestampFailed = false;
     if (!hasFailures) {
-      await updateLastSync(admin, connection.id);
+      const syncUpdated = await updateLastSync(admin, connection.id);
+      if (!syncUpdated) {
+        syncTimestampFailed = true;
+      }
     }
 
     const result: DataExtractionResult = {
-      success: !hasFailures,
+      success: !hasFailures && !syncTimestampFailed,
       records_processed: extracted.length,
       proposals_generated: proposalsSubmitted,
       error: hasFailures
         ? `${proposalsFailed} of ${extracted.length} proposals failed to submit: ${failureMessages[0]}`
-        : null,
+        : syncTimestampFailed
+          ? "Proposals submitted but failed to update sync timestamp"
+          : null,
       duration_ms: Date.now() - startTime,
     };
 

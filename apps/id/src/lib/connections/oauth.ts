@@ -8,6 +8,34 @@
 import type { ConnectionProvider, OAuthTokens } from "@kinetiks/types";
 import type { OAuthEndpoints } from "./types";
 
+/** Timeout for token exchange and refresh HTTP requests (15 seconds). */
+const TOKEN_FETCH_TIMEOUT_MS = 15_000;
+
+/**
+ * Fetch with an AbortController-based timeout.
+ * Throws on timeout with a clear message.
+ */
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit,
+  timeoutMs: number = TOKEN_FETCH_TIMEOUT_MS
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } catch (err) {
+    if (err instanceof Error && err.name === "AbortError") {
+      throw new Error(
+        `Token request to ${url} timed out after ${timeoutMs}ms`
+      );
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /**
  * Get OAuth endpoint configuration for a provider.
  * Throws if the provider doesn't support OAuth or env vars are missing.
@@ -202,7 +230,7 @@ export async function exchangeCodeForTokens(
     client_secret: endpoints.clientSecret,
   });
 
-  const response = await fetch(endpoints.tokenUrl, {
+  const response = await fetchWithTimeout(endpoints.tokenUrl, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: body.toString(),
@@ -258,7 +286,7 @@ export async function refreshAccessToken(
     client_secret: endpoints.clientSecret,
   });
 
-  const response = await fetch(endpoints.tokenUrl, {
+  const response = await fetchWithTimeout(endpoints.tokenUrl, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: body.toString(),

@@ -91,14 +91,13 @@ export async function getConnectionByProvider(
     .select("*")
     .eq("account_id", accountId)
     .eq("provider", provider)
-    .single();
+    .maybeSingle();
 
   if (error) {
-    if (error.code === "PGRST116") return null; // no rows
     throw new Error(`Failed to fetch connection: ${error.message}`);
   }
 
-  return data as ConnectionRecord;
+  return (data as ConnectionRecord) ?? null;
 }
 
 /**
@@ -195,7 +194,7 @@ export async function updateConnectionCredentials(
 export async function updateLastSync(
   admin: SupabaseClient,
   connectionId: string
-): Promise<void> {
+): Promise<boolean> {
   const { error } = await admin
     .from("kinetiks_connections")
     .update({ last_sync_at: new Date().toISOString() })
@@ -203,7 +202,10 @@ export async function updateLastSync(
 
   if (error) {
     console.error(`Failed to update last_sync_at: ${error.message}`);
+    return false;
   }
+
+  return true;
 }
 
 /**
@@ -271,10 +273,23 @@ export async function ensureFreshToken(
   }
 
   if (!creds.refresh_token) {
-    await updateConnectionStatus(admin, connection.id, "error");
-    throw new Error(
+    const authError = new Error(
       "OAuth token expired and no refresh token available. User must re-authorize."
     );
+    try {
+      await updateConnectionStatus(
+        admin,
+        connection.id,
+        "error",
+        authError.message
+      );
+    } catch (statusErr) {
+      console.error(
+        "Failed to set connection error status during token expiry:",
+        statusErr instanceof Error ? statusErr.message : statusErr
+      );
+    }
+    throw authError;
   }
 
   const provider = connection.provider as ConnectionProvider;
