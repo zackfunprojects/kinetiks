@@ -12,8 +12,16 @@ const ALLOWED_MIME_TYPES = [
   "application/json",
   "application/pdf",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "application/octet-stream", // fallback for browsers that don't detect type
 ];
+const EXTENSION_MIME_MAP: Record<string, string[]> = {
+  ".csv": ["text/csv", "application/octet-stream"],
+  ".json": ["application/json", "application/octet-stream"],
+  ".pdf": ["application/pdf", "application/octet-stream"],
+  ".docx": [
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/octet-stream",
+  ],
+};
 
 /**
  * GET /api/imports
@@ -108,7 +116,15 @@ export async function POST(request: Request) {
   }
 
   // Validate file type by extension and MIME type
-  const fileExtension = file.name.toLowerCase().slice(file.name.lastIndexOf("."));
+  const dotIndex = file.name.lastIndexOf(".");
+  if (dotIndex === -1) {
+    return NextResponse.json(
+      { error: `File must have an extension. Allowed: ${ALLOWED_EXTENSIONS.join(", ")}` },
+      { status: 400 }
+    );
+  }
+
+  const fileExtension = file.name.toLowerCase().slice(dotIndex);
   if (!ALLOWED_EXTENSIONS.includes(fileExtension)) {
     return NextResponse.json(
       { error: `Unsupported file type. Allowed: ${ALLOWED_EXTENSIONS.join(", ")}` },
@@ -116,11 +132,14 @@ export async function POST(request: Request) {
     );
   }
 
-  if (file.type && !ALLOWED_MIME_TYPES.includes(file.type)) {
-    return NextResponse.json(
-      { error: "Unsupported file MIME type" },
-      { status: 400 }
-    );
+  if (file.type) {
+    const allowedForExt = EXTENSION_MIME_MAP[fileExtension] || ALLOWED_MIME_TYPES;
+    if (!allowedForExt.includes(file.type)) {
+      return NextResponse.json(
+        { error: "Unsupported file MIME type" },
+        { status: 400 }
+      );
+    }
   }
 
   // Upload to Supabase Storage
@@ -179,8 +198,8 @@ export async function POST(request: Request) {
     // Non-blocking - import will be picked up by CRON if API call fails
   }
 
-  // Log to ledger
-  await admin.from("kinetiks_ledger").insert({
+  // Log to ledger (non-blocking)
+  admin.from("kinetiks_ledger").insert({
     account_id: account.id,
     event_type: "import",
     detail: {
@@ -190,6 +209,13 @@ export async function POST(request: Request) {
       file_size: file.size,
       target_app: targetApp,
     },
+  }).then(({ error: ledgerError }) => {
+    if (ledgerError) {
+      console.error(
+        `Ledger insert failed for import ${importRecord.id} (account ${account.id}):`,
+        ledgerError.message
+      );
+    }
   });
 
   return NextResponse.json({ success: true, import: importRecord });

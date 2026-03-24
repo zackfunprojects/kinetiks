@@ -98,13 +98,31 @@ export async function PUT(
 
   const tableName = `kinetiks_context_${layerParam}`;
 
-  // Upsert the context data
+  // Read existing data and merge (preserve fields not in the update)
+  const { data: existingRow, error: readError } = await admin
+    .from(tableName)
+    .select("data")
+    .eq("account_id", account.id)
+    .maybeSingle();
+
+  if (readError) {
+    console.error(`Failed to read ${tableName} for account ${account.id}:`, readError.message);
+    return NextResponse.json(
+      { error: "Failed to read existing context data" },
+      { status: 500 }
+    );
+  }
+
+  const existingData = (existingRow?.data as Record<string, unknown>) || {};
+  const mergedData = { ...existingData, ...newData };
+
+  // Upsert the merged context data
   const { error: upsertError } = await admin
     .from(tableName)
     .upsert(
       {
         account_id: account.id,
-        data: newData,
+        data: mergedData,
         source: "user_explicit",
         source_detail: "context_editor",
         updated_at: new Date().toISOString(),
@@ -121,19 +139,19 @@ export async function PUT(
 
   // Log to ledger and recalculate confidence (non-blocking - upsert already succeeded)
   let layerConfidence: number | undefined;
-  try {
-    await admin.from("kinetiks_ledger").insert({
-      account_id: account.id,
-      event_type: "user_edit",
-      target_layer: layerParam,
-      detail: {
-        action: "context_edited",
-        layer: layerParam,
-        fields_updated: Object.keys(newData),
-      },
-    });
-  } catch (e) {
-    console.error(`Ledger insert failed for ${layerParam} (account ${account.id}):`, e);
+
+  const { error: ledgerError } = await admin.from("kinetiks_ledger").insert({
+    account_id: account.id,
+    event_type: "user_edit",
+    target_layer: layerParam,
+    detail: {
+      action: "context_edited",
+      layer: layerParam,
+      fields_updated: Object.keys(newData),
+    },
+  });
+  if (ledgerError) {
+    console.error(`Ledger insert failed for ${layerParam} (account ${account.id}):`, ledgerError.message);
   }
 
   try {

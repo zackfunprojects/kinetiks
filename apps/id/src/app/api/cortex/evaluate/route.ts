@@ -2,7 +2,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { evaluateProposal } from "@/lib/cortex/evaluate";
 import { recalculateConfidence } from "@/lib/cortex/confidence";
-import type { Proposal } from "@kinetiks/types";
+import { validateLayerData } from "@/lib/utils/context-validator";
+import type { ContextLayer, Proposal } from "@kinetiks/types";
 import { NextResponse } from "next/server";
 
 /**
@@ -266,6 +267,21 @@ export async function PATCH(request: Request) {
       ...typedProposal.payload,
     };
 
+    const validation = validateLayerData(
+      typedProposal.target_layer as ContextLayer,
+      mergedData
+    );
+    if (!validation.valid) {
+      console.error(
+        `Merged data failed validation for ${typedProposal.target_layer}:`,
+        validation.errors
+      );
+      return NextResponse.json(
+        { error: "Merged data failed layer validation", details: validation.errors },
+        { status: 400 }
+      );
+    }
+
     const { error: upsertError } = await admin
       .from(tableName)
       .upsert(
@@ -287,7 +303,11 @@ export async function PATCH(request: Request) {
       );
     }
 
-    await recalculateConfidence(admin, account.id);
+    try {
+      await recalculateConfidence(admin, account.id);
+    } catch (e) {
+      console.error(`Confidence recalculation failed for account ${account.id}:`, e);
+    }
   }
 
   // Log to ledger

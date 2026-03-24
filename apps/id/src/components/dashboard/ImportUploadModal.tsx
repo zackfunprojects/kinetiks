@@ -57,8 +57,11 @@ export function ImportUploadModal({
       }
 
       if (e.key === "Tab" && dialogRef.current) {
-        const focusable = dialogRef.current.querySelectorAll<HTMLElement>(
-          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        const all = dialogRef.current.querySelectorAll<HTMLElement>(
+          'button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"]):not([aria-hidden="true"])'
+        );
+        const focusable = Array.from(all).filter(
+          (el) => el.offsetParent !== null
         );
         if (focusable.length === 0) return;
 

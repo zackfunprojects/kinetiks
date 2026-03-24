@@ -283,14 +283,15 @@ export function SettingsPage({ account, email, apiKeysSet }: SettingsPageProps) 
             </p>
             <button
               onClick={() => setShowDeleteConfirm(false)}
+              disabled={deleting}
               style={{
                 padding: "6px 14px",
                 background: "#fff",
-                color: "#374151",
+                color: deleting ? "#D1D5DB" : "#374151",
                 border: "1px solid #E5E7EB",
                 borderRadius: 6,
                 fontSize: 13,
-                cursor: "pointer",
+                cursor: deleting ? "not-allowed" : "pointer",
               }}
             >
               Cancel

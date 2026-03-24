@@ -55,7 +55,7 @@ export function PillPanel({
   activeApps,
   inactiveApps,
 }: PillPanelProps) {
-  const idBaseUrl =
+  const idBaseUrl: string =
     idBaseUrlProp ||
     (typeof window !== "undefined" ? window.location.origin : "https://id.kinetiks.ai");
 

@@ -121,7 +121,7 @@ export function ArrayFieldEditor({
                     fontWeight: 500,
                     color: "#374151",
                     textAlign: "left",
-                    font: "inherit",
+                    fontFamily: "inherit",
                   }}
                 >
                   <span style={{ fontSize: 12, color: "#999" }}>
@@ -130,6 +130,7 @@ export function ArrayFieldEditor({
                   {title}
                 </button>
                 <button
+                  type="button"
                   onClick={() => removeItem(index)}
                   style={{
                     padding: "2px 6px",

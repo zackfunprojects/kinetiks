@@ -25,15 +25,14 @@ export function BillingPage({ billing }: BillingPageProps) {
     setPortalError(null);
     try {
       const res = await fetch("/api/billing/portal", { method: "POST" });
+      const body = await res.json().catch(() => null);
       if (!res.ok) {
-        const body = await res.json().catch(() => null);
         throw new Error(body?.error || `Request failed (${res.status})`);
       }
-      const data = await res.json();
-      if (!data.url) {
+      if (!body?.url) {
         throw new Error("No portal URL returned");
       }
-      window.location.href = data.url;
+      window.location.href = body.url;
     } catch (e) {
       setPortalError(e instanceof Error ? e.message : "Failed to open billing portal");
     } finally {

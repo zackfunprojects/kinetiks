@@ -112,7 +112,7 @@ export async function POST(request: Request) {
   // Log to ledger (non-fatal)
   const { error: ledgerError } = await admin.from("kinetiks_ledger").insert({
     account_id: account.id,
-    event_type: "import",
+    event_type: "app_activation",
     detail: {
       action: "app_activated",
       app_name,
