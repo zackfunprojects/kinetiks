@@ -128,16 +128,24 @@ export async function PATCH(request: Request) {
     updateData.resolved_at = new Date().toISOString();
   }
 
-  const { error: updateError } = await admin
+  const { data: updated, error: updateError } = await admin
     .from("kinetiks_escalations")
     .update(updateData)
     .eq("id", escalation_id)
-    .eq("account_id", account.id);
+    .eq("account_id", account.id)
+    .select("id");
 
   if (updateError) {
     return NextResponse.json(
       { error: "Failed to update escalation" },
       { status: 500 }
+    );
+  }
+
+  if (!updated || updated.length === 0) {
+    return NextResponse.json(
+      { error: "Escalation not found" },
+      { status: 404 }
     );
   }
 

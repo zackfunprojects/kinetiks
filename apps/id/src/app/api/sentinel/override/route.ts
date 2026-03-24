@@ -87,15 +87,23 @@ export async function PATCH(request: Request) {
     );
   }
 
-  try {
-    await processOverride(admin, account.id as string, review_id, action, edit_diff);
-    return NextResponse.json({ success: true });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    console.error("Override processing failed:", message);
+  // Only held or flagged reviews can be overridden
+  const verdict = review.verdict as string;
+  if (verdict !== "held" && verdict !== "flagged") {
     return NextResponse.json(
-      { error: "Override failed", detail: message },
+      { error: `Cannot override a review with verdict '${verdict}'. Only held or flagged reviews can be overridden.` },
+      { status: 400 }
+    );
+  }
+
+  const result = await processOverride(admin, account.id as string, review_id, action, edit_diff);
+
+  if (!result.success) {
+    return NextResponse.json(
+      { error: "Override failed" },
       { status: 500 }
     );
   }
+
+  return NextResponse.json({ success: true });
 }

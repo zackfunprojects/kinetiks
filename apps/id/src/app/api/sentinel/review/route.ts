@@ -113,10 +113,9 @@ export async function POST(request: Request) {
     const result = await reviewContent(admin, body);
     return NextResponse.json(result);
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    console.error("Sentinel review failed:", message);
+    console.error("Sentinel review failed:", err);
     return NextResponse.json(
-      { error: "Review failed", detail: message },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }

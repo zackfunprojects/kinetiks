@@ -175,7 +175,7 @@ export function createSynapse(config: SynapseConfig): SynapseInstance {
             event: "INSERT",
             schema: "public",
             table: "kinetiks_routing_events",
-            filter: `target_app=eq.${config.appName}`,
+            filter: `target_app=eq.${config.appName}&account_id=eq.${accountId}`,
           },
           (payload) => {
             const event = payload.new as unknown as RoutingEvent;

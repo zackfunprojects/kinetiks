@@ -18,13 +18,18 @@ import { SupabaseClient } from "@supabase/supabase-js";
  * - Quality patterns -> Voice layer
  * - Brand safety patterns -> Competitive layer (via Marcus)
  */
+export interface OverrideResult {
+  success: boolean;
+  error?: string;
+}
+
 export async function processOverride(
   admin: SupabaseClient,
   accountId: string,
   reviewId: string,
   userAction: OverrideUserAction,
   editDiff?: string
-): Promise<void> {
+): Promise<OverrideResult> {
   // Fetch the review
   const { data: review, error: reviewError } = await admin
     .from("kinetiks_sentinel_reviews")
@@ -34,11 +39,9 @@ export async function processOverride(
     .single();
 
   if (reviewError || !review) {
-    console.error(
-      `Failed to fetch review ${reviewId} for learning:`,
-      reviewError?.message
-    );
-    return;
+    const msg = `Failed to fetch review ${reviewId}: ${reviewError?.message ?? "not found"}`;
+    console.error(msg);
+    return { success: false, error: msg };
   }
 
   const typedReview = review as unknown as SentinelReview;
@@ -58,7 +61,9 @@ export async function processOverride(
     });
 
   if (overrideError) {
-    console.error("Failed to record override:", overrideError.message);
+    const msg = `Failed to record override: ${overrideError.message}`;
+    console.error(msg);
+    return { success: false, error: msg };
   }
 
   // Update the review resolution
@@ -78,7 +83,9 @@ export async function processOverride(
     .eq("id", reviewId);
 
   if (updateError) {
-    console.error("Failed to update review resolution:", updateError.message);
+    const msg = `Failed to update review resolution: ${updateError.message}`;
+    console.error(msg);
+    return { success: false, error: msg };
   }
 
   // Analyze patterns for learning (async, non-blocking)
@@ -100,6 +107,8 @@ export async function processOverride(
       quality_score: typedReview.quality_score,
     },
   });
+
+  return { success: true };
 }
 
 /**

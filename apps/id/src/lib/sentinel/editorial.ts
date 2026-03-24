@@ -29,6 +29,32 @@ interface ContextLayers {
 }
 
 /**
+ * Conservative fallback result returned when the AI call or parsing fails.
+ */
+function fallbackEditorialResult(detail: string): EditorialResult {
+  return {
+    scores: {
+      voice_match: 50,
+      tone: 50,
+      clarity: 50,
+      product_accuracy: 50,
+      competitive_claims: 50,
+      spelling_grammar: 50,
+      length: 50,
+    },
+    composite_score: 50,
+    flags: [
+      {
+        category: "clarity",
+        severity: "medium",
+        detail,
+        suggested_action: null,
+      },
+    ],
+  };
+}
+
+/**
  * Run the editorial quality evaluation.
  *
  * Calls Claude Sonnet with the content and relevant Context Structure layers.
@@ -59,74 +85,78 @@ ${JSON.stringify(context.products, null, 2)}
 --- COMPETITIVE LAYER DATA ---
 ${JSON.stringify(context.competitive, null, 2)}`;
 
-  const response = await askClaude(prompt, {
-    system: SENTINEL_EDITORIAL_SYSTEM,
-    model: "claude-sonnet-4-20250514",
-    maxTokens: 2048,
-  });
+  try {
+    const response = await askClaude(prompt, {
+      system: SENTINEL_EDITORIAL_SYSTEM,
+      model: "claude-sonnet-4-20250514",
+      maxTokens: 2048,
+    });
 
-  let parsed: {
-    scores: EditorialScores;
-    concerns: Array<{
+    const parsed = JSON.parse(response);
+
+    // Validate shape: scores must be an object with numeric fields
+    if (
+      !parsed.scores ||
+      typeof parsed.scores !== "object" ||
+      Array.isArray(parsed.scores)
+    ) {
+      return fallbackEditorialResult(
+        "Editorial evaluation returned invalid scores shape - manual review recommended"
+      );
+    }
+
+    for (const key of Object.keys(SCORE_WEIGHTS)) {
+      const val = parsed.scores[key];
+      if (val !== undefined && val !== null && typeof val !== "number") {
+        return fallbackEditorialResult(
+          `Editorial evaluation returned non-numeric score for ${key} - manual review recommended`
+        );
+      }
+    }
+
+    // Validate concerns is an array (or absent)
+    if (parsed.concerns !== undefined && !Array.isArray(parsed.concerns)) {
+      parsed.concerns = [];
+    }
+
+    // Clamp all scores to 0-100
+    const scores: EditorialScores = {
+      voice_match: clamp(parsed.scores.voice_match ?? 50),
+      tone: clamp(parsed.scores.tone ?? 50),
+      clarity: clamp(parsed.scores.clarity ?? 50),
+      product_accuracy: clamp(parsed.scores.product_accuracy ?? 50),
+      competitive_claims: clamp(parsed.scores.competitive_claims ?? 50),
+      spelling_grammar: clamp(parsed.scores.spelling_grammar ?? 50),
+      length: clamp(parsed.scores.length ?? 50),
+    };
+
+    // Compute weighted composite
+    let composite = 0;
+    for (const [dimension, weight] of Object.entries(SCORE_WEIGHTS)) {
+      composite += scores[dimension as keyof EditorialScores] * weight;
+    }
+    composite = Math.round(composite * 100) / 100;
+
+    // Convert concerns to flags
+    const concerns = (parsed.concerns ?? []) as Array<{
       dimension: string;
       detail: string;
       severity: string;
     }>;
-  };
+    const flags: SentinelFlag[] = concerns.map((concern) => ({
+      category: dimensionToFlagCategory(concern.dimension),
+      severity: mapSeverity(concern.severity),
+      detail: concern.detail,
+      suggested_action: null,
+    }));
 
-  try {
-    parsed = JSON.parse(response);
-  } catch {
-    // If AI returns malformed JSON, return conservative scores
-    return {
-      scores: {
-        voice_match: 50,
-        tone: 50,
-        clarity: 50,
-        product_accuracy: 50,
-        competitive_claims: 50,
-        spelling_grammar: 50,
-        length: 50,
-      },
-      composite_score: 50,
-      flags: [
-        {
-          category: "clarity",
-          severity: "medium",
-          detail: "Editorial evaluation returned unparseable response - manual review recommended",
-          suggested_action: null,
-        },
-      ],
-    };
+    return { scores, composite_score: composite, flags };
+  } catch (err) {
+    console.error("Editorial evaluation failed:", err);
+    return fallbackEditorialResult(
+      "Editorial evaluation failed - manual review recommended"
+    );
   }
-
-  // Clamp all scores to 0-100
-  const scores: EditorialScores = {
-    voice_match: clamp(parsed.scores.voice_match ?? 50),
-    tone: clamp(parsed.scores.tone ?? 50),
-    clarity: clamp(parsed.scores.clarity ?? 50),
-    product_accuracy: clamp(parsed.scores.product_accuracy ?? 50),
-    competitive_claims: clamp(parsed.scores.competitive_claims ?? 50),
-    spelling_grammar: clamp(parsed.scores.spelling_grammar ?? 50),
-    length: clamp(parsed.scores.length ?? 50),
-  };
-
-  // Compute weighted composite
-  let composite = 0;
-  for (const [dimension, weight] of Object.entries(SCORE_WEIGHTS)) {
-    composite += scores[dimension as keyof EditorialScores] * weight;
-  }
-  composite = Math.round(composite * 100) / 100;
-
-  // Convert concerns to flags
-  const flags: SentinelFlag[] = (parsed.concerns ?? []).map((concern) => ({
-    category: dimensionToFlagCategory(concern.dimension),
-    severity: mapSeverity(concern.severity),
-    detail: concern.detail,
-    suggested_action: null,
-  }));
-
-  return { scores, composite_score: composite, flags };
 }
 
 function clamp(value: number): number {
