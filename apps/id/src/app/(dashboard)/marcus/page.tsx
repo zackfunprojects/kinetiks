@@ -36,7 +36,7 @@ export default async function MarcusPage() {
     <div>
       <div style={{ marginBottom: 16 }}>
         <h1 style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>Marcus</h1>
-        <p style={{ margin: "4px 0 0", fontSize: 13, color: "#666" }}>
+        <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--text-secondary)" }}>
           Your strategic advisor - {account.codename}
         </p>
       </div>

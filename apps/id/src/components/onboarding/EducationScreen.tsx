@@ -40,21 +40,37 @@ export function EducationScreen({
 
   return (
     <div className="flex min-h-[60vh] items-center justify-center">
-      <div className="w-full max-w-lg rounded-2xl bg-white p-12 text-center shadow-sm">
-        <div className="mb-6 inline-block rounded-full bg-[#f0eeff] px-4 py-1.5 text-sm font-semibold text-[#6C5CE7]">
-          {codename}
+      <div
+        className="w-full max-w-lg rounded-xl p-12 text-center"
+        style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)" }}
+      >
+        <div
+          className="mb-6 inline-block rounded px-4 py-1.5 text-sm font-semibold"
+          style={{
+            background: "var(--accent-muted)",
+            color: "var(--accent)",
+            fontFamily: "var(--font-mono), monospace",
+          }}
+        >
+          {">"} {codename}
         </div>
 
-        <h1 className="text-2xl font-bold text-gray-900">{framing.heading}</h1>
+        <h1 className="text-2xl font-bold" style={{ color: "var(--text-primary)" }}>
+          {framing.heading}
+        </h1>
 
-        <p className="mt-3 text-[15px] leading-relaxed text-gray-500">
+        <p className="mt-3 text-[15px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
           {framing.body}
         </p>
 
         <div className="mt-10">
           <button
             onClick={onContinue}
-            className="rounded-lg bg-[#6C5CE7] px-8 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#5b4bd6]"
+            className="rounded-lg px-8 py-3 text-sm font-semibold transition-colors"
+            style={{
+              background: "var(--accent-emphasis)",
+              color: "var(--text-on-accent)",
+            }}
           >
             Let's get started
           </button>

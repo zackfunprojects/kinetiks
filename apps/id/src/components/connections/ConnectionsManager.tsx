@@ -221,9 +221,9 @@ export function ConnectionsManager({
             marginBottom: 16,
             borderRadius: 6,
             fontSize: 13,
-            background: toast.type === "success" ? "#ECFDF5" : "#FEF2F2",
-            color: toast.type === "success" ? "#065F46" : "#991B1B",
-            border: `1px solid ${toast.type === "success" ? "#A7F3D0" : "#FECACA"}`,
+            background: toast.type === "success" ? "var(--success-muted)" : "var(--error-muted)",
+            color: toast.type === "success" ? "var(--success)" : "var(--error)",
+            border: `1px solid ${toast.type === "success" ? "var(--success)" : "var(--error)"}`,
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
@@ -261,7 +261,7 @@ export function ConnectionsManager({
                 fontWeight: 600,
                 textTransform: "uppercase",
                 letterSpacing: "0.05em",
-                color: "#999",
+                color: "var(--text-tertiary)",
                 marginBottom: 12,
               }}
             >

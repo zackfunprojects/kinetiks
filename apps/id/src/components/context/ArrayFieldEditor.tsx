@@ -56,7 +56,7 @@ export function ArrayFieldEditor({
           style={{
             fontSize: 13,
             fontWeight: 600,
-            color: "#374151",
+            color: "var(--text-secondary)",
             textTransform: "capitalize",
           }}
         >
@@ -66,8 +66,8 @@ export function ArrayFieldEditor({
           onClick={addItem}
           style={{
             padding: "4px 10px",
-            background: "#F0EDFF",
-            color: "#6C5CE7",
+            background: "var(--accent-muted)",
+            color: "var(--accent)",
             border: "none",
             borderRadius: 4,
             fontSize: 12,
@@ -89,7 +89,7 @@ export function ArrayFieldEditor({
             <div
               key={index}
               style={{
-                border: "1px solid #E5E7EB",
+                border: "1px solid var(--border-default)",
                 borderRadius: 8,
                 overflow: "hidden",
               }}
@@ -100,7 +100,7 @@ export function ArrayFieldEditor({
                   alignItems: "center",
                   justifyContent: "space-between",
                   padding: "0 12px 0 0",
-                  background: "#FAFAFA",
+                  background: "var(--bg-base)",
                 }}
               >
                 <button
@@ -119,12 +119,12 @@ export function ArrayFieldEditor({
                     cursor: "pointer",
                     fontSize: 13,
                     fontWeight: 500,
-                    color: "#374151",
+                    color: "var(--text-secondary)",
                     textAlign: "left",
                     fontFamily: "inherit",
                   }}
                 >
-                  <span style={{ fontSize: 12, color: "#999" }}>
+                  <span style={{ fontSize: 12, color: "var(--text-tertiary)" }}>
                     {isExpanded ? "\u25B2" : "\u25BC"}
                   </span>
                   {title}
@@ -137,7 +137,7 @@ export function ArrayFieldEditor({
                     background: "none",
                     border: "1px solid #FCA5A5",
                     borderRadius: 4,
-                    color: "#EF4444",
+                    color: "var(--error)",
                     fontSize: 11,
                     cursor: "pointer",
                   }}

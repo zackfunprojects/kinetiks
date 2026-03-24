@@ -13,10 +13,10 @@ interface ConnectionCardProps {
 
 const STATUS_COLORS: Record<string, { bg: string; text: string; dot: string }> =
   {
-    active: { bg: "#ECFDF5", text: "#065F46", dot: "#10B981" },
-    pending: { bg: "#FFF7ED", text: "#9A3412", dot: "#F97316" },
-    error: { bg: "#FEF2F2", text: "#991B1B", dot: "#EF4444" },
-    revoked: { bg: "#F3F4F6", text: "#6B7280", dot: "#9CA3AF" },
+    active: { bg: "var(--success-muted)", text: "var(--success)", dot: "var(--success)" },
+    pending: { bg: "var(--warning-muted)", text: "var(--warning)", dot: "var(--warning)" },
+    error: { bg: "var(--error-muted)", text: "var(--error)", dot: "var(--error)" },
+    revoked: { bg: "var(--bg-surface-raised)", text: "var(--text-secondary)", dot: "var(--text-tertiary)" },
   };
 
 function formatLastSync(lastSyncAt: string | null): string {
@@ -50,10 +50,10 @@ export function ConnectionCard({
   return (
     <div
       style={{
-        border: "1px solid #E5E7EB",
+        border: "1px solid var(--border-default)",
         borderRadius: 8,
         padding: 16,
-        background: "#fff",
+        background: "var(--bg-surface)",
       }}
     >
       <div
@@ -72,7 +72,7 @@ export function ConnectionCard({
             style={{
               margin: "4px 0 0",
               fontSize: 12,
-              color: "#666",
+              color: "var(--text-secondary)",
               lineHeight: 1.4,
             }}
           >
@@ -90,9 +90,10 @@ export function ConnectionCard({
               fontSize: 10,
               padding: "2px 6px",
               borderRadius: 4,
-              background: "#F3F4F6",
-              color: "#6B7280",
+              background: "var(--bg-surface-raised)",
+              color: "var(--text-secondary)",
               textTransform: "capitalize",
+              fontFamily: "var(--font-mono), monospace",
             }}
           >
             {layer}
@@ -134,7 +135,7 @@ export function ConnectionCard({
               />
               {connection.status}
             </span>
-            <span style={{ fontSize: 11, color: "#999" }}>
+            <span style={{ fontSize: 11, color: "var(--text-tertiary)", fontFamily: "var(--font-mono), monospace" }}>
               {formatLastSync(connection.last_sync_at)}
             </span>
           </div>
@@ -148,16 +149,16 @@ export function ConnectionCard({
                   padding: "6px 12px",
                   fontSize: 12,
                   fontWeight: 500,
-                  border: "1px solid #D1D5DB",
+                  border: "1px solid var(--border-default)",
                   borderRadius: 6,
-                  background: "#fff",
+                  background: "var(--bg-surface)",
                   cursor:
                     isSyncing || connection.status === "error"
                       ? "not-allowed"
                       : "pointer",
                   opacity:
                     isSyncing || connection.status === "error" ? 0.5 : 1,
-                  color: "#374151",
+                  color: "var(--text-secondary)",
                 }}
               >
                 {isSyncing ? "Syncing..." : "Sync now"}
@@ -172,9 +173,9 @@ export function ConnectionCard({
                   fontWeight: 500,
                   border: "1px solid #FECACA",
                   borderRadius: 6,
-                  background: "#fff",
+                  background: "var(--bg-surface)",
                   cursor: "pointer",
-                  color: "#DC2626",
+                  color: "var(--error)",
                 }}
               >
                 Disconnect
@@ -192,8 +193,8 @@ export function ConnectionCard({
             fontWeight: 500,
             border: "none",
             borderRadius: 6,
-            background: "#6C5CE7",
-            color: "#fff",
+            background: "var(--accent-emphasis)",
+            color: "var(--text-on-accent)",
             cursor: "pointer",
           }}
         >

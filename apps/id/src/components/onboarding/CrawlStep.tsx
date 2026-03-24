@@ -73,14 +73,20 @@ export function CrawlStep({ onComplete, onSkip }: CrawlStepProps) {
 
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
-        <div className="w-full max-w-lg rounded-2xl bg-white p-10 shadow-sm">
+        <div
+          className="w-full max-w-lg rounded-xl p-10"
+          style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)" }}
+        >
           <div className="mb-6 flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-100">
+            <div
+              className="flex h-8 w-8 items-center justify-center rounded-full"
+              style={{ background: "var(--success-muted)" }}
+            >
               <svg
-                className="h-4 w-4 text-green-600"
+                className="h-4 w-4"
                 fill="none"
                 viewBox="0 0 24 24"
-                stroke="currentColor"
+                stroke="var(--success)"
                 strokeWidth={3}
               >
                 <path
@@ -90,7 +96,7 @@ export function CrawlStep({ onComplete, onSkip }: CrawlStepProps) {
                 />
               </svg>
             </div>
-            <h2 className="text-lg font-semibold text-gray-900">
+            <h2 className="text-lg font-semibold" style={{ color: "var(--text-primary)" }}>
               Found {successCount} data{" "}
               {successCount === 1 ? "category" : "categories"}
             </h2>
@@ -100,17 +106,26 @@ export function CrawlStep({ onComplete, onSkip }: CrawlStepProps) {
             {extractions.map(([key, val]) => (
               <div
                 key={key}
-                className="flex items-center justify-between rounded-lg border border-gray-100 px-4 py-2.5"
+                className="flex items-center justify-between rounded-lg px-4 py-2.5"
+                style={{ border: "1px solid var(--border-muted)" }}
               >
-                <span className="text-sm text-gray-700">
+                <span className="text-sm" style={{ color: "var(--text-secondary)" }}>
                   {EXTRACTION_LABELS[key] ?? key}
                 </span>
                 {val.success ? (
-                  <span className="text-xs font-medium text-green-600">
-                    Captured
+                  <span
+                    className="text-xs font-medium"
+                    style={{ color: "var(--success)", fontFamily: "var(--font-mono), monospace" }}
+                  >
+                    captured
                   </span>
                 ) : (
-                  <span className="text-xs text-gray-400">Not found</span>
+                  <span
+                    className="text-xs"
+                    style={{ color: "var(--text-tertiary)", fontFamily: "var(--font-mono), monospace" }}
+                  >
+                    not found
+                  </span>
                 )}
               </div>
             ))}
@@ -118,7 +133,8 @@ export function CrawlStep({ onComplete, onSkip }: CrawlStepProps) {
 
           <button
             onClick={() => onComplete(result)}
-            className="mt-8 w-full rounded-lg bg-[#6C5CE7] py-3 text-sm font-semibold text-white transition-colors hover:bg-[#5b4bd6]"
+            className="mt-8 w-full rounded-lg py-3 text-sm font-semibold transition-colors"
+            style={{ background: "var(--accent-emphasis)", color: "var(--text-on-accent)" }}
           >
             Continue
           </button>
@@ -129,11 +145,14 @@ export function CrawlStep({ onComplete, onSkip }: CrawlStepProps) {
 
   return (
     <div className="flex min-h-[60vh] items-center justify-center">
-      <div className="w-full max-w-lg rounded-2xl bg-white p-10 shadow-sm">
-        <h2 className="text-xl font-semibold text-gray-900">
+      <div
+        className="w-full max-w-lg rounded-xl p-10"
+        style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)" }}
+      >
+        <h2 className="text-xl font-semibold" style={{ color: "var(--text-primary)" }}>
           What's your website?
         </h2>
-        <p className="mt-1 text-sm text-gray-500">
+        <p className="mt-1 text-sm" style={{ color: "var(--text-secondary)" }}>
           We'll extract your brand, voice, products, and more from your site.
         </p>
 
@@ -147,35 +166,45 @@ export function CrawlStep({ onComplete, onSkip }: CrawlStepProps) {
             }}
             placeholder="https://yourcompany.com"
             disabled={crawling}
-            className="w-full rounded-lg border border-gray-200 px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[#6C5CE7] focus:outline-none disabled:opacity-50"
+            className="w-full rounded-lg px-4 py-3 text-sm disabled:opacity-50"
+            style={{
+              border: "1px solid var(--border-default)",
+              background: "var(--bg-inset)",
+              color: "var(--text-primary)",
+            }}
           />
         </div>
 
         {crawling && (
           <div className="mt-6 flex items-center gap-3">
-            <div className="h-4 w-4 animate-spin rounded-full border-2 border-[#6C5CE7] border-t-transparent" />
-            <span className="text-sm text-gray-600">
+            <div
+              className="h-4 w-4 animate-spin rounded-full border-2 border-t-transparent"
+              style={{ borderColor: "var(--accent)", borderTopColor: "transparent" }}
+            />
+            <span className="text-sm" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-mono), monospace" }}>
               {PROGRESS_MESSAGES[progressIdx]}
             </span>
           </div>
         )}
 
         {error && (
-          <p className="mt-4 text-sm text-red-500">{error}</p>
+          <p className="mt-4 text-sm" style={{ color: "var(--error)" }}>{error}</p>
         )}
 
         <div className="mt-6 flex items-center gap-3">
           <button
             onClick={handleCrawl}
             disabled={crawling || !url.trim()}
-            className="rounded-lg bg-[#6C5CE7] px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#5b4bd6] disabled:opacity-50"
+            className="rounded-lg px-6 py-2.5 text-sm font-semibold transition-colors disabled:opacity-50"
+            style={{ background: "var(--accent-emphasis)", color: "var(--text-on-accent)" }}
           >
             {crawling ? "Analyzing..." : "Analyze"}
           </button>
           <button
             onClick={onSkip}
             disabled={crawling}
-            className="text-sm text-gray-400 hover:text-gray-600"
+            className="text-sm"
+            style={{ color: "var(--text-tertiary)" }}
           >
             Skip - I don't have a website
           </button>

@@ -43,10 +43,10 @@ export function BillingPage({ billing }: BillingPageProps) {
   return (
     <div>
       <div style={{ marginBottom: 32 }}>
-        <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: "#1a1a2e" }}>
+        <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: "var(--text-primary)" }}>
           Billing
         </h1>
-        <p style={{ margin: "4px 0 0", fontSize: 14, color: "#666" }}>
+        <p style={{ margin: "4px 0 0", fontSize: 14, color: "var(--text-secondary)" }}>
           Manage your subscription and payment details
         </p>
       </div>
@@ -61,42 +61,42 @@ export function BillingPage({ billing }: BillingPageProps) {
         }}
       >
         <Card>
-          <p style={{ margin: "0 0 4px", fontSize: 12, color: "#999" }}>Current Plan</p>
+          <p style={{ margin: "0 0 4px", fontSize: 12, color: "var(--text-tertiary)" }}>Current Plan</p>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: 24, fontWeight: 700, color: "#1a1a2e" }}>
+            <span style={{ fontSize: 24, fontWeight: 700, color: "var(--text-primary)" }}>
               {planInfo.name}
             </span>
             <Badge
               label={billing?.plan_status || "active"}
               variant={
                 billing?.plan_status === "active" ? "success" :
-                billing?.plan_status === "trialing" ? "purple" :
+                billing?.plan_status === "trialing" ? "accent" :
                 billing?.plan_status === "past_due" ? "warning" : "error"
               }
             />
           </div>
           {billing?.current_period_end && (
-            <p style={{ margin: "8px 0 0", fontSize: 12, color: "#999" }}>
+            <p style={{ margin: "8px 0 0", fontSize: 12, color: "var(--text-tertiary)" }}>
               Renews {new Date(billing.current_period_end).toLocaleDateString()}
             </p>
           )}
         </Card>
 
         <Card>
-          <p style={{ margin: "0 0 4px", fontSize: 12, color: "#999" }}>Seeds Balance</p>
-          <span style={{ fontSize: 24, fontWeight: 700, color: "#6C5CE7" }}>
+          <p style={{ margin: "0 0 4px", fontSize: 12, color: "var(--text-tertiary)" }}>Seeds Balance</p>
+          <span style={{ fontSize: 24, fontWeight: 700, color: "var(--accent)" }}>
             {(billing?.seeds_balance ?? 0).toLocaleString()}
           </span>
-          <p style={{ margin: "8px 0 0", fontSize: 12, color: "#999" }}>
+          <p style={{ margin: "8px 0 0", fontSize: 12, color: "var(--text-tertiary)" }}>
             {planInfo.seedsPerMonth.toLocaleString()} seeds/month included
           </p>
         </Card>
 
         <Card>
-          <p style={{ margin: "0 0 4px", fontSize: 12, color: "#999" }}>Payment Method</p>
+          <p style={{ margin: "0 0 4px", fontSize: 12, color: "var(--text-tertiary)" }}>Payment Method</p>
           {billing?.payment_method_last4 ? (
             <>
-              <span style={{ fontSize: 18, fontWeight: 600, color: "#1a1a2e" }}>
+              <span style={{ fontSize: 18, fontWeight: 600, color: "var(--text-primary)", fontFamily: "var(--font-mono), monospace" }}>
                 **** {billing.payment_method_last4}
               </span>
               <p style={{ margin: "8px 0 0" }}>
@@ -107,7 +107,7 @@ export function BillingPage({ billing }: BillingPageProps) {
                     padding: 0,
                     border: "none",
                     background: "none",
-                    color: "#6C5CE7",
+                    color: "var(--accent)",
                     fontSize: 13,
                     cursor: "pointer",
                     textDecoration: "underline",
@@ -118,7 +118,7 @@ export function BillingPage({ billing }: BillingPageProps) {
               </p>
             </>
           ) : (
-            <p style={{ margin: 0, fontSize: 13, color: "#999" }}>
+            <p style={{ margin: 0, fontSize: 13, color: "var(--text-tertiary)" }}>
               No payment method on file
             </p>
           )}
@@ -126,7 +126,7 @@ export function BillingPage({ billing }: BillingPageProps) {
       </div>
 
       {/* Plan comparison */}
-      <h3 style={{ margin: "0 0 16px", fontSize: 16, fontWeight: 600, color: "#1a1a2e" }}>
+      <h3 style={{ margin: "0 0 16px", fontSize: 16, fontWeight: 600, color: "var(--text-primary)" }}>
         Plans
       </h3>
       <div
@@ -144,7 +144,7 @@ export function BillingPage({ billing }: BillingPageProps) {
             <Card
               key={plan}
               style={{
-                border: isCurrent ? "2px solid #6C5CE7" : "1px solid #E5E7EB",
+                border: isCurrent ? "2px solid var(--accent)" : "1px solid var(--border-default)",
                 position: "relative",
               }}
             >
@@ -155,8 +155,8 @@ export function BillingPage({ billing }: BillingPageProps) {
                     top: -1,
                     left: "50%",
                     transform: "translateX(-50%)",
-                    background: "#6C5CE7",
-                    color: "#fff",
+                    background: "var(--accent-emphasis)",
+                    color: "var(--text-on-accent)",
                     fontSize: 10,
                     fontWeight: 600,
                     padding: "2px 8px",
@@ -167,13 +167,13 @@ export function BillingPage({ billing }: BillingPageProps) {
                 </div>
               )}
               <div style={{ textAlign: "center", marginBottom: 16, paddingTop: isCurrent ? 8 : 0 }}>
-                <h4 style={{ margin: "0 0 4px", fontSize: 16, fontWeight: 600, color: "#1a1a2e" }}>
+                <h4 style={{ margin: "0 0 4px", fontSize: 16, fontWeight: 600, color: "var(--text-primary)" }}>
                   {details.name}
                 </h4>
-                <span style={{ fontSize: 28, fontWeight: 700, color: "#1a1a2e" }}>
+                <span style={{ fontSize: 28, fontWeight: 700, color: "var(--text-primary)" }}>
                   {details.price}
                 </span>
-                <span style={{ fontSize: 13, color: "#999" }}> /{details.priceNote}</span>
+                <span style={{ fontSize: 13, color: "var(--text-tertiary)" }}> /{details.priceNote}</span>
               </div>
               <ul style={{ listStyle: "none", padding: 0, margin: "0 0 16px" }}>
                 {details.features.map((feature) => (
@@ -181,14 +181,14 @@ export function BillingPage({ billing }: BillingPageProps) {
                     key={feature}
                     style={{
                       fontSize: 13,
-                      color: "#4B5563",
+                      color: "var(--text-secondary)",
                       padding: "4px 0",
                       display: "flex",
                       alignItems: "flex-start",
                       gap: 6,
                     }}
                   >
-                    <span style={{ color: "#10B981", flexShrink: 0 }}>&#10003;</span>
+                    <span style={{ color: "var(--success)", flexShrink: 0 }}>&#10003;</span>
                     {feature}
                   </li>
                 ))}
@@ -200,9 +200,9 @@ export function BillingPage({ billing }: BillingPageProps) {
                   style={{
                     width: "100%",
                     padding: "8px 0",
-                    background: PLANS.indexOf(plan) > PLANS.indexOf(currentPlan) ? "#6C5CE7" : "#fff",
-                    color: PLANS.indexOf(plan) > PLANS.indexOf(currentPlan) ? "#fff" : "#374151",
-                    border: PLANS.indexOf(plan) > PLANS.indexOf(currentPlan) ? "none" : "1px solid #E5E7EB",
+                    background: PLANS.indexOf(plan) > PLANS.indexOf(currentPlan) ? "var(--accent-emphasis)" : "var(--bg-surface)",
+                    color: PLANS.indexOf(plan) > PLANS.indexOf(currentPlan) ? "var(--text-on-accent)" : "var(--text-secondary)",
+                    border: PLANS.indexOf(plan) > PLANS.indexOf(currentPlan) ? "none" : "1px solid var(--border-default)",
                     borderRadius: 8,
                     fontSize: 13,
                     fontWeight: 600,
@@ -222,10 +222,10 @@ export function BillingPage({ billing }: BillingPageProps) {
         <Card>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div>
-              <h4 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: "#1a1a2e" }}>
+              <h4 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: "var(--text-primary)" }}>
                 Manage Subscription
               </h4>
-              <p style={{ margin: "4px 0 0", fontSize: 13, color: "#666" }}>
+              <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--text-secondary)" }}>
                 View invoices, update payment method, or cancel your plan
               </p>
             </div>
@@ -234,8 +234,8 @@ export function BillingPage({ billing }: BillingPageProps) {
               disabled={loadingPortal}
               style={{
                 padding: "8px 20px",
-                background: "#6C5CE7",
-                color: "#fff",
+                background: "var(--accent-emphasis)",
+                color: "var(--text-on-accent)",
                 border: "none",
                 borderRadius: 8,
                 fontSize: 14,
@@ -247,7 +247,7 @@ export function BillingPage({ billing }: BillingPageProps) {
             </button>
           </div>
           {portalError && (
-            <p role="alert" style={{ margin: "12px 0 0", fontSize: 13, color: "#EF4444" }}>
+            <p role="alert" style={{ margin: "12px 0 0", fontSize: 13, color: "var(--error)" }}>
               {portalError}
             </p>
           )}

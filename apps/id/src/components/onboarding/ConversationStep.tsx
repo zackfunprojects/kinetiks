@@ -118,12 +118,21 @@ export function ConversationStep({
     }
   };
 
+  const inputStyles = {
+    border: "1px solid var(--border-default)",
+    background: "var(--bg-inset)",
+    color: "var(--text-primary)",
+  };
+
   if (loading && questionCount === 0) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
         <div className="flex items-center gap-3">
-          <div className="h-4 w-4 animate-spin rounded-full border-2 border-[#6C5CE7] border-t-transparent" />
-          <span className="text-sm text-gray-500">
+          <div
+            className="h-4 w-4 animate-spin rounded-full border-2 border-t-transparent"
+            style={{ borderColor: "var(--accent)", borderTopColor: "transparent" }}
+          />
+          <span className="text-sm" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-mono), monospace" }}>
             Preparing your first question...
           </span>
         </div>
@@ -133,26 +142,36 @@ export function ConversationStep({
 
   return (
     <div className="flex min-h-[60vh] items-center justify-center">
-      <div className="w-full max-w-lg rounded-2xl bg-white p-10 shadow-sm">
+      <div
+        className="w-full max-w-lg rounded-xl p-10"
+        style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)" }}
+      >
         <div className="mb-6 flex items-center justify-between">
-          <span className="text-xs font-medium text-gray-400">
+          <span
+            className="text-xs font-medium"
+            style={{ color: "var(--text-tertiary)", fontFamily: "var(--font-mono), monospace" }}
+          >
             Question {questionCount + 1} of ~6
           </span>
           <button
             onClick={onComplete}
-            className="text-xs text-gray-400 hover:text-gray-600"
+            className="text-xs"
+            style={{ color: "var(--text-tertiary)" }}
           >
             Skip remaining
           </button>
         </div>
 
         {feedback ? (
-          <div className="flex items-center gap-2 rounded-lg bg-[#f0eeff] px-4 py-3">
+          <div
+            className="flex items-center gap-2 rounded-lg px-4 py-3"
+            style={{ background: "var(--accent-muted)" }}
+          >
             <svg
-              className="h-4 w-4 flex-shrink-0 text-[#6C5CE7]"
+              className="h-4 w-4 flex-shrink-0"
               fill="none"
               viewBox="0 0 24 24"
-              stroke="currentColor"
+              stroke="var(--accent)"
               strokeWidth={2}
             >
               <path
@@ -161,16 +180,18 @@ export function ConversationStep({
                 d="M5 13l4 4L19 7"
               />
             </svg>
-            <span className="text-sm text-[#6C5CE7]">{feedback}</span>
+            <span className="text-sm" style={{ color: "var(--accent)", fontFamily: "var(--font-mono), monospace" }}>
+              {feedback}
+            </span>
           </div>
         ) : currentQuestion ? (
           <>
-            <h2 className="text-lg font-semibold text-gray-900">
+            <h2 className="text-lg font-semibold" style={{ color: "var(--text-primary)" }}>
               {currentQuestion.question}
             </h2>
 
             {currentQuestion.hint && (
-              <p className="mt-2 text-xs text-gray-400">
+              <p className="mt-2 text-xs" style={{ color: "var(--text-tertiary)" }}>
                 {currentQuestion.hint}
               </p>
             )}
@@ -183,7 +204,8 @@ export function ConversationStep({
                   value={answer}
                   onChange={(e) => setAnswer(e.target.value)}
                   onKeyDown={handleInputKeyDown}
-                  className="w-full rounded-lg border border-gray-200 px-4 py-3 text-sm text-gray-900 focus:border-[#6C5CE7] focus:outline-none"
+                  className="w-full rounded-lg px-4 py-3 text-sm"
+                  style={inputStyles}
                 >
                   <option value="">Select an option</option>
                   {currentQuestion.options.map((opt) => (
@@ -201,7 +223,8 @@ export function ConversationStep({
                   rows={4}
                   placeholder="Type your answer..."
                   disabled={submitting}
-                  className="w-full resize-none rounded-lg border border-gray-200 px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[#6C5CE7] focus:outline-none disabled:opacity-50"
+                  className="w-full resize-none rounded-lg px-4 py-3 text-sm disabled:opacity-50"
+                  style={inputStyles}
                 />
               ) : (
                 <input
@@ -212,7 +235,8 @@ export function ConversationStep({
                   onKeyDown={handleInputKeyDown}
                   placeholder="Type your answer..."
                   disabled={submitting}
-                  className="w-full rounded-lg border border-gray-200 px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[#6C5CE7] focus:outline-none disabled:opacity-50"
+                  className="w-full rounded-lg px-4 py-3 text-sm disabled:opacity-50"
+                  style={inputStyles}
                 />
               )}
             </div>
@@ -220,7 +244,8 @@ export function ConversationStep({
             <button
               onClick={handleSubmit}
               disabled={submitting || !answer.trim()}
-              className="mt-5 w-full rounded-lg bg-[#6C5CE7] py-3 text-sm font-semibold text-white transition-colors hover:bg-[#5b4bd6] disabled:opacity-50"
+              className="mt-5 w-full rounded-lg py-3 text-sm font-semibold transition-colors disabled:opacity-50"
+              style={{ background: "var(--accent-emphasis)", color: "var(--text-on-accent)" }}
             >
               {submitting ? "Processing..." : "Continue"}
             </button>

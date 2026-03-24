@@ -52,20 +52,20 @@ export function LayerCard({
       >
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
           <span style={{ fontSize: 20 }}>{LAYER_ICONS[layer]}</span>
-          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: "#1a1a2e" }}>
+          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: "var(--text-primary)" }}>
             {LAYER_DISPLAY_NAMES[layer]}
           </h3>
         </div>
 
-        <p style={{ margin: "0 0 12px", fontSize: 12, color: "#999", lineHeight: 1.4 }}>
+        <p style={{ margin: "0 0 12px", fontSize: 12, color: "var(--text-tertiary)", lineHeight: 1.4 }}>
           {LAYER_DESCRIPTIONS[layer]}
         </p>
 
         {/* Confidence bar */}
         <div style={{ marginBottom: 12 }}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-            <span style={{ fontSize: 11, color: "#999" }}>Confidence</span>
-            <span style={{ fontSize: 11, fontWeight: 600, color: "#6C5CE7" }}>
+            <span style={{ fontSize: 11, color: "var(--text-tertiary)" }}>Confidence</span>
+            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--accent)", fontFamily: "var(--font-mono), monospace" }}>
               {Math.round(confidence)}%
             </span>
           </div>
@@ -73,7 +73,7 @@ export function LayerCard({
             style={{
               height: 4,
               borderRadius: 2,
-              background: "#E5E7EB",
+              background: "var(--border-default)",
               overflow: "hidden",
             }}
           >
@@ -81,7 +81,7 @@ export function LayerCard({
               style={{
                 height: "100%",
                 width: `${Math.min(confidence, 100)}%`,
-                background: "#6C5CE7",
+                background: "var(--accent)",
                 borderRadius: 2,
                 transition: "width 0.3s ease-out",
               }}
@@ -91,13 +91,13 @@ export function LayerCard({
 
         {/* Preview data or empty state */}
         {isEmpty ? (
-          <p style={{ margin: 0, fontSize: 12, color: "#D1D5DB", fontStyle: "italic" }}>
+          <p style={{ margin: 0, fontSize: 12, color: "var(--border-default)", fontStyle: "italic" }}>
             No data yet
           </p>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
             {previews.map((preview, i) => (
-              <p key={i} style={{ margin: 0, fontSize: 12, color: "#4B5563" }}>
+              <p key={i} style={{ margin: 0, fontSize: 12, color: "var(--text-secondary)" }}>
                 {preview}
               </p>
             ))}
@@ -112,17 +112,17 @@ export function LayerCard({
             gap: 8,
             marginTop: 12,
             paddingTop: 8,
-            borderTop: "1px solid #F3F4F6",
+            borderTop: "1px solid var(--bg-surface-raised)",
           }}
         >
           {source && (
             <Badge
               label={source.replace("_", " ")}
-              variant={source.startsWith("user") ? "purple" : "default"}
+              variant={source.startsWith("user") ? "accent" : "default"}
             />
           )}
           {updatedAt && (
-            <span style={{ fontSize: 11, color: "#999" }}>
+            <span style={{ fontSize: 11, color: "var(--text-tertiary)", fontFamily: "var(--font-mono), monospace" }}>
               {timeAgo(updatedAt)}
             </span>
           )}

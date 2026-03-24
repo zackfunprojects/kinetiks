@@ -38,10 +38,10 @@ export default async function AppsPage() {
   return (
     <div>
       <div style={{ marginBottom: 24 }}>
-        <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: "#1a1a2e" }}>
+        <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: "var(--text-primary)" }}>
           Apps
         </h1>
-        <p style={{ margin: "4px 0 0", fontSize: 14, color: "#666" }}>
+        <p style={{ margin: "4px 0 0", fontSize: 14, color: "var(--text-secondary)" }}>
           Manage your Kinetiks ecosystem. Activate apps to connect them with your ID.
         </p>
       </div>

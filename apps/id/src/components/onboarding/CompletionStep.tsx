@@ -98,37 +98,61 @@ export function CompletionStep({
 
   return (
     <div className="flex min-h-[60vh] items-center justify-center">
-      <div className="w-full max-w-lg rounded-2xl bg-white p-10 text-center shadow-sm">
-        <div className="mb-6 inline-block rounded-full bg-[#f0eeff] px-4 py-1.5 text-sm font-semibold text-[#6C5CE7]">
-          {codename}
+      <div
+        className="w-full max-w-lg rounded-xl p-10 text-center"
+        style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)" }}
+      >
+        <div
+          className="mb-6 inline-block rounded px-4 py-1.5 text-sm font-semibold"
+          style={{
+            background: "var(--accent-muted)",
+            color: "var(--accent)",
+            fontFamily: "var(--font-mono), monospace",
+          }}
+        >
+          {">"} {codename}
         </div>
 
-        <h1 className="text-2xl font-bold text-gray-900">
+        <h1 className="text-2xl font-bold" style={{ color: "var(--text-primary)" }}>
           Your Kinetiks ID is ready
         </h1>
 
         <div className="mt-4 flex items-center justify-center gap-2">
-          <span className="text-3xl font-bold text-[#6C5CE7]">
+          <span
+            className="text-3xl font-bold"
+            style={{ color: "var(--accent)", fontFamily: "var(--font-mono), monospace" }}
+          >
             {aggregate}%
           </span>
-          <span className="text-sm text-gray-400">confidence</span>
+          <span className="text-sm" style={{ color: "var(--text-tertiary)", fontFamily: "var(--font-mono), monospace" }}>
+            confidence
+          </span>
         </div>
 
         <div className="mt-6 space-y-2 text-left">
           {Object.entries(layers).map(([key, val]) => (
             <div key={key} className="flex items-center gap-3">
-              <span className="w-24 text-xs text-gray-500">
+              <span
+                className="w-24 text-xs"
+                style={{ color: "var(--text-secondary)", fontFamily: "var(--font-mono), monospace" }}
+              >
                 {LAYER_LABELS[key] ?? key}
               </span>
               <div className="flex-1">
-                <div className="h-1.5 overflow-hidden rounded-full bg-gray-100">
+                <div
+                  className="h-1.5 overflow-hidden rounded-full"
+                  style={{ background: "var(--border-default)" }}
+                >
                   <div
-                    className="h-full rounded-full bg-[#6C5CE7] transition-all"
-                    style={{ width: `${val.percentage}%` }}
+                    className="h-full rounded-full transition-all"
+                    style={{ width: `${val.percentage}%`, background: "var(--accent)" }}
                   />
                 </div>
               </div>
-              <span className="w-8 text-right text-xs text-gray-400">
+              <span
+                className="w-8 text-right text-xs"
+                style={{ color: "var(--text-tertiary)", fontFamily: "var(--font-mono), monospace" }}
+              >
                 {val.percentage}%
               </span>
             </div>
@@ -136,10 +160,10 @@ export function CompletionStep({
         </div>
 
         {error && (
-          <p className="mt-4 text-xs text-red-400">{error}</p>
+          <p className="mt-4 text-xs" style={{ color: "var(--error)" }}>{error}</p>
         )}
 
-        <p className="mt-6 text-xs text-gray-400">
+        <p className="mt-6 text-xs" style={{ color: "var(--text-tertiary)" }}>
           To improve your ID further, connect GA4, upload brand assets, or chat
           with Marcus.
         </p>
@@ -147,14 +171,15 @@ export function CompletionStep({
         <button
           onClick={() => redirect(getRedirectTarget(fromApp))}
           disabled={!ready}
-          className="mt-6 w-full rounded-lg bg-[#6C5CE7] py-3 text-sm font-semibold text-white transition-colors hover:bg-[#5b4bd6] disabled:opacity-50"
+          className="mt-6 w-full rounded-lg py-3 text-sm font-semibold transition-colors disabled:opacity-50"
+          style={{ background: "var(--accent-emphasis)", color: "var(--text-on-accent)" }}
         >
           {fromApp
             ? `Go to ${fromApp.replace("_", " ")}`
             : "Go to dashboard"}
         </button>
 
-        <p className="mt-3 text-xs text-gray-400">
+        <p className="mt-3 text-xs" style={{ color: "var(--text-tertiary)", fontFamily: "var(--font-mono), monospace" }}>
           {ready
             ? `Redirecting in ${countdown}s...`
             : "Finalizing your profile..."}

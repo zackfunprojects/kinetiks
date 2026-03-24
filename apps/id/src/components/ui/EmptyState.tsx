@@ -23,7 +23,7 @@ export function EmptyState({ title, description, action }: EmptyStateProps) {
           width: 48,
           height: 48,
           borderRadius: "50%",
-          background: "#F3F4F6",
+          background: "var(--bg-surface-raised)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -33,10 +33,10 @@ export function EmptyState({ title, description, action }: EmptyStateProps) {
       >
         -
       </div>
-      <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: "#1a1a2e" }}>
+      <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: "var(--text-primary)" }}>
         {title}
       </h3>
-      <p style={{ margin: "8px 0 0", fontSize: 14, color: "#666", maxWidth: 360 }}>
+      <p style={{ margin: "8px 0 0", fontSize: 14, color: "var(--text-secondary)", maxWidth: 360 }}>
         {description}
       </p>
       {action && (
@@ -45,8 +45,8 @@ export function EmptyState({ title, description, action }: EmptyStateProps) {
           style={{
             marginTop: 16,
             padding: "8px 16px",
-            background: "#6C5CE7",
-            color: "#fff",
+            background: "var(--accent-emphasis)",
+            color: "var(--text-on-accent)",
             borderRadius: 8,
             fontSize: 14,
             fontWeight: 500,

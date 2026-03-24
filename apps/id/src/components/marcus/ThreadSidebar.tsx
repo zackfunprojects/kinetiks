@@ -48,11 +48,11 @@ export function ThreadSidebar({
     <div
       style={{
         width: 280,
-        borderRight: "1px solid #e5e5ea",
+        borderRight: "1px solid var(--border-muted)",
         display: "flex",
         flexDirection: "column",
         height: "100%",
-        backgroundColor: "#fafafa",
+        backgroundColor: "var(--bg-surface)",
       }}
     >
       {/* Header */}
@@ -65,21 +65,24 @@ export function ThreadSidebar({
             marginBottom: 12,
           }}
         >
-          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>Threads</h3>
+          <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: "var(--text-primary)", fontFamily: "var(--font-mono), monospace" }}>
+            threads
+          </h3>
           <button
             onClick={onNewThread}
             style={{
-              background: "#6C5CE7",
-              color: "#fff",
+              background: "var(--accent-emphasis)",
+              color: "var(--text-on-accent)",
               border: "none",
-              borderRadius: 6,
+              borderRadius: 4,
               padding: "6px 12px",
               fontSize: 12,
               cursor: "pointer",
               fontWeight: 500,
+              fontFamily: "var(--font-mono), monospace",
             }}
           >
-            New
+            + new
           </button>
         </div>
 
@@ -92,12 +95,13 @@ export function ThreadSidebar({
           style={{
             width: "100%",
             padding: "8px 12px",
-            border: "1px solid #e5e5ea",
-            borderRadius: 8,
+            border: "1px solid var(--border-default)",
+            borderRadius: 6,
             fontSize: 13,
             outline: "none",
             boxSizing: "border-box",
-            backgroundColor: "#fff",
+            backgroundColor: "var(--bg-inset)",
+            color: "var(--text-primary)",
           }}
         />
       </div>
@@ -117,7 +121,7 @@ export function ThreadSidebar({
           <ThreadGroup label="Earlier" threads={earlier} currentThreadId={currentThreadId} onSelect={onSelectThread} />
         )}
         {threads.length === 0 && (
-          <p style={{ textAlign: "center", color: "#999", fontSize: 13, padding: 16 }}>
+          <p style={{ textAlign: "center", color: "var(--text-tertiary)", fontSize: 13, padding: 16, fontFamily: "var(--font-mono), monospace" }}>
             No conversations yet
           </p>
         )}
@@ -143,7 +147,8 @@ function ThreadGroup({
         style={{
           fontSize: 11,
           fontWeight: 600,
-          color: "#999",
+          fontFamily: "var(--font-mono), monospace",
+          color: "var(--text-tertiary)",
           textTransform: "uppercase",
           letterSpacing: 0.5,
           padding: "4px 8px",
@@ -161,14 +166,15 @@ function ThreadGroup({
             textAlign: "left",
             padding: "10px 12px",
             border: "none",
-            borderRadius: 8,
+            borderRadius: 6,
             cursor: "pointer",
             fontSize: 13,
             backgroundColor:
-              thread.id === currentThreadId ? "#E8E5FF" : "transparent",
-            color: thread.id === currentThreadId ? "#6C5CE7" : "#333",
+              thread.id === currentThreadId ? "var(--accent-muted)" : "transparent",
+            color: thread.id === currentThreadId ? "var(--accent)" : "var(--text-secondary)",
             fontWeight: thread.id === currentThreadId ? 500 : 400,
             marginBottom: 2,
+            borderLeft: thread.id === currentThreadId ? "2px solid var(--accent)" : "2px solid transparent",
           }}
         >
           <div
@@ -178,10 +184,10 @@ function ThreadGroup({
               whiteSpace: "nowrap",
             }}
           >
-            {thread.pinned && "📌 "}
+            {thread.pinned && "# "}
             {thread.title || "New conversation"}
           </div>
-          <div style={{ fontSize: 11, color: "#999", marginTop: 2 }}>
+          <div style={{ fontSize: 11, color: "var(--text-tertiary)", marginTop: 2, fontFamily: "var(--font-mono), monospace" }}>
             {formatRelativeTime(thread.updated_at)}
           </div>
         </button>
@@ -198,7 +204,7 @@ function formatRelativeTime(dateStr: string): string {
   const hours = Math.floor(diff / 3600000);
   const days = Math.floor(diff / 86400000);
 
-  if (minutes < 1) return "Just now";
+  if (minutes < 1) return "just now";
   if (minutes < 60) return `${minutes}m ago`;
   if (hours < 24) return `${hours}h ago`;
   if (days < 7) return `${days}d ago`;

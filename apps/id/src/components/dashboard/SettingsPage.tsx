@@ -97,34 +97,34 @@ export function SettingsPage({ account, email, apiKeysSet }: SettingsPageProps) 
   const inputStyle: React.CSSProperties = {
     width: "100%",
     padding: "8px 10px",
-    border: "1px solid #E5E7EB",
+    border: "1px solid var(--border-default)",
     borderRadius: 6,
     fontSize: 13,
-    color: "#1a1a2e",
-    background: "#fff",
+    color: "var(--text-primary)",
+    background: "var(--bg-surface)",
     boxSizing: "border-box",
   };
 
   return (
     <div>
       <div style={{ marginBottom: 32 }}>
-        <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: "#1a1a2e" }}>
+        <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: "var(--text-primary)" }}>
           Settings
         </h1>
-        <p style={{ margin: "4px 0 0", fontSize: 14, color: "#666" }}>
+        <p style={{ margin: "4px 0 0", fontSize: 14, color: "var(--text-secondary)" }}>
           Account settings and configuration
         </p>
       </div>
 
       {/* Profile */}
       <Card style={{ marginBottom: 24 }}>
-        <h3 style={{ margin: "0 0 16px", fontSize: 16, fontWeight: 600, color: "#1a1a2e" }}>
+        <h3 style={{ margin: "0 0 16px", fontSize: 16, fontWeight: 600, color: "var(--text-primary)" }}>
           Profile
         </h3>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
           <div>
-            <label style={{ display: "block", fontSize: 12, fontWeight: 500, color: "#6B7280", marginBottom: 4 }}>
+            <label style={{ display: "block", fontSize: 12, fontWeight: 500, color: "var(--text-secondary)", marginBottom: 4 }}>
               Display Name
             </label>
             <div style={{ display: "flex", gap: 8 }}>
@@ -140,8 +140,8 @@ export function SettingsPage({ account, email, apiKeysSet }: SettingsPageProps) 
                 disabled={savingName || nameSaved}
                 style={{
                   padding: "8px 14px",
-                  background: nameSaved ? "#10B981" : "#6C5CE7",
-                  color: "#fff",
+                  background: nameSaved ? "var(--success)" : "var(--accent-emphasis)",
+                  color: "var(--text-on-accent)",
                   border: "none",
                   borderRadius: 6,
                   fontSize: 13,
@@ -156,7 +156,7 @@ export function SettingsPage({ account, email, apiKeysSet }: SettingsPageProps) 
           </div>
 
           <div>
-            <label style={{ display: "block", fontSize: 12, fontWeight: 500, color: "#6B7280", marginBottom: 4 }}>
+            <label style={{ display: "block", fontSize: 12, fontWeight: 500, color: "var(--text-secondary)", marginBottom: 4 }}>
               Kinetiks ID
             </label>
             <div style={{ display: "flex", gap: 8 }}>
@@ -164,15 +164,15 @@ export function SettingsPage({ account, email, apiKeysSet }: SettingsPageProps) 
                 type="text"
                 value={account.codename}
                 readOnly
-                style={{ ...inputStyle, flex: 1, background: "#F9FAFB", color: "#6C5CE7", fontWeight: 600 }}
+                style={{ ...inputStyle, flex: 1, background: "var(--bg-surface-raised)", color: "var(--accent)", fontWeight: 600, fontFamily: "var(--font-mono), monospace" }}
               />
               <button
                 onClick={copyCodename}
                 style={{
                   padding: "8px 14px",
-                  background: "#fff",
-                  color: "#374151",
-                  border: "1px solid #E5E7EB",
+                  background: "var(--bg-surface)",
+                  color: "var(--text-secondary)",
+                  border: "1px solid var(--border-default)",
                   borderRadius: 6,
                   fontSize: 13,
                   cursor: "pointer",
@@ -184,14 +184,14 @@ export function SettingsPage({ account, email, apiKeysSet }: SettingsPageProps) 
           </div>
 
           <div>
-            <label style={{ display: "block", fontSize: 12, fontWeight: 500, color: "#6B7280", marginBottom: 4 }}>
+            <label style={{ display: "block", fontSize: 12, fontWeight: 500, color: "var(--text-secondary)", marginBottom: 4 }}>
               Email
             </label>
             <input
               type="text"
               value={email}
               readOnly
-              style={{ ...inputStyle, background: "#F9FAFB", color: "#999" }}
+              style={{ ...inputStyle, background: "var(--bg-surface-raised)", color: "var(--text-tertiary)" }}
             />
           </div>
         </div>
@@ -199,10 +199,10 @@ export function SettingsPage({ account, email, apiKeysSet }: SettingsPageProps) 
 
       {/* API Keys (BYOK) */}
       <Card style={{ marginBottom: 24 }}>
-        <h3 style={{ margin: "0 0 4px", fontSize: 16, fontWeight: 600, color: "#1a1a2e" }}>
+        <h3 style={{ margin: "0 0 4px", fontSize: 16, fontWeight: 600, color: "var(--text-primary)" }}>
           API Keys
         </h3>
-        <p style={{ margin: "0 0 16px", fontSize: 13, color: "#666" }}>
+        <p style={{ margin: "0 0 16px", fontSize: 13, color: "var(--text-secondary)" }}>
           Bring your own keys for AI and enrichment features
         </p>
 
@@ -215,13 +215,13 @@ export function SettingsPage({ account, email, apiKeysSet }: SettingsPageProps) 
                 alignItems: "center",
                 justifyContent: "space-between",
                 padding: "10px 14px",
-                background: "#FAFAFA",
+                background: "var(--bg-base)",
                 borderRadius: 8,
               }}
             >
               <div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontSize: 14, fontWeight: 500, color: "#1a1a2e" }}>
+                  <span style={{ fontSize: 14, fontWeight: 500, color: "var(--text-primary)" }}>
                     {provider.label}
                   </span>
                   <Badge
@@ -229,7 +229,7 @@ export function SettingsPage({ account, email, apiKeysSet }: SettingsPageProps) 
                     variant={keysSet[provider.key] ? "success" : "default"}
                   />
                 </div>
-                <p style={{ margin: "2px 0 0", fontSize: 12, color: "#999" }}>
+                <p style={{ margin: "2px 0 0", fontSize: 12, color: "var(--text-tertiary)" }}>
                   {provider.description}
                 </p>
               </div>
@@ -237,9 +237,9 @@ export function SettingsPage({ account, email, apiKeysSet }: SettingsPageProps) 
                 onClick={() => { setApiKeyModal(provider.key); setApiKeyValue(""); }}
                 style={{
                   padding: "6px 12px",
-                  background: "#fff",
-                  color: "#374151",
-                  border: "1px solid #E5E7EB",
+                  background: "var(--bg-surface)",
+                  color: "var(--text-secondary)",
+                  border: "1px solid var(--border-default)",
                   borderRadius: 6,
                   fontSize: 13,
                   cursor: "pointer",
@@ -254,10 +254,10 @@ export function SettingsPage({ account, email, apiKeysSet }: SettingsPageProps) 
 
       {/* Danger Zone */}
       <Card style={{ border: "1px solid #FCA5A5" }}>
-        <h3 style={{ margin: "0 0 4px", fontSize: 16, fontWeight: 600, color: "#991B1B" }}>
+        <h3 style={{ margin: "0 0 4px", fontSize: 16, fontWeight: 600, color: "var(--error)" }}>
           Danger Zone
         </h3>
-        <p style={{ margin: "0 0 16px", fontSize: 13, color: "#666" }}>
+        <p style={{ margin: "0 0 16px", fontSize: 13, color: "var(--text-secondary)" }}>
           Permanently delete your account and all associated data
         </p>
         {!showDeleteConfirm ? (
@@ -265,8 +265,8 @@ export function SettingsPage({ account, email, apiKeysSet }: SettingsPageProps) 
             onClick={() => setShowDeleteConfirm(true)}
             style={{
               padding: "8px 16px",
-              background: "#fff",
-              color: "#991B1B",
+              background: "var(--bg-surface)",
+              color: "var(--error)",
               border: "1px solid #FCA5A5",
               borderRadius: 8,
               fontSize: 13,
@@ -278,7 +278,7 @@ export function SettingsPage({ account, email, apiKeysSet }: SettingsPageProps) 
           </button>
         ) : (
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <p style={{ margin: 0, fontSize: 13, color: "#991B1B", fontWeight: 500 }}>
+            <p style={{ margin: 0, fontSize: 13, color: "var(--error)", fontWeight: 500 }}>
               Are you sure? This cannot be undone.
             </p>
             <button
@@ -286,9 +286,9 @@ export function SettingsPage({ account, email, apiKeysSet }: SettingsPageProps) 
               disabled={deleting}
               style={{
                 padding: "6px 14px",
-                background: "#fff",
-                color: deleting ? "#D1D5DB" : "#374151",
-                border: "1px solid #E5E7EB",
+                background: "var(--bg-surface)",
+                color: deleting ? "var(--border-default)" : "var(--text-secondary)",
+                border: "1px solid var(--border-default)",
                 borderRadius: 6,
                 fontSize: 13,
                 cursor: deleting ? "not-allowed" : "pointer",
@@ -301,8 +301,8 @@ export function SettingsPage({ account, email, apiKeysSet }: SettingsPageProps) 
               disabled={deleting}
               style={{
                 padding: "6px 14px",
-                background: "#991B1B",
-                color: "#fff",
+                background: "var(--error)",
+                color: "var(--text-on-accent)",
                 border: "none",
                 borderRadius: 6,
                 fontSize: 13,
@@ -316,7 +316,7 @@ export function SettingsPage({ account, email, apiKeysSet }: SettingsPageProps) 
           </div>
         )}
         {deleteError && (
-          <p role="alert" style={{ margin: "12px 0 0", fontSize: 13, color: "#EF4444" }}>
+          <p role="alert" style={{ margin: "12px 0 0", fontSize: 13, color: "var(--error)" }}>
             {deleteError}
           </p>
         )}
@@ -338,7 +338,7 @@ export function SettingsPage({ account, email, apiKeysSet }: SettingsPageProps) 
         >
           <div
             style={{
-              background: "#fff",
+              background: "var(--bg-surface)",
               borderRadius: 12,
               padding: 24,
               width: 400,
@@ -346,7 +346,7 @@ export function SettingsPage({ account, email, apiKeysSet }: SettingsPageProps) 
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 style={{ margin: "0 0 12px", fontSize: 16, fontWeight: 600, color: "#1a1a2e" }}>
+            <h3 style={{ margin: "0 0 12px", fontSize: 16, fontWeight: 600, color: "var(--text-primary)" }}>
               {keysSet[apiKeyModal as keyof typeof keysSet] ? "Update" : "Set"}{" "}
               {API_KEY_PROVIDERS.find((p) => p.key === apiKeyModal)?.label} Key
             </h3>
@@ -363,9 +363,9 @@ export function SettingsPage({ account, email, apiKeysSet }: SettingsPageProps) 
                 onClick={() => setApiKeyModal(null)}
                 style={{
                   padding: "8px 16px",
-                  background: "#fff",
-                  color: "#374151",
-                  border: "1px solid #E5E7EB",
+                  background: "var(--bg-surface)",
+                  color: "var(--text-secondary)",
+                  border: "1px solid var(--border-default)",
                   borderRadius: 6,
                   fontSize: 13,
                   cursor: "pointer",
@@ -378,8 +378,8 @@ export function SettingsPage({ account, email, apiKeysSet }: SettingsPageProps) 
                 disabled={!apiKeyValue || savingKey}
                 style={{
                   padding: "8px 16px",
-                  background: "#6C5CE7",
-                  color: "#fff",
+                  background: "var(--accent-emphasis)",
+                  color: "var(--text-on-accent)",
                   border: "none",
                   borderRadius: 6,
                   fontSize: 13,

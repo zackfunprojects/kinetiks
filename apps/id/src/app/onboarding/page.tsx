@@ -52,10 +52,16 @@ function OnboardingContent() {
 
   if (loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#FAFAFA]">
+      <main
+        className="flex min-h-screen items-center justify-center"
+        style={{ background: "var(--bg-base)" }}
+      >
         <div className="flex items-center gap-3">
-          <div className="h-4 w-4 animate-spin rounded-full border-2 border-[#6C5CE7] border-t-transparent" />
-          <p className="text-sm text-gray-500">Setting up your Kinetiks ID...</p>
+          <div
+            className="h-4 w-4 animate-spin rounded-full border-2 border-t-transparent"
+            style={{ borderColor: "var(--accent)", borderTopColor: "transparent" }}
+          />
+          <p className="text-sm" style={{ color: "var(--text-tertiary)" }}>Setting up your Kinetiks ID...</p>
         </div>
       </main>
     );
@@ -63,12 +69,16 @@ function OnboardingContent() {
 
   if (error) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#FAFAFA]">
+      <main
+        className="flex min-h-screen items-center justify-center"
+        style={{ background: "var(--bg-base)" }}
+      >
         <div className="text-center">
-          <p className="text-sm text-red-500">{error}</p>
+          <p className="text-sm" style={{ color: "var(--error)" }}>{error}</p>
           <button
             onClick={() => router.push("/login")}
-            className="mt-4 rounded-lg bg-[#6C5CE7] px-6 py-2.5 text-sm font-semibold text-white hover:bg-[#5b4bd6]"
+            className="mt-4 rounded-lg px-6 py-2.5 text-sm font-semibold"
+            style={{ background: "var(--accent-emphasis)", color: "var(--text-on-accent)" }}
           >
             Back to login
           </button>

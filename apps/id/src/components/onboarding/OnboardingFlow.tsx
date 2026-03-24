@@ -106,7 +106,7 @@ export function OnboardingFlow({ account, fromApp }: OnboardingFlowProps) {
   };
 
   return (
-    <div className="min-h-screen bg-[#FAFAFA]">
+    <div style={{ minHeight: "100vh", background: "var(--bg-base)" }}>
       <ProgressBar currentStep={step} steps={STEPS} />
 
       <div className="mx-auto max-w-3xl px-4 pb-16">

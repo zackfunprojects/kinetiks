@@ -98,28 +98,30 @@ export function FloatingPill({
           display: "flex",
           alignItems: "center",
           gap: 8,
-          background: hovered ? "#5B4BD5" : "#6C5CE7",
-          color: "#fff",
-          border: "none",
-          borderRadius: 999,
+          background: "var(--bg-surface, #161b22)",
+          color: "var(--text-primary, #e6edf3)",
+          border: hovered ? "1px solid var(--accent, #3fb950)" : "1px solid var(--border-default, #30363d)",
+          borderRadius: 8,
           padding: "8px 16px",
           cursor: "pointer",
           fontSize: 13,
           fontWeight: 500,
-          boxShadow: "0 4px 16px rgba(108,92,231,0.3)",
-          transition: "background 0.15s, transform 0.15s, box-shadow 0.15s",
+          boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
+          transition: "border-color 0.15s, transform 0.15s",
           transform: hovered ? "scale(1.03)" : "scale(1)",
           position: "relative",
         }}
       >
-        <span style={{ fontWeight: 700, letterSpacing: -0.3 }}>K</span>
-        <span>{codename}</span>
+        <span style={{ fontWeight: 700, fontFamily: "var(--font-mono, monospace), monospace", color: "var(--accent, #3fb950)", letterSpacing: -0.3 }}>K</span>
+        <span style={{ fontFamily: "var(--font-mono, monospace), monospace" }}>{codename}</span>
         <span
           style={{
             padding: "1px 6px",
-            background: "rgba(255,255,255,0.2)",
-            borderRadius: 999,
+            background: "var(--accent-muted, rgba(63,185,80,0.15))",
+            color: "var(--accent, #3fb950)",
+            borderRadius: 4,
             fontSize: 11,
+            fontFamily: "var(--font-mono, monospace), monospace",
           }}
         >
           {confidenceScore}%
@@ -135,8 +137,8 @@ export function FloatingPill({
               width: 10,
               height: 10,
               borderRadius: "50%",
-              background: "#EF4444",
-              border: "2px solid #fff",
+              background: "var(--error, #f85149)",
+              border: "2px solid var(--bg-surface, #161b22)",
             }}
           />
         )}

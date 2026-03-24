@@ -37,14 +37,14 @@ export default async function MarcusSchedulesPage() {
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 4 }}>
           <Link
             href="/marcus"
-            style={{ color: "#6C5CE7", textDecoration: "none", fontSize: 13 }}
+            style={{ color: "var(--accent)", textDecoration: "none", fontSize: 13 }}
           >
             Marcus
           </Link>
-          <span style={{ color: "#999", fontSize: 13 }}>/</span>
+          <span style={{ color: "var(--text-tertiary)", fontSize: 13 }}>/</span>
           <h1 style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>Schedules</h1>
         </div>
-        <p style={{ margin: "4px 0 0", fontSize: 13, color: "#666" }}>
+        <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--text-secondary)" }}>
           Configure when Marcus sends you briefs and digests.
         </p>
       </div>

@@ -50,13 +50,22 @@ export function ConfidenceRing({
       }}
     >
       <div style={{ position: "relative", width: size, height: size }}>
-        <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
+        <svg
+          width={size}
+          height={size}
+          style={{
+            transform: "rotate(-90deg)",
+            filter: animatedScore > 0
+              ? "drop-shadow(0 0 8px rgba(63, 185, 80, 0.4))"
+              : undefined,
+          }}
+        >
           <circle
             cx={center}
             cy={center}
             r={radius}
             fill="none"
-            stroke="#E5E7EB"
+            stroke="var(--ring-track)"
             strokeWidth={strokeWidth}
           />
           <circle
@@ -64,7 +73,7 @@ export function ConfidenceRing({
             cy={center}
             r={radius}
             fill="none"
-            stroke="#6C5CE7"
+            stroke="var(--ring-fill)"
             strokeWidth={strokeWidth}
             strokeDasharray={circumference}
             strokeDashoffset={offset}
@@ -88,7 +97,8 @@ export function ConfidenceRing({
             style={{
               fontSize: size * 0.28,
               fontWeight: 700,
-              color: "#1a1a2e",
+              fontFamily: "var(--font-mono), monospace",
+              color: "var(--text-primary)",
               lineHeight: 1,
             }}
           >
@@ -97,7 +107,15 @@ export function ConfidenceRing({
         </div>
       </div>
       {label && (
-        <span style={{ fontSize: 12, color: "#666", marginTop: 2 }}>
+        <span
+          style={{
+            fontSize: 12,
+            fontFamily: "var(--font-mono), monospace",
+            color: "var(--text-tertiary)",
+            marginTop: 2,
+            letterSpacing: "0.02em",
+          }}
+        >
           {label}
         </span>
       )}

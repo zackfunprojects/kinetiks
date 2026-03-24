@@ -1,17 +1,7 @@
 "use client";
 
 import type { ExtractedAction } from "@kinetiks/types";
-import { useState, useEffect } from "react";
-
-// Inject blink keyframes once
-let blinkInjected = false;
-function injectBlinkKeyframes() {
-  if (blinkInjected || typeof document === "undefined") return;
-  const style = document.createElement("style");
-  style.textContent = `@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }`;
-  document.head.appendChild(style);
-  blinkInjected = true;
-}
+import { useState } from "react";
 
 interface MessageBubbleProps {
   role: "user" | "marcus";
@@ -31,10 +21,6 @@ export function MessageBubble({
   const [showActions, setShowActions] = useState(false);
   const isUser = role === "user";
 
-  useEffect(() => {
-    if (isStreaming) injectBlinkKeyframes();
-  }, [isStreaming]);
-
   return (
     <div
       style={{
@@ -47,9 +33,10 @@ export function MessageBubble({
         style={{
           maxWidth: "75%",
           padding: "12px 16px",
-          borderRadius: 12,
-          backgroundColor: isUser ? "#6C5CE7" : "#F0F0F5",
-          color: isUser ? "#fff" : "#1a1a2e",
+          borderRadius: 8,
+          backgroundColor: isUser ? "var(--user-bubble)" : "var(--marcus-bubble)",
+          color: isUser ? "var(--text-on-accent)" : "var(--text-primary)",
+          border: isUser ? "none" : "1px solid var(--border-muted)",
           fontSize: 14,
           lineHeight: 1.6,
           position: "relative",
@@ -64,7 +51,7 @@ export function MessageBubble({
                 display: "inline-block",
                 width: 6,
                 height: 16,
-                backgroundColor: isUser ? "#fff" : "#6C5CE7",
+                backgroundColor: "var(--accent)",
                 marginLeft: 2,
                 animation: "blink 1s infinite",
                 verticalAlign: "text-bottom",
@@ -75,7 +62,7 @@ export function MessageBubble({
 
         {/* Extracted actions */}
         {extractedActions && extractedActions.length > 0 && (
-          <div style={{ marginTop: 8, borderTop: "1px solid rgba(0,0,0,0.1)", paddingTop: 8 }}>
+          <div style={{ marginTop: 8, borderTop: "1px solid var(--border-muted)", paddingTop: 8 }}>
             <button
               onClick={() => setShowActions(!showActions)}
               aria-expanded={showActions}
@@ -84,14 +71,15 @@ export function MessageBubble({
                 border: "none",
                 cursor: "pointer",
                 fontSize: 12,
-                color: isUser ? "rgba(255,255,255,0.8)" : "#6C5CE7",
+                fontFamily: "var(--font-mono), monospace",
+                color: isUser ? "rgba(255,255,255,0.8)" : "var(--accent)",
                 padding: 0,
               }}
             >
               {showActions ? "Hide" : "Show"} extracted actions ({extractedActions.length})
             </button>
             {showActions && (
-              <ul style={{ margin: "8px 0 0", paddingLeft: 16, fontSize: 12, opacity: 0.85 }}>
+              <ul style={{ margin: "8px 0 0", paddingLeft: 16, fontSize: 12, opacity: 0.85, fontFamily: "var(--font-mono), monospace" }}>
                 {extractedActions.map((action, i) => (
                   <li key={i} style={{ marginBottom: 4 }}>
                     {action.type === "proposal" && (
@@ -121,7 +109,8 @@ export function MessageBubble({
           <div
             style={{
               fontSize: 11,
-              opacity: 0.6,
+              fontFamily: "var(--font-mono), monospace",
+              color: isUser ? "rgba(255,255,255,0.5)" : "var(--text-tertiary)",
               marginTop: 4,
               textAlign: isUser ? "right" : "left",
             }}

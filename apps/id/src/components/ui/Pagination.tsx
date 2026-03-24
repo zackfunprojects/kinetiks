@@ -24,10 +24,10 @@ export function Pagination({ page, totalPages, onPageChange }: PaginationProps) 
         disabled={page <= 1}
         style={{
           padding: "6px 12px",
-          border: "1px solid #E5E7EB",
+          border: "1px solid var(--border-default)",
           borderRadius: 6,
-          background: page <= 1 ? "#F9FAFB" : "#fff",
-          color: page <= 1 ? "#D1D5DB" : "#374151",
+          background: page <= 1 ? "var(--bg-surface-raised)" : "var(--bg-surface)",
+          color: page <= 1 ? "var(--text-tertiary)" : "var(--text-secondary)",
           cursor: page <= 1 ? "not-allowed" : "pointer",
           fontSize: 13,
           fontWeight: 500,
@@ -35,7 +35,7 @@ export function Pagination({ page, totalPages, onPageChange }: PaginationProps) 
       >
         Previous
       </button>
-      <span style={{ fontSize: 13, color: "#666" }}>
+      <span style={{ fontSize: 13, color: "var(--text-tertiary)", fontFamily: "var(--font-mono), monospace" }}>
         {page} of {totalPages}
       </span>
       <button
@@ -43,10 +43,10 @@ export function Pagination({ page, totalPages, onPageChange }: PaginationProps) 
         disabled={page >= totalPages}
         style={{
           padding: "6px 12px",
-          border: "1px solid #E5E7EB",
+          border: "1px solid var(--border-default)",
           borderRadius: 6,
-          background: page >= totalPages ? "#F9FAFB" : "#fff",
-          color: page >= totalPages ? "#D1D5DB" : "#374151",
+          background: page >= totalPages ? "var(--bg-surface-raised)" : "var(--bg-surface)",
+          color: page >= totalPages ? "var(--text-tertiary)" : "var(--text-secondary)",
           cursor: page >= totalPages ? "not-allowed" : "pointer",
           fontSize: 13,
           fontWeight: 500,

@@ -32,14 +32,14 @@ const LAYERS: ContextLayer[] = [
   "narrative", "competitive", "market", "brand",
 ];
 
-const EVENT_VARIANTS: Record<string, "success" | "error" | "purple" | "warning" | "default"> = {
+const EVENT_VARIANTS: Record<string, "success" | "error" | "accent" | "warning" | "default"> = {
   proposal_accepted: "success",
   proposal_declined: "error",
-  routing_sent: "purple",
+  routing_sent: "accent",
   user_edit: "default",
   archivist_clean: "default",
   expiration: "warning",
-  import: "purple",
+  import: "accent",
   archivist_gap_detect: "warning",
 };
 
@@ -106,11 +106,11 @@ export function LedgerViewer({
 
   const selectStyle: React.CSSProperties = {
     padding: "6px 10px",
-    border: "1px solid #E5E7EB",
+    border: "1px solid var(--border-default)",
     borderRadius: 6,
     fontSize: 13,
-    color: "#374151",
-    background: "#fff",
+    color: "var(--text-secondary)",
+    background: "var(--bg-surface)",
   };
 
   return (
@@ -159,7 +159,7 @@ export function LedgerViewer({
 
       {/* Entries */}
       {entries.length === 0 ? (
-        <div style={{ textAlign: "center", padding: "40px 0", color: "#999" }}>
+        <div style={{ textAlign: "center", padding: "40px 0", color: "var(--text-tertiary)" }}>
           <p style={{ fontSize: 14 }}>No ledger entries found</p>
         </div>
       ) : (
@@ -174,7 +174,7 @@ export function LedgerViewer({
                   alignItems: "flex-start",
                   gap: 12,
                   padding: "12px 0",
-                  borderBottom: i < entries.length - 1 ? "1px solid #F3F4F6" : undefined,
+                  borderBottom: i < entries.length - 1 ? "1px solid var(--bg-surface-raised)" : undefined,
                 }}
               >
                 <div
@@ -183,10 +183,10 @@ export function LedgerViewer({
                     height: 8,
                     borderRadius: "50%",
                     background:
-                      variant === "success" ? "#10B981" :
-                      variant === "error" ? "#EF4444" :
-                      variant === "purple" ? "#6C5CE7" :
-                      variant === "warning" ? "#F59E0B" : "#9CA3AF",
+                      variant === "success" ? "var(--success)" :
+                      variant === "error" ? "var(--error)" :
+                      variant === "accent" ? "var(--accent)" :
+                      variant === "warning" ? "var(--warning)" : "var(--text-tertiary)",
                     marginTop: 6,
                     flexShrink: 0,
                   }}
@@ -204,16 +204,16 @@ export function LedgerViewer({
                       />
                     )}
                     {entry.source_app && (
-                      <span style={{ fontSize: 11, color: "#999" }}>
+                      <span style={{ fontSize: 11, color: "var(--text-tertiary)" }}>
                         via {entry.source_app.replace("_", " ")}
                       </span>
                     )}
                   </div>
-                  <p style={{ margin: 0, fontSize: 13, color: "#374151", lineHeight: 1.4 }}>
+                  <p style={{ margin: 0, fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.4 }}>
                     {getEventDescription(entry)}
                   </p>
                 </div>
-                <span style={{ fontSize: 11, color: "#999", flexShrink: 0, whiteSpace: "nowrap" }}>
+                <span style={{ fontSize: 11, color: "var(--text-tertiary)", flexShrink: 0, whiteSpace: "nowrap", fontFamily: "var(--font-mono), monospace" }}>
                   {new Date(entry.created_at).toLocaleString()}
                 </span>
               </div>

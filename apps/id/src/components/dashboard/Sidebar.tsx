@@ -27,27 +27,28 @@ export function Sidebar() {
     <aside
       style={{
         width: 240,
-        borderRight: "1px solid #E5E7EB",
+        borderRight: "1px solid var(--border-muted)",
         padding: "24px 16px",
         display: "flex",
         flexDirection: "column",
         gap: 4,
-        background: "#FAFAFA",
+        background: "var(--bg-surface)",
       }}
     >
       <Link
         href="/"
         style={{
           fontWeight: 700,
-          fontSize: 18,
-          color: "#6C5CE7",
+          fontSize: 16,
+          fontFamily: "var(--font-mono), monospace",
+          color: "var(--accent)",
           marginBottom: 24,
           padding: "0 8px",
           textDecoration: "none",
           letterSpacing: -0.3,
         }}
       >
-        Kinetiks ID
+        kinetiks_id
       </Link>
       <nav style={{ display: "flex", flexDirection: "column", gap: 2 }}>
         {NAV_ITEMS.map((item) => {
@@ -61,27 +62,33 @@ export function Sidebar() {
                 alignItems: "center",
                 gap: 10,
                 padding: "8px 10px",
-                borderRadius: 8,
+                borderRadius: 6,
                 textDecoration: "none",
-                fontSize: 14,
-                fontWeight: active ? 600 : 400,
-                color: active ? "#6C5CE7" : "#4B5563",
-                background: active ? "#F0EDFF" : "transparent",
-                transition: "background 0.15s, color 0.15s",
+                fontSize: 13,
+                fontWeight: active ? 500 : 400,
+                color: active ? "var(--sidebar-active-text)" : "var(--text-secondary)",
+                background: active ? "var(--sidebar-active-bg)" : "transparent",
+                borderLeft: active ? "2px solid var(--accent)" : "2px solid transparent",
+                transition: "background 0.15s, color 0.15s, border-color 0.15s",
               }}
             >
               <svg
-                width={18}
-                height={18}
+                width={16}
+                height={16}
                 viewBox="0 0 24 24"
                 fill="none"
-                stroke={active ? "#6C5CE7" : "#9CA3AF"}
+                stroke={active ? "var(--accent)" : "var(--text-tertiary)"}
                 strokeWidth={1.5}
                 strokeLinecap="round"
                 strokeLinejoin="round"
               >
                 <path d={item.icon} />
               </svg>
+              {active && (
+                <span style={{ fontFamily: "var(--font-mono), monospace", color: "var(--accent)", fontSize: 11, marginRight: -4 }}>
+                  {">"}
+                </span>
+              )}
               {item.label}
             </Link>
           );

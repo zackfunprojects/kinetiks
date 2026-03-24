@@ -1,4 +1,4 @@
-type BadgeVariant = "default" | "success" | "warning" | "error" | "purple";
+type BadgeVariant = "default" | "success" | "warning" | "error" | "accent";
 
 interface BadgeProps {
   label: string;
@@ -7,13 +7,33 @@ interface BadgeProps {
 
 const VARIANT_STYLES: Record<
   BadgeVariant,
-  { background: string; color: string }
+  { background: string; color: string; borderLeft: string }
 > = {
-  default: { background: "#F3F4F6", color: "#374151" },
-  success: { background: "#ECFDF5", color: "#065F46" },
-  warning: { background: "#FFFBEB", color: "#92400E" },
-  error: { background: "#FEF2F2", color: "#991B1B" },
-  purple: { background: "#F0EDFF", color: "#6C5CE7" },
+  default: {
+    background: "var(--bg-surface-raised)",
+    color: "var(--text-secondary)",
+    borderLeft: "2px solid var(--border-default)",
+  },
+  success: {
+    background: "var(--success-muted)",
+    color: "var(--success)",
+    borderLeft: "2px solid var(--success)",
+  },
+  warning: {
+    background: "var(--warning-muted)",
+    color: "var(--warning)",
+    borderLeft: "2px solid var(--warning)",
+  },
+  error: {
+    background: "var(--error-muted)",
+    color: "var(--error)",
+    borderLeft: "2px solid var(--error)",
+  },
+  accent: {
+    background: "var(--accent-muted)",
+    color: "var(--accent)",
+    borderLeft: "2px solid var(--accent)",
+  },
 };
 
 export function Badge({ label, variant = "default" }: BadgeProps) {
@@ -24,10 +44,12 @@ export function Badge({ label, variant = "default" }: BadgeProps) {
       style={{
         display: "inline-block",
         padding: "2px 8px",
-        borderRadius: 999,
+        borderRadius: 4,
         fontSize: 11,
         fontWeight: 500,
+        fontFamily: "var(--font-mono), monospace",
         lineHeight: "18px",
+        letterSpacing: "0.02em",
         ...styles,
       }}
     >

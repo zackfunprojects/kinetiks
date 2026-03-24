@@ -6,15 +6,15 @@ interface SuggestionsListProps {
 }
 
 const SEVERITY_STYLES: Record<string, { dot: string; label: string }> = {
-  empty: { dot: "#EF4444", label: "Missing" },
-  thin: { dot: "#F59E0B", label: "Incomplete" },
-  stale: { dot: "#9CA3AF", label: "Stale" },
+  empty: { dot: "var(--error)", label: "Missing" },
+  thin: { dot: "var(--warning)", label: "Incomplete" },
+  stale: { dot: "var(--text-tertiary)", label: "Stale" },
 };
 
 export function SuggestionsList({ findings }: SuggestionsListProps) {
   if (findings.length === 0) {
     return (
-      <p style={{ color: "#999", fontSize: 13, padding: "8px 0" }}>
+      <p style={{ color: "var(--text-tertiary)", fontSize: 13, padding: "8px 0" }}>
         No suggestions right now. Your ID is looking good.
       </p>
     );
@@ -32,8 +32,8 @@ export function SuggestionsList({ findings }: SuggestionsListProps) {
               alignItems: "flex-start",
               gap: 10,
               padding: "8px 12px",
-              borderRadius: 8,
-              background: "#F9FAFB",
+              borderRadius: 6,
+              background: "var(--bg-surface-raised)",
             }}
           >
             <div
@@ -47,18 +47,19 @@ export function SuggestionsList({ findings }: SuggestionsListProps) {
               }}
             />
             <div style={{ flex: 1 }}>
-              <p style={{ margin: 0, fontSize: 13, color: "#374151", lineHeight: 1.4 }}>
+              <p style={{ margin: 0, fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.4 }}>
                 {finding.suggestion}
               </p>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
-                <span style={{ fontSize: 11, color: "#999" }}>
+                <span style={{ fontSize: 11, color: "var(--text-tertiary)", fontFamily: "var(--font-mono), monospace" }}>
                   {LAYER_DISPLAY_NAMES[finding.layer]}
                 </span>
                 <span
                   style={{
                     fontSize: 11,
-                    color: "#6C5CE7",
+                    color: "var(--accent)",
                     fontWeight: 600,
+                    fontFamily: "var(--font-mono), monospace",
                   }}
                 >
                   {finding.estimated_impact}

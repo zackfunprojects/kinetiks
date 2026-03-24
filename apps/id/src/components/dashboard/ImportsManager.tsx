@@ -18,9 +18,9 @@ const TYPE_LABELS: Record<string, string> = {
   media_list: "Media List",
 };
 
-const STATUS_VARIANTS: Record<string, "default" | "success" | "warning" | "error" | "purple"> = {
+const STATUS_VARIANTS: Record<string, "default" | "success" | "warning" | "error" | "accent"> = {
   pending: "default",
-  processing: "purple",
+  processing: "accent",
   complete: "success",
   error: "error",
 };
@@ -48,8 +48,8 @@ export function ImportsManager({ initialImports }: ImportsManagerProps) {
           onClick={() => setShowUpload(true)}
           style={{
             padding: "8px 16px",
-            background: "#6C5CE7",
-            color: "#fff",
+            background: "var(--accent-emphasis)",
+            color: "var(--text-on-accent)",
             border: "none",
             borderRadius: 8,
             fontSize: 14,
@@ -75,25 +75,25 @@ export function ImportsManager({ initialImports }: ImportsManagerProps) {
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <Badge
                     label={TYPE_LABELS[imp.import_type] || imp.import_type}
-                    variant="purple"
+                    variant="accent"
                   />
                   <Badge
                     label={imp.status}
                     variant={STATUS_VARIANTS[imp.status] || "default"}
                   />
                   {imp.target_app && (
-                    <span style={{ fontSize: 12, color: "#999" }}>
+                    <span style={{ fontSize: 12, color: "var(--text-tertiary)" }}>
                       for {imp.target_app.replace("_", " ")}
                     </span>
                   )}
                 </div>
-                <span style={{ fontSize: 11, color: "#999" }}>
+                <span style={{ fontSize: 11, color: "var(--text-tertiary)", fontFamily: "var(--font-mono), monospace" }}>
                   {new Date(imp.created_at).toLocaleDateString()}
                 </span>
               </div>
 
               {imp.file_path && (
-                <p style={{ margin: "8px 0 0", fontSize: 12, color: "#666" }}>
+                <p style={{ margin: "8px 0 0", fontSize: 12, color: "var(--text-secondary)", fontFamily: "var(--font-mono), monospace" }}>
                   {imp.file_path.split("/").pop()}
                 </p>
               )}
@@ -101,22 +101,22 @@ export function ImportsManager({ initialImports }: ImportsManagerProps) {
               {imp.stats && Object.keys(imp.stats).length > 0 && (
                 <div style={{ display: "flex", gap: 16, marginTop: 8 }}>
                   {imp.stats.total !== undefined && (
-                    <span style={{ fontSize: 12, color: "#374151" }}>
+                    <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>
                       Total: <strong>{imp.stats.total}</strong>
                     </span>
                   )}
                   {imp.stats.imported !== undefined && (
-                    <span style={{ fontSize: 12, color: "#10B981" }}>
+                    <span style={{ fontSize: 12, color: "var(--success)" }}>
                       Imported: <strong>{imp.stats.imported}</strong>
                     </span>
                   )}
                   {imp.stats.duplicates !== undefined && imp.stats.duplicates > 0 && (
-                    <span style={{ fontSize: 12, color: "#F59E0B" }}>
+                    <span style={{ fontSize: 12, color: "var(--warning)" }}>
                       Duplicates: <strong>{imp.stats.duplicates}</strong>
                     </span>
                   )}
                   {imp.stats.errors !== undefined && imp.stats.errors > 0 && (
-                    <span style={{ fontSize: 12, color: "#EF4444" }}>
+                    <span style={{ fontSize: 12, color: "var(--error)" }}>
                       Errors: <strong>{imp.stats.errors}</strong>
                     </span>
                   )}

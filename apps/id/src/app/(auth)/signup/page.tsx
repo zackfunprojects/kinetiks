@@ -90,8 +90,7 @@ function SignupForm() {
         alignItems: "center",
         justifyContent: "center",
         minHeight: "100vh",
-        fontFamily: "system-ui, sans-serif",
-        background: "#FAFAFA",
+        background: "var(--bg-base)",
       }}
     >
       <div
@@ -99,23 +98,33 @@ function SignupForm() {
           width: "100%",
           maxWidth: 440,
           padding: 40,
-          background: "#fff",
-          borderRadius: 16,
-          boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
+          background: "var(--bg-surface)",
+          borderRadius: 12,
+          border: "1px solid var(--border-default)",
         }}
       >
         <div style={{ marginBottom: 32 }}>
+          <div
+            style={{
+              fontFamily: "var(--font-mono), monospace",
+              fontSize: 14,
+              color: "var(--accent)",
+              marginBottom: 16,
+            }}
+          >
+            kinetiks_id
+          </div>
           <h1
             style={{
               fontSize: 24,
               fontWeight: 700,
-              color: "#111",
+              color: "var(--text-primary)",
               margin: 0,
             }}
           >
             {framing.title}
           </h1>
-          <p style={{ color: "#666", marginTop: 8, fontSize: 14, lineHeight: 1.5 }}>
+          <p style={{ color: "var(--text-secondary)", marginTop: 8, fontSize: 14, lineHeight: 1.5 }}>
             {framing.subtitle}
           </p>
         </div>
@@ -124,9 +133,16 @@ function SignupForm() {
           <div style={{ marginBottom: 16 }}>
             <label
               htmlFor="email"
-              style={{ display: "block", fontSize: 13, fontWeight: 500, marginBottom: 6, color: "#333" }}
+              style={{
+                display: "block",
+                fontSize: 13,
+                fontWeight: 500,
+                marginBottom: 6,
+                color: "var(--text-secondary)",
+                fontFamily: "var(--font-mono), monospace",
+              }}
             >
-              Email
+              email
             </label>
             <input
               id="email"
@@ -137,10 +153,12 @@ function SignupForm() {
               style={{
                 width: "100%",
                 padding: "10px 12px",
-                border: "1px solid #ddd",
-                borderRadius: 8,
+                border: "1px solid var(--border-default)",
+                borderRadius: 6,
                 fontSize: 14,
                 boxSizing: "border-box",
+                background: "var(--bg-inset)",
+                color: "var(--text-primary)",
               }}
             />
           </div>
@@ -148,9 +166,16 @@ function SignupForm() {
           <div style={{ marginBottom: 24 }}>
             <label
               htmlFor="password"
-              style={{ display: "block", fontSize: 13, fontWeight: 500, marginBottom: 6, color: "#333" }}
+              style={{
+                display: "block",
+                fontSize: 13,
+                fontWeight: 500,
+                marginBottom: 6,
+                color: "var(--text-secondary)",
+                fontFamily: "var(--font-mono), monospace",
+              }}
             >
-              Password
+              password
             </label>
             <input
               id="password"
@@ -162,16 +187,18 @@ function SignupForm() {
               style={{
                 width: "100%",
                 padding: "10px 12px",
-                border: "1px solid #ddd",
-                borderRadius: 8,
+                border: "1px solid var(--border-default)",
+                borderRadius: 6,
                 fontSize: 14,
                 boxSizing: "border-box",
+                background: "var(--bg-inset)",
+                color: "var(--text-primary)",
               }}
             />
           </div>
 
           {error && (
-            <p style={{ color: "#e74c3c", fontSize: 13, marginBottom: 16 }}>
+            <p style={{ color: "var(--error)", fontSize: 13, marginBottom: 16 }}>
               {error}
             </p>
           )}
@@ -182,10 +209,10 @@ function SignupForm() {
             style={{
               width: "100%",
               padding: "12px 0",
-              background: loading ? "#a29bfe" : "#6C5CE7",
-              color: "#fff",
+              background: loading ? "var(--border-default)" : "var(--accent-emphasis)",
+              color: loading ? "var(--text-tertiary)" : "var(--text-on-accent)",
               border: "none",
-              borderRadius: 8,
+              borderRadius: 6,
               fontSize: 14,
               fontWeight: 600,
               cursor: loading ? "not-allowed" : "pointer",
@@ -195,11 +222,11 @@ function SignupForm() {
           </button>
         </form>
 
-        <p style={{ textAlign: "center", marginTop: 20, fontSize: 13, color: "#666" }}>
+        <p style={{ textAlign: "center", marginTop: 20, fontSize: 13, color: "var(--text-secondary)" }}>
           Already have an account?{" "}
           <Link
             href={fromApp ? `/login?from=${encodeURIComponent(fromApp)}` : "/login"}
-            style={{ color: "#6C5CE7", textDecoration: "none" }}
+            style={{ color: "var(--accent)", textDecoration: "none" }}
           >
             Log in
           </Link>

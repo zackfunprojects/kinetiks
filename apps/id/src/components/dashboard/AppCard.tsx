@@ -50,20 +50,21 @@ export function AppCard({
           style={{
             width: 32,
             height: 32,
-            borderRadius: 8,
+            borderRadius: 6,
             background: color,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            color: "#fff",
+            color: "var(--text-on-accent)",
             fontWeight: 700,
             fontSize: 14,
+            fontFamily: "var(--font-mono), monospace",
           }}
         >
           {displayName[0]}
         </div>
         <div>
-          <h4 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: "#1a1a2e" }}>
+          <h4 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: "var(--text-primary)" }}>
             {displayName}
           </h4>
         </div>
@@ -75,7 +76,7 @@ export function AppCard({
         )}
       </div>
 
-      <p style={{ margin: "0 0 12px", fontSize: 13, color: "#666", lineHeight: 1.4 }}>
+      <p style={{ margin: "0 0 12px", fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.4 }}>
         {description}
       </p>
 
@@ -85,8 +86,8 @@ export function AppCard({
           style={{
             display: "inline-block",
             padding: "6px 14px",
-            background: color,
-            color: "#fff",
+            background: "var(--accent-emphasis)",
+            color: "var(--text-on-accent)",
             borderRadius: 6,
             fontSize: 13,
             fontWeight: 500,
@@ -101,13 +102,14 @@ export function AppCard({
           disabled={activating}
           style={{
             padding: "6px 14px",
-            background: "#fff",
-            color: "#6C5CE7",
-            border: "1px solid #6C5CE7",
+            background: "transparent",
+            color: "var(--accent)",
+            border: "1px solid var(--accent)",
             borderRadius: 6,
             fontSize: 13,
             fontWeight: 500,
             cursor: activating ? "not-allowed" : "pointer",
+            opacity: activating ? 0.5 : 1,
           }}
         >
           {activating ? "Activating..." : "Activate"}

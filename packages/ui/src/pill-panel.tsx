@@ -44,6 +44,18 @@ interface PillPanelProps {
   inactiveApps: InactiveApp[];
 }
 
+const sectionHeader: React.CSSProperties = {
+  margin: "0 0 8px",
+  fontSize: 11,
+  fontWeight: 600,
+  fontFamily: "var(--font-mono, monospace), monospace",
+  color: "var(--text-tertiary, #484f58)",
+  textTransform: "uppercase",
+  letterSpacing: 0.5,
+};
+
+const sectionBorder = "1px solid var(--border-muted, #21262d)";
+
 export function PillPanel({
   codename,
   confidenceScore,
@@ -65,9 +77,10 @@ export function PillPanel({
         position: "absolute",
         bottom: 48,
         left: 0,
-        background: "#fff",
-        borderRadius: 12,
-        boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
+        background: "var(--bg-surface-overlay, #2d333b)",
+        borderRadius: 8,
+        border: "1px solid var(--border-default, #30363d)",
+        boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
         width: 320,
         maxHeight: "70vh",
         overflowY: "auto",
@@ -80,7 +93,7 @@ export function PillPanel({
       <div
         style={{
           padding: "16px 16px 12px",
-          borderBottom: "1px solid #F3F4F6",
+          borderBottom: sectionBorder,
           display: "flex",
           alignItems: "center",
           gap: 12,
@@ -91,7 +104,7 @@ export function PillPanel({
             width: 48,
             height: 48,
             borderRadius: "50%",
-            background: `conic-gradient(#6C5CE7 ${confidenceScore * 3.6}deg, #E5E7EB 0deg)`,
+            background: `conic-gradient(var(--accent, #3fb950) ${confidenceScore * 3.6}deg, var(--border-default, #30363d) 0deg)`,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -103,23 +116,24 @@ export function PillPanel({
               width: 38,
               height: 38,
               borderRadius: "50%",
-              background: "#fff",
+              background: "var(--bg-surface-overlay, #2d333b)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               fontSize: 12,
               fontWeight: 700,
-              color: "#6C5CE7",
+              fontFamily: "var(--font-mono, monospace), monospace",
+              color: "var(--accent, #3fb950)",
             }}
           >
             {confidenceScore}%
           </div>
         </div>
         <div>
-          <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: "#1a1a2e" }}>
+          <p style={{ margin: 0, fontSize: 14, fontWeight: 600, fontFamily: "var(--font-mono, monospace), monospace", color: "var(--text-primary, #e6edf3)" }}>
             {codename}
           </p>
-          <p style={{ margin: "2px 0 0", fontSize: 11, color: "#999" }}>
+          <p style={{ margin: "2px 0 0", fontSize: 11, fontFamily: "var(--font-mono, monospace), monospace", color: "var(--text-tertiary, #484f58)" }}>
             Your Kinetiks ID
           </p>
         </div>
@@ -127,10 +141,8 @@ export function PillPanel({
 
       {/* Suggestions */}
       {suggestions.length > 0 && (
-        <div style={{ padding: "12px 16px", borderBottom: "1px solid #F3F4F6" }}>
-          <p style={{ margin: "0 0 8px", fontSize: 11, fontWeight: 600, color: "#999", textTransform: "uppercase", letterSpacing: 0.5 }}>
-            Suggestions
-          </p>
+        <div style={{ padding: "12px 16px", borderBottom: sectionBorder }}>
+          <p style={sectionHeader}>Suggestions</p>
           {suggestions.slice(0, 3).map((s, i) => (
             <div
               key={i}
@@ -141,10 +153,10 @@ export function PillPanel({
                 padding: "4px 0",
               }}
             >
-              <p style={{ margin: 0, fontSize: 12, color: "#4B5563", lineHeight: 1.3, flex: 1 }}>
+              <p style={{ margin: 0, fontSize: 12, color: "var(--text-secondary, #8b949e)", lineHeight: 1.3, flex: 1 }}>
                 {s.suggestion}
               </p>
-              <span style={{ fontSize: 11, color: "#6C5CE7", fontWeight: 600, flexShrink: 0, marginLeft: 8 }}>
+              <span style={{ fontSize: 11, color: "var(--accent, #3fb950)", fontWeight: 600, fontFamily: "var(--font-mono, monospace), monospace", flexShrink: 0, marginLeft: 8 }}>
                 {s.estimated_impact}
               </span>
             </div>
@@ -154,10 +166,8 @@ export function PillPanel({
 
       {/* Pending proposals */}
       {pendingProposals.length > 0 && (
-        <div style={{ padding: "12px 16px", borderBottom: "1px solid #F3F4F6" }}>
-          <p style={{ margin: "0 0 8px", fontSize: 11, fontWeight: 600, color: "#999", textTransform: "uppercase", letterSpacing: 0.5 }}>
-            Pending ({pendingProposals.length})
-          </p>
+        <div style={{ padding: "12px 16px", borderBottom: sectionBorder }}>
+          <p style={sectionHeader}>Pending ({pendingProposals.length})</p>
           {pendingProposals.slice(0, 3).map((p) => (
             <div
               key={p.id}
@@ -172,15 +182,16 @@ export function PillPanel({
                 style={{
                   fontSize: 10,
                   padding: "1px 5px",
-                  background: "#F0EDFF",
-                  color: "#6C5CE7",
+                  background: "var(--accent-muted, rgba(63,185,80,0.15))",
+                  color: "var(--accent, #3fb950)",
                   borderRadius: 4,
                   fontWeight: 500,
+                  fontFamily: "var(--font-mono, monospace), monospace",
                 }}
               >
                 {p.target_layer}
               </span>
-              <span style={{ fontSize: 12, color: "#4B5563" }}>
+              <span style={{ fontSize: 12, color: "var(--text-secondary, #8b949e)" }}>
                 {p.action}{p.source_app ? ` from ${p.source_app.replace("_", " ")}` : ""}
               </span>
             </div>
@@ -188,7 +199,7 @@ export function PillPanel({
           {pendingProposals.length > 3 && (
             <a
               href={idBaseUrl}
-              style={{ fontSize: 11, color: "#6C5CE7", textDecoration: "none", display: "block", marginTop: 4 }}
+              style={{ fontSize: 11, color: "var(--accent, #3fb950)", textDecoration: "none", display: "block", marginTop: 4, fontFamily: "var(--font-mono, monospace), monospace" }}
             >
               View all {pendingProposals.length} items
             </a>
@@ -198,12 +209,10 @@ export function PillPanel({
 
       {/* Recent learnings */}
       {recentRoutings.length > 0 && (
-        <div style={{ padding: "12px 16px", borderBottom: "1px solid #F3F4F6" }}>
-          <p style={{ margin: "0 0 8px", fontSize: 11, fontWeight: 600, color: "#999", textTransform: "uppercase", letterSpacing: 0.5 }}>
-            Recent Learnings
-          </p>
+        <div style={{ padding: "12px 16px", borderBottom: sectionBorder }}>
+          <p style={sectionHeader}>Recent Learnings</p>
           {recentRoutings.slice(0, 3).map((r, i) => (
-            <p key={i} style={{ margin: "3px 0", fontSize: 12, color: "#4B5563" }}>
+            <p key={i} style={{ margin: "3px 0", fontSize: 12, color: "var(--text-secondary, #8b949e)" }}>
               {r.relevance_note || `Routed to ${r.target_app.replace("_", " ")}`}
             </p>
           ))}
@@ -212,10 +221,8 @@ export function PillPanel({
 
       {/* App switcher */}
       {(activeApps.length > 0 || inactiveApps.length > 0) && (
-        <div style={{ padding: "12px 16px", borderBottom: "1px solid #F3F4F6" }}>
-          <p style={{ margin: "0 0 8px", fontSize: 11, fontWeight: 600, color: "#999", textTransform: "uppercase", letterSpacing: 0.5 }}>
-            Apps
-          </p>
+        <div style={{ padding: "12px 16px", borderBottom: sectionBorder }}>
+          <p style={sectionHeader}>Apps</p>
           <AppSwitcher
             activeApps={activeApps}
             inactiveApps={inactiveApps}
@@ -234,21 +241,21 @@ export function PillPanel({
       >
         <a
           href={idBaseUrl}
-          style={{ fontSize: 12, color: "#6C5CE7", textDecoration: "none", fontWeight: 500 }}
+          style={{ fontSize: 12, color: "var(--accent, #3fb950)", textDecoration: "none", fontWeight: 500, fontFamily: "var(--font-mono, monospace), monospace" }}
         >
-          View full ID
+          view_id
         </a>
         <a
           href={`${idBaseUrl}/billing`}
-          style={{ fontSize: 12, color: "#6C5CE7", textDecoration: "none", fontWeight: 500 }}
+          style={{ fontSize: 12, color: "var(--accent, #3fb950)", textDecoration: "none", fontWeight: 500, fontFamily: "var(--font-mono, monospace), monospace" }}
         >
-          Billing
+          billing
         </a>
         <a
           href={`${idBaseUrl}/connections`}
-          style={{ fontSize: 12, color: "#6C5CE7", textDecoration: "none", fontWeight: 500 }}
+          style={{ fontSize: 12, color: "var(--accent, #3fb950)", textDecoration: "none", fontWeight: 500, fontFamily: "var(--font-mono, monospace), monospace" }}
         >
-          Connections
+          connections
         </a>
       </div>
     </div>

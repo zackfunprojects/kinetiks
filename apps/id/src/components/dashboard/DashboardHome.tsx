@@ -60,11 +60,14 @@ export function DashboardHome({
   return (
     <div>
       <div style={{ marginBottom: 32 }}>
-        <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: "#1a1a2e" }}>
+        <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: "var(--text-primary)" }}>
           Dashboard
         </h1>
-        <p style={{ margin: "4px 0 0", fontSize: 14, color: "#666" }}>
-          Welcome back, {codename}
+        <p style={{ margin: "4px 0 0", fontSize: 14, color: "var(--text-secondary)" }}>
+          Welcome back,{" "}
+          <span style={{ fontFamily: "var(--font-mono), monospace", color: "var(--accent)" }}>
+            {">"} {codename}
+          </span>
         </p>
       </div>
 
@@ -92,19 +95,20 @@ export function DashboardHome({
               margin: "16px 0 0",
               fontSize: 16,
               fontWeight: 600,
-              color: "#1a1a2e",
+              fontFamily: "var(--font-mono), monospace",
+              color: "var(--text-primary)",
               textAlign: "center",
             }}
           >
             {codename}
           </p>
-          <p style={{ margin: "2px 0 0", fontSize: 12, color: "#999" }}>
+          <p style={{ margin: "2px 0 0", fontSize: 12, color: "var(--text-tertiary)", fontFamily: "var(--font-mono), monospace" }}>
             Your Kinetiks ID
           </p>
         </Card>
 
         <Card>
-          <h3 style={{ margin: "0 0 12px", fontSize: 15, fontWeight: 600, color: "#1a1a2e" }}>
+          <h3 style={{ margin: "0 0 12px", fontSize: 15, fontWeight: 600, color: "var(--text-primary)" }}>
             Suggestions
           </h3>
           <SuggestionsList findings={suggestions} />
@@ -114,7 +118,7 @@ export function DashboardHome({
       {/* Pending proposals */}
       {proposals.length > 0 && (
         <div style={{ marginBottom: 24 }}>
-          <h3 style={{ margin: "0 0 12px", fontSize: 15, fontWeight: 600, color: "#1a1a2e" }}>
+          <h3 style={{ margin: "0 0 12px", fontSize: 15, fontWeight: 600, color: "var(--text-primary)" }}>
             Pending Items ({proposals.length})
           </h3>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 12 }}>
@@ -131,7 +135,7 @@ export function DashboardHome({
 
       {/* App launcher */}
       <div style={{ marginBottom: 24 }}>
-        <h3 style={{ margin: "0 0 12px", fontSize: 15, fontWeight: 600, color: "#1a1a2e" }}>
+        <h3 style={{ margin: "0 0 12px", fontSize: 15, fontWeight: 600, color: "var(--text-primary)" }}>
           Apps
         </h3>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 12 }}>
@@ -163,20 +167,20 @@ export function DashboardHome({
         }}
       >
         <Card>
-          <h3 style={{ margin: "0 0 12px", fontSize: 15, fontWeight: 600, color: "#1a1a2e" }}>
+          <h3 style={{ margin: "0 0 12px", fontSize: 15, fontWeight: 600, color: "var(--text-primary)" }}>
             Recent Activity
           </h3>
           <ActivityTimeline entries={recentActivity.slice(0, 10)} />
         </Card>
 
         <Card>
-          <h3 style={{ margin: "0 0 12px", fontSize: 15, fontWeight: 600, color: "#1a1a2e" }}>
+          <h3 style={{ margin: "0 0 12px", fontSize: 15, fontWeight: 600, color: "var(--text-primary)" }}>
             Connected Sources
           </h3>
           {connections.length === 0 ? (
-            <p style={{ color: "#999", fontSize: 13 }}>
+            <p style={{ color: "var(--text-tertiary)", fontSize: 13 }}>
               No data sources connected yet.{" "}
-              <a href="/connections" style={{ color: "#6C5CE7", textDecoration: "none" }}>
+              <a href="/connections" style={{ color: "var(--accent)", textDecoration: "none" }}>
                 Connect one
               </a>
             </p>
@@ -190,7 +194,7 @@ export function DashboardHome({
                     alignItems: "center",
                     justifyContent: "space-between",
                     padding: "6px 0",
-                    borderBottom: "1px solid #F3F4F6",
+                    borderBottom: "1px solid var(--border-muted)",
                   }}
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -201,19 +205,19 @@ export function DashboardHome({
                         borderRadius: "50%",
                         background:
                           conn.status === "active"
-                            ? "#10B981"
+                            ? "var(--success)"
                             : conn.status === "error"
-                            ? "#EF4444"
-                            : "#9CA3AF",
+                            ? "var(--error)"
+                            : "var(--text-tertiary)",
                       }}
                     />
-                    <span style={{ fontSize: 13, color: "#374151", textTransform: "capitalize" }}>
+                    <span style={{ fontSize: 13, color: "var(--text-secondary)", textTransform: "capitalize", fontFamily: "var(--font-mono), monospace" }}>
                       {conn.provider.replace("_", " ")}
                     </span>
                   </div>
                   {conn.last_sync_at && (
-                    <span style={{ fontSize: 11, color: "#999" }}>
-                      Last sync: {new Date(conn.last_sync_at).toLocaleDateString()}
+                    <span style={{ fontSize: 11, color: "var(--text-tertiary)", fontFamily: "var(--font-mono), monospace" }}>
+                      {new Date(conn.last_sync_at).toLocaleDateString()}
                     </span>
                   )}
                 </div>

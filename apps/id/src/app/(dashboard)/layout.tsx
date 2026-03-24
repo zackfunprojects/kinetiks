@@ -8,7 +8,7 @@ export default function DashboardLayout({
   return (
     <div style={{ display: "flex", minHeight: "100vh" }}>
       <Sidebar />
-      <main style={{ flex: 1, padding: 32, background: "#fff" }}>{children}</main>
+      <main style={{ flex: 1, padding: 32, background: "var(--bg-base)" }}>{children}</main>
     </div>
   );
 }
