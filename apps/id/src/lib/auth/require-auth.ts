@@ -14,6 +14,15 @@ const PERMISSION_LEVEL: Record<ApiKeyPermission, number> = {
 interface RequireAuthOptions {
   /** Minimum permission level required. Only checked for API key auth. */
   permissions?: ApiKeyPermission;
+  /**
+   * App scope(s) this endpoint serves. When provided and the API key has
+   * a non-empty scope array, at least one of these must appear in the
+   * key's scope. Only checked for API key auth - session and internal
+   * auth are not scope-restricted.
+   *
+   * Accepts a single app name or an array of app names.
+   */
+  allowedScopes?: string | string[];
   /** Skip rate limiting for this request. */
   skipRateLimit?: boolean;
 }
@@ -24,7 +33,8 @@ type AuthResult =
 
 /**
  * Authenticate a request and return the resolved context.
- * For API key auth, also checks permission levels and rate limits.
+ * For API key auth, also checks permission levels, app scopes,
+ * and rate limits.
  *
  * Usage:
  * ```
@@ -53,6 +63,30 @@ export async function requireAuth(
         auth: null,
         error: apiError(
           `Insufficient permissions. Required: ${options.permissions}, actual: ${auth.permissions}`,
+          403
+        ),
+      };
+    }
+  }
+
+  // Check app scope for API key auth
+  if (
+    options?.allowedScopes &&
+    auth.auth_method === "api_key" &&
+    auth.scope &&
+    auth.scope.length > 0
+  ) {
+    const allowed = Array.isArray(options.allowedScopes)
+      ? options.allowedScopes
+      : [options.allowedScopes];
+
+    const hasScope = auth.scope.some((s) => allowed.includes(s));
+
+    if (!hasScope) {
+      return {
+        auth: null,
+        error: apiError(
+          `API key scope does not include required app: ${allowed.join(", ")}`,
           403
         ),
       };

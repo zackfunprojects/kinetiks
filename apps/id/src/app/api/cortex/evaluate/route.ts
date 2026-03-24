@@ -16,7 +16,7 @@ import type { Proposal } from "@kinetiks/types";
  * Body: { proposal_id: string } or { proposal_ids: string[] }
  */
 export async function POST(request: Request) {
-  const { auth, error } = await requireAuth(request);
+  const { auth, error } = await requireAuth(request, { permissions: "read-write" });
   if (error) return error;
 
   const body = await request.json();
@@ -142,7 +142,7 @@ export async function POST(request: Request) {
  * Body: { proposal_id: string; decision: 'accept' | 'decline' }
  */
 export async function PATCH(request: Request) {
-  const { auth, error } = await requireAuth(request);
+  const { auth, error } = await requireAuth(request, { permissions: "read-write" });
   if (error) return error;
 
   const body = await request.json();

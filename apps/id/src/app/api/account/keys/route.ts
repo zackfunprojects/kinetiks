@@ -26,6 +26,11 @@ export async function GET(request: Request) {
   const { auth, error } = await requireAuth(request);
   if (error) return error;
 
+  // Key management requires admin access for API keys
+  if (auth.auth_method === "api_key" && auth.permissions !== "admin") {
+    return apiError("Only admin API keys can list keys", 403);
+  }
+
   const admin = createAdminClient();
 
   const { data: keys, error: fetchError } = await admin

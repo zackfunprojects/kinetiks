@@ -50,7 +50,7 @@ export async function GET(request: Request): Promise<Response> {
  * Body: { rules: Array<{ rule_name: string, limit_value: number, period: string, scope: 'contact' | 'org', is_active?: boolean }> }
  */
 export async function PUT(request: Request): Promise<Response> {
-  const { auth, error } = await requireAuth(request);
+  const { auth, error } = await requireAuth(request, { permissions: "read-write" });
   if (error) return error;
 
   let body: {
@@ -136,7 +136,7 @@ export async function PUT(request: Request): Promise<Response> {
  * Auth: user session, API key, or internal service secret
  */
 export async function POST(request: Request): Promise<Response> {
-  const { auth, error } = await requireAuth(request);
+  const { auth, error } = await requireAuth(request, { permissions: "read-write" });
   if (error) return error;
 
   let body: {

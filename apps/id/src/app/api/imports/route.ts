@@ -53,7 +53,7 @@ export async function GET(request: Request) {
  * Body: FormData with file, import_type, and optional target_app
  */
 export async function POST(request: Request) {
-  const { auth, error } = await requireAuth(request);
+  const { auth, error } = await requireAuth(request, { permissions: "read-write" });
   if (error) return error;
 
   const admin = createAdminClient();
