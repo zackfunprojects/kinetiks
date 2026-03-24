@@ -6,7 +6,24 @@
 
 import type { ContextLayer } from "@kinetiks/types";
 
-type JsonSchema = Record<string, unknown>;
+/**
+ * A typed subset of JSON Schema used by layer definitions.
+ * Covers: type unions, properties, additionalProperties, required,
+ * enum, items (for arrays), and numeric bounds (minimum/maximum).
+ */
+export interface JsonSchema {
+  type?: string | string[];
+  properties?: Record<string, JsonSchema>;
+  additionalProperties?: boolean | JsonSchema;
+  required?: string[];
+  enum?: unknown[];
+  items?: JsonSchema;
+  minimum?: number;
+  maximum?: number;
+  description?: string;
+  /** Allow vendor-specific keys that don't map to known fields. */
+  [key: string]: unknown;
+}
 
 const ORG_SCHEMA: JsonSchema = {
   type: "object",
@@ -216,10 +233,132 @@ export const CONTEXT_SCHEMAS: Record<ContextLayer, JsonSchema> = {
   brand: BRAND_SCHEMA,
 };
 
+// ---------------------------------------------------------------------------
+// Recursive validator
+// ---------------------------------------------------------------------------
+
 /**
- * Lightweight runtime validator for a layer payload against its schema.
- * Checks top-level keys against the schema's allowed properties and
- * rejects unknown keys when additionalProperties is false.
+ * Determine the JSON-typeof a value, using JSON Schema type names.
+ * Returns "null" for null, "array" for arrays, and typeof otherwise.
+ */
+function jsonTypeOf(value: unknown): string {
+  if (value === null) return "null";
+  if (Array.isArray(value)) return "array";
+  return typeof value; // "string" | "number" | "boolean" | "object" | "undefined"
+}
+
+/**
+ * Check whether `value` matches the given type specifier.
+ * `schemaType` can be a single string ("string") or a union array (["string", "null"]).
+ */
+function matchesType(value: unknown, schemaType: string | string[]): boolean {
+  const actual = jsonTypeOf(value);
+  if (Array.isArray(schemaType)) {
+    return schemaType.includes(actual);
+  }
+  return actual === schemaType;
+}
+
+/**
+ * Recursively validate a value against a JsonSchema node.
+ * Returns null when valid, or a string describing the first error.
+ *
+ * @param value  - the runtime value to validate
+ * @param schema - the JsonSchema node describing the expected shape
+ * @param path   - dot-separated path used in error messages (e.g. "tone.formality")
+ */
+function validateNode(
+  value: unknown,
+  schema: JsonSchema,
+  path: string
+): string | null {
+  // --- type check (supports unions like ["string", "null"]) ---
+  if (schema.type !== undefined) {
+    if (!matchesType(value, schema.type)) {
+      const expected = Array.isArray(schema.type)
+        ? schema.type.join(" | ")
+        : schema.type;
+      return `${path}: expected ${expected}, got ${jsonTypeOf(value)}`;
+    }
+  }
+
+  // If the value is null and the type allows it, nothing more to check
+  if (value === null) return null;
+
+  // --- enum ---
+  if (schema.enum !== undefined) {
+    if (!schema.enum.includes(value)) {
+      const allowed = schema.enum.map((v) => JSON.stringify(v)).join(", ");
+      return `${path}: value ${JSON.stringify(value)} not in enum [${allowed}]`;
+    }
+  }
+
+  // --- numeric bounds ---
+  if (typeof value === "number") {
+    if (schema.minimum !== undefined && value < schema.minimum) {
+      return `${path}: ${value} is below minimum ${schema.minimum}`;
+    }
+    if (schema.maximum !== undefined && value > schema.maximum) {
+      return `${path}: ${value} exceeds maximum ${schema.maximum}`;
+    }
+  }
+
+  // --- object: properties, additionalProperties, required ---
+  if (typeof value === "object" && !Array.isArray(value)) {
+    const obj = value as Record<string, unknown>;
+
+    // required fields
+    if (schema.required) {
+      for (const req of schema.required) {
+        if (!(req in obj)) {
+          return `${path}: missing required key "${req}"`;
+        }
+      }
+    }
+
+    if (schema.properties) {
+      const allowedKeys = new Set(Object.keys(schema.properties));
+
+      // additionalProperties check
+      if (schema.additionalProperties === false) {
+        for (const key of Object.keys(obj)) {
+          if (!allowedKeys.has(key)) {
+            return `${path}: unknown key "${key}"`;
+          }
+        }
+      }
+
+      // recurse into each declared property that is present
+      for (const [key, propSchema] of Object.entries(schema.properties)) {
+        if (key in obj) {
+          const err = validateNode(obj[key], propSchema, `${path}.${key}`);
+          if (err) return err;
+        }
+      }
+    }
+  }
+
+  // --- array: items ---
+  if (Array.isArray(value) && schema.items) {
+    for (let i = 0; i < value.length; i++) {
+      const err = validateNode(
+        value[i],
+        schema.items,
+        `${path}[${i}]`
+      );
+      if (err) return err;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Validate a layer payload against its CONTEXT_SCHEMAS definition.
+ * Performs recursive JSON-Schema-like validation including: type unions,
+ * nested properties, additionalProperties, required, enum, numeric bounds,
+ * and array items.
+ *
  * Returns null if valid, or a string describing the first error found.
  */
 export function validateLayerPayload(
@@ -233,41 +372,5 @@ export function validateLayerPayload(
     return "Payload must be a plain object";
   }
 
-  const properties = schema.properties as Record<string, JsonSchema> | undefined;
-  if (!properties) return null;
-
-  const allowedKeys = new Set(Object.keys(properties));
-
-  // Reject unknown top-level keys when schema disallows them
-  if (schema.additionalProperties === false) {
-    for (const key of Object.keys(payload)) {
-      if (!allowedKeys.has(key)) {
-        return `Unknown key "${key}" for layer "${layer}"`;
-      }
-    }
-  }
-
-  // Validate types for present keys
-  for (const [key, value] of Object.entries(payload)) {
-    const propSchema = properties[key];
-    if (!propSchema) continue;
-
-    const expectedType = propSchema.type;
-    if (!expectedType) continue;
-
-    if (expectedType === "array" && !Array.isArray(value)) {
-      return `"${key}" must be an array`;
-    }
-    if (expectedType === "object" && (typeof value !== "object" || value === null || Array.isArray(value))) {
-      return `"${key}" must be an object`;
-    }
-    if (expectedType === "number" && typeof value !== "number") {
-      return `"${key}" must be a number`;
-    }
-    if (expectedType === "string" && typeof value !== "string") {
-      return `"${key}" must be a string`;
-    }
-  }
-
-  return null;
+  return validateNode(payload, schema, layer);
 }

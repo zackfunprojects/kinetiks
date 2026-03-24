@@ -24,7 +24,7 @@ const VALID_SENTIMENTS = new Set<TouchpointSentiment>([
  *
  * List fatigue rules for the authenticated user's account.
  */
-export async function GET(request: Request) {
+export async function GET(request: Request): Promise<Response> {
   const { auth, error } = await requireAuth(request);
   if (error) return error;
 
@@ -49,7 +49,7 @@ export async function GET(request: Request) {
  * Update fatigue rules for the authenticated user's account.
  * Body: { rules: Array<{ rule_name: string, limit_value: number, period: string, scope: 'contact' | 'org', is_active?: boolean }> }
  */
-export async function PUT(request: Request) {
+export async function PUT(request: Request): Promise<Response> {
   const { auth, error } = await requireAuth(request);
   if (error) return error;
 
@@ -135,7 +135,7 @@ export async function PUT(request: Request) {
  *
  * Auth: user session, API key, or internal service secret
  */
-export async function POST(request: Request) {
+export async function POST(request: Request): Promise<Response> {
   const { auth, error } = await requireAuth(request);
   if (error) return error;
 

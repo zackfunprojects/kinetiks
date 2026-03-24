@@ -33,11 +33,16 @@ export async function GET(request: Request) {
 
   const admin = createAdminClient();
 
-  const { data: imports } = await admin
+  const { data: imports, error: queryError } = await admin
     .from("kinetiks_imports")
     .select("*")
     .eq("account_id", auth.account_id)
     .order("created_at", { ascending: false });
+
+  if (queryError) {
+    console.error("Failed to fetch imports:", queryError.message);
+    return apiError("Failed to fetch imports", 500);
+  }
 
   return apiSuccess({ imports: (imports ?? []) as ImportRecord[] });
 }
@@ -54,13 +59,15 @@ export async function POST(request: Request) {
   const admin = createAdminClient();
 
   const formData = await request.formData();
-  const file = formData.get("file") as File | null;
+  const fileEntry = formData.get("file");
   const importType = formData.get("import_type") as string;
   const targetApp = formData.get("target_app") as string | null;
 
-  if (!file) {
+  if (!fileEntry || !(fileEntry instanceof File)) {
     return apiError("No file provided", 400);
   }
+
+  const file: File = fileEntry;
 
   if (!importType || !VALID_TYPES.includes(importType)) {
     return apiError("Invalid import_type", 400);
@@ -112,8 +119,8 @@ export async function POST(request: Request) {
     });
 
   if (uploadError) {
-    console.error("Storage upload failed:", uploadError.message);
-    return apiError(`File upload failed: ${uploadError.message}`, 500);
+    console.error("Storage upload failed:", uploadError.message, uploadError.stack);
+    return apiError("File upload failed", 500);
   }
 
   // Create import record
@@ -132,17 +139,22 @@ export async function POST(request: Request) {
 
   if (insertError) {
     // Clean up the uploaded file to avoid orphaned storage objects
-    admin.storage
-      .from("imports")
-      .remove([fileName])
-      .then(({ error: removeError }) => {
-        if (removeError) {
-          console.error(
-            `Failed to remove orphaned file ${fileName} after insert error:`,
-            removeError.message
-          );
-        }
-      });
+    try {
+      const { error: removeError } = await admin.storage
+        .from("imports")
+        .remove([fileName]);
+      if (removeError) {
+        console.error(
+          `Failed to remove orphaned file ${fileName} after insert error:`,
+          removeError.message
+        );
+      }
+    } catch (removeErr) {
+      console.error(
+        `Exception removing orphaned file ${fileName}:`,
+        removeErr
+      );
+    }
     return apiError("Failed to create import", 500);
   }
 
