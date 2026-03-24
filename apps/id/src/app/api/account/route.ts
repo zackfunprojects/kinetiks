@@ -95,14 +95,44 @@ export async function DELETE() {
   ];
 
   for (const table of tables) {
-    await admin.from(table).delete().eq("account_id", accountId);
+    const { error: deleteError } = await admin
+      .from(table)
+      .delete()
+      .eq("account_id", accountId);
+
+    if (deleteError) {
+      console.error(`Failed to delete from ${table}:`, deleteError.message);
+      return NextResponse.json(
+        { error: `Failed to delete data from ${table}` },
+        { status: 500 }
+      );
+    }
   }
 
   // Delete the account itself
-  await admin.from("kinetiks_accounts").delete().eq("id", accountId);
+  const { error: accountDeleteError } = await admin
+    .from("kinetiks_accounts")
+    .delete()
+    .eq("id", accountId);
 
-  // Delete the auth user
-  await admin.auth.admin.deleteUser(user.id);
+  if (accountDeleteError) {
+    console.error("Failed to delete account:", accountDeleteError.message);
+    return NextResponse.json(
+      { error: "Failed to delete account record" },
+      { status: 500 }
+    );
+  }
+
+  // Only delete auth user after all DB deletions succeed
+  const { error: authDeleteError } = await admin.auth.admin.deleteUser(user.id);
+
+  if (authDeleteError) {
+    console.error("Failed to delete auth user:", authDeleteError.message);
+    return NextResponse.json(
+      { error: "Account data deleted but failed to remove auth user" },
+      { status: 500 }
+    );
+  }
 
   return NextResponse.json({ success: true });
 }

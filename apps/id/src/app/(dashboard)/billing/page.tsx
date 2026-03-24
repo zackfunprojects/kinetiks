@@ -24,11 +24,15 @@ export default async function BillingRoute() {
 
   if (!account) redirect("/login?redirect=/billing");
 
-  const { data: billing } = await admin
+  const { data: billing, error: billingError } = await admin
     .from("kinetiks_billing")
     .select("*")
     .eq("account_id", account.id)
-    .single();
+    .maybeSingle();
+
+  if (billingError) {
+    throw new Error(`Failed to load billing data: ${billingError.message}`);
+  }
 
   return <BillingPage billing={(billing as BillingRecord) ?? null} />;
 }

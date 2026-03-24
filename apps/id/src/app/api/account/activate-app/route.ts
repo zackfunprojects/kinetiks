@@ -35,52 +35,82 @@ export async function POST(request: Request) {
   const appInfo = APP_REGISTRY[app_name];
 
   // Check if already activated
-  const { data: existing } = await admin
+  const { data: existing, error: selectError } = await admin
     .from("kinetiks_app_activations")
     .select("id, status")
     .eq("account_id", account.id)
     .eq("app_name", app_name)
-    .single();
+    .maybeSingle();
+
+  if (selectError) {
+    console.error("Failed to check activation:", selectError.message);
+    return NextResponse.json({ error: "Failed to check app status" }, { status: 500 });
+  }
 
   if (existing) {
     if (existing.status === "active") {
       return NextResponse.json({ error: "App already active" }, { status: 409 });
     }
     // Reactivate
-    await admin
+    const { error: updateError } = await admin
       .from("kinetiks_app_activations")
       .update({ status: "active", activated_at: new Date().toISOString() })
       .eq("id", existing.id);
+
+    if (updateError) {
+      console.error("Failed to reactivate app:", updateError.message);
+      return NextResponse.json({ error: "Failed to reactivate app" }, { status: 500 });
+    }
   } else {
     // Create new activation
-    await admin.from("kinetiks_app_activations").insert({
-      account_id: account.id,
-      app_name,
-      status: "active",
-    });
+    const { error: insertError } = await admin
+      .from("kinetiks_app_activations")
+      .insert({
+        account_id: account.id,
+        app_name,
+        status: "active",
+        activated_at: new Date().toISOString(),
+      });
+
+    if (insertError) {
+      console.error("Failed to activate app:", insertError.message);
+      return NextResponse.json({ error: "Failed to activate app" }, { status: 500 });
+    }
   }
 
   // Ensure synapse record exists
-  const { data: existingSynapse } = await admin
+  const { data: existingSynapse, error: synapseSelectError } = await admin
     .from("kinetiks_synapses")
     .select("id")
     .eq("account_id", account.id)
     .eq("app_name", app_name)
-    .single();
+    .maybeSingle();
 
-  if (!existingSynapse) {
-    await admin.from("kinetiks_synapses").insert({
-      account_id: account.id,
-      app_name,
-      app_url: appInfo.url,
-      status: "active",
-      read_layers: appInfo.defaultReadLayers,
-      write_layers: appInfo.defaultWriteLayers,
-    });
+  if (synapseSelectError) {
+    console.error("Failed to check synapse:", synapseSelectError.message);
+    return NextResponse.json({ error: "Failed to check synapse status" }, { status: 500 });
   }
 
-  // Log to ledger
-  await admin.from("kinetiks_ledger").insert({
+  if (!existingSynapse) {
+    const { error: synapseInsertError } = await admin
+      .from("kinetiks_synapses")
+      .insert({
+        account_id: account.id,
+        app_name,
+        app_url: appInfo.url,
+        status: "active",
+        read_layers: appInfo.defaultReadLayers,
+        write_layers: appInfo.defaultWriteLayers,
+      });
+
+    if (synapseInsertError) {
+      console.error("Failed to create synapse:", synapseInsertError.message);
+      return NextResponse.json({ error: "Failed to create synapse" }, { status: 500 });
+    }
+  }
+
+  // Log to ledger (non-fatal)
+  const { error: ledgerError } = await admin.from("kinetiks_ledger").insert({
     account_id: account.id,
     event_type: "import",
     detail: {
@@ -89,6 +119,10 @@ export async function POST(request: Request) {
       display_name: appInfo.displayName,
     },
   });
+
+  if (ledgerError) {
+    console.error("Failed to log activation:", ledgerError.message);
+  }
 
   return NextResponse.json({ success: true, app_name });
 }

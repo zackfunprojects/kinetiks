@@ -39,16 +39,23 @@ export function DashboardHome({
   }
 
   function handleAppActivate(appName: string) {
-    setActivations((prev) => [
-      ...prev,
-      {
+    setActivations((prev) => {
+      const exists = prev.some((a) => a.app_name === appName);
+      const newActivation = {
         id: crypto.randomUUID(),
         account_id: "",
         app_name: appName,
         status: "active",
         activated_at: new Date().toISOString(),
-      } as AppActivation,
-    ]);
+      } as AppActivation;
+
+      if (exists) {
+        return prev.map((a) =>
+          a.app_name === appName ? newActivation : a
+        );
+      }
+      return [...prev, newActivation];
+    });
   }
 
   const activeAppNames = new Set<string>(

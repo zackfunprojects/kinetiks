@@ -34,6 +34,8 @@ export function SettingsPage({ account, email, apiKeysSet }: SettingsPageProps) 
   const [savingKey, setSavingKey] = useState(false);
   const [keysSet, setKeysSet] = useState(apiKeysSet);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
   async function handleSaveName() {
@@ -73,6 +75,23 @@ export function SettingsPage({ account, email, apiKeysSet }: SettingsPageProps) 
     navigator.clipboard.writeText(account.codename);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  }
+
+  async function handleConfirmDelete() {
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const res = await fetch("/api/account", { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to delete account");
+      }
+      // Redirect to login after successful deletion
+      window.location.href = "/login";
+    } catch (e) {
+      setDeleteError(e instanceof Error ? e.message : "Failed to delete account");
+      setDeleting(false);
+    }
   }
 
   const inputStyle: React.CSSProperties = {
@@ -277,6 +296,8 @@ export function SettingsPage({ account, email, apiKeysSet }: SettingsPageProps) 
               Cancel
             </button>
             <button
+              onClick={handleConfirmDelete}
+              disabled={deleting}
               style={{
                 padding: "6px 14px",
                 background: "#991B1B",
@@ -285,12 +306,18 @@ export function SettingsPage({ account, email, apiKeysSet }: SettingsPageProps) 
                 borderRadius: 6,
                 fontSize: 13,
                 fontWeight: 500,
-                cursor: "pointer",
+                cursor: deleting ? "not-allowed" : "pointer",
+                opacity: deleting ? 0.6 : 1,
               }}
             >
-              Confirm Delete
+              {deleting ? "Deleting..." : "Confirm Delete"}
             </button>
           </div>
+        )}
+        {deleteError && (
+          <p role="alert" style={{ margin: "12px 0 0", fontSize: 13, color: "#EF4444" }}>
+            {deleteError}
+          </p>
         )}
       </Card>
 
