@@ -40,6 +40,10 @@ export interface OAuthEndpoints {
   scopes: string[];
   clientId: string;
   clientSecret: string;
+  /** If true, the provider requires PKCE (code_challenge + code_verifier). */
+  requiresPkce?: boolean;
+  /** If true, the token endpoint requires Basic auth instead of body credentials. */
+  useBasicAuth?: boolean;
 }
 
 /**

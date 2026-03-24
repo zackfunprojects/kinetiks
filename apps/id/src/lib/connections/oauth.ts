@@ -5,11 +5,30 @@
  * and token refresh. Provider-specific endpoints are configured here.
  */
 
+import { randomBytes, createHash } from "crypto";
 import type { ConnectionProvider, OAuthTokens } from "@kinetiks/types";
 import type { OAuthEndpoints } from "./types";
 
 /** Timeout for token exchange and refresh HTTP requests (15 seconds). */
 const TOKEN_FETCH_TIMEOUT_MS = 15_000;
+
+// ---------------------------------------------------------------------------
+// PKCE helpers (RFC 7636)
+// ---------------------------------------------------------------------------
+
+/**
+ * Generate a cryptographic PKCE code verifier (43-128 chars, URL-safe).
+ */
+export function generatePkceVerifier(): string {
+  return randomBytes(32).toString("base64url");
+}
+
+/**
+ * Derive the S256 code challenge from a verifier.
+ */
+export function generatePkceChallenge(verifier: string): string {
+  return createHash("sha256").update(verifier).digest("base64url");
+}
 
 /**
  * Fetch with an AbortController-based timeout.
@@ -127,6 +146,8 @@ function getOAuthEndpoints(provider: ConnectionProvider): OAuthEndpoints {
         ],
         clientId,
         clientSecret,
+        requiresPkce: true,
+        useBasicAuth: true,
       };
     }
 
@@ -182,16 +203,40 @@ function getOAuthEndpoints(provider: ConnectionProvider): OAuthEndpoints {
 }
 
 /**
+ * Result of building an authorization URL.
+ * Includes an optional PKCE verifier that must be persisted for the callback.
+ */
+export interface AuthorizationUrlResult {
+  url: string;
+  /** Non-null when the provider requires PKCE. Must be stored and passed to exchangeCodeForTokens. */
+  pkceVerifier: string | null;
+}
+
+/**
+ * Check whether a provider requires PKCE.
+ */
+export function providerRequiresPkce(provider: ConnectionProvider): boolean {
+  try {
+    const endpoints = getOAuthEndpoints(provider);
+    return endpoints.requiresPkce === true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Build the authorization URL to redirect the user to the OAuth provider.
  *
  * @param provider - The connection provider
  * @param redirectUri - The callback URL (e.g. https://id.kinetiks.ai/api/connections/callback)
  * @param state - Opaque state string (provider + account info, base64-encoded)
+ * @param pkceVerifier - Pre-generated PKCE verifier (required for PKCE providers)
  */
 export function buildAuthorizationUrl(
   provider: ConnectionProvider,
   redirectUri: string,
-  state: string
+  state: string,
+  pkceVerifier?: string
 ): string {
   const endpoints = getOAuthEndpoints(provider);
   const params = new URLSearchParams({
@@ -209,16 +254,31 @@ export function buildAuthorizationUrl(
     params.set("prompt", "consent");
   }
 
+  // PKCE (RFC 7636) for providers that require it (e.g. Twitter/X)
+  if (endpoints.requiresPkce) {
+    if (!pkceVerifier) {
+      throw new Error(
+        `Provider ${provider} requires PKCE but no verifier was provided. Generate one with generatePkceVerifier().`
+      );
+    }
+    const challenge = generatePkceChallenge(pkceVerifier);
+    params.set("code_challenge", challenge);
+    params.set("code_challenge_method", "S256");
+  }
+
   return `${endpoints.authorizationUrl}?${params.toString()}`;
 }
 
 /**
  * Exchange an authorization code for access + refresh tokens.
+ *
+ * @param pkceVerifier - Required when the provider uses PKCE (stored from buildAuthorizationUrl).
  */
 export async function exchangeCodeForTokens(
   provider: ConnectionProvider,
   code: string,
-  redirectUri: string
+  redirectUri: string,
+  pkceVerifier?: string | null
 ): Promise<OAuthTokens> {
   const endpoints = getOAuthEndpoints(provider);
 
@@ -226,13 +286,32 @@ export async function exchangeCodeForTokens(
     grant_type: "authorization_code",
     code,
     redirect_uri: redirectUri,
-    client_id: endpoints.clientId,
-    client_secret: endpoints.clientSecret,
   });
+
+  // PKCE verifier
+  if (pkceVerifier) {
+    body.set("code_verifier", pkceVerifier);
+  }
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/x-www-form-urlencoded",
+  };
+
+  if (endpoints.useBasicAuth) {
+    // Basic auth: base64(client_id:client_secret)
+    const basic = Buffer.from(
+      `${endpoints.clientId}:${endpoints.clientSecret}`
+    ).toString("base64");
+    headers["Authorization"] = `Basic ${basic}`;
+  } else {
+    // Standard body credentials
+    body.set("client_id", endpoints.clientId);
+    body.set("client_secret", endpoints.clientSecret);
+  }
 
   const response = await fetchWithTimeout(endpoints.tokenUrl, {
     method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    headers,
     body: body.toString(),
   });
 
@@ -282,13 +361,25 @@ export async function refreshAccessToken(
   const body = new URLSearchParams({
     grant_type: "refresh_token",
     refresh_token: refreshToken,
-    client_id: endpoints.clientId,
-    client_secret: endpoints.clientSecret,
   });
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/x-www-form-urlencoded",
+  };
+
+  if (endpoints.useBasicAuth) {
+    const basic = Buffer.from(
+      `${endpoints.clientId}:${endpoints.clientSecret}`
+    ).toString("base64");
+    headers["Authorization"] = `Basic ${basic}`;
+  } else {
+    body.set("client_id", endpoints.clientId);
+    body.set("client_secret", endpoints.clientSecret);
+  }
 
   const response = await fetchWithTimeout(endpoints.tokenUrl, {
     method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    headers,
     body: body.toString(),
   });
 

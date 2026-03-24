@@ -134,14 +134,20 @@ export async function updateConnectionStatus(
 ): Promise<void> {
   if (errorMessage) {
     // Fetch existing metadata to merge rather than overwrite
-    const { data: existing } = await admin
+    const { data: existing, error: selectError } = await admin
       .from("kinetiks_connections")
       .select("metadata")
       .eq("id", connectionId)
       .single();
 
+    if (selectError || !existing) {
+      throw new Error(
+        `Failed to fetch existing metadata for connection ${connectionId}: ${selectError?.message ?? "no row found"}`
+      );
+    }
+
     const existingMeta =
-      (existing?.metadata as Record<string, unknown>) ?? {};
+      (existing.metadata as Record<string, unknown>) ?? {};
 
     const { error } = await admin
       .from("kinetiks_connections")
@@ -195,13 +201,22 @@ export async function updateLastSync(
   admin: SupabaseClient,
   connectionId: string
 ): Promise<boolean> {
-  const { error } = await admin
+  const { data, error } = await admin
     .from("kinetiks_connections")
     .update({ last_sync_at: new Date().toISOString() })
-    .eq("id", connectionId);
+    .eq("id", connectionId)
+    .select("id");
 
   if (error) {
     console.error(`Failed to update last_sync_at: ${error.message}`);
+    return false;
+  }
+
+  const rows = data as { id: string }[] | null;
+  if (!rows || rows.length === 0 || !rows[0]?.id) {
+    console.error(
+      `updateLastSync: no rows updated for connection ${connectionId}`
+    );
     return false;
   }
 

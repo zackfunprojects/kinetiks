@@ -9,6 +9,9 @@ export {
   buildAuthorizationUrl,
   exchangeCodeForTokens,
   refreshAccessToken,
+  providerRequiresPkce,
+  generatePkceVerifier,
+  generatePkceChallenge,
 } from "./oauth";
 export {
   createConnection,

@@ -23,6 +23,7 @@ interface OAuthState {
   provider: string;
   account_id: string;
   ts: number;
+  pkce_verifier?: string;
 }
 
 export async function GET(request: Request) {
@@ -106,8 +107,13 @@ export async function GET(request: Request) {
   const accountId = account.id;
 
   try {
-    // Exchange code for tokens
-    const tokens = await exchangeCodeForTokens(provider, code, redirectUri);
+    // Exchange code for tokens (pass PKCE verifier if present in state)
+    const tokens = await exchangeCodeForTokens(
+      provider,
+      code,
+      redirectUri,
+      state.pkce_verifier
+    );
 
     const credentials: StoredOAuthCredentials = {
       type: "oauth",

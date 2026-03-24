@@ -13,6 +13,10 @@ import {
   buildAuthorizationUrl,
   isValidProvider,
 } from "@/lib/connections";
+import {
+  providerRequiresPkce,
+  generatePkceVerifier,
+} from "@/lib/connections/oauth";
 import type { StoredApiKeyCredentials } from "@/lib/connections";
 import { getProvider } from "@/lib/connections/providers";
 import type { ConnectionProvider } from "@kinetiks/types";
@@ -162,20 +166,26 @@ export async function POST(request: Request) {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://id.kinetiks.ai";
   const redirectUri = `${appUrl}/api/connections/callback`;
 
-  // State encodes provider + account ID for the callback
-  const state = Buffer.from(
-    JSON.stringify({
-      provider,
-      account_id: account.id,
-      ts: Date.now(),
-    })
-  ).toString("base64url");
-
   try {
+    // Generate PKCE verifier if provider requires it (e.g. Twitter/X)
+    const needsPkce = providerRequiresPkce(provider as ConnectionProvider);
+    const pkceVerifier = needsPkce ? generatePkceVerifier() : undefined;
+
+    // State encodes provider + account ID + optional PKCE verifier for the callback
+    const state = Buffer.from(
+      JSON.stringify({
+        provider,
+        account_id: account.id,
+        ts: Date.now(),
+        ...(pkceVerifier ? { pkce_verifier: pkceVerifier } : {}),
+      })
+    ).toString("base64url");
+
     const authUrl = buildAuthorizationUrl(
       provider as ConnectionProvider,
       redirectUri,
-      state
+      state,
+      pkceVerifier
     );
 
     return NextResponse.json({ authorization_url: authUrl });
