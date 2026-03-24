@@ -54,7 +54,7 @@ function getFraming(fromApp: string | null): Framing {
     return {
       heading: `${displayName} is powered by your Kinetiks ID`,
       subheading: `${displayName} ${appDesc}. But first, it needs to understand your business.`,
-      explanation: "Your Kinetiks ID is a living profile of your company - your voice, products, customers, narrative, and brand. We'll build it together in about 15 minutes, and it powers everything from here.",
+      explanation: "Your Kinetiks ID is a living profile of your company - your voice, products, customers, narrative, and brand. Kinetiks AI will learn your business in about 15 minutes, and that understanding powers everything from here.",
       valueProps: sharedValueProps,
       cta: `Build my ID, then take me to ${displayName}`,
     };
@@ -63,7 +63,7 @@ function getFraming(fromApp: string | null): Framing {
   return {
     heading: "Your Kinetiks ID",
     subheading: "A single business identity that powers every growth tool in the Kinetiks ecosystem.",
-    explanation: "We'll spend about 15 minutes learning your business - crawling your website, asking a few questions, and calibrating your voice. The result is a living profile that gets smarter over time and makes every tool in the platform sound like you.",
+    explanation: "Kinetiks AI will spend about 15 minutes learning your business - crawling your website, asking a few questions, and calibrating your voice. The result is a living profile that gets smarter over time and makes every tool in the platform sound like you.",
     valueProps: sharedValueProps,
     cta: "Build my Kinetiks ID",
   };
@@ -155,9 +155,9 @@ export function EducationScreen({
           </p>
           <div className="flex gap-6">
             {[
-              { step: "1", label: "We crawl your website" },
-              { step: "2", label: "We ask a few questions" },
-              { step: "3", label: "We calibrate your voice" },
+              { step: "1", label: "Kinetiks crawls your website" },
+              { step: "2", label: "A few questions about your business" },
+              { step: "3", label: "Voice calibration" },
             ].map((item) => (
               <div key={item.step} className="flex items-center gap-2">
                 <span
