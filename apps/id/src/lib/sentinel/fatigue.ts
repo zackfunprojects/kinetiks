@@ -128,30 +128,43 @@ export async function evaluateFatigue(
 
     applyContactFilter(contactQuery, input.contactEmail, input.contactLinkedin);
 
-    const { data: contactData, count } = await contactQuery;
-    contactTouchpoints7d = count ?? 0;
+    const { data: contactData, count, error: contactError } = await contactQuery;
 
-    if (contactData && contactData.length > 0) {
-      lastContactTouchpoint = contactData[0].timestamp as string;
+    if (contactError) {
+      // Fail conservative: assume at limit
+      console.error("Failed to query contact touchpoints:", contactError.message);
+      contactTouchpoints7d = adjustedLimits.max_contact_7d;
+      contactTouchpoints24h = adjustedLimits.max_contact_24h;
+    } else {
+      contactTouchpoints7d = count ?? 0;
 
-      // Count 24h touchpoints
-      contactTouchpoints24h = contactData.filter(
-        (t) => (t.timestamp as string) >= oneDayAgo
-      ).length;
+      if (contactData && contactData.length > 0) {
+        lastContactTouchpoint = contactData[0].timestamp as string;
+
+        // Count 24h touchpoints
+        contactTouchpoints24h = contactData.filter(
+          (t) => (t.timestamp as string) >= oneDayAgo
+        ).length;
+      }
     }
   }
 
   // Query org touchpoints
   let orgTouchpoints7d = 0;
   if (input.orgDomain) {
-    const { count } = await admin
+    const { count, error: orgError } = await admin
       .from("kinetiks_touchpoint_ledger")
       .select("id", { count: "exact", head: true })
       .eq("account_id", input.accountId)
       .eq("org_domain", input.orgDomain)
       .gte("timestamp", sevenDaysAgo);
 
-    orgTouchpoints7d = count ?? 0;
+    if (orgError) {
+      console.error("Failed to query org touchpoints:", orgError.message);
+      orgTouchpoints7d = adjustedLimits.max_org_7d;
+    } else {
+      orgTouchpoints7d = count ?? 0;
+    }
   }
 
   // Check consecutive no-response
@@ -184,18 +197,20 @@ export async function evaluateFatigue(
   // Check 24h limit
   if (contactTouchpoints24h >= adjustedLimits.max_contact_24h) {
     decision = "delayed";
+    nextAllowedAt = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString();
     reason = `Contact has ${contactTouchpoints24h} touchpoints in 24h (limit: ${adjustedLimits.max_contact_24h})`;
     flags.push({
       category: "fatigue_exceeded",
       severity: "medium",
       detail: reason,
-      suggested_action: "Delay to next day",
+      suggested_action: `Delay until ${nextAllowedAt}`,
     });
   }
 
-  // Check 7d contact limit
+  // Check 7d contact limit (blocked overrides delayed)
   if (contactTouchpoints7d >= adjustedLimits.max_contact_7d) {
     decision = "blocked";
+    nextAllowedAt = null;
     reason = `Contact has ${contactTouchpoints7d} touchpoints in 7 days (limit: ${adjustedLimits.max_contact_7d})`;
     flags.push({
       category: "fatigue_exceeded",
@@ -208,6 +223,7 @@ export async function evaluateFatigue(
   // Check 7d org limit
   if (orgTouchpoints7d >= adjustedLimits.max_org_7d) {
     decision = "blocked";
+    nextAllowedAt = null;
     reason = `Organization has ${orgTouchpoints7d} touchpoints in 7 days (limit: ${adjustedLimits.max_org_7d})`;
     flags.push({
       category: "fatigue_exceeded",
@@ -220,6 +236,7 @@ export async function evaluateFatigue(
   // Check consecutive no-response
   if (consecutiveNoResponse >= adjustedLimits.max_consecutive_no_response) {
     decision = "blocked";
+    nextAllowedAt = null;
     reason = `${consecutiveNoResponse} consecutive touchpoints with no response (limit: ${adjustedLimits.max_consecutive_no_response})`;
     flags.push({
       category: "fatigue_exceeded",
@@ -248,11 +265,15 @@ async function loadLimits(
   admin: SupabaseClient,
   accountId: string
 ): Promise<FatigueLimits> {
-  const { data: rules } = await admin
+  const { data: rules, error } = await admin
     .from("kinetiks_fatigue_rules")
     .select("rule_name, limit_value")
     .eq("account_id", accountId)
     .eq("is_active", true);
+
+  if (error) {
+    console.error("Failed to load fatigue rules, using defaults:", error.message);
+  }
 
   const defaults = { ...DEFAULT_FATIGUE_LIMITS };
 
@@ -302,7 +323,13 @@ async function calculateEngagement(
 
   applyContactFilter(query, input.contactEmail, input.contactLinkedin);
 
-  const { data: touchpoints } = await query;
+  const { data: touchpoints, error } = await query;
+
+  if (error) {
+    // Fail conservative: treat as negative engagement on DB error
+    console.error("Failed to calculate engagement:", error.message);
+    return "low";
+  }
 
   if (!touchpoints || touchpoints.length === 0) return "normal";
 
@@ -341,7 +368,13 @@ async function getNegativeCooldownEnd(
 
   applyContactFilter(query, input.contactEmail, input.contactLinkedin);
 
-  const { data } = await query;
+  const { data, error } = await query;
+
+  if (error) {
+    // Fail conservative: assume cooldown is still active
+    console.error("Failed to get negative cooldown end:", error.message);
+    return new Date(Date.now() + cooldownDays * 24 * 60 * 60 * 1000).toISOString();
+  }
 
   if (!data || data.length === 0) return null;
 
@@ -371,7 +404,14 @@ async function getConsecutiveNoResponse(
 
   applyContactFilter(query, input.contactEmail, input.contactLinkedin);
 
-  const { data } = await query;
+  const { data, error } = await query;
+
+  if (error) {
+    // Fail conservative: assume max no-response to trigger pause
+    console.error("Failed to get consecutive no-response count:", error.message);
+    return 999;
+  }
+
   if (!data) return 0;
 
   let count = 0;

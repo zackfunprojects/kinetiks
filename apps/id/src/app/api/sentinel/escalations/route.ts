@@ -21,11 +21,19 @@ export async function GET(request: Request) {
 
   const admin = createAdminClient();
 
-  const { data: account } = await admin
+  const { data: account, error: accountError } = await admin
     .from("kinetiks_accounts")
     .select("id")
     .eq("user_id", user.id)
     .single();
+
+  if (accountError) {
+    console.error("Failed to fetch account:", accountError.message);
+    return NextResponse.json(
+      { error: "Failed to fetch account" },
+      { status: 500 }
+    );
+  }
 
   if (!account) {
     return NextResponse.json(
@@ -93,7 +101,14 @@ export async function PATCH(request: Request) {
 
   let body: { escalation_id: string; status: EscalationStatus };
   try {
-    body = await request.json();
+    const parsed = await request.json();
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return NextResponse.json(
+        { error: "Invalid JSON body" },
+        { status: 400 }
+      );
+    }
+    body = parsed;
   } catch {
     return NextResponse.json(
       { error: "Invalid JSON body" },
@@ -119,11 +134,19 @@ export async function PATCH(request: Request) {
 
   const admin = createAdminClient();
 
-  const { data: account } = await admin
+  const { data: account, error: accountError } = await admin
     .from("kinetiks_accounts")
     .select("id")
     .eq("user_id", user.id)
     .single();
+
+  if (accountError) {
+    console.error("Failed to fetch account:", accountError.message);
+    return NextResponse.json(
+      { error: "Failed to fetch account" },
+      { status: 500 }
+    );
+  }
 
   if (!account) {
     return NextResponse.json(

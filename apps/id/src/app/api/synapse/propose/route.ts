@@ -154,6 +154,28 @@ export async function POST(request: Request) {
     );
   }
 
+  if (source_operator !== undefined && (typeof source_operator !== "string" || source_operator.trim().length === 0)) {
+    return NextResponse.json(
+      { error: "source_operator must be a non-empty string or omitted" },
+      { status: 400 }
+    );
+  }
+
+  if (expires_at !== undefined) {
+    if (typeof expires_at !== "string" || expires_at.trim().length === 0) {
+      return NextResponse.json(
+        { error: "expires_at must be a non-empty ISO timestamp string or omitted" },
+        { status: 400 }
+      );
+    }
+    if (isNaN(Date.parse(expires_at))) {
+      return NextResponse.json(
+        { error: "expires_at must be a valid ISO timestamp" },
+        { status: 400 }
+      );
+    }
+  }
+
   const admin = createAdminClient();
 
   // If user-authenticated, verify account ownership

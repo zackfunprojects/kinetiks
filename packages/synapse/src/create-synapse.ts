@@ -73,6 +73,18 @@ export function createSynapse(config: SynapseConfig): SynapseInstance {
       layers?: ContextLayer[]
     ): Promise<PullContextResult> {
       const requestedLayers = layers ?? config.readLayers;
+
+      if (layers) {
+        const unauthorized = layers.filter((l) => !config.readLayers.includes(l));
+        if (unauthorized.length > 0) {
+          throw new SynapseError(
+            `Layers not in readLayers: ${unauthorized.join(", ")}`,
+            400,
+            "pullContext"
+          );
+        }
+      }
+
       const endpoint = `${config.baseUrl}/api/synapse/pull`;
 
       const response = await fetch(endpoint, {
@@ -107,6 +119,14 @@ export function createSynapse(config: SynapseConfig): SynapseInstance {
         return { submitted: false };
       }
 
+      if (!config.writeLayers.includes(filterResult.proposal.target_layer)) {
+        throw new SynapseError(
+          `Layer '${filterResult.proposal.target_layer}' not in writeLayers`,
+          400,
+          "submitProposal"
+        );
+      }
+
       const endpoint = `${config.baseUrl}/api/synapse/propose`;
 
       const response = await fetch(endpoint, {
@@ -114,8 +134,8 @@ export function createSynapse(config: SynapseConfig): SynapseInstance {
         headers,
         credentials: "include",
         body: JSON.stringify({
-          account_id: accountId,
           ...filterResult.proposal,
+          account_id: accountId,
           source_app: config.appName,
         }),
       });
@@ -179,13 +199,14 @@ export function createSynapse(config: SynapseConfig): SynapseInstance {
             event: "INSERT",
             schema: "public",
             table: "kinetiks_routing_events",
-            filter: `target_app=eq.${config.appName}&account_id=eq.${accountId}`,
+            filter: `account_id=eq.${accountId}`,
           },
           (payload) => {
             const event = payload.new as unknown as RoutingEvent;
 
-            // Only process events for this account
+            // Defense-in-depth: verify both account and app match
             if (event.account_id !== accountId) return;
+            if (event.target_app !== config.appName) return;
 
             config.handleRoutingEvent(event).catch((err) => {
               console.error(
