@@ -90,6 +90,37 @@ export async function POST(request: Request) {
     );
   }
 
+  // Validate optional string fields
+  const optionalStringFields = [
+    "source_operator",
+    "contact_email",
+    "contact_linkedin",
+    "org_domain",
+  ] as const;
+
+  for (const field of optionalStringFields) {
+    const value = body[field];
+    if (value !== undefined && (typeof value !== "string" || value.length === 0)) {
+      return NextResponse.json(
+        { error: `Invalid ${field}: must be a non-empty string or omitted` },
+        { status: 400 }
+      );
+    }
+  }
+
+  // Validate optional metadata field
+  if (
+    body.metadata !== undefined &&
+    (typeof body.metadata !== "object" ||
+      body.metadata === null ||
+      Array.isArray(body.metadata))
+  ) {
+    return NextResponse.json(
+      { error: "Invalid metadata: must be an object or omitted" },
+      { status: 400 }
+    );
+  }
+
   const admin = createAdminClient();
 
   // Verify account ownership if user-authenticated

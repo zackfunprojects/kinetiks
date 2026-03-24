@@ -143,6 +143,8 @@ export async function reviewContent(
         fatigue: fatigueResult,
         compliance: complianceResult,
         contactEmail: request.contact_email,
+        contactLinkedin: request.contact_linkedin,
+        orgDomain: request.org_domain,
       });
     } catch (err) {
       // Escalation failure is non-fatal - the review was already recorded
@@ -230,7 +232,6 @@ async function logToLedger(
       content_type: request.content_type,
       verdict,
       quality_score: qualityScore,
-      contact_email: request.contact_email ?? null,
     },
   });
 

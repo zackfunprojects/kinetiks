@@ -19,6 +19,8 @@ interface EscalationInput {
   fatigue: FatigueCheckResult | null;
   compliance: ComplianceCheckResult;
   contactEmail?: string;
+  contactLinkedin?: string;
+  orgDomain?: string;
 }
 
 interface EscalationResult {
@@ -84,6 +86,8 @@ export async function routeEscalation(
     flag_count: input.flags.length,
     flag_categories: input.flags.map((f) => f.category),
     contact_email: input.contactEmail ?? null,
+    contact_linkedin: input.contactLinkedin ?? null,
+    org_domain: input.orgDomain ?? null,
   };
 
   if (input.fatigue) {

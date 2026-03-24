@@ -104,9 +104,9 @@ function runRuleBasedChecks(
     rules.push({
       rule_id: "tcpa_ai_disclosure",
       name: "TCPA: AI disclosure",
-      applies_to: ["voice_call_script"],
+      applies_to: ["voice_call_script", "voicemail_script"],
       passed:
-        contentType !== "voice_call_script" ||
+        (contentType !== "voice_call_script" && contentType !== "voicemail_script") ||
         lowerContent.includes("ai") ||
         lowerContent.includes("automated") ||
         lowerContent.includes("artificial intelligence"),

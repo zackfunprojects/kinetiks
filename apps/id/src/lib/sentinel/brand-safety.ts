@@ -38,6 +38,28 @@ const SEVERITY_FLAGS: FlagSeverity[] = ["medium"];
  * Calls Claude Sonnet with content and context layers to classify
  * risk across 8 categories. Returns per-category severity and flags.
  */
+/**
+ * Conservative fallback result returned when the AI call or parsing fails.
+ */
+function fallbackBrandSafetyResult(detail: string): BrandSafetyResult {
+  const defaultCategories = Object.fromEntries(
+    ALL_CATEGORIES.map((c) => [c, "medium" as FlagSeverity])
+  ) as Record<BrandSafetyCategory, FlagSeverity>;
+
+  return {
+    categories: defaultCategories,
+    flags: [
+      {
+        category: "tone_misjudgment",
+        severity: "medium",
+        detail,
+        suggested_action: null,
+      },
+    ],
+    overall_risk: "medium",
+  };
+}
+
 export async function evaluateBrandSafety(
   content: string,
   contentType: SentinelContentType,
@@ -57,75 +79,85 @@ ${JSON.stringify(context.narrative, null, 2)}
 --- CUSTOMERS LAYER DATA ---
 ${JSON.stringify(context.customers, null, 2)}`;
 
-  const response = await askClaude(prompt, {
-    system: SENTINEL_BRAND_SAFETY_SYSTEM,
-    model: "claude-sonnet-4-20250514",
-    maxTokens: 2048,
-  });
+  try {
+    const response = await askClaude(prompt, {
+      system: SENTINEL_BRAND_SAFETY_SYSTEM,
+      model: "claude-sonnet-4-20250514",
+      maxTokens: 2048,
+    });
 
-  let parsed: {
-    categories: Record<string, string>;
-    concerns: Array<{
+    const parsed = JSON.parse(response);
+
+    // Validate shape: categories must be an object with expected keys
+    if (
+      !parsed.categories ||
+      typeof parsed.categories !== "object" ||
+      Array.isArray(parsed.categories)
+    ) {
+      return fallbackBrandSafetyResult(
+        "Brand safety evaluation returned invalid categories shape - manual review recommended"
+      );
+    }
+
+    // Validate all expected category keys exist (missing ones get defaulted below)
+    // but if categories is entirely wrong type values, bail out
+    for (const cat of ALL_CATEGORIES) {
+      const val = parsed.categories[cat];
+      if (val !== undefined && typeof val !== "string") {
+        return fallbackBrandSafetyResult(
+          `Brand safety evaluation returned non-string severity for ${cat} - manual review recommended`
+        );
+      }
+    }
+
+    // Validate concerns is an array (or absent)
+    if (parsed.concerns !== undefined && !Array.isArray(parsed.concerns)) {
+      parsed.concerns = [];
+    }
+
+    // Normalize categories
+    const categories = {} as Record<BrandSafetyCategory, FlagSeverity>;
+    for (const category of ALL_CATEGORIES) {
+      categories[category] = normalSeverity(
+        parsed.categories[category] ?? "none"
+      );
+    }
+
+    // Convert concerns to flags
+    const concerns = (parsed.concerns ?? []) as Array<{
       category: string;
       detail: string;
       severity: string;
     }>;
-  };
+    const flags: SentinelFlag[] = concerns.map((concern) => ({
+      category: mapBrandSafetyToFlag(concern.category),
+      severity: normalSeverity(concern.severity),
+      detail: concern.detail,
+      suggested_action: null,
+    }));
 
-  try {
-    parsed = JSON.parse(response);
-  } catch {
-    // Conservative fallback on parse failure
-    const defaultCategories = Object.fromEntries(
-      ALL_CATEGORIES.map((c) => [c, "medium" as FlagSeverity])
-    ) as Record<BrandSafetyCategory, FlagSeverity>;
+    // Determine overall risk as highest severity across all categories
+    const severityOrder: FlagSeverity[] = [
+      "none",
+      "low",
+      "medium",
+      "high",
+      "critical",
+    ];
+    let overallRisk: FlagSeverity = "none";
+    for (const severity of Object.values(categories)) {
+      if (severityOrder.indexOf(severity) > severityOrder.indexOf(overallRisk)) {
+        overallRisk = severity;
+      }
+    }
 
-    return {
-      categories: defaultCategories,
-      flags: [
-        {
-          category: "tone_misjudgment",
-          severity: "medium",
-          detail: "Brand safety evaluation returned unparseable response - manual review recommended",
-          suggested_action: null,
-        },
-      ],
-      overall_risk: "medium",
-    };
-  }
-
-  // Normalize categories
-  const categories = {} as Record<BrandSafetyCategory, FlagSeverity>;
-  for (const category of ALL_CATEGORIES) {
-    categories[category] = normalSeverity(
-      parsed.categories[category] ?? "none"
+    return { categories, flags, overall_risk: overallRisk };
+  } catch (err) {
+    console.error("Brand safety evaluation failed:", err);
+    return fallbackBrandSafetyResult(
+      "Brand safety evaluation failed - manual review recommended"
     );
   }
-
-  // Convert concerns to flags
-  const flags: SentinelFlag[] = (parsed.concerns ?? []).map((concern) => ({
-    category: mapBrandSafetyToFlag(concern.category),
-    severity: normalSeverity(concern.severity),
-    detail: concern.detail,
-    suggested_action: null,
-  }));
-
-  // Determine overall risk as highest severity across all categories
-  const severityOrder: FlagSeverity[] = [
-    "none",
-    "low",
-    "medium",
-    "high",
-    "critical",
-  ];
-  let overallRisk: FlagSeverity = "none";
-  for (const severity of Object.values(categories)) {
-    if (severityOrder.indexOf(severity) > severityOrder.indexOf(overallRisk)) {
-      overallRisk = severity;
-    }
-  }
-
-  return { categories, flags, overall_risk: overallRisk };
 }
 
 /**

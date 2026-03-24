@@ -29,22 +29,24 @@ Evaluate the provided content across these 7 dimensions, scoring each 0-100:
 
 For each dimension, also identify specific concerns if the score is below 70.
 
-Output format: Return ONLY a JSON object with this exact structure:
+Output format: Return ONLY a valid JSON object. All score values must be integers from 0 to 100. Severity must be one of: "low", "medium", "high". The concerns array may be empty if no dimension scores below 70.
+
+Example:
 {
   "scores": {
-    "voice_match": <number 0-100>,
-    "tone": <number 0-100>,
-    "clarity": <number 0-100>,
-    "product_accuracy": <number 0-100>,
-    "competitive_claims": <number 0-100>,
-    "spelling_grammar": <number 0-100>,
-    "length": <number 0-100>
+    "voice_match": 82,
+    "tone": 75,
+    "clarity": 68,
+    "product_accuracy": 90,
+    "competitive_claims": 85,
+    "spelling_grammar": 95,
+    "length": 70
   },
   "concerns": [
     {
-      "dimension": "<dimension name>",
-      "detail": "<specific concern>",
-      "severity": "low" | "medium" | "high"
+      "dimension": "clarity",
+      "detail": "Second paragraph contains a run-on sentence that obscures the CTA",
+      "severity": "medium"
     }
   ]
 }
@@ -78,23 +80,25 @@ Evaluate across these 8 risk categories:
 
 For each category, assign a severity: "none", "low", "medium", "high", or "critical".
 
-Output format: Return ONLY a JSON object:
+Output format: Return ONLY a valid JSON object. Each category severity must be one of: "none", "low", "medium", "high", "critical". The concerns array may be empty if all categories are "none" or "low".
+
+Example:
 {
   "categories": {
-    "aggressive_competitive": "<severity>",
-    "unsubstantiated_claims": "<severity>",
-    "tone_misjudgment": "<severity>",
-    "cultural_insensitivity": "<severity>",
-    "confidentiality_risk": "<severity>",
-    "impersonation_risk": "<severity>",
-    "legal_exposure": "<severity>",
-    "pressure_manipulation": "<severity>"
+    "aggressive_competitive": "none",
+    "unsubstantiated_claims": "medium",
+    "tone_misjudgment": "none",
+    "cultural_insensitivity": "none",
+    "confidentiality_risk": "none",
+    "impersonation_risk": "low",
+    "legal_exposure": "none",
+    "pressure_manipulation": "none"
   },
   "concerns": [
     {
-      "category": "<category name>",
-      "detail": "<specific concern>",
-      "severity": "<severity>"
+      "category": "unsubstantiated_claims",
+      "detail": "Claims 30% improvement without citing data source",
+      "severity": "medium"
     }
   ]
 }
@@ -120,14 +124,22 @@ Common compliance domains:
 - Advertising standards: proper disclosures for sponsored content, no deceptive design patterns
 - Press accuracy: factual accuracy against known product data, no unsubstantiated claims in press materials
 
-Output format: Return ONLY a JSON object:
+Output format: Return ONLY a valid JSON object. Each rule must have a boolean "passed" field. The "detail" field should be a string explanation or null.
+
+Example:
 {
   "rules": [
     {
-      "rule_id": "<short identifier>",
-      "name": "<human-readable rule name>",
-      "passed": true | false,
-      "detail": "<explanation or null>"
+      "rule_id": "copyright_attribution",
+      "name": "Copyright: Proper attribution",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "rule_id": "press_factual",
+      "name": "Press accuracy: Factual claims",
+      "passed": false,
+      "detail": "Revenue figure cited does not match known product data"
     }
   ]
 }
