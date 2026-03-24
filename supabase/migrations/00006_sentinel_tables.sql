@@ -154,6 +154,7 @@ CREATE INDEX idx_escalations_account ON kinetiks_escalations(account_id);
 CREATE INDEX idx_escalations_status ON kinetiks_escalations(account_id, status);
 CREATE INDEX idx_escalations_severity ON kinetiks_escalations(account_id, severity);
 CREATE INDEX idx_escalations_review ON kinetiks_escalations(sentinel_review_id) WHERE sentinel_review_id IS NOT NULL;
+CREATE UNIQUE INDEX ux_escalations_review ON kinetiks_escalations(sentinel_review_id) WHERE sentinel_review_id IS NOT NULL;
 
 ALTER TABLE kinetiks_escalations ENABLE ROW LEVEL SECURITY;
 

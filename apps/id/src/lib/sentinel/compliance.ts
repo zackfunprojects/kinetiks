@@ -39,6 +39,17 @@ const COMPLIANCE_MATRIX: Record<string, string[]> = {
 };
 
 /**
+ * Check for standalone advertising disclosure tokens using word boundaries.
+ * Avoids false positives from substrings like "made", "address", "advantage".
+ */
+const DISCLOSURE_PATTERN =
+  /\b(ad|ads|advertisement|sponsored|paid|partner|partnership|promotion|promoted|disclosure|affiliate)\b/i;
+
+function hasDisclosureToken(lowerContent: string): boolean {
+  return DISCLOSURE_PATTERN.test(lowerContent);
+}
+
+/**
  * Rule-based compliance checks that don't require AI.
  * These are structural/format checks on the content itself.
  */
@@ -138,7 +149,7 @@ function runRuleBasedChecks(
         "ab_variant",
       ],
       // Only flag if content appears sponsored but lacks disclosure
-      passed: !lowerContent.includes("sponsored") || lowerContent.includes("disclosure") || lowerContent.includes("ad") || lowerContent.includes("partnership"),
+      passed: !lowerContent.includes("sponsored") || hasDisclosureToken(lowerContent),
       detail: null,
     });
   }

@@ -145,7 +145,7 @@ async function analyzePatterns(
     return;
   }
 
-  // Count override types for this content type
+  // Filter to same content type and partition by original verdict
   const sameTypeOverrides = recentOverrides.filter((o) => {
     const reviewData = o.kinetiks_sentinel_reviews as unknown as {
       content_type: string;
@@ -153,39 +153,55 @@ async function analyzePatterns(
     return reviewData.content_type === review.content_type;
   });
 
-  if (sameTypeOverrides.length < 3) return;
+  // Partition by verdict: held overrides measure conservatism, approved overrides measure permissiveness
+  const heldOverrides = sameTypeOverrides.filter((o) => {
+    const reviewData = o.kinetiks_sentinel_reviews as unknown as {
+      verdict: string;
+    };
+    return reviewData.verdict === "held" || reviewData.verdict === "flagged";
+  });
 
-  const sentUnchangedCount = sameTypeOverrides.filter(
-    (o) => o.user_action === "sent_unchanged"
-  ).length;
+  const approvedOverrides = sameTypeOverrides.filter((o) => {
+    const reviewData = o.kinetiks_sentinel_reviews as unknown as {
+      verdict: string;
+    };
+    return reviewData.verdict === "approved";
+  });
 
-  const rejectedCount = sameTypeOverrides.filter(
-    (o) => o.user_action === "rejected"
-  ).length;
+  // Check if held reviews are consistently sent unchanged (too conservative)
+  if (heldOverrides.length >= 3) {
+    const sentUnchangedCount = heldOverrides.filter(
+      (o) => o.user_action === "sent_unchanged"
+    ).length;
+    const sentUnchangedRatio = sentUnchangedCount / heldOverrides.length;
 
-  const sentUnchangedRatio = sentUnchangedCount / sameTypeOverrides.length;
-  const rejectedRatio = rejectedCount / sameTypeOverrides.length;
-
-  // If >70% of overrides are "sent_unchanged", Sentinel is too conservative
-  if (sentUnchangedRatio > 0.7) {
-    await submitThresholdProposal(
-      admin,
-      accountId,
-      review.content_type,
-      "lower",
-      `${Math.round(sentUnchangedRatio * 100)}% of held ${review.content_type} reviews were sent unchanged - consider lowering quality threshold`
-    );
+    if (sentUnchangedRatio > 0.7) {
+      await submitThresholdProposal(
+        admin,
+        accountId,
+        review.content_type,
+        "lower",
+        `${Math.round(sentUnchangedRatio * 100)}% of held ${review.content_type} reviews were sent unchanged - consider lowering quality threshold`
+      );
+    }
   }
 
-  // If >50% of overrides are "rejected", Sentinel is too permissive
-  if (rejectedRatio > 0.5) {
-    await submitThresholdProposal(
-      admin,
-      accountId,
-      review.content_type,
-      "raise",
-      `${Math.round(rejectedRatio * 100)}% of approved ${review.content_type} reviews were rejected by user - consider raising quality threshold`
-    );
+  // Check if approved reviews are consistently rejected (too permissive)
+  if (approvedOverrides.length >= 3) {
+    const rejectedCount = approvedOverrides.filter(
+      (o) => o.user_action === "rejected"
+    ).length;
+    const rejectedRatio = rejectedCount / approvedOverrides.length;
+
+    if (rejectedRatio > 0.5) {
+      await submitThresholdProposal(
+        admin,
+        accountId,
+        review.content_type,
+        "raise",
+        `${Math.round(rejectedRatio * 100)}% of approved ${review.content_type} reviews were rejected by user - consider raising quality threshold`
+      );
+    }
   }
 }
 

@@ -68,7 +68,7 @@ export async function evaluateFatigue(
 
   // Negative engagement = immediate block
   if (engagement === "negative") {
-    const cooldownEnd = await getNegativeCooldownEnd(admin, input);
+    const cooldownEnd = await getNegativeCooldownEnd(admin, input, limits.negative_cooldown_days);
     return {
       decision: "blocked",
       reason: "Contact has negative engagement - in cool-down period",
@@ -313,7 +313,8 @@ async function calculateEngagement(
  */
 async function getNegativeCooldownEnd(
   admin: SupabaseClient,
-  input: FatigueInput
+  input: FatigueInput,
+  cooldownDays: number
 ): Promise<string | null> {
   if (!input.contactEmail && !input.contactLinkedin) return null;
 
@@ -337,8 +338,7 @@ async function getNegativeCooldownEnd(
 
   const negativeAt = new Date(data[0].timestamp as string);
   const cooldownEnd = new Date(
-    negativeAt.getTime() +
-      DEFAULT_FATIGUE_LIMITS.negative_cooldown_days * 24 * 60 * 60 * 1000
+    negativeAt.getTime() + cooldownDays * 24 * 60 * 60 * 1000
   );
 
   return cooldownEnd.toISOString();

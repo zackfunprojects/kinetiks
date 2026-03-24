@@ -66,6 +66,8 @@ export async function routeEscalation(
     admin,
     input.accountId,
     input.contactEmail,
+    input.contactLinkedin,
+    input.orgDomain,
     severity
   );
 
@@ -217,13 +219,24 @@ function severityToChannel(
 
 /**
  * Check if a similar escalation already exists in the dedup window.
+ *
+ * Only deduplicates when at least one stable contact identifier exists.
+ * Without a contact key, account-wide dedup would suppress unrelated
+ * escalations that happen to share the same severity.
  */
 async function checkDuplicate(
   admin: SupabaseClient,
   accountId: string,
   contactEmail: string | undefined,
+  contactLinkedin: string | undefined,
+  orgDomain: string | undefined,
   severity: EscalationSeverity
 ): Promise<boolean> {
+  // No stable contact identifier - skip dedup to avoid suppressing unrelated escalations
+  if (!contactEmail && !contactLinkedin && !orgDomain) {
+    return false;
+  }
+
   const windowStart = new Date(
     Date.now() - DEDUP_WINDOW_MS
   ).toISOString();
@@ -236,9 +249,13 @@ async function checkDuplicate(
     .eq("status", "pending")
     .gte("created_at", windowStart);
 
-  // If we have a contact email, narrow the dedup scope
+  // Narrow dedup scope by the most specific contact identifier available
   if (contactEmail) {
     query.contains("context", { contact_email: contactEmail });
+  } else if (contactLinkedin) {
+    query.contains("context", { contact_linkedin: contactLinkedin });
+  } else if (orgDomain) {
+    query.contains("context", { org_domain: orgDomain });
   }
 
   const { count, error } = await query;
