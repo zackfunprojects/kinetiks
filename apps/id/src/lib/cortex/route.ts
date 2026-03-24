@@ -1,5 +1,6 @@
 import type { ContextLayer } from "@kinetiks/types";
 import { SupabaseClient } from "@supabase/supabase-js";
+import { dispatchEvent } from "@/lib/webhooks/deliver";
 
 /**
  * Recency throttle: don't route the same layer to the same app more than once
@@ -211,6 +212,13 @@ export async function executeRoutes(
     console.error(
       `Failed to log routing events to ledger: ${ledgerError.message}`
     );
+  }
+
+  for (const event of routingEvents) {
+    dispatchEvent(accountId, "routing.sent", {
+      target_app: event.target_app,
+      source_proposal_id: proposalId,
+    });
   }
 
   return toRoute.length;

@@ -1,10 +1,10 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
+import { requireAuth } from "@/lib/auth/require-auth";
 import { evaluateProposal } from "@/lib/cortex/evaluate";
 import { recalculateConfidence } from "@/lib/cortex/confidence";
-import { validateLayerData } from "@/lib/utils/context-validator";
-import type { ContextLayer, Proposal } from "@kinetiks/types";
-import { NextResponse } from "next/server";
+import { resolveProposal } from "@/lib/cortex/resolve-proposal";
+import { apiSuccess, apiError } from "@/lib/utils/api-response";
+import type { Proposal } from "@kinetiks/types";
 
 /**
  * POST /api/cortex/evaluate
@@ -16,22 +16,8 @@ import { NextResponse } from "next/server";
  * Body: { proposal_id: string } or { proposal_ids: string[] }
  */
 export async function POST(request: Request) {
-  // Auth check - only authenticated users or internal service calls
-  const serverClient = createClient();
-  const {
-    data: { user },
-    error: authError,
-  } = await serverClient.auth.getUser();
-
-  // Check for dedicated internal service secret (used by Edge Functions / CRON)
-  const authHeader = request.headers.get("authorization");
-  const internalSecret = process.env.INTERNAL_SERVICE_SECRET;
-  const isServiceCall =
-    !!internalSecret && authHeader === `Bearer ${internalSecret}`;
-
-  if ((authError || !user) && !isServiceCall) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const { auth, error } = await requireAuth(request);
+  if (error) return error;
 
   const body = await request.json();
   const admin = createAdminClient();
@@ -47,20 +33,14 @@ export async function POST(request: Request) {
         (id: unknown) => typeof id === "string" && id.length > 0
       )
     ) {
-      return NextResponse.json(
-        { error: "proposal_ids must be a non-empty array of non-empty strings" },
-        { status: 400 }
-      );
+      return apiError("proposal_ids must be a non-empty array of non-empty strings", 400);
     }
     proposalIds = body.proposal_ids as string[];
   } else if (typeof body.proposal_id === "string" && body.proposal_id.length > 0) {
     // Single mode
     proposalIds = [body.proposal_id];
   } else {
-    return NextResponse.json(
-      { error: "Missing or invalid proposal_id (string) or proposal_ids (string[])" },
-      { status: 400 }
-    );
+    return apiError("Missing or invalid proposal_id (string) or proposal_ids (string[])", 400);
   }
 
   // Fetch proposals from database
@@ -71,25 +51,19 @@ export async function POST(request: Request) {
     .eq("status", "submitted");
 
   if (fetchError) {
-    return NextResponse.json(
-      { error: "Failed to fetch proposals" },
-      { status: 500 }
-    );
+    return apiError("Failed to fetch proposals", 500);
   }
 
   if (!proposals || proposals.length === 0) {
-    return NextResponse.json(
-      { error: "No submitted proposals found with given IDs" },
-      { status: 404 }
-    );
+    return apiError("No submitted proposals found with given IDs", 404);
   }
 
   // If not internal service call, verify the authenticated user owns all proposals
-  if (!isServiceCall && user) {
+  if (auth.auth_method !== "internal") {
     const { data: userAccounts } = await admin
       .from("kinetiks_accounts")
       .select("id")
-      .eq("user_id", user.id);
+      .eq("user_id", auth.user_id);
 
     const ownedAccountIds = new Set(
       (userAccounts ?? []).map((a) => a.id as string)
@@ -100,10 +74,7 @@ export async function POST(request: Request) {
     );
 
     if (unauthorizedProposal) {
-      return NextResponse.json(
-        { error: "Forbidden: proposal does not belong to your account" },
-        { status: 403 }
-      );
+      return apiError("Forbidden: proposal does not belong to your account", 403);
     }
   }
 
@@ -154,7 +125,7 @@ export async function POST(request: Request) {
     }
   }
 
-  return NextResponse.json({
+  return apiSuccess({
     results,
     evaluated: results.length,
     accepted: results.filter((r) => r.status === "accepted").length,
@@ -171,14 +142,8 @@ export async function POST(request: Request) {
  * Body: { proposal_id: string; decision: 'accept' | 'decline' }
  */
 export async function PATCH(request: Request) {
-  const serverClient = createClient();
-  const {
-    data: { user },
-  } = await serverClient.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const { auth, error } = await requireAuth(request);
+  if (error) return error;
 
   const body = await request.json();
   const { proposal_id, decision } = body as {
@@ -187,148 +152,22 @@ export async function PATCH(request: Request) {
   };
 
   if (!proposal_id || !decision || !["accept", "decline"].includes(decision)) {
-    return NextResponse.json(
-      { error: "Missing proposal_id or invalid decision (accept/decline)" },
-      { status: 400 }
-    );
+    return apiError("Missing proposal_id or invalid decision (accept/decline)", 400);
   }
 
   const admin = createAdminClient();
 
-  // Verify user owns this proposal
-  const { data: account } = await admin
-    .from("kinetiks_accounts")
-    .select("id")
-    .eq("user_id", user.id)
-    .single();
+  const result = await resolveProposal(
+    admin,
+    auth.account_id,
+    proposal_id,
+    decision,
+    "user"
+  );
 
-  if (!account) {
-    return NextResponse.json({ error: "Account not found" }, { status: 404 });
+  if (result.error) {
+    return apiError(result.error, 404);
   }
 
-  const { data: proposal } = await admin
-    .from("kinetiks_proposals")
-    .select("*")
-    .eq("id", proposal_id)
-    .eq("account_id", account.id)
-    .eq("status", "escalated")
-    .single();
-
-  if (!proposal) {
-    return NextResponse.json(
-      { error: "Escalated proposal not found" },
-      { status: 404 }
-    );
-  }
-
-  const newStatus = decision === "accept" ? "accepted" : "declined";
-
-  // Update proposal status
-  const { error: proposalUpdateError } = await admin
-    .from("kinetiks_proposals")
-    .update({
-      status: newStatus,
-      evaluated_at: new Date().toISOString(),
-      evaluated_by: "user",
-      ...(decision === "decline" ? { decline_reason: "user_dismissed" } : {}),
-    })
-    .eq("id", proposal_id);
-
-  if (proposalUpdateError) {
-    console.error(`Failed to update proposal ${proposal_id}:`, proposalUpdateError.message);
-    return NextResponse.json(
-      { error: "Failed to update proposal status" },
-      { status: 500 }
-    );
-  }
-
-  if (decision === "accept") {
-    // Merge the proposal data into the context layer
-    const typedProposal = proposal as unknown as Proposal;
-    const tableName = `kinetiks_context_${typedProposal.target_layer}`;
-
-    const { data: existingRow, error: selectError } = await admin
-      .from(tableName)
-      .select("data")
-      .eq("account_id", account.id)
-      .maybeSingle();
-
-    if (selectError) {
-      console.error(`Failed to read ${tableName} for account ${account.id}:`, selectError.message);
-      return NextResponse.json(
-        { error: "Failed to read context layer" },
-        { status: 500 }
-      );
-    }
-
-    const existingData = (existingRow?.data as Record<string, unknown>) || {};
-    const mergedData = {
-      ...existingData,
-      ...typedProposal.payload,
-    };
-
-    const validation = validateLayerData(
-      typedProposal.target_layer as ContextLayer,
-      mergedData
-    );
-    if (!validation.valid) {
-      console.error(
-        `Merged data failed validation for ${typedProposal.target_layer}:`,
-        validation.errors
-      );
-      return NextResponse.json(
-        { error: "Merged data failed layer validation", details: validation.errors },
-        { status: 400 }
-      );
-    }
-
-    const { error: upsertError } = await admin
-      .from(tableName)
-      .upsert(
-        {
-          account_id: account.id,
-          data: mergedData,
-          source: "user_explicit",
-          source_detail: "escalated_proposal_accepted",
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "account_id" }
-      );
-
-    if (upsertError) {
-      console.error(`Failed to upsert ${tableName} for account ${account.id}:`, upsertError.message);
-      return NextResponse.json(
-        { error: "Failed to update context layer" },
-        { status: 500 }
-      );
-    }
-
-    try {
-      await recalculateConfidence(admin, account.id);
-    } catch (e) {
-      console.error(`Confidence recalculation failed for account ${account.id}:`, e);
-    }
-  }
-
-  // Log to ledger
-  const { error: ledgerError } = await admin.from("kinetiks_ledger").insert({
-    account_id: account.id,
-    event_type: decision === "accept" ? "proposal_accepted" : "proposal_declined",
-    source_app: proposal.source_app,
-    source_operator: proposal.source_operator,
-    target_layer: proposal.target_layer,
-    detail: {
-      proposal_id,
-      decision,
-      evaluated_by: "user",
-      payload_summary: Object.keys(proposal.payload as Record<string, unknown>),
-    },
-  });
-
-  if (ledgerError) {
-    // Ledger failure is non-fatal - the proposal decision was already applied
-    console.error(`Failed to log ledger entry for proposal ${proposal_id}:`, ledgerError.message);
-  }
-
-  return NextResponse.json({ success: true, status: newStatus });
+  return apiSuccess(result);
 }

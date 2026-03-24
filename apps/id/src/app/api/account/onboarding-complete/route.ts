@@ -1,38 +1,30 @@
-import { createClient } from "@/lib/supabase/server";
-import { NextResponse } from "next/server";
+import { requireAuth } from "@/lib/auth/require-auth";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { apiSuccess, apiError } from "@/lib/utils/api-response";
 
 /**
  * PATCH /api/account/onboarding-complete
  *
  * Mark the authenticated user's account as onboarding complete.
- * Uses the authenticated server client so RLS enforces access control.
  */
-export async function PATCH() {
-  const serverClient = createClient();
-  const {
-    data: { user },
-    error: authError,
-  } = await serverClient.auth.getUser();
+export async function PATCH(request: Request) {
+  const { auth, error } = await requireAuth(request);
+  if (error) return error;
 
-  if (authError || !user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const admin = createAdminClient();
 
-  const { error: updateError } = await serverClient
+  const { error: updateError } = await admin
     .from("kinetiks_accounts")
     .update({
       onboarding_complete: true,
       updated_at: new Date().toISOString(),
     })
-    .eq("user_id", user.id);
+    .eq("user_id", auth.user_id);
 
   if (updateError) {
     console.error("Failed to mark onboarding complete:", updateError.message);
-    return NextResponse.json(
-      { error: "Failed to update account" },
-      { status: 500 }
-    );
+    return apiError("Failed to update account", 500);
   }
 
-  return NextResponse.json({ success: true });
+  return apiSuccess({ onboarding_complete: true });
 }

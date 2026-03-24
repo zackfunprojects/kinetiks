@@ -1,48 +1,26 @@
-import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { requireAuth } from "@/lib/auth/require-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { apiSuccess, apiError } from "@/lib/utils/api-response";
 
-export async function POST() {
-  const serverClient = createClient();
-  const {
-    data: { user },
-  } = await serverClient.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+export async function POST(request: Request) {
+  const { auth, error } = await requireAuth(request);
+  if (error) return error;
 
   const admin = createAdminClient();
-
-  const { data: account } = await admin
-    .from("kinetiks_accounts")
-    .select("id")
-    .eq("user_id", user.id)
-    .single();
-
-  if (!account) {
-    return NextResponse.json({ error: "Account not found" }, { status: 404 });
-  }
 
   const { data: billing } = await admin
     .from("kinetiks_billing")
     .select("stripe_customer_id")
-    .eq("account_id", account.id)
+    .eq("account_id", auth.account_id)
     .single();
 
   if (!billing?.stripe_customer_id) {
-    return NextResponse.json(
-      { error: "No Stripe customer found. Please contact support." },
-      { status: 400 }
-    );
+    return apiError("No Stripe customer found. Please contact support.", 400);
   }
 
   const stripeKey = process.env.STRIPE_SECRET_KEY;
   if (!stripeKey) {
-    return NextResponse.json(
-      { error: "Stripe not configured" },
-      { status: 500 }
-    );
+    return apiError("Stripe not configured", 500);
   }
 
   // Create Stripe Customer Portal session via API
@@ -72,21 +50,15 @@ export async function POST() {
       "Stripe portal request failed:",
       isAbort ? "timed out after 5s" : err
     );
-    return NextResponse.json(
-      { error: isAbort ? "Stripe request timed out" : "Failed to reach Stripe" },
-      { status: 502 }
-    );
+    return apiError(isAbort ? "Stripe request timed out" : "Failed to reach Stripe", 502);
   } finally {
     clearTimeout(timeout);
   }
 
   if (!response.ok) {
-    return NextResponse.json(
-      { error: "Failed to create portal session" },
-      { status: 500 }
-    );
+    return apiError("Failed to create portal session", 500);
   }
 
   const session = await response.json();
-  return NextResponse.json({ url: session.url });
+  return apiSuccess({ url: session.url });
 }

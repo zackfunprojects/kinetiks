@@ -1,7 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
+import { requireAuth } from "@/lib/auth/require-auth";
 import type { TouchpointSentiment } from "@kinetiks/types";
-import { NextResponse } from "next/server";
+import { apiSuccess, apiError } from "@/lib/utils/api-response";
 
 const VALID_CHANNELS = new Set([
   "email",
@@ -25,44 +25,22 @@ const VALID_SENTIMENTS = new Set<TouchpointSentiment>([
  * List fatigue rules for the authenticated user's account.
  */
 export async function GET(request: Request) {
-  const serverClient = createClient();
-  const {
-    data: { user },
-  } = await serverClient.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const { auth, error } = await requireAuth(request);
+  if (error) return error;
 
   const admin = createAdminClient();
 
-  const { data: account } = await admin
-    .from("kinetiks_accounts")
-    .select("id")
-    .eq("user_id", user.id)
-    .single();
-
-  if (!account) {
-    return NextResponse.json(
-      { error: "Account not found" },
-      { status: 404 }
-    );
-  }
-
-  const { data: rules, error } = await admin
+  const { data: rules, error: rulesError } = await admin
     .from("kinetiks_fatigue_rules")
     .select("*")
-    .eq("account_id", account.id)
+    .eq("account_id", auth.account_id)
     .order("rule_name");
 
-  if (error) {
-    return NextResponse.json(
-      { error: "Failed to fetch fatigue rules" },
-      { status: 500 }
-    );
+  if (rulesError) {
+    return apiError("Failed to fetch fatigue rules", 500);
   }
 
-  return NextResponse.json({ rules: rules ?? [] });
+  return apiSuccess({ rules: rules ?? [] });
 }
 
 /**
@@ -72,14 +50,8 @@ export async function GET(request: Request) {
  * Body: { rules: Array<{ rule_name: string, limit_value: number, period: string, scope: 'contact' | 'org', is_active?: boolean }> }
  */
 export async function PUT(request: Request) {
-  const serverClient = createClient();
-  const {
-    data: { user },
-  } = await serverClient.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const { auth, error } = await requireAuth(request);
+  if (error) return error;
 
   let body: {
     rules: Array<{
@@ -93,42 +65,19 @@ export async function PUT(request: Request) {
   try {
     const parsed = await request.json();
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      return NextResponse.json(
-        { error: "Invalid JSON body" },
-        { status: 400 }
-      );
+      return apiError("Invalid JSON body", 400);
     }
     body = parsed;
   } catch {
-    return NextResponse.json(
-      { error: "Invalid JSON body" },
-      { status: 400 }
-    );
+    return apiError("Invalid JSON body", 400);
   }
 
   if (!Array.isArray(body.rules) || body.rules.length === 0) {
-    return NextResponse.json(
-      { error: "rules must be a non-empty array" },
-      { status: 400 }
-    );
+    return apiError("rules must be a non-empty array", 400);
   }
 
   const admin = createAdminClient();
-
-  const { data: account } = await admin
-    .from("kinetiks_accounts")
-    .select("id")
-    .eq("user_id", user.id)
-    .single();
-
-  if (!account) {
-    return NextResponse.json(
-      { error: "Account not found" },
-      { status: 404 }
-    );
-  }
-
-  const accountId = account.id as string;
+  const accountId = auth.account_id;
 
   // Upsert each rule
   const upsertRows = body.rules.map((rule) => ({
@@ -146,13 +95,10 @@ export async function PUT(request: Request) {
     .upsert(upsertRows, { onConflict: "account_id,rule_name" });
 
   if (upsertError) {
-    return NextResponse.json(
-      { error: "Failed to update fatigue rules" },
-      { status: 500 }
-    );
+    return apiError("Failed to update fatigue rules", 500);
   }
 
-  return NextResponse.json({ success: true, updated: upsertRows.length });
+  return apiSuccess({ updated: upsertRows.length });
 }
 
 /**
@@ -161,23 +107,11 @@ export async function PUT(request: Request) {
  * Record a touchpoint in the unified touchpoint ledger.
  * Called by apps after actually sending/executing an external action.
  *
- * Auth: user session OR Authorization: Bearer {INTERNAL_SERVICE_SECRET}
+ * Auth: user session, API key, or internal service secret
  */
 export async function POST(request: Request) {
-  const serverClient = createClient();
-  const {
-    data: { user },
-    error: authError,
-  } = await serverClient.auth.getUser();
-
-  const authHeader = request.headers.get("authorization");
-  const internalSecret = process.env.INTERNAL_SERVICE_SECRET;
-  const isServiceCall =
-    !!internalSecret && authHeader === `Bearer ${internalSecret}`;
-
-  if ((authError || !user) && !isServiceCall) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const { auth, error } = await requireAuth(request);
+  if (error) return error;
 
   let body: {
     account_id: string;
@@ -194,10 +128,7 @@ export async function POST(request: Request) {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json(
-      { error: "Invalid JSON body" },
-      { status: 400 }
-    );
+    return apiError("Invalid JSON body", 400);
   }
 
   if (
@@ -208,42 +139,30 @@ export async function POST(request: Request) {
     !body.channel ||
     !body.action_type
   ) {
-    return NextResponse.json(
-      { error: "Missing required fields: account_id, app, channel, action_type" },
-      { status: 400 }
-    );
+    return apiError("Missing required fields: account_id, app, channel, action_type", 400);
   }
 
   if (!VALID_CHANNELS.has(body.channel)) {
-    return NextResponse.json(
-      { error: `Invalid channel: ${body.channel}. Must be one of: ${[...VALID_CHANNELS].join(", ")}` },
-      { status: 400 }
-    );
+    return apiError(`Invalid channel: ${body.channel}. Must be one of: ${[...VALID_CHANNELS].join(", ")}`, 400);
   }
 
   if (body.sentiment !== undefined && !VALID_SENTIMENTS.has(body.sentiment)) {
-    return NextResponse.json(
-      { error: `Invalid sentiment: ${body.sentiment}. Must be positive, neutral, or negative` },
-      { status: 400 }
-    );
+    return apiError(`Invalid sentiment: ${body.sentiment}. Must be positive, neutral, or negative`, 400);
   }
 
   const admin = createAdminClient();
 
-  // Verify account ownership if user-authenticated
-  if (!isServiceCall && user) {
+  // Verify account ownership if not internal
+  if (auth.auth_method !== "internal") {
     const { data: account } = await admin
       .from("kinetiks_accounts")
       .select("id")
       .eq("id", body.account_id)
-      .eq("user_id", user.id)
+      .eq("user_id", auth.user_id)
       .single();
 
     if (!account) {
-      return NextResponse.json(
-        { error: "Forbidden: account does not belong to you" },
-        { status: 403 }
-      );
+      return apiError("Forbidden: account does not belong to you", 403);
     }
   }
 
@@ -262,11 +181,8 @@ export async function POST(request: Request) {
     });
 
   if (insertError) {
-    return NextResponse.json(
-      { error: "Failed to record touchpoint" },
-      { status: 500 }
-    );
+    return apiError("Failed to record touchpoint", 500);
   }
 
-  return NextResponse.json({ success: true });
+  return apiSuccess({ recorded: true });
 }

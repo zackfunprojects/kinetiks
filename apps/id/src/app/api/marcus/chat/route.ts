@@ -1,11 +1,11 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
+import { requireAuth } from "@/lib/auth/require-auth";
 import { streamMarcusMessage } from "@/lib/marcus/engine";
 import { extractActions, executeActions } from "@/lib/marcus/action-extractor";
 import { assembleContext } from "@/lib/marcus/context-assembly";
 import { getThreadMessages } from "@/lib/marcus/thread-manager";
 import type { MarcusChannel } from "@kinetiks/types";
-import { NextResponse } from "next/server";
+import { apiError } from "@/lib/utils/api-response";
 
 /**
  * POST /api/marcus/chat
@@ -22,26 +22,18 @@ import { NextResponse } from "next/server";
  * - { type: "error", error: string } - on failure
  */
 export async function POST(request: Request) {
-  // Auth - user only (no service auth for chat)
-  const serverClient = createClient();
-  const {
-    data: { user },
-    error: authError,
-  } = await serverClient.auth.getUser();
-
-  if (authError || !user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const { auth, error } = await requireAuth(request);
+  if (error) return error;
 
   let body: Record<string, unknown>;
   try {
     const parsed: unknown = await request.json();
     if (!parsed || typeof parsed !== "object") {
-      return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+      return apiError("Invalid JSON body", 400);
     }
     body = parsed as Record<string, unknown>;
   } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    return apiError("Invalid JSON body", 400);
   }
   const { message, thread_id, channel } = body as {
     message?: string;
@@ -50,30 +42,17 @@ export async function POST(request: Request) {
   };
 
   if (typeof message !== "string" || !message.trim()) {
-    return NextResponse.json(
-      { error: "Message is required" },
-      { status: 400 }
-    );
+    return apiError("Message is required", 400);
   }
 
   const admin = createAdminClient();
-
-  // Resolve account
-  const { data: account } = await admin
-    .from("kinetiks_accounts")
-    .select("id")
-    .eq("user_id", user.id)
-    .single();
-
-  if (!account) {
-    return NextResponse.json({ error: "Account not found" }, { status: 404 });
-  }
+  const accountId = auth.account_id;
 
   try {
     // Stream the Marcus response
     const { stream, threadId } = await streamMarcusMessage(
       admin,
-      account.id,
+      accountId,
       message.trim(),
       thread_id,
       channel ?? "web"
@@ -110,7 +89,7 @@ export async function POST(request: Request) {
             if (userMsg && marcusMsg) {
               const contextSummary = await assembleContext(
                 admin,
-                account.id,
+                accountId,
                 "implicit_intel",
                 threadId
               );
@@ -124,7 +103,7 @@ export async function POST(request: Request) {
               if (actions.length > 0) {
                 const disclosure = await executeActions(
                   admin,
-                  account.id,
+                  accountId,
                   actions,
                   threadId
                 );
@@ -166,6 +145,6 @@ export async function POST(request: Request) {
     });
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : "Unknown error";
-    return NextResponse.json({ error: errorMsg }, { status: 500 });
+    return apiError(errorMsg, 500);
   }
 }

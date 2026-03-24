@@ -3,9 +3,9 @@
  * POST /api/connections     - Initiate a new connection (OAuth redirect or API key storage)
  */
 
+import { requireAuth } from "@/lib/auth/require-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
-import { NextResponse } from "next/server";
+import { apiSuccess, apiError } from "@/lib/utils/api-response";
 import {
   getConnections,
   getConnectionByProvider,
@@ -21,64 +21,34 @@ import type { StoredApiKeyCredentials } from "@/lib/connections";
 import { getProvider } from "@/lib/connections/providers";
 import type { ConnectionProvider } from "@kinetiks/types";
 
-export async function GET() {
-  const serverClient = createClient();
-  const {
-    data: { user },
-    error: authError,
-  } = await serverClient.auth.getUser();
-
-  if (authError || !user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+export async function GET(request: Request) {
+  const { auth, error } = await requireAuth(request);
+  if (error) return error;
 
   const admin = createAdminClient();
 
-  const { data: account } = await admin
-    .from("kinetiks_accounts")
-    .select("id")
-    .eq("user_id", user.id)
-    .single();
-
-  if (!account) {
-    return NextResponse.json(
-      { error: "Kinetiks account not found" },
-      { status: 404 }
-    );
-  }
-
   try {
-    const connections = await getConnections(admin, account.id);
-    return NextResponse.json({ connections });
+    const connections = await getConnections(admin, auth.account_id);
+    return apiSuccess({ connections });
   } catch (err) {
     console.error("Failed to fetch connections:", err);
-    return NextResponse.json(
-      { error: "Failed to fetch connections" },
-      { status: 500 }
-    );
+    return apiError("Failed to fetch connections", 500);
   }
 }
 
 export async function POST(request: Request) {
-  const serverClient = createClient();
-  const {
-    data: { user },
-    error: authError,
-  } = await serverClient.auth.getUser();
-
-  if (authError || !user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const { auth, error } = await requireAuth(request);
+  if (error) return error;
 
   let body: Record<string, unknown>;
   try {
     const parsed: unknown = await request.json();
     if (!parsed || typeof parsed !== "object") {
-      return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+      return apiError("Invalid JSON body", 400);
     }
     body = parsed as Record<string, unknown>;
   } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    return apiError("Invalid JSON body", 400);
   }
 
   const { provider, api_key } = body as {
@@ -87,38 +57,19 @@ export async function POST(request: Request) {
   };
 
   if (!provider || typeof provider !== "string" || !isValidProvider(provider)) {
-    return NextResponse.json(
-      { error: "Missing or invalid 'provider' field" },
-      { status: 400 }
-    );
+    return apiError("Missing or invalid 'provider' field", 400);
   }
 
   const admin = createAdminClient();
 
-  const { data: account } = await admin
-    .from("kinetiks_accounts")
-    .select("id")
-    .eq("user_id", user.id)
-    .single();
-
-  if (!account) {
-    return NextResponse.json(
-      { error: "Kinetiks account not found" },
-      { status: 404 }
-    );
-  }
-
   // Check for existing connection
   const existing = await getConnectionByProvider(
     admin,
-    account.id,
+    auth.account_id,
     provider as ConnectionProvider
   );
   if (existing && existing.status !== "revoked") {
-    return NextResponse.json(
-      { error: `Already connected to ${provider}. Disconnect first.` },
-      { status: 409 }
-    );
+    return apiError(`Already connected to ${provider}. Disconnect first.`, 409);
   }
 
   const providerDef = getProvider(provider as ConnectionProvider);
@@ -126,10 +77,7 @@ export async function POST(request: Request) {
   // API key providers - store directly
   if (providerDef.authType === "api_key") {
     if (!api_key || typeof api_key !== "string" || api_key.trim().length === 0) {
-      return NextResponse.json(
-        { error: "Missing 'api_key' for this provider" },
-        { status: 400 }
-      );
+      return apiError("Missing 'api_key' for this provider", 400);
     }
 
     const credentials: StoredApiKeyCredentials = {
@@ -140,12 +88,12 @@ export async function POST(request: Request) {
     try {
       const connection = await createConnection(
         admin,
-        account.id,
+        auth.account_id,
         provider as ConnectionProvider,
         credentials
       );
 
-      return NextResponse.json({
+      return apiSuccess({
         connection: {
           id: connection.id,
           provider: connection.provider,
@@ -155,10 +103,7 @@ export async function POST(request: Request) {
       });
     } catch (err) {
       console.error("Failed to create API key connection:", err);
-      return NextResponse.json(
-        { error: "Failed to create connection" },
-        { status: 500 }
-      );
+      return apiError("Failed to create connection", 500);
     }
   }
 
@@ -175,7 +120,7 @@ export async function POST(request: Request) {
     const state = Buffer.from(
       JSON.stringify({
         provider,
-        account_id: account.id,
+        account_id: auth.account_id,
         ts: Date.now(),
         ...(pkceVerifier ? { pkce_verifier: pkceVerifier } : {}),
       })
@@ -188,17 +133,14 @@ export async function POST(request: Request) {
       pkceVerifier
     );
 
-    return NextResponse.json({ authorization_url: authUrl });
+    return apiSuccess({ authorization_url: authUrl });
   } catch (err) {
     console.error("Failed to build authorization URL:", err);
-    return NextResponse.json(
-      {
-        error:
-          err instanceof Error
-            ? err.message
-            : "Failed to initiate OAuth flow",
-      },
-      { status: 500 }
+    return apiError(
+      err instanceof Error
+        ? err.message
+        : "Failed to initiate OAuth flow",
+      500
     );
   }
 }

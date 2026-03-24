@@ -1,13 +1,12 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
+import { requireAuth } from "@/lib/auth/require-auth";
 import { deduplicateAllLayers } from "@/lib/archivist/dedup";
 import { normalizeAllLayers } from "@/lib/archivist/normalize";
 import { detectGaps } from "@/lib/archivist/gap-detect";
 import { scoreAllQuality } from "@/lib/archivist/quality-score";
 import { recalculateConfidence } from "@/lib/cortex/confidence";
-import { timingSafeCompare } from "@/lib/utils/timing-safe";
+import { apiSuccess, apiError } from "@/lib/utils/api-response";
 import type { CleanPassResult } from "@/lib/archivist/types";
-import { NextResponse } from "next/server";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -22,22 +21,8 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
  * Body (service call): { account_id: string } or { account_ids: string[] }
  */
 export async function POST(request: Request) {
-  const serverClient = createClient();
-  const {
-    data: { user },
-    error: authError,
-  } = await serverClient.auth.getUser();
-
-  const authHeader = request.headers.get("authorization");
-  const internalSecret = process.env.INTERNAL_SERVICE_SECRET;
-  const isServiceCall =
-    !!internalSecret &&
-    !!authHeader &&
-    timingSafeCompare(authHeader, `Bearer ${internalSecret}`);
-
-  if ((authError || !user) && !isServiceCall) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const { auth, error } = await requireAuth(request);
+  if (error) return error;
 
   const body = await request.json().catch(() => ({}));
   const admin = createAdminClient();
@@ -45,41 +30,23 @@ export async function POST(request: Request) {
   // Resolve account IDs
   let accountIds: string[];
 
-  if (isServiceCall) {
+  if (auth.auth_method === "internal") {
     if (Array.isArray(body.account_ids)) {
       accountIds = body.account_ids as string[];
     } else if (typeof body.account_id === "string") {
       accountIds = [body.account_id];
     } else {
-      return NextResponse.json(
-        { error: "Missing account_id or account_ids for service call" },
-        { status: 400 }
-      );
+      return apiError("Missing account_id or account_ids for service call", 400);
     }
 
     // Validate all IDs are valid UUIDs
     const invalidId = accountIds.find((id) => typeof id !== "string" || !UUID_REGEX.test(id));
     if (invalidId) {
-      return NextResponse.json(
-        { error: `Invalid account ID format: ${String(invalidId)}` },
-        { status: 400 }
-      );
+      return apiError(`Invalid account ID format: ${String(invalidId)}`, 400);
     }
   } else {
-    // User call - resolve from session
-    const { data: account } = await admin
-      .from("kinetiks_accounts")
-      .select("id")
-      .eq("user_id", user!.id)
-      .single();
-
-    if (!account) {
-      return NextResponse.json(
-        { error: "Account not found" },
-        { status: 404 }
-      );
-    }
-    accountIds = [account.id as string];
+    // User call - use account_id from auth
+    accountIds = [auth.account_id];
   }
 
   // Process each account
@@ -107,10 +74,10 @@ export async function POST(request: Request) {
   }
 
   if (results.length === 1) {
-    return NextResponse.json(results[0]);
+    return apiSuccess(results[0]);
   }
 
-  return NextResponse.json({
+  return apiSuccess({
     results,
     accounts_processed: results.length,
   });

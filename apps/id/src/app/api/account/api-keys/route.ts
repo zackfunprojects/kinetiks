@@ -1,6 +1,6 @@
-import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { requireAuth } from "@/lib/auth/require-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { apiSuccess, apiError } from "@/lib/utils/api-response";
 
 const VALID_PROVIDERS = ["anthropic", "firecrawl", "pdl"];
 
@@ -8,33 +8,17 @@ const VALID_PROVIDERS = ["anthropic", "firecrawl", "pdl"];
  * GET /api/account/api-keys
  * Returns which keys are set (boolean flags only, never actual keys)
  */
-export async function GET() {
-  const serverClient = createClient();
-  const {
-    data: { user },
-  } = await serverClient.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+export async function GET(request: Request) {
+  const { auth, error } = await requireAuth(request);
+  if (error) return error;
 
   const admin = createAdminClient();
-
-  const { data: account } = await admin
-    .from("kinetiks_accounts")
-    .select("id")
-    .eq("user_id", user.id)
-    .single();
-
-  if (!account) {
-    return NextResponse.json({ error: "Account not found" }, { status: 404 });
-  }
 
   // Check connections table for BYOK entries
   const { data: connections } = await admin
     .from("kinetiks_connections")
     .select("provider, status")
-    .eq("account_id", account.id)
+    .eq("account_id", auth.account_id)
     .in("provider", VALID_PROVIDERS);
 
   const keysSet: Record<string, boolean> = {
@@ -49,7 +33,7 @@ export async function GET() {
     }
   }
 
-  return NextResponse.json({ keys_set: keysSet });
+  return apiSuccess({ keys_set: keysSet });
 }
 
 /**
@@ -58,37 +42,21 @@ export async function GET() {
  * Body: { provider: string; api_key: string }
  */
 export async function POST(request: Request) {
-  const serverClient = createClient();
-  const {
-    data: { user },
-  } = await serverClient.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const { auth, error } = await requireAuth(request);
+  if (error) return error;
 
   const body = await request.json();
   const { provider, api_key } = body as { provider: string; api_key: string };
 
   if (!provider || !VALID_PROVIDERS.includes(provider)) {
-    return NextResponse.json({ error: "Invalid provider" }, { status: 400 });
+    return apiError("Invalid provider", 400);
   }
 
   if (!api_key || typeof api_key !== "string" || api_key.length < 8) {
-    return NextResponse.json({ error: "Invalid API key" }, { status: 400 });
+    return apiError("Invalid API key", 400);
   }
 
   const admin = createAdminClient();
-
-  const { data: account } = await admin
-    .from("kinetiks_accounts")
-    .select("id")
-    .eq("user_id", user.id)
-    .single();
-
-  if (!account) {
-    return NextResponse.json({ error: "Account not found" }, { status: 404 });
-  }
 
   // Encrypt and store as a connection
   const encryptionKey = process.env.KINETIKS_ENCRYPTION_KEY;
@@ -108,16 +76,13 @@ export async function POST(request: Request) {
   const { data: existing, error: selectError } = await admin
     .from("kinetiks_connections")
     .select("id")
-    .eq("account_id", account.id)
+    .eq("account_id", auth.account_id)
     .eq("provider", provider)
     .maybeSingle();
 
   if (selectError) {
     console.error("Failed to check existing connection:", selectError.message);
-    return NextResponse.json(
-      { error: "Failed to save API key" },
-      { status: 500 }
-    );
+    return apiError("Failed to save API key", 500);
   }
 
   if (existing) {
@@ -132,16 +97,13 @@ export async function POST(request: Request) {
 
     if (updateError) {
       console.error("Failed to update API key:", updateError.message);
-      return NextResponse.json(
-        { error: "Failed to update API key" },
-        { status: 500 }
-      );
+      return apiError("Failed to update API key", 500);
     }
   } else {
     const { error: insertError } = await admin
       .from("kinetiks_connections")
       .insert({
-        account_id: account.id,
+        account_id: auth.account_id,
         provider,
         status: "active",
         credentials: storedCredentials,
@@ -150,12 +112,9 @@ export async function POST(request: Request) {
 
     if (insertError) {
       console.error("Failed to insert API key:", insertError.message);
-      return NextResponse.json(
-        { error: "Failed to save API key" },
-        { status: 500 }
-      );
+      return apiError("Failed to save API key", 500);
     }
   }
 
-  return NextResponse.json({ success: true });
+  return apiSuccess({ saved: true });
 }

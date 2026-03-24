@@ -1,9 +1,8 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
+import { requireAuth } from "@/lib/auth/require-auth";
 import { extractActions, executeActions } from "@/lib/marcus/action-extractor";
 import { assembleContext } from "@/lib/marcus/context-assembly";
-import { timingSafeCompare } from "@/lib/utils/timing-safe";
-import { NextResponse } from "next/server";
+import { apiSuccess, apiError } from "@/lib/utils/api-response";
 
 /**
  * POST /api/marcus/extract
@@ -14,57 +13,29 @@ import { NextResponse } from "next/server";
  * Body: { thread_id: string, message_id?: string }
  */
 export async function POST(request: Request) {
-  // Auth check - user or internal service
-  const serverClient = createClient();
-  const {
-    data: { user },
-    error: authError,
-  } = await serverClient.auth.getUser();
-
-  const authHeader = request.headers.get("authorization");
-  const internalSecret = process.env.INTERNAL_SERVICE_SECRET;
-  const isServiceCall =
-    !!internalSecret &&
-    !!authHeader &&
-    timingSafeCompare(authHeader, `Bearer ${internalSecret}`);
-
-  if ((authError || !user) && !isServiceCall) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const { auth, error } = await requireAuth(request);
+  if (error) return error;
 
   let body: Record<string, unknown>;
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    return apiError("Invalid JSON body", 400);
   }
   const { thread_id } = body;
 
   if (typeof thread_id !== "string" || !thread_id) {
-    return NextResponse.json(
-      { error: "Missing thread_id" },
-      { status: 400 }
-    );
+    return apiError("Missing thread_id", 400);
   }
 
   const admin = createAdminClient();
 
-  // Get account ID
+  // Resolve account ID
   let accountId: string;
-  if (isServiceCall && typeof body.account_id === "string") {
+  if (auth.auth_method === "internal" && typeof body.account_id === "string") {
     accountId = body.account_id;
-  } else if (user) {
-    const { data: account } = await admin
-      .from("kinetiks_accounts")
-      .select("id")
-      .eq("user_id", user.id)
-      .single();
-    if (!account) {
-      return NextResponse.json({ error: "Account not found" }, { status: 404 });
-    }
-    accountId = account.id;
   } else {
-    return NextResponse.json({ error: "Cannot resolve account" }, { status: 400 });
+    accountId = auth.account_id;
   }
 
   // Verify thread belongs to this account before reading messages
@@ -76,10 +47,7 @@ export async function POST(request: Request) {
     .single();
 
   if (!thread) {
-    return NextResponse.json(
-      { error: "Thread not found" },
-      { status: 404 }
-    );
+    return apiError("Thread not found", 404);
   }
 
   // Get the last user message and last Marcus response from the thread
@@ -91,20 +59,14 @@ export async function POST(request: Request) {
     .limit(4);
 
   if (!messages || messages.length < 2) {
-    return NextResponse.json(
-      { error: "Not enough messages in thread for extraction" },
-      { status: 400 }
-    );
+    return apiError("Not enough messages in thread for extraction", 400);
   }
 
   const marcusMsg = messages.find((m) => m.role === "marcus");
   const userMsg = messages.find((m) => m.role === "user");
 
   if (!marcusMsg || !userMsg) {
-    return NextResponse.json(
-      { error: "Thread missing user or marcus message" },
-      { status: 400 }
-    );
+    return apiError("Thread missing user or marcus message", 400);
   }
 
   // Assemble context for extraction
@@ -127,7 +89,7 @@ export async function POST(request: Request) {
     disclosure = await executeActions(admin, accountId, actions, thread_id);
   }
 
-  return NextResponse.json({
+  return apiSuccess({
     actions,
     disclosure,
     extracted_count: actions.length,

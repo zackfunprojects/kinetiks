@@ -1,7 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
+import { requireAuth } from "@/lib/auth/require-auth";
 import type { EscalationStatus } from "@kinetiks/types";
-import { NextResponse } from "next/server";
+import { apiSuccess, apiError } from "@/lib/utils/api-response";
 
 /**
  * GET /api/sentinel/escalations
@@ -10,60 +10,27 @@ import { NextResponse } from "next/server";
  * Supports ?status= filter and ?limit= pagination.
  */
 export async function GET(request: Request) {
-  const serverClient = createClient();
-  const {
-    data: { user },
-  } = await serverClient.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const { auth, error } = await requireAuth(request);
+  if (error) return error;
 
   const admin = createAdminClient();
-
-  const { data: account, error: accountError } = await admin
-    .from("kinetiks_accounts")
-    .select("id")
-    .eq("user_id", user.id)
-    .single();
-
-  if (accountError) {
-    console.error("Failed to fetch account:", accountError.message);
-    return NextResponse.json(
-      { error: "Failed to fetch account" },
-      { status: 500 }
-    );
-  }
-
-  if (!account) {
-    return NextResponse.json(
-      { error: "Account not found" },
-      { status: 404 }
-    );
-  }
 
   const url = new URL(request.url);
   const status = url.searchParams.get("status") ?? "pending";
   const validStatuses = ["pending", "acknowledged", "resolved", "all"];
   if (!validStatuses.includes(status)) {
-    return NextResponse.json(
-      { error: `Invalid status: ${status}. Must be one of: ${validStatuses.join(", ")}` },
-      { status: 400 }
-    );
+    return apiError(`Invalid status: ${status}. Must be one of: ${validStatuses.join(", ")}`, 400);
   }
 
   const parsedLimit = parseInt(url.searchParams.get("limit") ?? "50", 10);
   if (isNaN(parsedLimit) || parsedLimit < 1 || parsedLimit > 100) {
-    return NextResponse.json(
-      { error: "Invalid limit: must be a number between 1 and 100" },
-      { status: 400 }
-    );
+    return apiError("Invalid limit: must be a number between 1 and 100", 400);
   }
 
   const query = admin
     .from("kinetiks_escalations")
     .select("*")
-    .eq("account_id", account.id)
+    .eq("account_id", auth.account_id)
     .order("created_at", { ascending: false })
     .limit(parsedLimit);
 
@@ -71,16 +38,13 @@ export async function GET(request: Request) {
     query.eq("status", status);
   }
 
-  const { data: escalations, error } = await query;
+  const { data: escalations, error: queryError } = await query;
 
-  if (error) {
-    return NextResponse.json(
-      { error: "Failed to fetch escalations" },
-      { status: 500 }
-    );
+  if (queryError) {
+    return apiError("Failed to fetch escalations", 500);
   }
 
-  return NextResponse.json({ escalations: escalations ?? [] });
+  return apiSuccess({ escalations: escalations ?? [] });
 }
 
 /**
@@ -90,70 +54,31 @@ export async function GET(request: Request) {
  * Body: { escalation_id: string, status: 'acknowledged' | 'resolved' }
  */
 export async function PATCH(request: Request) {
-  const serverClient = createClient();
-  const {
-    data: { user },
-  } = await serverClient.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const { auth, error } = await requireAuth(request);
+  if (error) return error;
 
   let body: { escalation_id: string; status: EscalationStatus };
   try {
     const parsed = await request.json();
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      return NextResponse.json(
-        { error: "Invalid JSON body" },
-        { status: 400 }
-      );
+      return apiError("Invalid JSON body", 400);
     }
     body = parsed;
   } catch {
-    return NextResponse.json(
-      { error: "Invalid JSON body" },
-      { status: 400 }
-    );
+    return apiError("Invalid JSON body", 400);
   }
 
   const { escalation_id, status } = body;
 
   if (!escalation_id || typeof escalation_id !== "string") {
-    return NextResponse.json(
-      { error: "Missing or invalid escalation_id" },
-      { status: 400 }
-    );
+    return apiError("Missing or invalid escalation_id", 400);
   }
 
   if (!["acknowledged", "resolved"].includes(status)) {
-    return NextResponse.json(
-      { error: "status must be 'acknowledged' or 'resolved'" },
-      { status: 400 }
-    );
+    return apiError("status must be 'acknowledged' or 'resolved'", 400);
   }
 
   const admin = createAdminClient();
-
-  const { data: account, error: accountError } = await admin
-    .from("kinetiks_accounts")
-    .select("id")
-    .eq("user_id", user.id)
-    .single();
-
-  if (accountError) {
-    console.error("Failed to fetch account:", accountError.message);
-    return NextResponse.json(
-      { error: "Failed to fetch account" },
-      { status: 500 }
-    );
-  }
-
-  if (!account) {
-    return NextResponse.json(
-      { error: "Account not found" },
-      { status: 404 }
-    );
-  }
 
   const updateData: Record<string, unknown> = { status };
   if (status === "acknowledged") {
@@ -166,22 +91,16 @@ export async function PATCH(request: Request) {
     .from("kinetiks_escalations")
     .update(updateData)
     .eq("id", escalation_id)
-    .eq("account_id", account.id)
+    .eq("account_id", auth.account_id)
     .select("id");
 
   if (updateError) {
-    return NextResponse.json(
-      { error: "Failed to update escalation" },
-      { status: 500 }
-    );
+    return apiError("Failed to update escalation", 500);
   }
 
   if (!updated || updated.length === 0) {
-    return NextResponse.json(
-      { error: "Escalation not found" },
-      { status: 404 }
-    );
+    return apiError("Escalation not found", 404);
   }
 
-  return NextResponse.json({ success: true, status });
+  return apiSuccess({ updated: true, status });
 }
