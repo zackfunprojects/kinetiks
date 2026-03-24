@@ -63,7 +63,13 @@ export async function POST(request: Request) {
 
   const admin = createAdminClient();
 
-  // If user-authenticated, verify they own this account
+  // For API key auth, enforce the key's account matches the requested account
+  if (auth.auth_method !== "internal" && account_id !== auth.account_id) {
+    return apiError("Forbidden: account mismatch", 403);
+  }
+
+  // Verify account ownership via user_id (covers session auth where
+  // auth.account_id may differ from the requested account_id)
   if (auth.auth_method !== "internal") {
     const { data: account } = await admin
       .from("kinetiks_accounts")

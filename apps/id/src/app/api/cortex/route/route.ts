@@ -55,7 +55,7 @@ export async function POST(request: Request) {
   }
 
   // Validate changes is a plain non-null object
-  if (typeof changes !== "object" || Array.isArray(changes)) {
+  if (changes === null || typeof changes !== "object" || Array.isArray(changes)) {
     return apiError("changes must be a plain object", 400);
   }
 
