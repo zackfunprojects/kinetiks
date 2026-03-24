@@ -12,8 +12,7 @@ import {
   exchangeCodeForTokens,
   createConnection,
   getConnectionByProvider,
-  updateConnectionCredentials,
-  updateConnectionStatus,
+  reactivateConnection,
   isValidProvider,
 } from "@/lib/connections";
 import type { StoredOAuthCredentials } from "@/lib/connections";
@@ -128,9 +127,8 @@ export async function GET(request: Request) {
     const existing = await getConnectionByProvider(admin, accountId, provider);
 
     if (existing) {
-      // Reactivate existing connection with new credentials
-      await updateConnectionCredentials(admin, existing.id, credentials);
-      await updateConnectionStatus(admin, existing.id, "active");
+      // Reactivate existing connection with new credentials in a single atomic update
+      await reactivateConnection(admin, existing.id, credentials);
     } else {
       // Create new connection
       await createConnection(admin, accountId, provider, credentials);

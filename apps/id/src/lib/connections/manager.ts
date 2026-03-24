@@ -224,6 +224,34 @@ export async function updateLastSync(
 }
 
 /**
+ * Reactivate an existing connection with fresh credentials in a single update.
+ * Used during OAuth re-authorization to avoid inconsistent state from separate writes.
+ */
+export async function reactivateConnection(
+  admin: SupabaseClient,
+  connectionId: string,
+  credentials: StoredCredentials
+): Promise<void> {
+  const encrypted = encryptCredentials(
+    credentials as unknown as Record<string, unknown>
+  );
+
+  const { error } = await admin
+    .from("kinetiks_connections")
+    .update({
+      credentials: encrypted,
+      status: "active",
+    })
+    .eq("id", connectionId);
+
+  if (error) {
+    throw new Error(
+      `Failed to reactivate connection ${connectionId}: ${error.message}`
+    );
+  }
+}
+
+/**
  * Delete a connection and log the event.
  */
 export async function deleteConnection(
@@ -232,14 +260,22 @@ export async function deleteConnection(
   accountId: string,
   provider: ConnectionProvider
 ): Promise<void> {
-  const { error } = await admin
+  const { data, error } = await admin
     .from("kinetiks_connections")
     .delete()
     .eq("id", connectionId)
-    .eq("account_id", accountId);
+    .eq("account_id", accountId)
+    .select("id");
 
   if (error) {
     throw new Error(`Failed to delete connection: ${error.message}`);
+  }
+
+  const rows = data as { id: string }[] | null;
+  if (!rows || rows.length === 0) {
+    throw new Error(
+      `No connection found to delete (id=${connectionId}, account=${accountId})`
+    );
   }
 
   await logConnectionEvent(admin, accountId, "connection_deleted", {

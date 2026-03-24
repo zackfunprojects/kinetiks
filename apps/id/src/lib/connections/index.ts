@@ -19,6 +19,7 @@ export {
   getConnectionByProvider,
   getConnectionById,
   deleteConnection,
+  reactivateConnection,
   updateConnectionStatus,
   updateConnectionCredentials,
   updateLastSync,
