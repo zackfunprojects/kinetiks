@@ -14,4 +14,6 @@ export type {
   ImportResult,
   ImportStats,
   ImportType,
+  ImportFileType,
+  ParsedImportEntry,
 } from "./types";

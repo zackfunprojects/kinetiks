@@ -162,6 +162,14 @@ export async function detectGaps(
   for (const { layer, row, error } of layerResults) {
     const expectedFields = EXPECTED_FIELDS[layer];
 
+    // Case 0: Query error - log and treat as empty (PGRST116 = no rows, expected)
+    if (error && error.code !== "PGRST116") {
+      console.error(
+        `[archivist/gap-detect] Failed to query kinetiks_context_${layer} for account ${accountId}:`,
+        error.message
+      );
+    }
+
     // Case 1: No row or empty data - empty layer
     if (error || !row) {
       findings.push({
@@ -253,7 +261,7 @@ export async function detectGaps(
 
   // Log findings to ledger
   if (findings.length > 0) {
-    await admin.from("kinetiks_ledger").insert({
+    const { error: ledgerErr } = await admin.from("kinetiks_ledger").insert({
       account_id: accountId,
       event_type: "archivist_gap_detect",
       source_operator: "archivist",
@@ -266,6 +274,12 @@ export async function detectGaps(
         timestamp: new Date().toISOString(),
       },
     });
+    if (ledgerErr) {
+      console.error(
+        `[archivist/gap-detect] Ledger insert failed for account ${accountId}:`,
+        ledgerErr.message
+      );
+    }
   }
 
   return {

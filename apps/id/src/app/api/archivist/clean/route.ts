@@ -5,8 +5,11 @@ import { normalizeAllLayers } from "@/lib/archivist/normalize";
 import { detectGaps } from "@/lib/archivist/gap-detect";
 import { scoreAllQuality } from "@/lib/archivist/quality-score";
 import { recalculateConfidence } from "@/lib/cortex/confidence";
+import { timingSafeCompare } from "@/lib/utils/timing-safe";
 import type { CleanPassResult } from "@/lib/archivist/types";
 import { NextResponse } from "next/server";
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * POST /api/archivist/clean
@@ -28,7 +31,9 @@ export async function POST(request: Request) {
   const authHeader = request.headers.get("authorization");
   const internalSecret = process.env.INTERNAL_SERVICE_SECRET;
   const isServiceCall =
-    !!internalSecret && authHeader === `Bearer ${internalSecret}`;
+    !!internalSecret &&
+    !!authHeader &&
+    timingSafeCompare(authHeader, `Bearer ${internalSecret}`);
 
   if ((authError || !user) && !isServiceCall) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -48,6 +53,15 @@ export async function POST(request: Request) {
     } else {
       return NextResponse.json(
         { error: "Missing account_id or account_ids for service call" },
+        { status: 400 }
+      );
+    }
+
+    // Validate all IDs are valid UUIDs
+    const invalidId = accountIds.find((id) => typeof id !== "string" || !UUID_REGEX.test(id));
+    if (invalidId) {
+      return NextResponse.json(
+        { error: `Invalid account ID format: ${String(invalidId)}` },
         { status: 400 }
       );
     }
@@ -83,11 +97,12 @@ export async function POST(request: Request) {
       );
       results.push({
         account_id: accountId,
+        error: { message, type: "clean_failed" },
         dedup: [],
         normalize: [],
         gaps: { account_id: accountId, findings: [], proposals_created: 0 },
         quality: { account_id: accountId, layer_scores: {}, aggregate_quality: 0 },
-      });
+      } as CleanPassResult & { error: { message: string; type: string } });
     }
   }
 

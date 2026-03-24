@@ -10,6 +10,7 @@ import type { ContextLayer, ProposalConfidence } from "@kinetiks/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { askClaude } from "@kinetiks/ai";
 import { submitProposal } from "@/lib/cartographer/submit";
+import mammoth from "mammoth";
 import {
   ARCHIVIST_IMPORT_PARSE_SYSTEM,
   ARCHIVIST_CONTENT_ANALYSIS_SYSTEM,
@@ -164,7 +165,14 @@ function parseCsvLine(line: string): string[] {
 // ── JSON parsing ──
 
 function parseJson(content: string): Record<string, unknown>[] {
-  const parsed = JSON.parse(content);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(content);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    console.error("[archivist/import] Failed to parse JSON content:", message);
+    return [];
+  }
 
   if (Array.isArray(parsed)) {
     return parsed.filter(
@@ -223,7 +231,17 @@ async function parseWithAi(
     }
   );
 
-  const parsed = JSON.parse(response);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(response);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    console.error(
+      `[archivist/import] Failed to parse AI response as JSON: ${message}`,
+      response.slice(0, 200)
+    );
+    return [];
+  }
 
   if (Array.isArray(parsed)) {
     return parsed.filter(
@@ -395,7 +413,16 @@ async function analyzeContentLibrary(
     maxTokens: 4096,
   });
 
-  return JSON.parse(response) as Record<string, unknown>;
+  try {
+    return JSON.parse(response) as Record<string, unknown>;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    console.error(
+      `[archivist/import] Failed to parse content analysis response: ${message}`,
+      response.slice(0, 200)
+    );
+    return {};
+  }
 }
 
 // ── Main pipeline ──
@@ -471,7 +498,6 @@ export async function processImport(
     };
   }
 
-  const content = await fileData.text();
   const fileType = detectFileType(filePath);
   const layerMapping = IMPORT_TYPE_LAYERS[importType];
   const targetLayer = layerMapping.primary;
@@ -482,15 +508,25 @@ export async function processImport(
   try {
     switch (fileType) {
       case "csv":
-        rawEntries = parseCsv(content) as Record<string, unknown>[];
+        rawEntries = parseCsv(await fileData.text()) as Record<string, unknown>[];
         break;
       case "json":
-        rawEntries = parseJson(content);
+        rawEntries = parseJson(await fileData.text());
         break;
-      case "pdf":
-      case "docx":
-        rawEntries = await parseWithAi(content, importType, targetLayer);
+      case "pdf": {
+        // Dynamic import to avoid pdf-parse loading test fixtures at module init
+        const pdfParse = (await import("pdf-parse")).default;
+        const pdfBuffer = Buffer.from(await fileData.arrayBuffer());
+        const pdfResult = await pdfParse(pdfBuffer);
+        rawEntries = await parseWithAi(pdfResult.text, importType, targetLayer);
         break;
+      }
+      case "docx": {
+        const docxBuffer = Buffer.from(await fileData.arrayBuffer());
+        const docxResult = await mammoth.extractRawText({ buffer: docxBuffer });
+        rawEntries = await parseWithAi(docxResult.value, importType, targetLayer);
+        break;
+      }
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown parse error";

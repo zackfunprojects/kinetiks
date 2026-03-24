@@ -158,7 +158,7 @@ function filterEmptyStrings(arr: unknown[]): string[] {
 }
 
 /**
- * Title-case a string.
+ * Title-case a string, preserving all-caps words (acronyms like IBM, SaaS).
  */
 function titleCase(str: string): string {
   return str
@@ -166,6 +166,7 @@ function titleCase(str: string): string {
     .split(/\s+/)
     .map((word) => {
       if (word.length === 0) return word;
+      if (/^[A-Z0-9]+$/.test(word)) return word;
       return word[0].toUpperCase() + word.slice(1);
     })
     .join(" ");

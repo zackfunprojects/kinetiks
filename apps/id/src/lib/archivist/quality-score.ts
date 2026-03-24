@@ -114,7 +114,6 @@ function scoreCompleteness(
  */
 function scoreConsistency(entry: Record<string, unknown>): number {
   let score = 25;
-  const issues: string[] = [];
 
   // Check for contradictory empty/populated patterns
   // If a description exists but key fields are empty, that's inconsistent
@@ -132,7 +131,6 @@ function scoreConsistency(entry: Record<string, unknown>): number {
   // Penalize entries that are very sparsely populated
   if (totalFields > 3 && populatedCount / totalFields < 0.3) {
     score -= 10;
-    issues.push("sparse_data");
   }
 
   // Check if string values are all very short (< 10 chars) - suggests placeholder data
@@ -140,7 +138,6 @@ function scoreConsistency(entry: Record<string, unknown>): number {
     const allShort = strValues.every((s) => s.length < 10);
     if (allShort) {
       score -= 5;
-      issues.push("possibly_placeholder_data");
     }
   }
 
@@ -288,8 +285,17 @@ function scoreArrayLayer(
   arrayField: string,
   updatedAt: string | null
 ): { overall: number; entries: EntryQualityScore[] } {
-  const items = data[arrayField] as Record<string, unknown>[] | undefined;
-  if (!items || items.length === 0) {
+  const raw = data[arrayField];
+  if (!Array.isArray(raw) || raw.length === 0) {
+    return { overall: 0, entries: [] };
+  }
+
+  // Filter to valid object entries
+  const items = raw.filter(
+    (item): item is Record<string, unknown> =>
+      typeof item === "object" && item !== null && !Array.isArray(item)
+  );
+  if (items.length === 0) {
     return { overall: 0, entries: [] };
   }
 
@@ -402,7 +408,7 @@ export async function scoreAllQuality(
   };
 
   // Log to ledger
-  await admin.from("kinetiks_ledger").insert({
+  const { error: ledgerErr } = await admin.from("kinetiks_ledger").insert({
     account_id: accountId,
     event_type: "archivist_quality_score",
     source_operator: "archivist",
@@ -414,6 +420,12 @@ export async function scoreAllQuality(
       timestamp: new Date().toISOString(),
     },
   });
+  if (ledgerErr) {
+    console.error(
+      `[archivist/quality-score] Ledger insert failed for account ${accountId}:`,
+      ledgerErr.message
+    );
+  }
 
   return result;
 }

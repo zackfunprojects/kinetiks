@@ -23,6 +23,9 @@ const API_BATCH_SIZE = 5;
 /** Timeout for each clean API call in milliseconds. */
 const FETCH_TIMEOUT_MS = 60_000;
 
+/** Delay between batches in milliseconds to avoid overwhelming the endpoint. */
+const BATCH_DELAY_MS = 2_000;
+
 Deno.serve(async () => {
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !INTERNAL_SERVICE_SECRET) {
     console.error("[archivist-cron] Missing required environment variables");
@@ -86,9 +89,16 @@ Deno.serve(async () => {
         continue;
       }
 
-      // Response contains either a single result or { results: [...] }
+      // Response contains either a single result or { results: [...], accounts_processed }
       const result = await response.json();
-      const resultCount = result.accounts_processed ?? 1;
+      let resultCount: number;
+      if (typeof result.accounts_processed === "number") {
+        resultCount = result.accounts_processed;
+      } else if (Array.isArray(result.results)) {
+        resultCount = result.results.length;
+      } else {
+        resultCount = 1;
+      }
       accountsProcessed += resultCount;
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") {
@@ -104,6 +114,11 @@ Deno.serve(async () => {
       totalErrors += batchIds.length;
     } finally {
       clearTimeout(timer);
+    }
+
+    // Pause between batches to avoid overwhelming the endpoint
+    if (i + API_BATCH_SIZE < allIds.length) {
+      await new Promise((resolve) => setTimeout(resolve, BATCH_DELAY_MS));
     }
   }
 

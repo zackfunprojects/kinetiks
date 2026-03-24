@@ -133,8 +133,8 @@ function deduplicateByFuzzyName<T extends Record<string, unknown>>(
   for (let i = 0; i < items.length; i++) {
     if (removed.has(i)) continue;
 
-    let best = items[i];
-    const name = String(best[nameField] ?? "");
+    let bestIndex = i;
+    const name = String(items[i][nameField] ?? "");
 
     for (let j = i + 1; j < items.length; j++) {
       if (removed.has(j)) continue;
@@ -142,16 +142,18 @@ function deduplicateByFuzzyName<T extends Record<string, unknown>>(
       const otherName = String(items[j][nameField] ?? "");
       if (stringSimilarity(name, otherName) >= SIMILARITY_THRESHOLD) {
         // Keep the entry with more populated fields
-        const bestFieldCount = countPopulatedFields(best);
+        const bestFieldCount = countPopulatedFields(items[bestIndex]);
         const otherFieldCount = countPopulatedFields(items[j]);
         if (otherFieldCount > bestFieldCount) {
-          best = items[j];
+          removed.add(bestIndex);
+          bestIndex = j;
+        } else {
+          removed.add(j);
         }
-        removed.add(j);
       }
     }
 
-    kept.push(best);
+    kept.push(items[bestIndex]);
   }
 
   return { deduped: kept, removed: removed.size };
