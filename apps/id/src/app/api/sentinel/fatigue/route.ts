@@ -3,6 +3,22 @@ import { createClient } from "@/lib/supabase/server";
 import type { TouchpointSentiment } from "@kinetiks/types";
 import { NextResponse } from "next/server";
 
+const VALID_CHANNELS = new Set([
+  "email",
+  "linkedin_message",
+  "linkedin_connect",
+  "linkedin_view",
+  "phone_call",
+  "content_retarget",
+  "landing_page_followup",
+]);
+
+const VALID_SENTIMENTS = new Set<TouchpointSentiment>([
+  "positive",
+  "neutral",
+  "negative",
+]);
+
 /**
  * GET /api/sentinel/fatigue
  *
@@ -75,7 +91,14 @@ export async function PUT(request: Request) {
     }>;
   };
   try {
-    body = await request.json();
+    const parsed = await request.json();
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return NextResponse.json(
+        { error: "Invalid JSON body" },
+        { status: 400 }
+      );
+    }
+    body = parsed;
   } catch {
     return NextResponse.json(
       { error: "Invalid JSON body" },
@@ -177,9 +200,30 @@ export async function POST(request: Request) {
     );
   }
 
-  if (!body.account_id || !body.app || !body.channel || !body.action_type) {
+  if (
+    !body ||
+    typeof body !== "object" ||
+    !body.account_id ||
+    !body.app ||
+    !body.channel ||
+    !body.action_type
+  ) {
     return NextResponse.json(
       { error: "Missing required fields: account_id, app, channel, action_type" },
+      { status: 400 }
+    );
+  }
+
+  if (!VALID_CHANNELS.has(body.channel)) {
+    return NextResponse.json(
+      { error: `Invalid channel: ${body.channel}. Must be one of: ${[...VALID_CHANNELS].join(", ")}` },
+      { status: 400 }
+    );
+  }
+
+  if (body.sentiment !== undefined && !VALID_SENTIMENTS.has(body.sentiment)) {
+    return NextResponse.json(
+      { error: `Invalid sentiment: ${body.sentiment}. Must be positive, neutral, or negative` },
       { status: 400 }
     );
   }

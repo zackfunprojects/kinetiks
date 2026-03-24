@@ -15,6 +15,27 @@ interface FatigueInput {
   orgDomain?: string;
 }
 
+/**
+ * Apply contact identifier filter to a Supabase query.
+ * Uses OR when both email and linkedin are present so touchpoints
+ * logged under either identifier are included.
+ */
+function applyContactFilter(
+  query: { or: (filters: string) => unknown; eq: (column: string, value: string) => unknown },
+  contactEmail?: string,
+  contactLinkedin?: string
+): void {
+  if (contactEmail && contactLinkedin) {
+    query.or(
+      `contact_email.eq.${contactEmail},contact_linkedin.eq.${contactLinkedin}`
+    );
+  } else if (contactEmail) {
+    query.eq("contact_email", contactEmail);
+  } else if (contactLinkedin) {
+    query.eq("contact_linkedin", contactLinkedin);
+  }
+}
+
 interface FatigueLimits {
   max_contact_touchpoints_7d: number;
   max_contact_touchpoints_24h: number;
@@ -105,11 +126,7 @@ export async function evaluateFatigue(
       .gte("timestamp", sevenDaysAgo)
       .order("timestamp", { ascending: false });
 
-    if (input.contactEmail) {
-      contactQuery.eq("contact_email", input.contactEmail);
-    } else if (input.contactLinkedin) {
-      contactQuery.eq("contact_linkedin", input.contactLinkedin);
-    }
+    applyContactFilter(contactQuery, input.contactEmail, input.contactLinkedin);
 
     const { data: contactData, count } = await contactQuery;
     contactTouchpoints7d = count ?? 0;
@@ -283,11 +300,7 @@ async function calculateEngagement(
     .eq("account_id", input.accountId)
     .gte("timestamp", thirtyDaysAgo);
 
-  if (input.contactEmail) {
-    query.eq("contact_email", input.contactEmail);
-  } else if (input.contactLinkedin) {
-    query.eq("contact_linkedin", input.contactLinkedin);
-  }
+  applyContactFilter(query, input.contactEmail, input.contactLinkedin);
 
   const { data: touchpoints } = await query;
 
@@ -326,11 +339,7 @@ async function getNegativeCooldownEnd(
     .order("timestamp", { ascending: false })
     .limit(1);
 
-  if (input.contactEmail) {
-    query.eq("contact_email", input.contactEmail);
-  } else if (input.contactLinkedin) {
-    query.eq("contact_linkedin", input.contactLinkedin);
-  }
+  applyContactFilter(query, input.contactEmail, input.contactLinkedin);
 
   const { data } = await query;
 
@@ -360,11 +369,7 @@ async function getConsecutiveNoResponse(
     .order("timestamp", { ascending: false })
     .limit(20);
 
-  if (input.contactEmail) {
-    query.eq("contact_email", input.contactEmail);
-  } else if (input.contactLinkedin) {
-    query.eq("contact_linkedin", input.contactLinkedin);
-  }
+  applyContactFilter(query, input.contactEmail, input.contactLinkedin);
 
   const { data } = await query;
   if (!data) return 0;

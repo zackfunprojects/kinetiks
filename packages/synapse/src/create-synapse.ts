@@ -78,6 +78,7 @@ export function createSynapse(config: SynapseConfig): SynapseInstance {
       const response = await fetch(endpoint, {
         method: "POST",
         headers,
+        credentials: "include",
         body: JSON.stringify({
           account_id: accountId,
           app_name: config.appName,
@@ -111,9 +112,11 @@ export function createSynapse(config: SynapseConfig): SynapseInstance {
       const response = await fetch(endpoint, {
         method: "POST",
         headers,
+        credentials: "include",
         body: JSON.stringify({
           account_id: accountId,
           ...filterResult.proposal,
+          source_app: config.appName,
         }),
       });
 
@@ -137,6 +140,7 @@ export function createSynapse(config: SynapseConfig): SynapseInstance {
       const response = await fetch(endpoint, {
         method: "POST",
         headers,
+        credentials: "include",
         body: JSON.stringify({
           account_id: accountId,
           source_app: config.appName,

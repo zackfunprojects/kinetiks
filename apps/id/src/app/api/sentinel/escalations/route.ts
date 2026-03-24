@@ -36,17 +36,28 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const status = url.searchParams.get("status") ?? "pending";
-  const limit = Math.min(
-    parseInt(url.searchParams.get("limit") ?? "50", 10),
-    100
-  );
+  const validStatuses = ["pending", "acknowledged", "resolved", "all"];
+  if (!validStatuses.includes(status)) {
+    return NextResponse.json(
+      { error: `Invalid status: ${status}. Must be one of: ${validStatuses.join(", ")}` },
+      { status: 400 }
+    );
+  }
+
+  const parsedLimit = parseInt(url.searchParams.get("limit") ?? "50", 10);
+  if (isNaN(parsedLimit) || parsedLimit < 1 || parsedLimit > 100) {
+    return NextResponse.json(
+      { error: "Invalid limit: must be a number between 1 and 100" },
+      { status: 400 }
+    );
+  }
 
   const query = admin
     .from("kinetiks_escalations")
     .select("*")
     .eq("account_id", account.id)
     .order("created_at", { ascending: false })
-    .limit(limit);
+    .limit(parsedLimit);
 
   if (status !== "all") {
     query.eq("status", status);

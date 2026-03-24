@@ -68,7 +68,14 @@ export async function POST(request: Request) {
 
   let body: ProposeRequest;
   try {
-    body = await request.json();
+    const parsed = await request.json();
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return NextResponse.json(
+        { error: "Invalid JSON body" },
+        { status: 400 }
+      );
+    }
+    body = parsed as ProposeRequest;
   } catch {
     return NextResponse.json(
       { error: "Invalid JSON body" },

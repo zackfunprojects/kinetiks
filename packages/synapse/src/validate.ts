@@ -74,6 +74,18 @@ export function validateProposalPayload(
   payload: Record<string, unknown>
 ): PayloadValidation {
   const errors: string[] = [];
+
+  // Guard against null, arrays, and non-objects
+  if (
+    payload === null ||
+    payload === undefined ||
+    typeof payload !== "object" ||
+    Array.isArray(payload)
+  ) {
+    errors.push("Payload must be a plain object");
+    return { valid: false, errors };
+  }
+
   const validFields = LAYER_FIELDS[targetLayer];
 
   if (!validFields) {
