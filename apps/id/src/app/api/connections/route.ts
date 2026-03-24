@@ -23,7 +23,7 @@ import type { ConnectionProvider } from "@kinetiks/types";
 import { signState } from "@/lib/connections/state-hmac";
 
 export async function GET(request: Request) {
-  const { auth, error } = await requireAuth(request);
+  const { auth, error } = await requireAuth(request, { permissions: "read-only" });
   if (error) return error;
 
   const admin = createAdminClient();
@@ -38,7 +38,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const { auth, error } = await requireAuth(request);
+  const { auth, error } = await requireAuth(request, { permissions: "read-write" });
   if (error) return error;
 
   let body: Record<string, unknown>;

@@ -53,8 +53,8 @@ export async function GET(request: Request) {
  * Acknowledge or resolve an escalation.
  * Body: { escalation_id: string, status: 'acknowledged' | 'resolved' }
  */
-export async function PATCH(request: Request) {
-  const { auth, error } = await requireAuth(request);
+export async function PATCH(request: Request): Promise<Response> {
+  const { auth, error } = await requireAuth(request, { permissions: "read-write" });
   if (error) return error;
 
   let body: { escalation_id: string; status: EscalationStatus };

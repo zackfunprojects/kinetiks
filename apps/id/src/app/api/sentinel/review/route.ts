@@ -90,6 +90,11 @@ export async function POST(request: Request) {
 
   const admin = createAdminClient();
 
+  // For API key auth, enforce the key's account matches the requested account
+  if (auth.auth_method === "api_key" && account_id !== auth.account_id) {
+    return apiError("Forbidden: account mismatch", 403);
+  }
+
   // Verify account ownership if not internal
   if (auth.auth_method !== "internal") {
     const { data: account } = await admin

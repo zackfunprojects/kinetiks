@@ -10,6 +10,13 @@ const VALID_PERMISSIONS: ApiKeyPermission[] = [
   "admin",
 ];
 
+const VALID_SCOPE_APPS = new Set([
+  "dark_madder",
+  "harvest",
+  "hypothesis",
+  "litmus",
+]);
+
 /**
  * GET /api/account/keys
  * List all API keys for the authenticated account.
@@ -90,8 +97,11 @@ export async function POST(request: Request) {
     );
   }
 
-  if (!Array.isArray(scope)) {
-    return apiError("scope must be an array of app names", 400);
+  if (
+    !Array.isArray(scope) ||
+    !scope.every((s) => typeof s === "string" && s.trim() !== "" && VALID_SCOPE_APPS.has(s))
+  ) {
+    return apiError("scope must be an array of valid app identifiers", 400);
   }
 
   if (
@@ -205,22 +215,34 @@ export async function PATCH(request: Request) {
   ) {
     updates.permissions = body.permissions;
   }
-  if ("scope" in body && Array.isArray(body.scope)) {
-    updates.scope = body.scope;
+  if ("scope" in body) {
+    const scopeVal = body.scope;
+    if (!Array.isArray(scopeVal) || !scopeVal.every((s) => typeof s === "string" && s.trim() !== "" && VALID_SCOPE_APPS.has(s))) {
+      return apiError("scope must be an array of valid app identifiers", 400);
+    }
+    updates.scope = scopeVal;
   }
-  if (
-    "rate_limit_per_minute" in body &&
-    typeof body.rate_limit_per_minute === "number"
-  ) {
-    updates.rate_limit_per_minute = body.rate_limit_per_minute;
+  if ("rate_limit_per_minute" in body) {
+    const rpm = body.rate_limit_per_minute;
+    if (typeof rpm !== "number" || !Number.isInteger(rpm) || rpm < 1 || rpm > 10000) {
+      return apiError("rate_limit_per_minute must be an integer between 1 and 10000", 400);
+    }
+    updates.rate_limit_per_minute = rpm;
   }
-  if (
-    "rate_limit_per_day" in body &&
-    typeof body.rate_limit_per_day === "number"
-  ) {
-    updates.rate_limit_per_day = body.rate_limit_per_day;
+  if ("rate_limit_per_day" in body) {
+    const rpd = body.rate_limit_per_day;
+    if (typeof rpd !== "number" || !Number.isInteger(rpd) || rpd < 1 || rpd > 1000000) {
+      return apiError("rate_limit_per_day must be an integer between 1 and 1000000", 400);
+    }
+    updates.rate_limit_per_day = rpd;
   }
   if ("expires_at" in body) {
+    if (body.expires_at !== null && body.expires_at !== undefined) {
+      const expiresDate = new Date(body.expires_at as string);
+      if (isNaN(expiresDate.getTime()) || expiresDate <= new Date()) {
+        return apiError("expires_at must be a valid future ISO timestamp or null", 400);
+      }
+    }
     updates.expires_at = body.expires_at ?? null;
   }
 

@@ -178,18 +178,9 @@ export async function POST(request: Request): Promise<Response> {
 
   const admin = createAdminClient();
 
-  // Verify account ownership if not internal
+  // Pin to authenticated account for non-internal callers
   if (auth.auth_method !== "internal") {
-    const { data: account } = await admin
-      .from("kinetiks_accounts")
-      .select("id")
-      .eq("id", body.account_id)
-      .eq("user_id", auth.user_id)
-      .single();
-
-    if (!account) {
-      return apiError("Forbidden: account does not belong to you", 403);
-    }
+    body.account_id = auth.account_id;
   }
 
   const { error: insertError } = await admin

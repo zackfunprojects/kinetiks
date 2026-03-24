@@ -3,7 +3,10 @@ import type { RateLimitResult } from "@kinetiks/types";
 
 /**
  * Check and increment rate limits for an API key.
- * Uses atomic upsert to prevent race conditions.
+ * Uses an atomic SQL upsert (INSERT ... ON CONFLICT DO UPDATE SET
+ * request_count = request_count + 1 RETURNING request_count) via the
+ * increment_rate_limit RPC to eliminate the TOCTOU race between read
+ * and write.
  */
 export async function checkRateLimit(
   keyId: string,
@@ -20,35 +23,54 @@ export async function checkRateLimit(
   const dayStart = new Date(now);
   dayStart.setHours(0, 0, 0, 0);
 
-  // Fetch current counts for both windows
-  const { data: rows } = await admin
-    .from("kinetiks_rate_limits")
-    .select("window_type, request_count")
-    .eq("key_id", keyId)
-    .in("window_type", ["minute", "day"])
-    .or(
-      `and(window_type.eq.minute,window_start.eq.${minuteStart.toISOString()}),and(window_type.eq.day,window_start.eq.${dayStart.toISOString()})`
+  const minuteReset = new Date(minuteStart);
+  minuteReset.setMinutes(minuteReset.getMinutes() + 1);
+
+  const dayReset = new Date(dayStart);
+  dayReset.setDate(dayReset.getDate() + 1);
+
+  // Atomically increment both counters and get the new counts
+  const [minuteResult, dayResult] = await Promise.all([
+    admin.rpc("increment_rate_limit", {
+      p_key_id: keyId,
+      p_window_start: minuteStart.toISOString(),
+      p_window_type: "minute",
+    }),
+    admin.rpc("increment_rate_limit", {
+      p_key_id: keyId,
+      p_window_start: dayStart.toISOString(),
+      p_window_type: "day",
+    }),
+  ]);
+
+  // On RPC error, fail open (allow) but log
+  if (minuteResult.error || dayResult.error) {
+    console.error(
+      "Rate limit RPC error:",
+      minuteResult.error?.message,
+      dayResult.error?.message
     );
+    return {
+      allowed: true,
+      remaining: { minute: limitPerMinute, day: limitPerDay },
+      reset: {
+        minute: minuteReset.toISOString(),
+        day: dayReset.toISOString(),
+      },
+    };
+  }
 
-  const minuteRow = rows?.find((r) => r.window_type === "minute");
-  const dayRow = rows?.find((r) => r.window_type === "day");
+  const minuteCount = minuteResult.data as number;
+  const dayCount = dayResult.data as number;
 
-  const currentMinute = (minuteRow?.request_count as number) ?? 0;
-  const currentDay = (dayRow?.request_count as number) ?? 0;
-
-  // Check limits before incrementing
-  if (currentMinute >= limitPerMinute || currentDay >= limitPerDay) {
-    const minuteReset = new Date(minuteStart);
-    minuteReset.setMinutes(minuteReset.getMinutes() + 1);
-
-    const dayReset = new Date(dayStart);
-    dayReset.setDate(dayReset.getDate() + 1);
-
+  // The counts are post-increment, so compare with > limit (not >=)
+  // The current request is already counted, so if count > limit we're over
+  if (minuteCount > limitPerMinute || dayCount > limitPerDay) {
     return {
       allowed: false,
       remaining: {
-        minute: Math.max(0, limitPerMinute - currentMinute),
-        day: Math.max(0, limitPerDay - currentDay),
+        minute: Math.max(0, limitPerMinute - minuteCount),
+        day: Math.max(0, limitPerDay - dayCount),
       },
       reset: {
         minute: minuteReset.toISOString(),
@@ -57,39 +79,11 @@ export async function checkRateLimit(
     };
   }
 
-  // Increment both counters atomically via upsert
-  await Promise.all([
-    admin.from("kinetiks_rate_limits").upsert(
-      {
-        key_id: keyId,
-        window_start: minuteStart.toISOString(),
-        window_type: "minute",
-        request_count: currentMinute + 1,
-      },
-      { onConflict: "key_id,window_start,window_type" }
-    ),
-    admin.from("kinetiks_rate_limits").upsert(
-      {
-        key_id: keyId,
-        window_start: dayStart.toISOString(),
-        window_type: "day",
-        request_count: currentDay + 1,
-      },
-      { onConflict: "key_id,window_start,window_type" }
-    ),
-  ]);
-
-  const minuteReset = new Date(minuteStart);
-  minuteReset.setMinutes(minuteReset.getMinutes() + 1);
-
-  const dayReset = new Date(dayStart);
-  dayReset.setDate(dayReset.getDate() + 1);
-
   return {
     allowed: true,
     remaining: {
-      minute: limitPerMinute - currentMinute - 1,
-      day: limitPerDay - currentDay - 1,
+      minute: limitPerMinute - minuteCount,
+      day: limitPerDay - dayCount,
     },
     reset: {
       minute: minuteReset.toISOString(),

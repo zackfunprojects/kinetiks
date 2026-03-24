@@ -162,7 +162,7 @@ export async function PATCH(request: Request) {
     auth.account_id,
     proposal_id,
     decision,
-    "user"
+    auth.auth_method
   );
 
   if (result.error) {
