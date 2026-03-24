@@ -17,14 +17,14 @@
   --text-primary: #e6edf3;
   --text-secondary: #8b949e;
   --text-tertiary: #484f58;
-  --text-on-accent: #ffffff;
+  --text-on-accent: #0d1117;
 
   /* Logo accent - green, only for the kinetiks_id wordmark */
   --logo-accent: #3fb950;
 
   /* Accent - white/light for UI elements */
   --accent: #e6edf3;
-  --accent-emphasis: #c9d1d9;
+  --accent-emphasis: #e6edf3;
   --accent-muted: rgba(230, 237, 243, 0.1);
   --accent-subtle: rgba(230, 237, 243, 0.06);
 

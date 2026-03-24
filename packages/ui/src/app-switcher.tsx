@@ -31,7 +31,7 @@ export function AppSwitcher({
               width: 32,
               height: 32,
               borderRadius: 6,
-              background: app.color || "var(--accent-emphasis, #c9d1d9)",
+              background: app.color || "var(--accent-emphasis, #e6edf3)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
