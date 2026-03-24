@@ -104,16 +104,24 @@ export async function POST(request: Request) {
     storedCredentials = { api_key: api_key };
   }
 
-  // Upsert connection record
-  const { data: existing } = await admin
+  // Check for existing connection record
+  const { data: existing, error: selectError } = await admin
     .from("kinetiks_connections")
     .select("id")
     .eq("account_id", account.id)
     .eq("provider", provider)
-    .single();
+    .maybeSingle();
+
+  if (selectError) {
+    console.error("Failed to check existing connection:", selectError.message);
+    return NextResponse.json(
+      { error: "Failed to save API key" },
+      { status: 500 }
+    );
+  }
 
   if (existing) {
-    await admin
+    const { error: updateError } = await admin
       .from("kinetiks_connections")
       .update({
         credentials: storedCredentials,
@@ -121,14 +129,32 @@ export async function POST(request: Request) {
         metadata: { type: "byok" },
       })
       .eq("id", existing.id);
+
+    if (updateError) {
+      console.error("Failed to update API key:", updateError.message);
+      return NextResponse.json(
+        { error: "Failed to update API key" },
+        { status: 500 }
+      );
+    }
   } else {
-    await admin.from("kinetiks_connections").insert({
-      account_id: account.id,
-      provider,
-      status: "active",
-      credentials: storedCredentials,
-      metadata: { type: "byok" },
-    });
+    const { error: insertError } = await admin
+      .from("kinetiks_connections")
+      .insert({
+        account_id: account.id,
+        provider,
+        status: "active",
+        credentials: storedCredentials,
+        metadata: { type: "byok" },
+      });
+
+    if (insertError) {
+      console.error("Failed to insert API key:", insertError.message);
+      return NextResponse.json(
+        { error: "Failed to save API key" },
+        { status: 500 }
+      );
+    }
   }
 
   return NextResponse.json({ success: true });

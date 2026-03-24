@@ -2,7 +2,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { evaluateProposal } from "@/lib/cortex/evaluate";
 import { recalculateConfidence } from "@/lib/cortex/confidence";
-import type { Proposal } from "@kinetiks/types";
+import { validateLayerData } from "@/lib/utils/context-validator";
+import type { ContextLayer, Proposal } from "@kinetiks/types";
 import { NextResponse } from "next/server";
 
 /**
@@ -223,7 +224,7 @@ export async function PATCH(request: Request) {
   const newStatus = decision === "accept" ? "accepted" : "declined";
 
   // Update proposal status
-  await admin
+  const { error: proposalUpdateError } = await admin
     .from("kinetiks_proposals")
     .update({
       status: newStatus,
@@ -233,16 +234,32 @@ export async function PATCH(request: Request) {
     })
     .eq("id", proposal_id);
 
+  if (proposalUpdateError) {
+    console.error(`Failed to update proposal ${proposal_id}:`, proposalUpdateError.message);
+    return NextResponse.json(
+      { error: "Failed to update proposal status" },
+      { status: 500 }
+    );
+  }
+
   if (decision === "accept") {
     // Merge the proposal data into the context layer
     const typedProposal = proposal as unknown as Proposal;
     const tableName = `kinetiks_context_${typedProposal.target_layer}`;
 
-    const { data: existingRow } = await admin
+    const { data: existingRow, error: selectError } = await admin
       .from(tableName)
       .select("data")
       .eq("account_id", account.id)
-      .single();
+      .maybeSingle();
+
+    if (selectError) {
+      console.error(`Failed to read ${tableName} for account ${account.id}:`, selectError.message);
+      return NextResponse.json(
+        { error: "Failed to read context layer" },
+        { status: 500 }
+      );
+    }
 
     const existingData = (existingRow?.data as Record<string, unknown>) || {};
     const mergedData = {
@@ -250,7 +267,22 @@ export async function PATCH(request: Request) {
       ...typedProposal.payload,
     };
 
-    await admin
+    const validation = validateLayerData(
+      typedProposal.target_layer as ContextLayer,
+      mergedData
+    );
+    if (!validation.valid) {
+      console.error(
+        `Merged data failed validation for ${typedProposal.target_layer}:`,
+        validation.errors
+      );
+      return NextResponse.json(
+        { error: "Merged data failed layer validation", details: validation.errors },
+        { status: 400 }
+      );
+    }
+
+    const { error: upsertError } = await admin
       .from(tableName)
       .upsert(
         {
@@ -263,11 +295,23 @@ export async function PATCH(request: Request) {
         { onConflict: "account_id" }
       );
 
-    await recalculateConfidence(admin, account.id);
+    if (upsertError) {
+      console.error(`Failed to upsert ${tableName} for account ${account.id}:`, upsertError.message);
+      return NextResponse.json(
+        { error: "Failed to update context layer" },
+        { status: 500 }
+      );
+    }
+
+    try {
+      await recalculateConfidence(admin, account.id);
+    } catch (e) {
+      console.error(`Confidence recalculation failed for account ${account.id}:`, e);
+    }
   }
 
   // Log to ledger
-  await admin.from("kinetiks_ledger").insert({
+  const { error: ledgerError } = await admin.from("kinetiks_ledger").insert({
     account_id: account.id,
     event_type: decision === "accept" ? "proposal_accepted" : "proposal_declined",
     source_app: proposal.source_app,
@@ -280,6 +324,11 @@ export async function PATCH(request: Request) {
       payload_summary: Object.keys(proposal.payload as Record<string, unknown>),
     },
   });
+
+  if (ledgerError) {
+    // Ledger failure is non-fatal - the proposal decision was already applied
+    console.error(`Failed to log ledger entry for proposal ${proposal_id}:`, ledgerError.message);
+  }
 
   return NextResponse.json({ success: true, status: newStatus });
 }

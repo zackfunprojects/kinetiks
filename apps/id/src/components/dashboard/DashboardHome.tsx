@@ -40,7 +40,7 @@ export function DashboardHome({
 
   function handleAppActivate(appName: string) {
     setActivations((prev) => [
-      ...prev,
+      ...prev.filter((a) => a.app_name !== appName),
       {
         id: crypto.randomUUID(),
         account_id: "",

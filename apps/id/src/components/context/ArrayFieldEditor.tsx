@@ -95,44 +95,58 @@ export function ArrayFieldEditor({
               }}
             >
               <div
-                onClick={() => setExpandedIndex(isExpanded ? null : index)}
                 style={{
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "space-between",
-                  padding: "8px 12px",
+                  padding: "0 12px 0 0",
                   background: "#FAFAFA",
-                  cursor: "pointer",
                 }}
               >
-                <span style={{ fontSize: 13, fontWeight: 500, color: "#374151" }}>
-                  {title}
-                </span>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      removeItem(index);
-                    }}
-                    style={{
-                      padding: "2px 6px",
-                      background: "none",
-                      border: "1px solid #FCA5A5",
-                      borderRadius: 4,
-                      color: "#EF4444",
-                      fontSize: 11,
-                      cursor: "pointer",
-                    }}
-                  >
-                    Remove
-                  </button>
+                <button
+                  type="button"
+                  onClick={() => setExpandedIndex(isExpanded ? null : index)}
+                  aria-expanded={isExpanded}
+                  aria-controls={`array-item-${fieldName}-${index}`}
+                  style={{
+                    flex: 1,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "8px 12px",
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    fontSize: 13,
+                    fontWeight: 500,
+                    color: "#374151",
+                    textAlign: "left",
+                    fontFamily: "inherit",
+                  }}
+                >
                   <span style={{ fontSize: 12, color: "#999" }}>
                     {isExpanded ? "\u25B2" : "\u25BC"}
                   </span>
-                </div>
+                  {title}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => removeItem(index)}
+                  style={{
+                    padding: "2px 6px",
+                    background: "none",
+                    border: "1px solid #FCA5A5",
+                    borderRadius: 4,
+                    color: "#EF4444",
+                    fontSize: 11,
+                    cursor: "pointer",
+                  }}
+                >
+                  Remove
+                </button>
               </div>
               {isExpanded && (
-                <div style={{ padding: 12 }}>
+                <div id={`array-item-${fieldName}-${index}`} style={{ padding: 12 }}>
                   {itemFields.map((field) => (
                     <FieldEditor
                       key={field.name}

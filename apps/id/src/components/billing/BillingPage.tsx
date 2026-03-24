@@ -14,6 +14,7 @@ const PLANS: BillingPlan[] = ["free", "starter", "pro", "team"];
 
 export function BillingPage({ billing }: BillingPageProps) {
   const [loadingPortal, setLoadingPortal] = useState(false);
+  const [portalError, setPortalError] = useState<string | null>(null);
 
   const currentPlan = billing?.plan || "free";
   const planInfo = PLAN_DETAILS[currentPlan];
@@ -21,12 +22,19 @@ export function BillingPage({ billing }: BillingPageProps) {
   async function openPortal() {
     if (!billing?.stripe_customer_id) return;
     setLoadingPortal(true);
+    setPortalError(null);
     try {
       const res = await fetch("/api/billing/portal", { method: "POST" });
-      const data = await res.json();
-      if (data.url) {
-        window.location.href = data.url;
+      const body = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(body?.error || `Request failed (${res.status})`);
       }
+      if (!body?.url) {
+        throw new Error("No portal URL returned");
+      }
+      window.location.href = body.url;
+    } catch (e) {
+      setPortalError(e instanceof Error ? e.message : "Failed to open billing portal");
     } finally {
       setLoadingPortal(false);
     }
@@ -238,6 +246,11 @@ export function BillingPage({ billing }: BillingPageProps) {
               {loadingPortal ? "Loading..." : "Open Stripe Portal"}
             </button>
           </div>
+          {portalError && (
+            <p role="alert" style={{ margin: "12px 0 0", fontSize: 13, color: "#EF4444" }}>
+              {portalError}
+            </p>
+          )}
         </Card>
       )}
     </div>

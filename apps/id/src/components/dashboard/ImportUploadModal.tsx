@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import type { ImportType } from "@kinetiks/types";
 
 interface ImportUploadModalProps {
@@ -35,6 +35,50 @@ export function ImportUploadModal({
   const [error, setError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
+
+  // Focus management: capture previous focus, move into dialog, restore on close
+  useEffect(() => {
+    previousFocusRef.current = document.activeElement as HTMLElement | null;
+    dialogRef.current?.focus();
+
+    return () => {
+      previousFocusRef.current?.focus();
+    };
+  }, []);
+
+  // Escape to close + focus trap
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+        return;
+      }
+
+      if (e.key === "Tab" && dialogRef.current) {
+        const all = dialogRef.current.querySelectorAll<HTMLElement>(
+          'button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"]):not([aria-hidden="true"])'
+        );
+        const focusable = Array.from(all).filter(
+          (el) => el.offsetParent !== null
+        );
+        if (focusable.length === 0) return;
+
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    },
+    [onClose]
+  );
 
   function handleDrop(e: React.DragEvent) {
     e.preventDefault();
@@ -43,13 +87,16 @@ export function ImportUploadModal({
     if (dropped) setFile(dropped);
   }
 
+  function openFilePicker() {
+    fileInputRef.current?.click();
+  }
+
   async function handleUpload() {
     if (!importType || !file) return;
     setUploading(true);
     setError(null);
 
     try {
-      // Create a FormData to upload via the imports API
       const formData = new FormData();
       formData.append("file", file);
       formData.append("import_type", importType);
@@ -98,26 +145,41 @@ export function ImportUploadModal({
       }}
       onClick={onClose}
     >
+      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */}
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Upload Import"
+        tabIndex={-1}
+        onKeyDown={handleKeyDown}
         style={{
           background: "#fff",
           borderRadius: 12,
           padding: 24,
           width: 440,
           maxWidth: "90vw",
+          outline: "none",
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 style={{ margin: "0 0 16px", fontSize: 18, fontWeight: 600, color: "#1a1a2e" }}>
+        <h3
+          id="import-modal-title"
+          style={{ margin: "0 0 16px", fontSize: 18, fontWeight: 600, color: "#1a1a2e" }}
+        >
           Upload Import
         </h3>
 
         {/* Import type */}
         <div style={{ marginBottom: 12 }}>
-          <label style={{ display: "block", fontSize: 12, fontWeight: 500, color: "#6B7280", marginBottom: 4 }}>
+          <label
+            htmlFor="import-type-select"
+            style={{ display: "block", fontSize: 12, fontWeight: 500, color: "#6B7280", marginBottom: 4 }}
+          >
             Import Type
           </label>
           <select
+            id="import-type-select"
             value={importType}
             onChange={(e) => setImportType(e.target.value as ImportType)}
             style={selectStyle}
@@ -133,10 +195,14 @@ export function ImportUploadModal({
 
         {/* Target app (optional) */}
         <div style={{ marginBottom: 16 }}>
-          <label style={{ display: "block", fontSize: 12, fontWeight: 500, color: "#6B7280", marginBottom: 4 }}>
+          <label
+            htmlFor="target-app-select"
+            style={{ display: "block", fontSize: 12, fontWeight: 500, color: "#6B7280", marginBottom: 4 }}
+          >
             Target App (optional)
           </label>
           <select
+            id="target-app-select"
             value={targetApp}
             onChange={(e) => setTargetApp(e.target.value)}
             style={selectStyle}
@@ -150,13 +216,17 @@ export function ImportUploadModal({
           </select>
         </div>
 
-        {/* File upload zone */}
-        <div
+        {/* File upload zone - using a button for keyboard accessibility */}
+        <button
+          type="button"
           onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
           onDragLeave={() => setDragOver(false)}
           onDrop={handleDrop}
-          onClick={() => fileInputRef.current?.click()}
+          onClick={openFilePicker}
+          aria-label={file ? `Selected file: ${file.name}. Click to change.` : "Choose a file to upload"}
           style={{
+            display: "block",
+            width: "100%",
             border: `2px dashed ${dragOver ? "#6C5CE7" : "#E5E7EB"}`,
             borderRadius: 8,
             padding: "24px 16px",
@@ -165,12 +235,15 @@ export function ImportUploadModal({
             background: dragOver ? "#F0EDFF" : "#FAFAFA",
             transition: "border-color 0.15s, background 0.15s",
             marginBottom: 16,
+            font: "inherit",
           }}
         >
           <input
             ref={fileInputRef}
             type="file"
             accept={ACCEPTED_FORMATS}
+            aria-hidden="true"
+            tabIndex={-1}
             onChange={(e) => setFile(e.target.files?.[0] ?? null)}
             style={{ display: "none" }}
           />
@@ -193,10 +266,12 @@ export function ImportUploadModal({
               </p>
             </div>
           )}
-        </div>
+        </button>
 
         {error && (
-          <p style={{ margin: "0 0 12px", fontSize: 13, color: "#EF4444" }}>{error}</p>
+          <p role="alert" style={{ margin: "0 0 12px", fontSize: 13, color: "#EF4444" }}>
+            {error}
+          </p>
         )}
 
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>

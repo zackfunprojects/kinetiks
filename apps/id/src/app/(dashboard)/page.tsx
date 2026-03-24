@@ -53,7 +53,6 @@ export default async function DashboardPage() {
       .from("kinetiks_connections")
       .select("id, account_id, provider, status, last_sync_at, metadata, created_at")
       .eq("account_id", account.id)
-      .eq("status", "active")
       .order("created_at", { ascending: true }),
     admin
       .from("kinetiks_app_activations")

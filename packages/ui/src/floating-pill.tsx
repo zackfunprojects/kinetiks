@@ -37,6 +37,7 @@ interface FloatingPillProps {
   codename: string;
   confidenceScore: number;
   currentApp?: string;
+  idBaseUrl?: string;
   suggestions?: Suggestion[];
   pendingProposals?: PendingProposal[];
   recentRoutings?: RecentRouting[];
@@ -48,6 +49,7 @@ export function FloatingPill({
   codename,
   confidenceScore,
   currentApp,
+  idBaseUrl,
   suggestions = [],
   pendingProposals = [],
   recentRoutings = [],
@@ -146,6 +148,7 @@ export function FloatingPill({
           codename={codename}
           confidenceScore={confidenceScore}
           currentApp={currentApp}
+          idBaseUrl={idBaseUrl}
           suggestions={suggestions}
           pendingProposals={pendingProposals}
           recentRoutings={recentRoutings}

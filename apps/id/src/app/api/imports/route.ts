@@ -4,6 +4,24 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import type { ImportRecord } from "@kinetiks/types";
 
 const VALID_TYPES = ["content_library", "contacts", "brand_assets", "media_list"];
+const VALID_TARGET_APPS = ["dark_madder", "harvest", "hypothesis", "litmus"];
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
+const ALLOWED_EXTENSIONS = [".csv", ".json", ".pdf", ".docx"];
+const ALLOWED_MIME_TYPES = [
+  "text/csv",
+  "application/json",
+  "application/pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+];
+const EXTENSION_MIME_MAP: Record<string, string[]> = {
+  ".csv": ["text/csv", "application/octet-stream"],
+  ".json": ["application/json", "application/octet-stream"],
+  ".pdf": ["application/pdf", "application/octet-stream"],
+  ".docx": [
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/octet-stream",
+  ],
+};
 
 /**
  * GET /api/imports
@@ -80,8 +98,53 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid import_type" }, { status: 400 });
   }
 
+  // Validate target_app against allowlist
+  if (targetApp && !VALID_TARGET_APPS.includes(targetApp)) {
+    return NextResponse.json({ error: "Invalid target_app" }, { status: 400 });
+  }
+
+  // Validate file size
+  if (file.size > MAX_FILE_SIZE) {
+    return NextResponse.json(
+      { error: `File too large. Maximum size is ${MAX_FILE_SIZE / 1024 / 1024} MB` },
+      { status: 400 }
+    );
+  }
+
+  if (file.size === 0) {
+    return NextResponse.json({ error: "File is empty" }, { status: 400 });
+  }
+
+  // Validate file type by extension and MIME type
+  const dotIndex = file.name.lastIndexOf(".");
+  if (dotIndex === -1) {
+    return NextResponse.json(
+      { error: `File must have an extension. Allowed: ${ALLOWED_EXTENSIONS.join(", ")}` },
+      { status: 400 }
+    );
+  }
+
+  const fileExtension = file.name.toLowerCase().slice(dotIndex);
+  if (!ALLOWED_EXTENSIONS.includes(fileExtension)) {
+    return NextResponse.json(
+      { error: `Unsupported file type. Allowed: ${ALLOWED_EXTENSIONS.join(", ")}` },
+      { status: 400 }
+    );
+  }
+
+  if (file.type) {
+    const allowedForExt = EXTENSION_MIME_MAP[fileExtension] || ALLOWED_MIME_TYPES;
+    if (!allowedForExt.includes(file.type)) {
+      return NextResponse.json(
+        { error: "Unsupported file MIME type" },
+        { status: 400 }
+      );
+    }
+  }
+
   // Upload to Supabase Storage
-  const fileName = `${account.id}/${Date.now()}-${file.name}`;
+  const sanitizedName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+  const fileName = `${account.id}/${Date.now()}-${sanitizedName}`;
   const arrayBuffer = await file.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
 
@@ -93,8 +156,11 @@ export async function POST(request: Request) {
     });
 
   if (uploadError) {
-    // If bucket doesn't exist or upload fails, still create the record
     console.error("Storage upload failed:", uploadError.message);
+    return NextResponse.json(
+      { error: `File upload failed: ${uploadError.message}` },
+      { status: 500 }
+    );
   }
 
   // Create import record
@@ -132,8 +198,8 @@ export async function POST(request: Request) {
     // Non-blocking - import will be picked up by CRON if API call fails
   }
 
-  // Log to ledger
-  await admin.from("kinetiks_ledger").insert({
+  // Log to ledger (non-blocking)
+  admin.from("kinetiks_ledger").insert({
     account_id: account.id,
     event_type: "import",
     detail: {
@@ -143,6 +209,13 @@ export async function POST(request: Request) {
       file_size: file.size,
       target_app: targetApp,
     },
+  }).then(({ error: ledgerError }) => {
+    if (ledgerError) {
+      console.error(
+        `Ledger insert failed for import ${importRecord.id} (account ${account.id}):`,
+        ledgerError.message
+      );
+    }
   });
 
   return NextResponse.json({ success: true, import: importRecord });

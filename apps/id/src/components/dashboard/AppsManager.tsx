@@ -17,16 +17,27 @@ export function AppsManager({
   const [activations, setActivations] = useState(initialActivations);
 
   function handleActivate(appName: string) {
-    setActivations((prev) => [
-      ...prev,
-      {
-        id: crypto.randomUUID(),
-        account_id: "",
-        app_name: appName,
-        status: "active",
-        activated_at: new Date().toISOString(),
-      } as AppActivation,
-    ]);
+    setActivations((prev) => {
+      const existing = prev.find((a) => a.app_name === appName);
+
+      if (existing) {
+        return prev.map((a) =>
+          a.app_name === appName
+            ? { ...a, status: "active" as const, activated_at: new Date().toISOString() }
+            : a
+        );
+      }
+      return [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          account_id: "",
+          app_name: appName,
+          status: "active",
+          activated_at: new Date().toISOString(),
+        } as AppActivation,
+      ];
+    });
   }
 
   const apps = Object.values(APP_REGISTRY);

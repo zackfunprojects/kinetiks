@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recalculateConfidence } from "@/lib/cortex/confidence";
+import { validateLayerData } from "@/lib/utils/context-validator";
 import type { ContextLayer } from "@kinetiks/types";
 
 const VALID_LAYERS: ContextLayer[] = [
@@ -71,8 +72,16 @@ export async function PUT(
   const body = await request.json();
   const { data: newData } = body as { data: Record<string, unknown> };
 
-  if (!newData || typeof newData !== "object") {
+  if (!newData || typeof newData !== "object" || Array.isArray(newData)) {
     return NextResponse.json({ error: "Missing or invalid data" }, { status: 400 });
+  }
+
+  const validation = validateLayerData(layerParam as ContextLayer, newData);
+  if (!validation.valid) {
+    return NextResponse.json(
+      { error: "Invalid data for layer", details: validation.errors },
+      { status: 400 }
+    );
   }
 
   const admin = createAdminClient();
@@ -89,13 +98,31 @@ export async function PUT(
 
   const tableName = `kinetiks_context_${layerParam}`;
 
-  // Upsert the context data
+  // Read existing data and merge (preserve fields not in the update)
+  const { data: existingRow, error: readError } = await admin
+    .from(tableName)
+    .select("data")
+    .eq("account_id", account.id)
+    .maybeSingle();
+
+  if (readError) {
+    console.error(`Failed to read ${tableName} for account ${account.id}:`, readError.message);
+    return NextResponse.json(
+      { error: "Failed to read existing context data" },
+      { status: 500 }
+    );
+  }
+
+  const existingData = (existingRow?.data as Record<string, unknown>) || {};
+  const mergedData = { ...existingData, ...newData };
+
+  // Upsert the merged context data
   const { error: upsertError } = await admin
     .from(tableName)
     .upsert(
       {
         account_id: account.id,
-        data: newData,
+        data: mergedData,
         source: "user_explicit",
         source_detail: "context_editor",
         updated_at: new Date().toISOString(),
@@ -110,8 +137,10 @@ export async function PUT(
     );
   }
 
-  // Log to ledger
-  await admin.from("kinetiks_ledger").insert({
+  // Log to ledger and recalculate confidence (non-blocking - upsert already succeeded)
+  let layerConfidence: number | undefined;
+
+  const { error: ledgerError } = await admin.from("kinetiks_ledger").insert({
     account_id: account.id,
     event_type: "user_edit",
     target_layer: layerParam,
@@ -121,12 +150,19 @@ export async function PUT(
       fields_updated: Object.keys(newData),
     },
   });
+  if (ledgerError) {
+    console.error(`Ledger insert failed for ${layerParam} (account ${account.id}):`, ledgerError.message);
+  }
 
-  // Recalculate confidence
-  const confidence = await recalculateConfidence(admin, account.id);
+  try {
+    const confidence = await recalculateConfidence(admin, account.id);
+    layerConfidence = confidence[layerParam as ContextLayer];
+  } catch (e) {
+    console.error(`Confidence recalculation failed for account ${account.id}:`, e);
+  }
 
   return NextResponse.json({
     success: true,
-    confidence: confidence[layerParam as ContextLayer],
+    confidence: layerConfidence,
   });
 }
