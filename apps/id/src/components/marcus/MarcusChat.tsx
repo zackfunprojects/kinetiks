@@ -317,7 +317,7 @@ export function MarcusChat({ initialThreads }: MarcusChatProps) {
                     marginBottom: 8,
                   }}
                 >
-                  {">"} marcus_aurelius
+                  {">"} marcus
                 </div>
                 <div style={{ color: "var(--text-tertiary)" }}>
                   Your strategic advisor. Ask anything.
