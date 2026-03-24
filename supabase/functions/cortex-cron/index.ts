@@ -19,6 +19,17 @@ const BATCH_LIMIT = 50;
 /** Maximum proposals per API call (to avoid huge payloads). */
 const API_BATCH_SIZE = 10;
 
+/** Timeout for each evaluate API call in milliseconds. */
+const FETCH_TIMEOUT_MS = 30_000;
+
+interface EvaluateResponse {
+  evaluated?: number;
+  accepted?: number;
+  declined?: number;
+  escalated?: number;
+  errors?: number;
+}
+
 Deno.serve(async () => {
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !INTERNAL_SERVICE_SECRET) {
     console.error("[cortex-cron] Missing required environment variables");
@@ -64,6 +75,9 @@ Deno.serve(async () => {
   for (let i = 0; i < allIds.length; i += API_BATCH_SIZE) {
     const batchIds = allIds.slice(i, i + API_BATCH_SIZE);
 
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+
     try {
       const response = await fetch(`${APP_URL}/api/cortex/evaluate`, {
         method: "POST",
@@ -72,6 +86,7 @@ Deno.serve(async () => {
           Authorization: `Bearer ${INTERNAL_SERVICE_SECRET}`,
         },
         body: JSON.stringify({ proposal_ids: batchIds }),
+        signal: controller.signal,
       });
 
       if (!response.ok) {
@@ -82,18 +97,26 @@ Deno.serve(async () => {
         continue;
       }
 
-      const result = await response.json();
+      const result = (await response.json()) as EvaluateResponse;
       totalEvaluated += result.evaluated ?? 0;
       totalAccepted += result.accepted ?? 0;
       totalDeclined += result.declined ?? 0;
       totalEscalated += result.escalated ?? 0;
       totalErrors += result.errors ?? 0;
     } catch (err) {
-      console.error(
-        `[cortex-cron] Failed to call evaluate API for batch starting at index ${i}:`,
-        err
-      );
+      if (err instanceof DOMException && err.name === "AbortError") {
+        console.error(
+          `[cortex-cron] Evaluate API timed out after ${FETCH_TIMEOUT_MS}ms for batch starting at index ${i}`
+        );
+      } else {
+        console.error(
+          `[cortex-cron] Failed to call evaluate API for batch starting at index ${i}:`,
+          err
+        );
+      }
       totalErrors += batchIds.length;
+    } finally {
+      clearTimeout(timer);
     }
   }
 

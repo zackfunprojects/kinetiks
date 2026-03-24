@@ -22,7 +22,7 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const STALE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 /** Max proposals to process per sweep to avoid timeout. */
-const BATCH_SIZE = 100;
+const BATCH_SIZE = 500;
 
 Deno.serve(async () => {
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
@@ -87,6 +87,7 @@ Deno.serve(async () => {
       account_id: p.account_id,
       event_type: "expiration",
       source_app: p.source_app,
+      source_operator: "cortex",
       target_layer: p.target_layer,
       detail: { proposal_id: p.id },
     }));
@@ -109,7 +110,7 @@ Deno.serve(async () => {
     .select("id, account_id, target_layer, evaluated_at")
     .eq("status", "accepted")
     .order("evaluated_at", { ascending: false })
-    .limit(500);
+    .limit(BATCH_SIZE);
 
   if (accepted && accepted.length > 0) {
     // Group by account+layer, keep newest, supersede the rest

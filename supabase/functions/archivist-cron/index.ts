@@ -87,37 +87,38 @@ Deno.serve(async () => {
     };
 
     try {
-      // Check each context layer for this account
-      for (const layer of CONTEXT_LAYERS) {
-        const tableName = `kinetiks_context_${layer}`;
+      // Query all context layers in parallel to avoid N+1
+      const layerResults = await Promise.all(
+        CONTEXT_LAYERS.map(async (layer) => {
+          const tableName = `kinetiks_context_${layer}`;
+          const { data: rows, error: layerErr } = await admin
+            .from(tableName)
+            .select("id, data, updated_at")
+            .eq("account_id", accountId)
+            .limit(1);
+          return { layer, rows, error: layerErr };
+        })
+      );
 
-        const { data: rows, error: layerErr } = await admin
-          .from(tableName)
-          .select("id, data, updated_at")
-          .eq("account_id", accountId)
-          .limit(1);
-
+      for (const { layer, rows, error: layerErr } of layerResults) {
         if (layerErr) {
           console.error(
-            `[archivist-cron] Failed to query ${tableName} for account ${accountId}:`,
+            `[archivist-cron] Failed to query kinetiks_context_${layer} for account ${accountId}:`,
             layerErr
           );
           continue;
         }
 
         if (!rows || rows.length === 0) {
-          // Gap: no data at all for this layer
           quality.empty_layers.push(layer);
         } else {
           quality.populated_layers++;
 
-          // Check staleness
           const row = rows[0];
           if (row.updated_at && row.updated_at < staleThreshold) {
             quality.stale_layers.push(layer);
           }
 
-          // Check for effectively empty data (empty object or null)
           const data = row.data as Record<string, unknown> | null;
           if (!data || Object.keys(data).length === 0) {
             quality.empty_layers.push(layer);
