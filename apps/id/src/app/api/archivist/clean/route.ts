@@ -21,7 +21,7 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
  * Body (service call): { account_id: string } or { account_ids: string[] }
  */
 export async function POST(request: Request) {
-  const { auth, error } = await requireAuth(request);
+  const { auth, error } = await requireAuth(request, { allowInternal: true });
   if (error) return error;
 
   const body = await request.json().catch(() => ({}));

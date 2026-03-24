@@ -25,6 +25,13 @@ interface RequireAuthOptions {
   allowedScopes?: string | string[];
   /** Skip rate limiting for this request. */
   skipRateLimit?: boolean;
+  /**
+   * Allow internal service auth (INTERNAL_SERVICE_SECRET).
+   * Defaults to false. Routes that support internal auth must
+   * set this to true and handle the `__internal__` account_id
+   * by reading the real account_id from the request body.
+   */
+  allowInternal?: boolean;
 }
 
 type AuthResult =
@@ -51,6 +58,11 @@ export async function requireAuth(
 
   if (!auth) {
     return { auth: null, error: apiError("Unauthorized", 401) };
+  }
+
+  // Reject internal auth unless the route explicitly allows it
+  if (auth.auth_method === "internal" && !options?.allowInternal) {
+    return { auth: null, error: apiError("This endpoint does not accept internal service auth", 403) };
   }
 
   // Check permission level for API key auth

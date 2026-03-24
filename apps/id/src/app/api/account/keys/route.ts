@@ -111,18 +111,20 @@ export async function POST(request: Request) {
 
   if (
     typeof rate_limit_per_minute !== "number" ||
+    !Number.isInteger(rate_limit_per_minute) ||
     rate_limit_per_minute < 1 ||
     rate_limit_per_minute > 10000
   ) {
-    return apiError("rate_limit_per_minute must be between 1 and 10000", 400);
+    return apiError("rate_limit_per_minute must be an integer between 1 and 10000", 400);
   }
 
   if (
     typeof rate_limit_per_day !== "number" ||
+    !Number.isInteger(rate_limit_per_day) ||
     rate_limit_per_day < 1 ||
     rate_limit_per_day > 1000000
   ) {
-    return apiError("rate_limit_per_day must be between 1 and 1000000", 400);
+    return apiError("rate_limit_per_day must be an integer between 1 and 1000000", 400);
   }
 
   if (expires_at) {
@@ -303,15 +305,20 @@ export async function DELETE(request: Request) {
 
   const admin = createAdminClient();
 
-  const { error: updateError } = await admin
+  const { data: revoked, error: updateError } = await admin
     .from("kinetiks_api_keys")
     .update({ is_active: false })
     .eq("id", key_id)
-    .eq("account_id", auth.account_id);
+    .eq("account_id", auth.account_id)
+    .select("id");
 
   if (updateError) {
     console.error("Failed to revoke API key:", updateError.message);
     return apiError("Failed to revoke API key", 500);
+  }
+
+  if (!revoked || revoked.length === 0) {
+    return apiError("API key not found", 404);
   }
 
   return apiSuccess({ revoked: true, key_id });

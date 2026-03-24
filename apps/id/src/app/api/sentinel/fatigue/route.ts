@@ -136,7 +136,7 @@ export async function PUT(request: Request): Promise<Response> {
  * Auth: user session, API key, or internal service secret
  */
 export async function POST(request: Request): Promise<Response> {
-  const { auth, error } = await requireAuth(request, { permissions: "read-write" });
+  const { auth, error } = await requireAuth(request, { permissions: "read-write", allowInternal: true });
   if (error) return error;
 
   let body: {

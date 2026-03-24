@@ -30,7 +30,7 @@ interface PullRequest {
  * Body: { account_id: string, app_name: string, layers: ContextLayer[] }
  */
 export async function POST(request: Request) {
-  const { auth, error } = await requireAuth(request);
+  const { auth, error } = await requireAuth(request, { allowInternal: true });
   if (error) return error;
 
   let body: PullRequest;

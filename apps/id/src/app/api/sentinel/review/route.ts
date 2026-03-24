@@ -35,7 +35,7 @@ const VALID_CONTENT_TYPES: SentinelContentType[] = [
  * Auth: user session, API key, or internal service secret
  */
 export async function POST(request: Request) {
-  const { auth, error } = await requireAuth(request);
+  const { auth, error } = await requireAuth(request, { allowInternal: true });
   if (error) return error;
 
   let body: ReviewRequest;

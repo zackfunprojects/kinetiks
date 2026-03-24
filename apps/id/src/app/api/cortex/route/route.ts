@@ -21,7 +21,7 @@ import type { ContextLayer } from "@kinetiks/types";
  * }
  */
 export async function POST(request: Request) {
-  const { auth, error } = await requireAuth(request);
+  const { auth, error } = await requireAuth(request, { allowInternal: true });
   if (error) return error;
 
   const body = await request.json();

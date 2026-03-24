@@ -46,10 +46,17 @@ export async function PUT(
     return apiError("Invalid layer", 400);
   }
 
-  const { auth, error } = await requireAuth(request);
+  const { auth, error } = await requireAuth(request, { permissions: "read-write" });
   if (error) return error;
 
-  const body = await request.json();
+  let body: Record<string, unknown>;
+  try {
+    const parsed: unknown = await request.json();
+    if (!parsed || typeof parsed !== "object") return apiError("Invalid JSON body", 400);
+    body = parsed as Record<string, unknown>;
+  } catch {
+    return apiError("Invalid JSON body", 400);
+  }
   const { data: newData } = body as { data: Record<string, unknown> };
 
   if (!newData || typeof newData !== "object" || Array.isArray(newData)) {
@@ -115,7 +122,7 @@ export async function PUT(
     console.error(`Ledger insert failed for ${layerParam} (account ${auth.account_id}):`, ledgerError.message);
   }
 
-  dispatchEvent(auth.account_id, "context.updated", {
+  void dispatchEvent(auth.account_id, "context.updated", {
     layer: layerParam,
     fields_updated: Object.keys(newData),
   });
@@ -215,7 +222,7 @@ export async function PATCH(
     console.error(`Ledger insert failed for ${layerParam} (account ${auth.account_id}):`, ledgerError.message);
   }
 
-  dispatchEvent(auth.account_id, "context.updated", {
+  void dispatchEvent(auth.account_id, "context.updated", {
     layer: layerParam,
     fields_updated: Object.keys(patchData),
   });

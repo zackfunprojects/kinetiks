@@ -143,8 +143,30 @@ export async function PATCH(request: Request) {
   if (!existing) return apiError("Webhook not found", 404);
 
   const updates: Record<string, unknown> = {};
-  if ("url" in body && typeof body.url === "string") updates.url = body.url;
-  if ("events" in body && Array.isArray(body.events)) updates.events = body.events;
+  if ("url" in body && typeof body.url === "string") {
+    try {
+      new URL(body.url as string);
+    } catch {
+      return apiError("Invalid URL format", 400);
+    }
+    updates.url = body.url;
+  }
+  if ("events" in body && Array.isArray(body.events)) {
+    const evts = body.events as string[];
+    const invalidEvts = evts.filter(
+      (e) => !VALID_EVENTS.includes(e as WebhookEventType)
+    );
+    if (invalidEvts.length > 0) {
+      return apiError(
+        `Invalid events: ${invalidEvts.join(", ")}. Valid: ${VALID_EVENTS.join(", ")}`,
+        400
+      );
+    }
+    if (evts.length === 0) {
+      return apiError("events must not be empty", 400);
+    }
+    updates.events = evts;
+  }
   if ("is_active" in body && typeof body.is_active === "boolean") updates.is_active = body.is_active;
   if ("description" in body) updates.description = body.description ?? null;
 

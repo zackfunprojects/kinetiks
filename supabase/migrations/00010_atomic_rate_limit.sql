@@ -15,3 +15,7 @@ AS $$
   DO UPDATE SET request_count = kinetiks_rate_limits.request_count + 1
   RETURNING request_count;
 $$;
+
+-- Only service role should call this function (auth middleware)
+REVOKE ALL ON FUNCTION increment_rate_limit FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION increment_rate_limit TO service_role;

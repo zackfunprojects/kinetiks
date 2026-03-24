@@ -8,7 +8,7 @@ import { apiSuccess, apiError } from "@/lib/utils/api-response";
  * Body: { display_name: string }
  */
 export async function PATCH(request: Request) {
-  const { auth, error } = await requireAuth(request);
+  const { auth, error } = await requireAuth(request, { permissions: "read-write" });
   if (error) return error;
 
   const body = await request.json();
@@ -26,7 +26,7 @@ export async function PATCH(request: Request) {
       display_name: display_name.trim() || null,
       updated_at: new Date().toISOString(),
     })
-    .eq("user_id", auth.user_id);
+    .eq("id", auth.account_id);
 
   if (updateError) {
     return apiError("Failed to update account", 500);
@@ -42,6 +42,11 @@ export async function PATCH(request: Request) {
 export async function DELETE(request: Request) {
   const { auth, error } = await requireAuth(request);
   if (error) return error;
+
+  // Account deletion is too destructive for API keys - require session auth
+  if (auth.auth_method !== "session") {
+    return apiError("Account deletion requires session authentication", 403);
+  }
 
   const admin = createAdminClient();
 

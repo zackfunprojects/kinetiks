@@ -19,7 +19,7 @@ import { apiSuccess, apiError } from "@/lib/utils/api-response";
  * Body: { type: 'daily_brief' | 'weekly_digest' | 'monthly_review', account_id?: string }
  */
 export async function POST(request: Request) {
-  const { auth, error } = await requireAuth(request, { permissions: "read-only" });
+  const { auth, error } = await requireAuth(request, { permissions: "read-only", allowInternal: true });
   if (error) return error;
 
   let body: Record<string, unknown>;

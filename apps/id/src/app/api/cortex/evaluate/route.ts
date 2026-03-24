@@ -16,7 +16,7 @@ import type { Proposal } from "@kinetiks/types";
  * Body: { proposal_id: string } or { proposal_ids: string[] }
  */
 export async function POST(request: Request) {
-  const { auth, error } = await requireAuth(request, { permissions: "read-write" });
+  const { auth, error } = await requireAuth(request, { permissions: "read-write", allowInternal: true });
   if (error) return error;
 
   const body = await request.json();
@@ -58,8 +58,16 @@ export async function POST(request: Request) {
     return apiError("No submitted proposals found with given IDs", 404);
   }
 
-  // If not internal service call, verify the authenticated user owns all proposals
-  if (auth.auth_method !== "internal") {
+  // For API key auth, scope proposals strictly to the key's account
+  if (auth.auth_method === "api_key") {
+    const unauthorizedProposal = proposals.find(
+      (p) => (p.account_id as string) !== auth.account_id
+    );
+    if (unauthorizedProposal) {
+      return apiError("Forbidden: proposal does not belong to your account", 403);
+    }
+  } else if (auth.auth_method !== "internal") {
+    // Session auth: verify user owns the account(s)
     const { data: userAccounts } = await admin
       .from("kinetiks_accounts")
       .select("id")

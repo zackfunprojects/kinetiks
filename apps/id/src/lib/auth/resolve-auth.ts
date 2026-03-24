@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { hashApiKey, isKineticsApiKey } from "./api-keys";
+import { timingSafeEqual } from "crypto";
 import type { AuthenticatedContext, ApiKeyPermission } from "@kinetiks/types";
 
 /**
@@ -25,7 +26,13 @@ export async function resolveAuth(
 
   // 2. Check for internal service secret (Edge Functions / CRONs)
   const internalSecret = process.env.INTERNAL_SERVICE_SECRET;
-  if (internalSecret && authHeader === `Bearer ${internalSecret}`) {
+  const expectedBearer = `Bearer ${internalSecret}`;
+  if (
+    internalSecret &&
+    authHeader &&
+    authHeader.length === expectedBearer.length &&
+    timingSafeEqual(Buffer.from(authHeader), Buffer.from(expectedBearer))
+  ) {
     return {
       account_id: "__internal__",
       user_id: "__internal__",
