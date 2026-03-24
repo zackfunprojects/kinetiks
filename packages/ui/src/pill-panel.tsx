@@ -36,6 +36,7 @@ interface PillPanelProps {
   codename: string;
   confidenceScore: number;
   currentApp?: string;
+  idBaseUrl?: string;
   suggestions: Suggestion[];
   pendingProposals: PendingProposal[];
   recentRoutings: RecentRouting[];
@@ -47,13 +48,16 @@ export function PillPanel({
   codename,
   confidenceScore,
   currentApp,
+  idBaseUrl: idBaseUrlProp,
   suggestions,
   pendingProposals,
   recentRoutings,
   activeApps,
   inactiveApps,
 }: PillPanelProps) {
-  const idBaseUrl = "https://id.kinetiks.ai";
+  const idBaseUrl =
+    idBaseUrlProp ||
+    (typeof window !== "undefined" ? window.location.origin : "https://id.kinetiks.ai");
 
   return (
     <div
@@ -177,7 +181,7 @@ export function PillPanel({
                 {p.target_layer}
               </span>
               <span style={{ fontSize: 12, color: "#4B5563" }}>
-                {p.action} from {p.source_app.replace("_", " ")}
+                {p.action}{p.source_app ? ` from ${p.source_app.replace("_", " ")}` : ""}
               </span>
             </div>
           ))}

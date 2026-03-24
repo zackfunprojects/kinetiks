@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recalculateConfidence } from "@/lib/cortex/confidence";
+import { validateLayerData } from "@/lib/utils/context-validator";
 import type { ContextLayer } from "@kinetiks/types";
 
 const VALID_LAYERS: ContextLayer[] = [
@@ -71,8 +72,16 @@ export async function PUT(
   const body = await request.json();
   const { data: newData } = body as { data: Record<string, unknown> };
 
-  if (!newData || typeof newData !== "object") {
+  if (!newData || typeof newData !== "object" || Array.isArray(newData)) {
     return NextResponse.json({ error: "Missing or invalid data" }, { status: 400 });
+  }
+
+  const validation = validateLayerData(layerParam as ContextLayer, newData);
+  if (!validation.valid) {
+    return NextResponse.json(
+      { error: "Invalid data for layer", details: validation.errors },
+      { status: 400 }
+    );
   }
 
   const admin = createAdminClient();
@@ -110,23 +119,32 @@ export async function PUT(
     );
   }
 
-  // Log to ledger
-  await admin.from("kinetiks_ledger").insert({
-    account_id: account.id,
-    event_type: "user_edit",
-    target_layer: layerParam,
-    detail: {
-      action: "context_edited",
-      layer: layerParam,
-      fields_updated: Object.keys(newData),
-    },
-  });
+  // Log to ledger and recalculate confidence (non-blocking - upsert already succeeded)
+  let layerConfidence: number | undefined;
+  try {
+    await admin.from("kinetiks_ledger").insert({
+      account_id: account.id,
+      event_type: "user_edit",
+      target_layer: layerParam,
+      detail: {
+        action: "context_edited",
+        layer: layerParam,
+        fields_updated: Object.keys(newData),
+      },
+    });
+  } catch (e) {
+    console.error(`Ledger insert failed for ${layerParam} (account ${account.id}):`, e);
+  }
 
-  // Recalculate confidence
-  const confidence = await recalculateConfidence(admin, account.id);
+  try {
+    const confidence = await recalculateConfidence(admin, account.id);
+    layerConfidence = confidence[layerParam as ContextLayer];
+  } catch (e) {
+    console.error(`Confidence recalculation failed for account ${account.id}:`, e);
+  }
 
   return NextResponse.json({
     success: true,
-    confidence: confidence[layerParam as ContextLayer],
+    confidence: layerConfidence,
   });
 }
