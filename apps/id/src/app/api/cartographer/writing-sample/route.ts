@@ -7,6 +7,7 @@ import {
 } from "@/lib/ai/prompts/conversation";
 import { submitProposal, logToLedger } from "@/lib/cartographer/submit";
 import { apiSuccess, apiError } from "@/lib/utils/api-response";
+import { validateLayerPayload } from "@/lib/utils/context-schemas";
 
 const MAX_SAMPLES = 3;
 
@@ -175,6 +176,13 @@ export async function POST(request: Request) {
       ...voiceRefinements,
       writing_samples: [...existingSamples, sampleEntry],
     };
+
+    // Validate the complete payload against the voice layer schema
+    const layerValidationError = validateLayerPayload("voice", payload);
+    if (layerValidationError) {
+      console.error("Voice layer payload validation failed:", layerValidationError);
+      return apiError("Voice analysis produced invalid data", 500);
+    }
 
     const { proposalId } = await submitProposal(admin, {
       account_id: accountId,

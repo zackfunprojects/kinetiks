@@ -215,3 +215,59 @@ export const CONTEXT_SCHEMAS: Record<ContextLayer, JsonSchema> = {
   market: MARKET_SCHEMA,
   brand: BRAND_SCHEMA,
 };
+
+/**
+ * Lightweight runtime validator for a layer payload against its schema.
+ * Checks top-level keys against the schema's allowed properties and
+ * rejects unknown keys when additionalProperties is false.
+ * Returns null if valid, or a string describing the first error found.
+ */
+export function validateLayerPayload(
+  layer: ContextLayer,
+  payload: Record<string, unknown>
+): string | null {
+  const schema = CONTEXT_SCHEMAS[layer];
+  if (!schema) return `Unknown layer: ${layer}`;
+
+  if (typeof payload !== "object" || payload === null || Array.isArray(payload)) {
+    return "Payload must be a plain object";
+  }
+
+  const properties = schema.properties as Record<string, JsonSchema> | undefined;
+  if (!properties) return null;
+
+  const allowedKeys = new Set(Object.keys(properties));
+
+  // Reject unknown top-level keys when schema disallows them
+  if (schema.additionalProperties === false) {
+    for (const key of Object.keys(payload)) {
+      if (!allowedKeys.has(key)) {
+        return `Unknown key "${key}" for layer "${layer}"`;
+      }
+    }
+  }
+
+  // Validate types for present keys
+  for (const [key, value] of Object.entries(payload)) {
+    const propSchema = properties[key];
+    if (!propSchema) continue;
+
+    const expectedType = propSchema.type;
+    if (!expectedType) continue;
+
+    if (expectedType === "array" && !Array.isArray(value)) {
+      return `"${key}" must be an array`;
+    }
+    if (expectedType === "object" && (typeof value !== "object" || value === null || Array.isArray(value))) {
+      return `"${key}" must be an object`;
+    }
+    if (expectedType === "number" && typeof value !== "number") {
+      return `"${key}" must be a number`;
+    }
+    if (expectedType === "string" && typeof value !== "string") {
+      return `"${key}" must be a string`;
+    }
+  }
+
+  return null;
+}

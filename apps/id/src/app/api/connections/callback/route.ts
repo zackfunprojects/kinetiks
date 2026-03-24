@@ -17,12 +17,14 @@ import {
 } from "@/lib/connections";
 import type { StoredOAuthCredentials } from "@/lib/connections";
 import type { ConnectionProvider } from "@kinetiks/types";
+import { verifyStateSignature } from "@/lib/connections/state-hmac";
 
 interface OAuthState {
   provider: string;
   account_id: string;
   ts: number;
   pkce_verifier?: string;
+  signature?: string;
 }
 
 export async function GET(request: Request) {
@@ -66,6 +68,21 @@ export async function GET(request: Request) {
     const decoded = Buffer.from(stateParam, "base64url").toString("utf8");
     state = JSON.parse(decoded) as OAuthState;
   } catch {
+    const redirectUrl = new URL(connectionsUrl);
+    redirectUrl.searchParams.set("error", "invalid_state");
+    return NextResponse.redirect(redirectUrl.toString());
+  }
+
+  // Verify HMAC signature before any other checks (prevents state tampering)
+  if (!state.signature) {
+    const redirectUrl = new URL(connectionsUrl);
+    redirectUrl.searchParams.set("error", "invalid_state");
+    return NextResponse.redirect(redirectUrl.toString());
+  }
+
+  const { signature, ...stateWithoutSig } = state;
+  const dataToVerify = JSON.stringify(stateWithoutSig);
+  if (!verifyStateSignature(dataToVerify, signature)) {
     const redirectUrl = new URL(connectionsUrl);
     redirectUrl.searchParams.set("error", "invalid_state");
     return NextResponse.redirect(redirectUrl.toString());

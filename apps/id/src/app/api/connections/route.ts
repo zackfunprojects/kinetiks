@@ -20,6 +20,7 @@ import {
 import type { StoredApiKeyCredentials } from "@/lib/connections";
 import { getProvider } from "@/lib/connections/providers";
 import type { ConnectionProvider } from "@kinetiks/types";
+import { signState } from "@/lib/connections/state-hmac";
 
 export async function GET(request: Request) {
   const { auth, error } = await requireAuth(request);
@@ -116,13 +117,19 @@ export async function POST(request: Request) {
     const needsPkce = providerRequiresPkce(provider as ConnectionProvider);
     const pkceVerifier = needsPkce ? generatePkceVerifier() : undefined;
 
-    // State encodes provider + account ID + optional PKCE verifier for the callback
+    // State encodes provider + account ID + optional PKCE verifier for the callback.
+    // HMAC-signed to prevent tampering (e.g., swapping account_id).
+    const statePayload = JSON.stringify({
+      provider,
+      account_id: auth.account_id,
+      ts: Date.now(),
+      ...(pkceVerifier ? { pkce_verifier: pkceVerifier } : {}),
+    });
+    const signature = signState(statePayload);
     const state = Buffer.from(
       JSON.stringify({
-        provider,
-        account_id: auth.account_id,
-        ts: Date.now(),
-        ...(pkceVerifier ? { pkce_verifier: pkceVerifier } : {}),
+        ...JSON.parse(statePayload),
+        signature,
       })
     ).toString("base64url");
 

@@ -32,19 +32,16 @@ export async function POST(request: Request) {
   const admin = createAdminClient();
   const accountId = auth.account_id;
 
-  // Verify the import belongs to this account
+  // Fetch the import scoped to this account (prevents existence leak)
   const { data: importRecord, error: fetchError } = await admin
     .from("kinetiks_imports")
     .select("id, account_id, status")
     .eq("id", importId)
+    .eq("account_id", accountId)
     .single();
 
   if (fetchError || !importRecord) {
     return apiError("Import not found", 404);
-  }
-
-  if ((importRecord.account_id as string) !== accountId) {
-    return apiError("Forbidden: import does not belong to your account", 403);
   }
 
   if (importRecord.status === "processing") {

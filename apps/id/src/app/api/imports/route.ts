@@ -131,6 +131,18 @@ export async function POST(request: Request) {
     .single();
 
   if (insertError) {
+    // Clean up the uploaded file to avoid orphaned storage objects
+    admin.storage
+      .from("imports")
+      .remove([fileName])
+      .then(({ error: removeError }) => {
+        if (removeError) {
+          console.error(
+            `Failed to remove orphaned file ${fileName} after insert error:`,
+            removeError.message
+          );
+        }
+      });
     return apiError("Failed to create import", 500);
   }
 

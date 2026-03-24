@@ -76,10 +76,36 @@ export async function PUT(request: Request) {
     return apiError("rules must be a non-empty array", 400);
   }
 
+  const VALID_PERIODS = ["1h", "6h", "12h", "24h", "3d", "7d", "14d", "30d"];
+  const VALID_SCOPES = ["contact", "org"];
+
+  // Validate each rule before processing
+  for (let i = 0; i < body.rules.length; i++) {
+    const rule = body.rules[i];
+    if (!rule || typeof rule !== "object") {
+      return apiError(`rules[${i}]: must be an object`, 400);
+    }
+    if (typeof rule.rule_name !== "string" || rule.rule_name.trim().length === 0) {
+      return apiError(`rules[${i}]: rule_name must be a non-empty string`, 400);
+    }
+    if (typeof rule.limit_value !== "number" || !Number.isFinite(rule.limit_value) || rule.limit_value < 0) {
+      return apiError(`rules[${i}]: limit_value must be a non-negative number`, 400);
+    }
+    if (typeof rule.period !== "string" || !VALID_PERIODS.includes(rule.period)) {
+      return apiError(`rules[${i}]: period must be one of ${VALID_PERIODS.join(", ")}`, 400);
+    }
+    if (typeof rule.scope !== "string" || !VALID_SCOPES.includes(rule.scope)) {
+      return apiError(`rules[${i}]: scope must be "contact" or "org"`, 400);
+    }
+    if (rule.is_active !== undefined && typeof rule.is_active !== "boolean") {
+      return apiError(`rules[${i}]: is_active must be a boolean if provided`, 400);
+    }
+  }
+
   const admin = createAdminClient();
   const accountId = auth.account_id;
 
-  // Upsert each rule
+  // Upsert each rule (all validated above)
   const upsertRows = body.rules.map((rule) => ({
     account_id: accountId,
     rule_name: rule.rule_name,
