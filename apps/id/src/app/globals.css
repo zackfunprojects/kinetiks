@@ -19,11 +19,14 @@
   --text-tertiary: #484f58;
   --text-on-accent: #ffffff;
 
-  /* Accent - terminal green */
-  --accent: #3fb950;
-  --accent-emphasis: #238636;
-  --accent-muted: rgba(63, 185, 80, 0.15);
-  --accent-subtle: rgba(63, 185, 80, 0.08);
+  /* Logo accent - green, only for the kinetiks_id wordmark */
+  --logo-accent: #3fb950;
+
+  /* Accent - white/light for UI elements */
+  --accent: #e6edf3;
+  --accent-emphasis: #c9d1d9;
+  --accent-muted: rgba(230, 237, 243, 0.1);
+  --accent-subtle: rgba(230, 237, 243, 0.06);
 
   /* Secondary accent - cool blue */
   --accent-secondary: #58a6ff;
@@ -41,11 +44,11 @@
 
   /* Special purpose */
   --ring-track: #21262d;
-  --ring-fill: #3fb950;
-  --user-bubble: #238636;
+  --ring-fill: #e6edf3;
+  --user-bubble: #30363d;
   --marcus-bubble: #1c2128;
-  --sidebar-active-bg: rgba(63, 185, 80, 0.08);
-  --sidebar-active-text: #3fb950;
+  --sidebar-active-bg: rgba(230, 237, 243, 0.06);
+  --sidebar-active-text: #e6edf3;
 }
 
 /* ── Base styles ─────────────────────────────────────────────── */
@@ -69,8 +72,8 @@ select:focus-visible {
 }
 
 @keyframes terminal-glow {
-  0%, 100% { filter: drop-shadow(0 0 6px rgba(63, 185, 80, 0.4)); }
-  50% { filter: drop-shadow(0 0 12px rgba(63, 185, 80, 0.6)); }
+  0%, 100% { filter: drop-shadow(0 0 6px rgba(230, 237, 243, 0.2)); }
+  50% { filter: drop-shadow(0 0 12px rgba(230, 237, 243, 0.35)); }
 }
 
 @keyframes fade-in {

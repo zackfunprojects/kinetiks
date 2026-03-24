@@ -100,7 +100,7 @@ export function FloatingPill({
           gap: 8,
           background: "var(--bg-surface, #161b22)",
           color: "var(--text-primary, #e6edf3)",
-          border: hovered ? "1px solid var(--accent, #3fb950)" : "1px solid var(--border-default, #30363d)",
+          border: hovered ? "1px solid var(--accent, #e6edf3)" : "1px solid var(--border-default, #30363d)",
           borderRadius: 8,
           padding: "8px 16px",
           cursor: "pointer",
@@ -112,13 +112,13 @@ export function FloatingPill({
           position: "relative",
         }}
       >
-        <span style={{ fontWeight: 700, fontFamily: "var(--font-mono, monospace), monospace", color: "var(--accent, #3fb950)", letterSpacing: -0.3 }}>K</span>
+        <span style={{ fontWeight: 700, fontFamily: "var(--font-mono, monospace), monospace", color: "var(--logo-accent, #3fb950)", letterSpacing: -0.3 }}>K</span>
         <span style={{ fontFamily: "var(--font-mono, monospace), monospace" }}>{codename}</span>
         <span
           style={{
             padding: "1px 6px",
-            background: "var(--accent-muted, rgba(63,185,80,0.15))",
-            color: "var(--accent, #3fb950)",
+            background: "var(--accent-muted, rgba(230,237,243,0.1))",
+            color: "var(--accent, #e6edf3)",
             borderRadius: 4,
             fontSize: 11,
             fontFamily: "var(--font-mono, monospace), monospace",

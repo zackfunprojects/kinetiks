@@ -31,7 +31,7 @@ export function AppSwitcher({
               width: 32,
               height: 32,
               borderRadius: 6,
-              background: app.color || "var(--accent-emphasis, #238636)",
+              background: app.color || "var(--accent-emphasis, #c9d1d9)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -40,8 +40,8 @@ export function AppSwitcher({
               fontSize: 13,
               fontFamily: "var(--font-mono, monospace), monospace",
               textDecoration: "none",
-              border: isCurrent ? "2px solid var(--accent, #3fb950)" : "2px solid transparent",
-              boxShadow: isCurrent ? "0 0 0 2px rgba(63,185,80,0.3)" : undefined,
+              border: isCurrent ? "2px solid var(--accent, #e6edf3)" : "2px solid transparent",
+              boxShadow: isCurrent ? "0 0 0 2px rgba(230,237,243,0.15)" : undefined,
               transition: "transform 0.15s",
             }}
           >

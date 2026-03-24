@@ -104,7 +104,7 @@ export function PillPanel({
             width: 48,
             height: 48,
             borderRadius: "50%",
-            background: `conic-gradient(var(--accent, #3fb950) ${confidenceScore * 3.6}deg, var(--border-default, #30363d) 0deg)`,
+            background: `conic-gradient(var(--accent, #e6edf3) ${confidenceScore * 3.6}deg, var(--border-default, #30363d) 0deg)`,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -123,7 +123,7 @@ export function PillPanel({
               fontSize: 12,
               fontWeight: 700,
               fontFamily: "var(--font-mono, monospace), monospace",
-              color: "var(--accent, #3fb950)",
+              color: "var(--accent, #e6edf3)",
             }}
           >
             {confidenceScore}%
@@ -156,7 +156,7 @@ export function PillPanel({
               <p style={{ margin: 0, fontSize: 12, color: "var(--text-secondary, #8b949e)", lineHeight: 1.3, flex: 1 }}>
                 {s.suggestion}
               </p>
-              <span style={{ fontSize: 11, color: "var(--accent, #3fb950)", fontWeight: 600, fontFamily: "var(--font-mono, monospace), monospace", flexShrink: 0, marginLeft: 8 }}>
+              <span style={{ fontSize: 11, color: "var(--accent, #e6edf3)", fontWeight: 600, fontFamily: "var(--font-mono, monospace), monospace", flexShrink: 0, marginLeft: 8 }}>
                 {s.estimated_impact}
               </span>
             </div>
@@ -182,8 +182,8 @@ export function PillPanel({
                 style={{
                   fontSize: 10,
                   padding: "1px 5px",
-                  background: "var(--accent-muted, rgba(63,185,80,0.15))",
-                  color: "var(--accent, #3fb950)",
+                  background: "var(--accent-muted, rgba(230,237,243,0.1))",
+                  color: "var(--accent, #e6edf3)",
                   borderRadius: 4,
                   fontWeight: 500,
                   fontFamily: "var(--font-mono, monospace), monospace",
@@ -199,7 +199,7 @@ export function PillPanel({
           {pendingProposals.length > 3 && (
             <a
               href={idBaseUrl}
-              style={{ fontSize: 11, color: "var(--accent, #3fb950)", textDecoration: "none", display: "block", marginTop: 4, fontFamily: "var(--font-mono, monospace), monospace" }}
+              style={{ fontSize: 11, color: "var(--accent, #e6edf3)", textDecoration: "none", display: "block", marginTop: 4, fontFamily: "var(--font-mono, monospace), monospace" }}
             >
               View all {pendingProposals.length} items
             </a>
@@ -241,19 +241,19 @@ export function PillPanel({
       >
         <a
           href={idBaseUrl}
-          style={{ fontSize: 12, color: "var(--accent, #3fb950)", textDecoration: "none", fontWeight: 500, fontFamily: "var(--font-mono, monospace), monospace" }}
+          style={{ fontSize: 12, color: "var(--accent, #e6edf3)", textDecoration: "none", fontWeight: 500, fontFamily: "var(--font-mono, monospace), monospace" }}
         >
           view_id
         </a>
         <a
           href={`${idBaseUrl}/billing`}
-          style={{ fontSize: 12, color: "var(--accent, #3fb950)", textDecoration: "none", fontWeight: 500, fontFamily: "var(--font-mono, monospace), monospace" }}
+          style={{ fontSize: 12, color: "var(--accent, #e6edf3)", textDecoration: "none", fontWeight: 500, fontFamily: "var(--font-mono, monospace), monospace" }}
         >
           billing
         </a>
         <a
           href={`${idBaseUrl}/connections`}
-          style={{ fontSize: 12, color: "var(--accent, #3fb950)", textDecoration: "none", fontWeight: 500, fontFamily: "var(--font-mono, monospace), monospace" }}
+          style={{ fontSize: 12, color: "var(--accent, #e6edf3)", textDecoration: "none", fontWeight: 500, fontFamily: "var(--font-mono, monospace), monospace" }}
         >
           connections
         </a>

@@ -41,7 +41,7 @@ export function Sidebar() {
           fontWeight: 700,
           fontSize: 16,
           fontFamily: "var(--font-mono), monospace",
-          color: "var(--accent)",
+          color: "var(--logo-accent)",
           marginBottom: 24,
           padding: "0 8px",
           textDecoration: "none",

@@ -56,7 +56,7 @@ export function ConfidenceRing({
           style={{
             transform: "rotate(-90deg)",
             filter: animatedScore > 0
-              ? "drop-shadow(0 0 8px rgba(63, 185, 80, 0.4))"
+              ? "drop-shadow(0 0 8px rgba(230, 237, 243, 0.2))"
               : undefined,
           }}
         >
