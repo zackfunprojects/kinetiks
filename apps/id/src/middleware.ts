@@ -2,7 +2,10 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
+// Routes that don't require authentication
 const PUBLIC_ROUTES = ["/login", "/signup", "/callback", "/onboarding", "/developers"];
+// Auth pages that authenticated users should be redirected away from
+const AUTH_PAGES = ["/login", "/signup"];
 
 function getCookieDomain(request: NextRequest): string | undefined {
   const cookieDomain = process.env.COOKIE_DOMAIN;
@@ -67,8 +70,9 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // Authenticated and on auth page - redirect to dashboard
-  if (user && isPublicRoute && pathname !== "/callback") {
+  // Authenticated and on login/signup - redirect to dashboard
+  const isAuthPage = AUTH_PAGES.some((route) => pathname.startsWith(route));
+  if (user && isAuthPage) {
     return NextResponse.redirect(new URL("/", request.url));
   }
 
