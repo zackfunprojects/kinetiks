@@ -1,0 +1,28 @@
+{
+  "name": "@kinetiks/mcp",
+  "version": "0.1.0",
+  "description": "MCP server for the Kinetiks ID platform - gives AI agents native tool access to context, onboarding, approvals, and more",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "kinetiks-mcp": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "type-check": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "@kinetiks/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  },
+  "keywords": ["kinetiks", "mcp", "ai-agents", "model-context-protocol"],
+  "license": "MIT"
+}

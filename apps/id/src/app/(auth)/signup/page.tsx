@@ -231,6 +231,32 @@ function SignupForm() {
             Log in
           </Link>
         </p>
+
+        {/* Agent callout */}
+        <div
+          style={{
+            marginTop: 32,
+            padding: "16px 20px",
+            borderRadius: 10,
+            background: "rgba(108, 92, 231, 0.06)",
+            border: "1px solid rgba(108, 92, 231, 0.12)",
+            textAlign: "center",
+          }}
+        >
+          <p style={{ margin: 0, fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.5 }}>
+            Building with AI agents? Kinetiks has native{" "}
+            <Link
+              href="/developers"
+              style={{ color: "#6C5CE7", textDecoration: "none", fontWeight: 600 }}
+            >
+              MCP support
+            </Link>
+            .{" "}
+            <span style={{ color: "rgba(255,255,255,0.4)" }}>
+              18 tools for context, onboarding, and intelligence.
+            </span>
+          </p>
+        </div>
       </div>
     </main>
   );
