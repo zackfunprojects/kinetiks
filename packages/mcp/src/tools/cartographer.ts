@@ -223,6 +223,7 @@ async function runFullOnboarding(
 
   // Step 1: Crawl the website
   parts.push("## Step 1: Website Crawl");
+  let crawlExtractions: Record<string, unknown> | undefined;
   try {
     const crawlResult = await postLong<Record<string, unknown>>("/api/cartographer/crawl", { url });
     const proposalCount = Array.isArray(crawlResult.proposals_submitted)
@@ -230,9 +231,9 @@ async function runFullOnboarding(
       : 0;
     parts.push(`Crawled ${url} - ${proposalCount} proposals submitted.`);
 
-    const extractions = crawlResult.extractions as Record<string, unknown> | undefined;
-    if (extractions) {
-      const layers = Object.keys(extractions).filter((k) => extractions[k] != null);
+    crawlExtractions = crawlResult.extractions as Record<string, unknown> | undefined;
+    if (crawlExtractions) {
+      const layers = Object.keys(crawlExtractions).filter((k) => crawlExtractions![k] != null);
       parts.push(`Extracted layers: ${layers.join(", ")}`);
     }
   } catch (err) {
@@ -240,6 +241,9 @@ async function runFullOnboarding(
     parts.push(`Crawl failed: ${msg} - continuing with other steps.`);
   }
   parts.push("");
+
+  // Build business context from crawl extractions for auto-answering
+  const businessContext = buildBusinessContext(url, crawlExtractions);
 
   // Step 2: Adaptive questions (max 5 rounds)
   parts.push("## Step 2: Adaptive Questions");
@@ -268,8 +272,18 @@ async function runFullOnboarding(
       const questionText = question.question as string;
       questionHistory.push(questionText);
 
-      // Auto-answer: tell the API to use what it knows from the crawl
-      const autoAnswer = `Based on the website at ${url}, please use the data already extracted from the crawl to fill this in. I trust the crawled data.`;
+      // Generate a substantive, Claude-synthesized answer
+      let autoAnswer: string;
+      try {
+        const answerResult = await post<{ answer: string }>("/api/cartographer/auto-answer", {
+          question: questionText,
+          businessContext,
+        });
+        autoAnswer = answerResult.answer;
+      } catch {
+        // Fallback if auto-answer endpoint fails
+        autoAnswer = businessContext;
+      }
 
       const aResult = await post<Record<string, unknown>>("/api/cartographer/conversation", {
         action: "submit_answer",
@@ -373,4 +387,89 @@ async function runFullOnboarding(
   }
 
   return { content: [{ type: "text", text: parts.join("\n") }] };
+}
+
+/**
+ * Build a business context summary from crawl extractions for auto-answering.
+ * Serializes the extracted data into a readable format that Claude can use
+ * to generate substantive answers.
+ */
+function buildBusinessContext(
+  url: string,
+  extractions: Record<string, unknown> | undefined
+): string {
+  const lines: string[] = [`Website: ${url}`];
+
+  if (!extractions) {
+    lines.push("No data was extracted from the website crawl.");
+    return lines.join("\n");
+  }
+
+  // Extract org data
+  const org = extractionData(extractions.org);
+  if (org) {
+    if (org.company_name) lines.push(`Company: ${org.company_name}`);
+    if (org.industry) lines.push(`Industry: ${org.industry}`);
+    if (org.description) lines.push(`Description: ${org.description}`);
+    if (org.geography) lines.push(`Location: ${org.geography}`);
+    if (org.stage) lines.push(`Stage: ${org.stage}`);
+    if (org.team_size) lines.push(`Team size: ${org.team_size}`);
+  }
+
+  // Extract products data
+  const products = extractionData(extractions.products);
+  if (products?.products && Array.isArray(products.products)) {
+    for (const p of products.products) {
+      if (p && typeof p === "object") {
+        const prod = p as Record<string, unknown>;
+        lines.push(`\nProduct: ${prod.name ?? "Unknown"}`);
+        if (prod.description) lines.push(`  ${prod.description}`);
+        if (prod.value_prop) lines.push(`  Value prop: ${prod.value_prop}`);
+        if (prod.pricing_detail) lines.push(`  Pricing: ${prod.pricing_detail}`);
+        if (Array.isArray(prod.differentiators) && prod.differentiators.length > 0) {
+          lines.push(`  Differentiators: ${(prod.differentiators as string[]).join(", ")}`);
+        }
+        if (prod.target_persona) lines.push(`  Target: ${prod.target_persona}`);
+      }
+    }
+  }
+
+  // Extract voice summary
+  const voice = extractionData(extractions.voice);
+  if (voice?.tone && typeof voice.tone === "object") {
+    const tone = voice.tone as Record<string, number>;
+    lines.push(`\nVoice: formality ${tone.formality ?? "?"}/100, warmth ${tone.warmth ?? "?"}/100, authority ${tone.authority ?? "?"}/100`);
+  }
+
+  // Extract narrative
+  const narrative = extractionData(extractions.narrative);
+  if (narrative) {
+    if (narrative.origin_story) lines.push(`\nOrigin: ${narrative.origin_story}`);
+    if (narrative.founder_thesis) lines.push(`Thesis: ${narrative.founder_thesis}`);
+  }
+
+  // Extract competitive (if available from crawl)
+  const competitive = extractionData(extractions.competitive);
+  if (competitive?.competitors && Array.isArray(competitive.competitors)) {
+    const names = (competitive.competitors as Array<Record<string, unknown>>)
+      .map((c) => c.name)
+      .filter(Boolean);
+    if (names.length > 0) {
+      lines.push(`\nCompetitive landscape: ${names.join(", ")}`);
+    }
+  }
+
+  return lines.join("\n");
+}
+
+/**
+ * Safely extract the data field from a crawl extraction result.
+ */
+function extractionData(
+  extraction: unknown
+): Record<string, unknown> | null {
+  if (!extraction || typeof extraction !== "object") return null;
+  const ext = extraction as Record<string, unknown>;
+  if (!ext.success || !ext.data || typeof ext.data !== "object") return null;
+  return ext.data as Record<string, unknown>;
 }

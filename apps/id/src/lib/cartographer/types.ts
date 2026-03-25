@@ -8,6 +8,8 @@ import type {
   ProductsData,
   VoiceData,
   NarrativeData,
+  CompetitiveData,
+  MarketData,
 } from "@kinetiks/types";
 import type { EvaluationResult } from "@/lib/cortex/evaluate";
 
@@ -50,6 +52,8 @@ export interface CrawlResult {
     brand: ExtractionResult<Partial<BrandLayer>>;
     narrative: ExtractionResult<Partial<NarrativeData>>;
     social_links: ExtractionResult<Record<string, string>>;
+    competitive: ExtractionResult<Partial<CompetitiveData>>;
+    market: ExtractionResult<Partial<MarketData>>;
   };
   proposals_submitted: string[];
   evaluation_results: EvaluationResult[];

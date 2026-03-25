@@ -6,6 +6,7 @@ import { extractBrand } from "./extract-brand";
 import { extractOrg } from "./extract-org";
 import { extractVoice } from "./extract-voice";
 import { extractSocial } from "./extract-social";
+import { extractPositioning } from "./extract-positioning";
 import { submitProposal, logToLedger } from "./submit";
 import type { CrawlResult, ExtractionResult, ProposalInsert } from "./types";
 
@@ -133,6 +134,8 @@ export async function crawlAndExtract(
         brand: { success: false, data: null, error: "invalid_url", source_url: fallbackUrl },
         narrative: { success: false, data: null, error: "invalid_url", source_url: fallbackUrl },
         social_links: { success: false, data: null, error: "invalid_url", source_url: fallbackUrl },
+        competitive: { success: false, data: null, error: "invalid_url", source_url: fallbackUrl },
+        market: { success: false, data: null, error: "invalid_url", source_url: fallbackUrl },
       },
       proposals_submitted: [],
       evaluation_results: [],
@@ -149,6 +152,8 @@ export async function crawlAndExtract(
       brand: { success: false, data: null, error, source_url: normalizedUrl },
       narrative: { success: false, data: null, error, source_url: normalizedUrl },
       social_links: { success: false, data: null, error, source_url: normalizedUrl },
+      competitive: { success: false, data: null, error, source_url: normalizedUrl },
+      market: { success: false, data: null, error, source_url: normalizedUrl },
     },
     proposals_submitted: [],
     evaluation_results: [],
@@ -180,18 +185,20 @@ export async function crawlAndExtract(
   }
 
   // ── Step 2: Run extractors in parallel ──
-  const [orgSettled, voiceSettled, brandSettled, socialSettled] =
+  const [orgSettled, voiceSettled, brandSettled, socialSettled, positioningSettled] =
     await Promise.allSettled([
       extractOrg(markdown, normalizedUrl),
       extractVoice(markdown, normalizedUrl),
       extractBrand(html, normalizedUrl),
       extractSocial(html, markdown, normalizedUrl),
+      extractPositioning(markdown, normalizedUrl),
     ]);
 
   const orgResult = settledValue(orgSettled, normalizedUrl);
   const voiceResult = settledValue(voiceSettled, normalizedUrl);
   const brandResult = settledValue(brandSettled, normalizedUrl);
   const socialResult = settledValue(socialSettled, normalizedUrl);
+  const positioningResult = settledValue(positioningSettled, normalizedUrl);
 
   // ── Step 3: Build and submit Proposals ──
   const proposals: ProposalInsert[] = [];
@@ -249,6 +256,30 @@ export async function crawlAndExtract(
     );
   }
 
+  // Competitive layer (from positioning extractor)
+  if (positioningResult.success && positioningResult.data?.competitive) {
+    proposals.push(
+      buildProposal(
+        accountId,
+        "competitive",
+        positioningResult.data.competitive as Record<string, unknown>,
+        normalizedUrl
+      )
+    );
+  }
+
+  // Market layer (from positioning extractor)
+  if (positioningResult.success && positioningResult.data?.market) {
+    proposals.push(
+      buildProposal(
+        accountId,
+        "market",
+        positioningResult.data.market as Record<string, unknown>,
+        normalizedUrl
+      )
+    );
+  }
+
   // Submit all proposals in parallel
   const submittedIds: string[] = [];
   const evalResults: EvaluationResult[] = [];
@@ -289,6 +320,12 @@ export async function crawlAndExtract(
       social_links: socialResult.data?.social_links && Object.keys(socialResult.data.social_links).length > 0
         ? { success: true, data: socialResult.data.social_links, error: null, source_url: normalizedUrl }
         : { success: false, data: null, error: socialResult.error ?? "no_social_links", source_url: normalizedUrl },
+      competitive: positioningResult.data?.competitive
+        ? { success: true, data: positioningResult.data.competitive, error: null, source_url: normalizedUrl }
+        : { success: false, data: null, error: positioningResult.error ?? "no_competitive_data", source_url: normalizedUrl },
+      market: positioningResult.data?.market
+        ? { success: true, data: positioningResult.data.market, error: null, source_url: normalizedUrl }
+        : { success: false, data: null, error: positioningResult.error ?? "no_market_data", source_url: normalizedUrl },
     },
     proposals_submitted: submittedIds,
     evaluation_results: evalResults,

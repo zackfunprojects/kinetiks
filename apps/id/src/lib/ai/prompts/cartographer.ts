@@ -179,6 +179,108 @@ ${markdown}
 Extract the narrative elements from this content.`;
 }
 
+// ---------------------------------------------------------------------------
+// Positioning Extraction (competitive + market)
+// ---------------------------------------------------------------------------
+
+export const CARTOGRAPHER_POSITIONING_EXTRACTION_PROMPT = `You are a competitive intelligence analyst for Kinetiks AI. Analyze the website content below and extract competitive positioning and market context.
+
+IMPORTANT: Competitors may be IMPLICIT, not just named companies. If the site says "unlike agencies" or "no more retainers", the competitor is "Traditional Marketing Agencies" as a category. Look for:
+- Direct named competitors
+- Competitor categories (agencies, freelancers, platforms, consultants, etc.)
+- "Unlike X", "instead of X", "not another X" language
+- Differentiation claims that imply a competitive landscape
+- Pricing comparisons or value framing against alternatives
+
+For market data, INFER trends from the product's value proposition, industry, and positioning. Use your knowledge of the industry to identify real, current trends.
+
+Extract into this exact JSON structure:
+
+{
+  "competitive": {
+    "competitors": [
+      {
+        "name": "string - company name or category name",
+        "website": "string | null",
+        "positioning": "string - how this competitor positions itself",
+        "strengths": ["string"],
+        "weaknesses": ["string - as implied by the site's differentiation claims"],
+        "narrative_territory": "string | null - how they tell their story"
+      }
+    ],
+    "positioning_gaps": ["string - gaps in the market this company exploits"],
+    "differentiation_vectors": ["string - how this company differentiates itself"]
+  },
+  "market": {
+    "trends": [
+      {
+        "topic": "string",
+        "direction": "rising | falling | stable | emerging",
+        "relevance": "direct | adjacent | background"
+      }
+    ],
+    "media_sentiment": {
+      "topic": "string - the primary market topic",
+      "sentiment": "positive | neutral | negative",
+      "source_count": 0
+    },
+    "seasonal_patterns": ["string - any seasonal patterns relevant to this business"],
+    "regulatory_signals": []
+  }
+}
+
+Rules:
+- Include 1-5 competitors (categories count as competitors)
+- Include 1-5 market trends, mixing direct and adjacent relevance
+- Use your knowledge of the industry to fill in competitor strengths/weaknesses and market trends beyond what the page explicitly states
+- positioning_gaps and differentiation_vectors: max 5 each, concrete and specific
+- Respond with ONLY valid JSON. No text before or after.`;
+
+export function buildPositioningExtractionPrompt(
+  markdown: string,
+  url: string
+): string {
+  return `Website URL: ${url}
+
+Website content:
+${markdown}
+
+Extract competitive positioning and market context from this website. Identify both explicit and implicit competitors, and infer market trends from the product's positioning and industry.`;
+}
+
+// ---------------------------------------------------------------------------
+// Auto-Answer Generation (for onboard_me)
+// ---------------------------------------------------------------------------
+
+export const AUTO_ANSWER_GENERATION_PROMPT = `You are a business analyst helping complete a company's Kinetiks ID profile. You are given a question about the business and context about what is already known.
+
+Your job: generate the BEST POSSIBLE answer to the question using:
+1. The provided business context (from their website)
+2. Your general knowledge of the industry, market, and competitive landscape
+3. Reasonable inferences based on the company's positioning, products, and target market
+
+Rules:
+- Be SPECIFIC. Name real competitors, real trends, real market dynamics.
+- Write 3-6 sentences. Dense with information, no filler.
+- If the question is about competitors, name the actual competitive categories and specific companies where you know them.
+- If the question is about market trends, cite real industry trends relevant to their space.
+- If the question is about customers, describe specific personas with real pain points.
+- Ground everything in the business context provided, but go beyond it with your knowledge.
+- Write as if you are the business owner answering the question knowledgeably.
+- No hedging language. State things directly.`;
+
+export function buildAutoAnswerPrompt(
+  question: string,
+  businessContext: string
+): string {
+  return `Business context:
+${businessContext}
+
+Question: ${question}
+
+Generate a detailed, substantive answer to this question about the business. Use the context above plus your general knowledge of the industry.`;
+}
+
 /**
  * Build the user prompt for subjective brand classification.
  */
