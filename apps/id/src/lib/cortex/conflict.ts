@@ -122,12 +122,50 @@ export async function detectConflict(
   const existingPriority = SOURCE_PRIORITY[normalizedExistingSource] ?? 0;
   const proposalPriority = CONFIDENCE_PRIORITY[proposal.confidence] ?? 1;
 
-  // Rule 1: User explicit data is SACRED
+  // Rule 1: User explicit data is SACRED - but only for scalar overwrites.
+  // Array fields (messaging_patterns, personas, competitors, etc.) can be
+  // EXTENDED with new entries even when the layer source is user_explicit.
+  // The merge step (deepMerge in evaluate.ts) concatenates arrays rather
+  // than replacing them, so existing user entries are preserved.
   if (existingSource === "user_explicit") {
+    const scalarConflicts = conflictingFields.filter((field) => {
+      const existingVal = existingData[field];
+      const proposedVal = proposal.payload[field];
+      // Array fields: allow additive proposals (new items appended, not replaced)
+      if (Array.isArray(existingVal) && Array.isArray(proposedVal)) {
+        return false; // Not a true conflict - merge will concat + dedup
+      }
+      // Object fields: allow if proposal adds new keys to the object
+      if (
+        typeof existingVal === "object" &&
+        !Array.isArray(existingVal) &&
+        existingVal !== null &&
+        typeof proposedVal === "object" &&
+        !Array.isArray(proposedVal) &&
+        proposedVal !== null
+      ) {
+        const existingKeys = Object.keys(existingVal as Record<string, unknown>);
+        const proposedKeys = Object.keys(proposedVal as Record<string, unknown>);
+        const newKeys = proposedKeys.filter((k) => !existingKeys.includes(k));
+        if (newKeys.length > 0) return false; // Has new keys - allow merge
+      }
+      return true; // Scalar overwrite - block
+    });
+
+    if (scalarConflicts.length > 0) {
+      return {
+        has_conflict: true,
+        action: "decline",
+        reason: `user_data_sacred: fields [${scalarConflicts.join(", ")}] were set by user`,
+        existing_source: existingSource,
+      };
+    }
+
+    // All conflicts are array/object extensions - allow the merge
     return {
-      has_conflict: true,
-      action: "decline",
-      reason: `user_data_sacred: fields [${conflictingFields.join(", ")}] were set by user`,
+      has_conflict: false,
+      action: "accept",
+      reason: `user_data_extended: array/object fields [${conflictingFields.join(", ")}] extended (user entries preserved)`,
       existing_source: existingSource,
     };
   }
