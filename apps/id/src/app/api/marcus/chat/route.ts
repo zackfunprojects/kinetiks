@@ -144,7 +144,8 @@ export async function POST(request: Request) {
       },
     });
   } catch (err) {
-    console.error("Marcus chat error:", err instanceof Error ? err.message : err, err instanceof Error ? err.stack : "");
-    return apiError("Internal server error", 500);
+    const errMsg = err instanceof Error ? err.message : String(err);
+    console.error("Marcus chat error:", errMsg, err instanceof Error ? err.stack : "");
+    return apiError(`Marcus pipeline failed: ${errMsg}`, 500);
   }
 }
