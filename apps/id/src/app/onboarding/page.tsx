@@ -35,17 +35,17 @@ function OnboardingContent() {
       try {
         const res = await fetch("/api/account/create", { method: "POST" });
         const json = await res.json();
+        console.log("[onboarding] /api/account/create response:", res.status, json);
 
         if (!res.ok) {
-          // API envelope: { success: false, error: "..." }
-          setError(json.error ?? "Failed to create account");
+          setError(json.error ?? `Account creation failed (${res.status})`);
           return;
         }
 
-        // API envelope: { success: true, data: { account: {...} } }
+        // Support both envelope { success, data: { account } } and flat { account }
         const acct = json.data?.account ?? json.account;
         if (!acct) {
-          setError("Invalid response from server");
+          setError(`Invalid response shape: ${JSON.stringify(Object.keys(json))}`);
           return;
         }
         setAccount(acct);
@@ -75,18 +75,27 @@ function OnboardingContent() {
     );
   }
 
-  if (error) {
+  if (error || !account) {
     return (
       <main
         className="flex min-h-screen items-center justify-center"
-        style={{ background: "var(--bg-base)" }}
+        style={{ background: "#0F0F1A" }}
       >
         <div className="text-center">
-          <p className="text-sm" style={{ color: "var(--error)" }}>{error}</p>
+          <p className="text-sm" style={{ color: "#EF4444" }}>
+            {error ?? "Failed to load account. Please try again."}
+          </p>
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-4 mr-3 rounded-lg px-6 py-2.5 text-sm font-semibold"
+            style={{ background: "#6C5CE7", color: "#FFFFFF" }}
+          >
+            Retry
+          </button>
           <button
             onClick={() => router.push("/login")}
             className="mt-4 rounded-lg px-6 py-2.5 text-sm font-semibold"
-            style={{ background: "var(--accent-emphasis)", color: "var(--text-on-accent)" }}
+            style={{ background: "#333", color: "#FFFFFF" }}
           >
             Back to login
           </button>
@@ -94,8 +103,6 @@ function OnboardingContent() {
       </main>
     );
   }
-
-  if (!account) return null;
 
   return <OnboardingFlow account={account} fromApp={fromApp} />;
 }
