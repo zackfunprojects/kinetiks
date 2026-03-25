@@ -217,6 +217,12 @@ function LoginForm() {
             Sign up
           </Link>
         </p>
+
+        <div style={{ textAlign: "center", marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border-muted)" }}>
+          <Link href="/developers" style={{ fontSize: 12, color: "var(--text-tertiary)", textDecoration: "none" }}>
+            Developer docs &amp; API reference
+          </Link>
+        </div>
       </div>
     </main>
   );
