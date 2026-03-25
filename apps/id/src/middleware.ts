@@ -2,7 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const PUBLIC_ROUTES = ["/login", "/signup", "/callback"];
+const PUBLIC_ROUTES = ["/login", "/signup", "/callback", "/onboarding", "/developers"];
 
 function getCookieDomain(request: NextRequest): string | undefined {
   const cookieDomain = process.env.COOKIE_DOMAIN;

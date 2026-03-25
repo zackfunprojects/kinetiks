@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { createBrowserClient } from "@supabase/ssr";
+import { useRouter } from "next/navigation";
 import type { ContextFillStatus } from "@/lib/cartographer/conversation";
 import { ProgressBar } from "./ProgressBar";
 import { EducationScreen } from "./EducationScreen";
@@ -25,7 +27,19 @@ const STEPS = ["Welcome", "Website", "Questions", "Voice", "Samples", "Done"];
 export function OnboardingFlow({ account, fromApp }: OnboardingFlowProps) {
   const [step, setStep] = useState(0);
   const [fillStatus, setFillStatus] = useState<ContextFillStatus | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
   const hasCheckedResumeRef = useRef(false);
+  const router = useRouter();
+
+  const handleSignOut = async () => {
+    setSigningOut(true);
+    const supabase = createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+    await supabase.auth.signOut();
+    router.push("/login");
+  };
 
   // On mount, check if we can resume from a later step
   useEffect(() => {
@@ -109,6 +123,24 @@ export function OnboardingFlow({ account, fromApp }: OnboardingFlowProps) {
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg-base)" }}>
+      <div style={{ display: "flex", justifyContent: "flex-end", padding: "16px 24px" }}>
+        <button
+          onClick={handleSignOut}
+          disabled={signingOut}
+          style={{
+            background: "transparent",
+            border: "none",
+            color: "var(--text-tertiary)",
+            fontSize: 13,
+            cursor: "pointer",
+            padding: "4px 8px",
+            borderRadius: 6,
+            opacity: signingOut ? 0.5 : 1,
+          }}
+        >
+          {signingOut ? "Signing out..." : "Sign out"}
+        </button>
+      </div>
       <ProgressBar currentStep={step} steps={STEPS} />
 
       <div className="mx-auto max-w-3xl px-4 pb-16">
