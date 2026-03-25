@@ -102,7 +102,8 @@ export async function PUT(
     );
 
   if (upsertError) {
-    return apiError("Failed to save context data", 500);
+    console.error(`Upsert failed for ${tableName} (account ${auth.account_id}):`, upsertError.message);
+    return apiError(`Failed to save context data: ${upsertError.message}`, 500);
   }
 
   // Log to ledger and recalculate confidence (non-blocking - upsert already succeeded)
@@ -158,7 +159,14 @@ export async function PATCH(
   const { auth, error } = await requireAuth(request, { permissions: "read-write" });
   if (error) return error;
 
-  const body = await request.json();
+  let body: Record<string, unknown>;
+  try {
+    const parsed: unknown = await request.json();
+    if (!parsed || typeof parsed !== "object") return apiError("Invalid JSON body", 400);
+    body = parsed as Record<string, unknown>;
+  } catch {
+    return apiError("Invalid JSON body", 400);
+  }
   const { data: patchData } = body as { data: Record<string, unknown> };
 
   if (!patchData || typeof patchData !== "object" || Array.isArray(patchData)) {
@@ -203,7 +211,8 @@ export async function PATCH(
     );
 
   if (upsertError) {
-    return apiError("Failed to save context data", 500);
+    console.error(`Upsert failed for ${tableName} (account ${auth.account_id}):`, upsertError.message);
+    return apiError(`Failed to save context data: ${upsertError.message}`, 500);
   }
 
   let layerConfidence: number | undefined;

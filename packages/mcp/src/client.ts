@@ -81,8 +81,27 @@ async function request<T>(
     });
 
     if (!response.ok && response.status >= 500) {
+      let serverMessage = response.statusText;
+      try {
+        const errorBody = await response.json() as Record<string, unknown>;
+        if (errorBody.error && typeof errorBody.error === "string") {
+          serverMessage = errorBody.error;
+        }
+        if (errorBody.details) {
+          throw new KineticsApiError(
+            `Server error ${response.status}: ${serverMessage}`,
+            response.status,
+            errorBody.details
+          );
+        }
+      } catch (parseErr) {
+        if (parseErr instanceof KineticsApiError) throw parseErr;
+        // JSON parse failed, try raw text
+        const rawText = await response.text().catch(() => "");
+        if (rawText) serverMessage = rawText.slice(0, 300);
+      }
       throw new KineticsApiError(
-        `Server error: ${response.status} ${response.statusText}`,
+        `Server error ${response.status}: ${serverMessage}`,
         response.status
       );
     }
