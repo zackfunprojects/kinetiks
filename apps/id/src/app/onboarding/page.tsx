@@ -23,6 +23,7 @@ function OnboardingContent() {
   const fromApp = searchParams.get("from");
 
   const [account, setAccount] = useState<Account | null>(null);
+  const [bootstrapKey, setBootstrapKey] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const hasInitRef = useRef(false);
@@ -43,12 +44,14 @@ function OnboardingContent() {
         }
 
         // Support both envelope { success, data: { account } } and flat { account }
-        const acct = json.data?.account ?? json.account;
+        const envelope = json.data ?? json;
+        const acct = envelope.account;
         if (!acct) {
           setError(`Invalid response shape: ${JSON.stringify(Object.keys(json))}`);
           return;
         }
         setAccount(acct);
+        setBootstrapKey(envelope.bootstrap_key ?? null);
       } catch {
         setError("Something went wrong. Please try again.");
       } finally {
@@ -104,5 +107,5 @@ function OnboardingContent() {
     );
   }
 
-  return <OnboardingFlow account={account} fromApp={fromApp} />;
+  return <OnboardingFlow account={account} fromApp={fromApp} bootstrapKey={bootstrapKey} />;
 }
