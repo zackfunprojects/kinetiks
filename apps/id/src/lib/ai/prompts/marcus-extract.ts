@@ -13,8 +13,18 @@ Extract into these categories:
    - target_layer: one of "org", "products", "voice", "customers", "narrative", "competitive", "market", "brand"
    - action: "add" (new info), "update" (refine existing), or "escalate" (needs user confirmation)
    - confidence: "validated" (confirmed by data/outcome), "inferred" (reasonable conclusion), "speculative" (pattern, uncertain)
-   - payload: the structured data to add/update (key-value pairs matching the layer schema)
+   - payload: MUST use ONLY the exact field names from the layer schemas below. Unknown fields will be rejected.
    - evidence_summary: brief explanation of why this was extracted
+
+   **CRITICAL - Layer field schemas (use ONLY these field names in payload):**
+   - org: { company_name, legal_entity, industry, sub_industry, stage, founded_year, geography, team_size, funding_status, website, description }
+   - products: { products: [{ name, description, value_prop, pricing_model, pricing_detail, features[], differentiators[], target_persona }] }
+   - voice: { tone: { formality, warmth, humor, authority }, vocabulary: { jargon_level, sentence_complexity }, messaging_patterns: [{ context, pattern, performance }], writing_samples[], calibration_data[], platform_variants: {} }
+   - customers: { personas: [{ name, role, company_type, pain_points[], buying_triggers[], objections[], conversion_signals[] }], demographics: { age_range, geography, company_size }, analytics_data: {} }
+   - narrative: { origin_story, founder_thesis, why_now, brand_arc, validated_angles: [{ angle, validation_source, performance }], media_positioning }
+   - competitive: { competitors: [{ name, website, positioning, strengths[], weaknesses[], narrative_territory }], positioning_gaps[], differentiation_vectors[] }
+   - market: { trends: [{ topic, direction, relevance }], media_sentiment: { topic, sentiment, source_count }, seasonal_patterns[], regulatory_signals[] }
+   - brand: { colors: {}, typography: {}, tokens: {}, imagery: {}, motion: {}, modes: {}, accessibility: {}, logo: {}, social_visual_id: {} }
 
 2. **briefs** - Action items for specific apps. Only extract when the user agrees to or requests app-level actions.
    - target_app: "dark_madder", "harvest", "hypothesis", or "litmus"
