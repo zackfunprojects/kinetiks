@@ -33,6 +33,7 @@ kinetiks/
     supabase/                  # @kinetiks/supabase - Clients (browser/server/admin), auth middleware
     synapse/                   # @kinetiks/synapse - Synapse interface, template, Proposal builder helpers
     ai/                        # @kinetiks/ai - Claude API wrapper, shared prompt utilities
+    mcp/                       # @kinetiks/mcp - MCP server for Claude Code / AI agent integration
   supabase/
     migrations/                # ALL database migrations (shared DB), numbered sequentially
     seed.sql                   # Dev seed data
@@ -399,7 +400,7 @@ kinetiks_accounts (
 -- 8 Context Structure layer tables (same pattern, different jsonb schemas)
 kinetiks_context_org (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  account_id uuid REFERENCES kinetiks_accounts NOT NULL,
+  account_id uuid REFERENCES kinetiks_accounts NOT NULL UNIQUE, -- UNIQUE required for upsert onConflict
   data jsonb NOT NULL DEFAULT '{}',
   confidence_score numeric(5,2) DEFAULT 0,
   source text NOT NULL,                    -- 'user_explicit', 'user_implicit', 'cartographer', 'synapse:{app}'
@@ -410,6 +411,7 @@ kinetiks_context_org (
 -- Repeat pattern for: kinetiks_context_products, kinetiks_context_voice,
 -- kinetiks_context_customers, kinetiks_context_narrative,
 -- kinetiks_context_competitive, kinetiks_context_market, kinetiks_context_brand
+-- IMPORTANT: Each table MUST have UNIQUE(account_id) for upsert({ onConflict: "account_id" }) to work.
 
 -- Proposal queue
 kinetiks_proposals (
@@ -530,7 +532,7 @@ kinetiks_marcus_threads (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   account_id uuid REFERENCES kinetiks_accounts NOT NULL,
   title text,                              -- auto-generated summary
-  channel text DEFAULT 'web',              -- 'web', 'slack', 'pill'
+  channel text DEFAULT 'web',              -- 'web', 'slack', 'pill', 'mcp'
   slack_thread_ts text,                    -- Slack thread timestamp for sync
   pinned boolean DEFAULT false,
   created_at timestamptz DEFAULT now(),
@@ -776,11 +778,13 @@ interface Evidence {
 
 ### Ownership Hierarchy (conflict resolution)
 
-1. User explicit (typed or uploaded) - SACRED, never override
+1. User explicit (typed or uploaded) - SACRED for scalar fields, ADDITIVE for arrays/objects
 2. User implicit (edits, calibration choices) - strong signal
 3. Validated Proposals (confirmed by real outcomes)
 4. Inferred Proposals (AI analysis, unconfirmed)
 5. Speculative Proposals (patterns, low certainty)
+
+**Critical nuance on "sacred":** User-explicit data is sacred means scalar fields (company_name, industry, description) can never be overwritten by AI proposals. But array fields (messaging_patterns, personas, competitors, trends) and object fields with new keys CAN be extended by proposals. The merge step concatenates arrays and deduplicates, preserving all user entries while allowing new intelligence to accumulate. This is essential - a user setting initial messaging_patterns should not block Marcus from adding new patterns discovered through real deal outcomes. See `lib/cortex/conflict.ts` for the implementation.
 
 ### Lifecycle Statuses
 
@@ -824,9 +828,11 @@ Domain scores visible in the Context Structure detail view but not prominently.
 **Role:** Intake agent. Builds the initial Context Structure. Can be re-invoked.
 
 **Three intelligence modes:**
-1. **Crawl + Extract** - user provides URL. Crawl website. Extract org, products, voice (from copy), brand (colors, fonts, tokens from CSS/HTML), social links. One URL fills 4-5 layers partially.
+1. **Crawl + Extract** - user provides URL. Crawl website. Runs 5 extractors in parallel: org/products (Sonnet), voice (Sonnet), brand (CSS parsing + Haiku), social/narrative (regex + Haiku), and **competitive/market positioning** (Sonnet). The positioning extractor (`extract-positioning.ts`) identifies implicit competitors from copy language ("unlike agencies...", "no markups...") and infers market trends from the value proposition. One URL fills 6-8 layers.
 2. **Connected Data** - OAuth/API connections to GA4, GSC, Stripe, CRM, social accounts, email platforms. Each connection enriches specific layers with ground truth data.
 3. **Guided Conversation** - 5-8 adaptive questions informed by what's already captured. Each question fills multiple layers. Voice calibration exercises (pick-which-you-prefer, upload samples).
+
+**Auto-answer endpoint** (`POST /api/cartographer/auto-answer`): Takes a question + business context, uses Sonnet to generate a substantive, research-quality answer leveraging both the crawl data and Claude's general industry knowledge. Used by the MCP `onboard_me` tool and the onboarding UI's AI fill feature to generate real answers (with specific competitor names, market trends, etc.) rather than generic placeholders.
 
 **Runs:** During onboarding. On-demand when user edits ID. Triggered when new data connection added.
 
@@ -1066,10 +1072,10 @@ The Bloomify Chrome extension can continue to exist as a lightweight companion t
 
 - **No em dashes.** Use regular dashes (-) in all copy and generated text. This is a Zack Holland brand rule.
 - **Seeds currency** is shared across all Kinetiks Apps. The ID tracks seeds balance. Individual apps deduct seeds for actions.
-- **BYOK model for v1.** Users bring their own API keys for Claude, PDL, etc. Managed tier planned for v2.
+- **Platform Anthropic key for core, BYOK wired for future.** The server-side ANTHROPIC_API_KEY powers all Cartographer, Marcus, and Cortex operations for all users. The `askClaude` function accepts an optional `apiKey` param for user-supplied keys (BYOK), but this is not yet exposed to users. The platform key is the one that matters for deployment.
 - **Supabase Realtime** for routing events. Each registered Synapse gets a dedicated channel.
 - **Append-only Learning Ledger.** Never delete ledger entries. Ever. This is the audit trail.
-- **User data is sacred.** The Cortex evaluation pipeline must never override user-explicit data. This is Rule 5 of the communication rules and Priority 1 in the ownership hierarchy. Build it as an early-exit condition in the conflict detection step.
+- **User data is sacred - but additive updates are allowed.** Scalar fields set by the user (company_name, description, etc.) can never be overwritten by AI. But array fields (messaging_patterns, personas, competitors) can be EXTENDED with new entries. The merge concatenates and deduplicates, preserving user entries. This is critical - without it, the system can never learn from real outcomes. See `lib/cortex/conflict.ts`.
 - **Own domains for marketing, kinetiks subdomains for apps.** darkmadder.com is the marketing site, dm.kinetiks.ai is the app. CTA on marketing sites links to id.kinetiks.ai/signup?from={app}.
 - **Shared auth across subdomains.** One Supabase Auth project, cookie domain `.kinetiks.ai`. Log in once, authenticated everywhere.
 - **Post-onboarding goes straight to the app.** No dashboard tour, no ID overview. If a user came from Dark Madder, they land in Dark Madder. The ID dashboard is always accessible via the floating pill.
@@ -1119,6 +1125,108 @@ Fresh build in apps/hv/ with transplanted Bloomify logic. Contact management, ou
 
 ### Phase 10+: Hypothesis + Litmus
 Built fresh in apps/ht/ and apps/lt/. Kinetiks-native from day one. See individual app spec documents.
+
+---
+
+## MCP Server (packages/mcp)
+
+The `@kinetiks/mcp` package is a Model Context Protocol server that lets Claude Code (or any MCP client) interact with the Kinetiks ID. Published to npm as `@kinetiks/mcp`, binary `kinetiks-mcp`.
+
+**Architecture:** MCP Server (stdio transport) -> HTTP client -> Kinetiks ID API (id.kinetiks.ai)
+
+**Auth:** Bearer token via `KINETIKS_API_KEY` env var (format: `kntk_*`). API keys are created at id.kinetiks.ai/settings and validated via `requireAuth()` with rate limiting.
+
+**30+ tools in 6 categories:**
+- Context: get/update all 8 layers, get confidence, get schema
+- Cartographer: crawl_website, analyze_content, calibration, onboarding questions, **onboard_me** (fully automated end-to-end)
+- Approvals: list/resolve proposals
+- Connections: list data sources
+- Marcus: chat_with_marcus (SSE streaming with thread support)
+- Summary: daily_brief, context_summary
+
+**Key implementation details:**
+- `client.ts` reads 500 error response bodies for debugging (read as text first, then parse as JSON)
+- `postSSE()` handles Marcus streaming (text/event-stream with thread_id, text, extraction, done events)
+- `onboard_me` builds a business context string from crawl extractions and uses `/api/cartographer/auto-answer` to generate Claude-synthesized answers for each adaptive question
+- The `buildBusinessContext()` function serializes crawl extractions into a readable summary for auto-answer prompts
+
+**MCP config (`.mcp.json`):**
+```json
+{
+  "mcpServers": {
+    "kinetiks": {
+      "command": "npx",
+      "args": ["-y", "@kinetiks/mcp"],
+      "env": {
+        "KINETIKS_API_KEY": "kntk_...",
+        "KINETIKS_API_URL": "https://id.kinetiks.ai"
+      }
+    }
+  }
+}
+```
+
+---
+
+## Onboarding UX Architecture
+
+The onboarding is a 6-step wizard using a Firecrawl-inspired layout:
+
+**Shared components (apps/id/src/components/onboarding/):**
+- `StepWrapper.tsx` - Unified card layout with step counter ("STEP X OF Y"), OPTIONAL badge, title/subtitle, and Back/Skip/Continue nav bar
+- `DotProgress.tsx` - Minimal dot progress indicator (pill-shaped active dot)
+- `AiFillBanner.tsx` - "Let AI fill this step" banner for fillable steps
+- `SparkleButton.tsx` - Per-field inline AI fill button
+
+**Steps:**
+1. EducationScreen - welcome, codename, agent setup
+2. CrawlStep - website URL input + extraction (now includes competitive/market)
+3. ConversationStep - adaptive Q&A with AI auto-fill
+4. CalibrationStep - voice A/B exercises with AI auto-selection
+5. WritingSampleStep - paste samples with AI pull-from-site
+6. CompletionStep - confidence scores + redirect
+
+**AI fill integration:** Every fillable step has an AiFillBanner (fill all) + SparkleButton (per-field). Calls `/api/cartographer/auto-answer` with the question + business context built from crawl extractions. User can edit AI-generated answers before submitting. Disabled when crawl was skipped.
+
+**Business context flow:** OnboardingFlow.tsx captures `crawlData` (CrawlResult) and `businessContext` (string summary) after CrawlStep completes. Both are passed as props to downstream steps for AI fill.
+
+---
+
+## Implementation Lessons (from first integration session)
+
+These are hard-won lessons from building and debugging the system. Future builds must account for these.
+
+### Database
+
+- **UNIQUE constraints are required for upsert.** Every context layer table MUST have `UNIQUE(account_id)` for `upsert({ onConflict: "account_id" })` to work. Without it, Supabase returns a silent error and all writes fail. Migration 00011 added these.
+- **Check constraints on enum columns.** When adding a new channel/status/type value, the DB check constraint must be updated. The `mcp` channel for Marcus threads required migration 00012. Always check constraints before adding new enum values.
+
+### Environment Variables
+
+- **All 3 keys must be set on Vercel:** `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ANTHROPIC_API_KEY`, and `FIRECRAWL_API_KEY`. Missing any of these causes silent failures (500s with no useful error message).
+- **Vercel requires a redeploy** to pick up new env vars. Adding a key in the dashboard is not enough - you must trigger a new deployment.
+- **Use the `/api/health` endpoint** (auth-protected) to verify which env vars are set on the deployed server.
+
+### Proposal Pipeline
+
+- **Proposals must pass schema validation.** Any AI that generates proposals (Marcus extraction, Cartographer conversation) MUST know the exact field names for each layer. Without the schemas in the prompt, LLMs invent field names like `research_priority` that get declined with `unknown_payload_fields`.
+- **evaluateProposal() takes a full Proposal object, not an ID.** Always fetch the complete row from `kinetiks_proposals` before calling `evaluateProposal()`. Passing just the ID causes schema validation to fail silently.
+- **The merge step in evaluate.ts concatenates arrays.** When a proposal is accepted, `deepMerge` in `evaluate.ts` concatenates arrays and deduplicates by JSON stringification. This means array-field proposals ADD to existing data rather than replacing it.
+
+### Error Handling
+
+- **Always include the actual error message in API responses.** Generic messages like "Failed to save context data" make debugging impossible. Include `error.message` from Supabase/Claude in the response.
+- **MCP client must read 500 response bodies.** Read as text first, then try to parse as JSON. Never call both `.json()` and `.text()` on the same Response object (body can only be consumed once).
+
+### AI Prompts
+
+- **Extraction prompts need full schemas.** The Marcus extraction prompt (`marcus-extract.ts`) must include all valid field names for each layer. Otherwise Haiku invents fields that fail schema validation.
+- **Auto-answer quality matters.** The `onboard_me` flow generates answers for adaptive questions. These answers must be substantive (real competitor names, specific market trends, actual industry data) not generic placeholders. The auto-answer endpoint uses Sonnet with a prompt that instructs Claude to leverage both the crawl data AND general industry knowledge.
+- **Competitive positioning is implicit.** Most websites don't name competitors directly. The positioning extractor prompt must tell Claude to look for implicit competitors from language like "unlike agencies", "no markups", "not a fractional CMO".
+
+### Conflict Detection
+
+- **"Sacred" means scalars, not arrays.** The original implementation treated all user-explicit data as untouchable, which blocked the system from ever learning. The fix: scalar overwrites are blocked, but array fields (messaging_patterns, personas, competitors, etc.) allow additive proposals. This is the single most important architectural decision for the system's ability to improve over time.
 
 ---
 
