@@ -6,7 +6,7 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
-    "kinetiks-mcp": "./dist/index.js"
+    "kinetiks-mcp": "dist/index.js"
   },
   "scripts": {
     "build": "tsc",
@@ -15,8 +15,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.12.1",
-    "@kinetiks/types": "workspace:*"
+    "@modelcontextprotocol/sdk": "^1.12.1"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
@@ -26,6 +25,15 @@
   "engines": {
     "node": ">=18"
   },
+  "files": ["dist", "README.md"],
+  "publishConfig": {
+    "access": "public"
+  },
   "keywords": ["kinetiks", "mcp", "ai-agents", "model-context-protocol"],
-  "license": "MIT"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zackfunprojects/kinetiks",
+    "directory": "packages/mcp"
+  }
 }
