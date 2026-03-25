@@ -66,10 +66,9 @@ export function ConnectionsManager({
     try {
       const res = await fetch("/api/connections");
       if (res.ok) {
-        const data = (await res.json()) as {
-          connections: ConnectionPublic[];
-        };
-        setConnections(data.connections);
+        const json = await res.json();
+        const data = json.data ?? json;
+        setConnections((data.connections ?? []) as ConnectionPublic[]);
       }
     } catch {
       // Silently fail on refresh - user still sees initial data
@@ -91,13 +90,13 @@ export function ConnectionsManager({
           body: JSON.stringify({ provider: provider.provider }),
         });
 
-        if (!res.ok) {
-          const data = (await res.json()) as { error: string };
-          setToast({ message: data.error, type: "error" });
+        const json = await res.json();
+        if (!res.ok || !json.success) {
+          setToast({ message: json.error ?? "Connection failed", type: "error" });
           return;
         }
 
-        const data = (await res.json()) as { authorization_url: string };
+        const data = json.data ?? json;
         window.location.href = data.authorization_url;
       } catch {
         setToast({
@@ -118,9 +117,9 @@ export function ConnectionsManager({
           body: JSON.stringify({ provider, api_key: apiKey }),
         });
 
-        if (!res.ok) {
-          const data = (await res.json()) as { error: string };
-          setToast({ message: data.error, type: "error" });
+        const json = await res.json();
+        if (!res.ok || !json.success) {
+          setToast({ message: json.error ?? "Failed to save API key", type: "error" });
           return;
         }
 
@@ -144,13 +143,13 @@ export function ConnectionsManager({
           body: JSON.stringify({ action: "sync" }),
         });
 
-        if (!res.ok) {
-          const data = (await res.json()) as { error: string };
-          setToast({ message: data.error, type: "error" });
+        const syncJson = await res.json();
+        if (!res.ok || !syncJson.success) {
+          setToast({ message: syncJson.error ?? "Sync failed", type: "error" });
           return;
         }
 
-        const data = (await res.json()) as {
+        const data = (syncJson.data ?? syncJson) as {
           result: {
             success: boolean;
             proposals_generated: number;

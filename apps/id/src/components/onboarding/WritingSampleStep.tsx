@@ -29,12 +29,12 @@ export function WritingSampleStep({ onComplete }: WritingSampleStepProps) {
         }),
       });
 
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error ?? "Analysis failed");
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error ?? "Analysis failed");
       }
 
-      const data = await res.json();
+      const data = json.data ?? json;
       const refinements = data.result?.voiceRefinements;
       const tone = refinements?.tone as Record<string, number> | undefined;
 

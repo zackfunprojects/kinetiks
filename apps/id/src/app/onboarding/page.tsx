@@ -34,13 +34,21 @@ function OnboardingContent() {
     async function initAccount() {
       try {
         const res = await fetch("/api/account/create", { method: "POST" });
+        const json = await res.json();
+
         if (!res.ok) {
-          const data = await res.json();
-          setError(data.error ?? "Failed to create account");
+          // API envelope: { success: false, error: "..." }
+          setError(json.error ?? "Failed to create account");
           return;
         }
-        const { account } = await res.json();
-        setAccount(account);
+
+        // API envelope: { success: true, data: { account: {...} } }
+        const acct = json.data?.account ?? json.account;
+        if (!acct) {
+          setError("Invalid response from server");
+          return;
+        }
+        setAccount(acct);
       } catch {
         setError("Something went wrong. Please try again.");
       } finally {

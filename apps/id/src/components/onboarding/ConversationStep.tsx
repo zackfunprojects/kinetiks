@@ -42,7 +42,8 @@ export function ConversationStep({
 
       if (!res.ok) throw new Error("Failed to get question");
 
-      const data = await res.json();
+      const json = await res.json();
+      const data = json.data ?? json;
 
       if (data.done) {
         onComplete();
@@ -85,7 +86,8 @@ export function ConversationStep({
 
       if (!res.ok) throw new Error("Failed to submit answer");
 
-      const data = await res.json();
+      const json = await res.json();
+      const data = json.data ?? json;
       const summary = data.result?.extractedSummary ?? "";
 
       setFeedback(summary);

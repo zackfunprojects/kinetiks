@@ -52,13 +52,12 @@ export function CrawlStep({ onComplete, onSkip }: CrawlStepProps) {
         body: JSON.stringify({ url: url.trim() }),
       });
 
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error ?? "Crawl failed");
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error ?? "Crawl failed");
       }
 
-      const data = await res.json();
-      setResult(data);
+      setResult(json.data ?? json);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {

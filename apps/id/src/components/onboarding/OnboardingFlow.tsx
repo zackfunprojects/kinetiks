@@ -40,8 +40,9 @@ export function OnboardingFlow({ account, fromApp }: OnboardingFlowProps) {
           body: JSON.stringify({ action: "fill_status" }),
         });
         if (!res.ok) return;
-        const data = await res.json();
-        const status = data.fillStatus as ContextFillStatus | undefined;
+        const json = await res.json();
+        const envelope = json.data ?? json;
+        const status = envelope.fillStatus as ContextFillStatus | undefined;
         if (!status) return;
 
         setFillStatus(status);
@@ -77,8 +78,9 @@ export function OnboardingFlow({ account, fromApp }: OnboardingFlowProps) {
         body: JSON.stringify({ action: "fill_status" }),
       });
       if (!res.ok) return null;
-      const data = await res.json();
-      const status = data.fillStatus as ContextFillStatus | undefined;
+      const json = await res.json();
+      const envelope = json.data ?? json;
+      const status = envelope.fillStatus as ContextFillStatus | undefined;
       if (status) setFillStatus(status);
       return status ?? null;
     } catch {

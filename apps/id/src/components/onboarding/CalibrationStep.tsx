@@ -27,7 +27,8 @@ export function CalibrationStep({ onComplete }: CalibrationStepProps) {
 
         if (!res.ok) throw new Error("Failed to generate exercises");
 
-        const data = await res.json();
+        const json = await res.json();
+        const data = json.data ?? json;
         setExercises(data.exercises ?? []);
       } catch {
         setError("Could not generate voice exercises. You can skip this step.");
@@ -57,8 +58,8 @@ export function CalibrationStep({ onComplete }: CalibrationStepProps) {
       });
 
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        setSubmitError(data.error ?? "Failed to save choice. Try again.");
+        const json = await res.json().catch(() => ({}));
+        setSubmitError(json.error ?? "Failed to save choice. Try again.");
         setSubmitting(false);
         return;
       }
