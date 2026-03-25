@@ -1,12 +1,15 @@
 "use client";
 
 import { useState } from "react";
+import { StepWrapper } from "./StepWrapper";
 
 interface EducationScreenProps {
   fromApp: string | null;
   codename: string;
   bootstrapKey: string | null;
   onContinue: () => void;
+  stepNumber: number;
+  totalSteps: number;
 }
 
 const APP_DISPLAY_NAMES: Record<string, string> = {
@@ -64,6 +67,8 @@ export function EducationScreen({
   codename,
   bootstrapKey,
   onContinue,
+  stepNumber,
+  totalSteps,
 }: EducationScreenProps) {
   const framing = getFraming(fromApp);
   const [showAgentSection, setShowAgentSection] = useState(false);
@@ -99,153 +104,131 @@ export function EducationScreen({
     : null;
 
   return (
-    <div
-      className="flex items-center justify-center px-4"
-      style={{ minHeight: "calc(100vh - 80px)" }}
+    <StepWrapper
+      stepNumber={stepNumber}
+      totalSteps={totalSteps}
+      title={framing.heading}
+      subtitle={framing.subheading}
+      onContinue={onContinue}
+      continueLabel={framing.cta}
     >
+      {/* Codename */}
       <div
-        className="w-full max-w-lg rounded-xl p-8"
-        style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)" }}
+        className="mb-4 inline-block rounded px-3 py-1 text-xs font-medium"
+        style={{
+          background: "var(--accent-muted)",
+          color: "var(--accent)",
+          fontFamily: "var(--font-mono), monospace",
+        }}
       >
-        {/* Codename */}
-        <div
-          className="mb-4 inline-block rounded px-3 py-1 text-xs font-medium"
-          style={{
-            background: "var(--accent-muted)",
-            color: "var(--accent)",
-            fontFamily: "var(--font-mono), monospace",
-          }}
-        >
-          {">"} {codename}
-        </div>
+        {">"} {codename}
+      </div>
 
-        {/* Heading + subheading */}
-        <h1 className="text-xl font-bold" style={{ color: "var(--text-primary)" }}>
-          {framing.heading}
-        </h1>
-        <p className="mt-2 text-sm leading-relaxed" style={{ color: "var(--text-secondary)" }}>
-          {framing.subheading}
-        </p>
+      {/* Value props */}
+      <ul className="space-y-2">
+        {framing.valueProps.map((prop) => (
+          <li key={prop} className="flex items-start gap-2 text-sm" style={{ color: "var(--text-secondary)" }}>
+            <span style={{ color: "var(--text-tertiary)", marginTop: 1 }}>-</span>
+            {prop}
+          </li>
+        ))}
+      </ul>
 
-        {/* Value props - compact inline list */}
-        <ul className="mt-5 space-y-2">
-          {framing.valueProps.map((prop) => (
-            <li key={prop} className="flex items-start gap-2 text-sm" style={{ color: "var(--text-secondary)" }}>
-              <span style={{ color: "var(--text-tertiary)", marginTop: 1 }}>-</span>
-              {prop}
-            </li>
-          ))}
-        </ul>
+      <p className="mt-4 text-xs" style={{ color: "var(--text-tertiary)" }}>
+        About 15 minutes. Skip anything, come back anytime.
+      </p>
 
-        {/* CTA */}
-        <button
-          onClick={onContinue}
-          className="mt-6 w-full rounded-lg px-8 py-3 text-sm font-semibold transition-colors"
-          style={{
-            background: "var(--accent-emphasis)",
-            color: "var(--text-on-accent)",
-          }}
-        >
-          {framing.cta}
-        </button>
-        <p className="mt-2 text-center text-xs" style={{ color: "var(--text-tertiary)" }}>
-          About 15 minutes. Skip anything, come back anytime.
-        </p>
+      {/* Agent access section */}
+      {bootstrapKey && (
+        <div className="mt-5" style={{ borderTop: "1px solid var(--border-muted)", paddingTop: 16 }}>
+          <button
+            onClick={() => setShowAgentSection(!showAgentSection)}
+            className="flex w-full items-center justify-between text-xs"
+            style={{ background: "none", border: "none", color: "var(--text-tertiary)", cursor: "pointer", padding: 0 }}
+          >
+            <span>Want an AI agent to do this for you?</span>
+            <span style={{ fontSize: 10, transform: showAgentSection ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>
+              ▼
+            </span>
+          </button>
 
-        {/* Agent access section */}
-        {bootstrapKey && (
-          <div className="mt-6" style={{ borderTop: "1px solid var(--border-muted)", paddingTop: 16 }}>
-            <button
-              onClick={() => setShowAgentSection(!showAgentSection)}
-              className="flex w-full items-center justify-between text-xs"
-              style={{ background: "none", border: "none", color: "var(--text-tertiary)", cursor: "pointer", padding: 0 }}
-            >
-              <span>Want an AI agent to do this for you?</span>
-              <span style={{ fontSize: 10, transform: showAgentSection ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>
-                ▼
-              </span>
-            </button>
+          {showAgentSection && (
+            <div className="mt-3 space-y-3">
+              <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>
+                Add this key to your Claude Code MCP config. The agent can then run the entire onboarding for you.
+              </p>
 
-            {showAgentSection && (
-              <div className="mt-3 space-y-3">
-                <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>
-                  Add this key to your Claude Code MCP config. The agent can then run the entire onboarding for you.
-                </p>
-
-                {/* API Key */}
-                <div>
-                  <div className="mb-1 text-xs font-medium" style={{ color: "var(--text-secondary)" }}>
-                    Your API key
-                    <span className="ml-2 font-normal" style={{ color: "var(--error, #EF4444)" }}>
-                      shown once - copy now
-                    </span>
-                  </div>
-                  <div
-                    className="flex items-center justify-between rounded px-3 py-2"
+              <div>
+                <div className="mb-1 text-xs font-medium" style={{ color: "var(--text-secondary)" }}>
+                  Your API key
+                  <span className="ml-2 font-normal" style={{ color: "var(--error, #EF4444)" }}>
+                    shown once - copy now
+                  </span>
+                </div>
+                <div
+                  className="flex items-center justify-between rounded px-3 py-2"
+                  style={{
+                    background: "var(--bg-inset)",
+                    border: "1px solid var(--border-muted)",
+                    fontFamily: "var(--font-mono), monospace",
+                    fontSize: 11,
+                  }}
+                >
+                  <code style={{ color: "var(--text-primary)", wordBreak: "break-all" }}>{bootstrapKey}</code>
+                  <button
+                    onClick={() => handleCopy(bootstrapKey, "key")}
+                    className="ml-2 shrink-0 rounded px-2 py-1 text-xs"
                     style={{
-                      background: "var(--bg-inset)",
-                      border: "1px solid var(--border-muted)",
-                      fontFamily: "var(--font-mono), monospace",
-                      fontSize: 11,
+                      background: copiedItem === "key" ? "var(--success, #10B981)" : "var(--accent-muted)",
+                      color: copiedItem === "key" ? "#fff" : "var(--accent)",
+                      border: "none",
+                      cursor: "pointer",
                     }}
                   >
-                    <code style={{ color: "var(--text-primary)", wordBreak: "break-all" }}>{bootstrapKey}</code>
+                    {copiedItem === "key" ? "Copied" : "Copy"}
+                  </button>
+                </div>
+              </div>
+
+              {mcpConfig && (
+                <div>
+                  <div className="mb-1 flex items-center justify-between">
+                    <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>
+                      Claude Code config
+                    </span>
                     <button
-                      onClick={() => handleCopy(bootstrapKey, "key")}
-                      className="ml-2 shrink-0 rounded px-2 py-1 text-xs"
+                      onClick={() => handleCopy(mcpConfig, "config")}
+                      className="rounded px-2 py-0.5 text-xs"
                       style={{
-                        background: copiedItem === "key" ? "var(--success, #10B981)" : "var(--accent-muted)",
-                        color: copiedItem === "key" ? "#fff" : "var(--accent)",
+                        background: copiedItem === "config" ? "var(--success, #10B981)" : "var(--accent-muted)",
+                        color: copiedItem === "config" ? "#fff" : "var(--accent)",
                         border: "none",
                         cursor: "pointer",
                       }}
                     >
-                      {copiedItem === "key" ? "Copied" : "Copy"}
+                      {copiedItem === "config" ? "Copied" : "Copy config"}
                     </button>
                   </div>
+                  <pre
+                    className="overflow-x-auto rounded p-3"
+                    style={{
+                      background: "var(--bg-inset)",
+                      border: "1px solid var(--border-muted)",
+                      fontSize: 10,
+                      lineHeight: 1.5,
+                      color: "var(--text-secondary)",
+                      fontFamily: "var(--font-mono), monospace",
+                      margin: 0,
+                    }}
+                  >
+                    {mcpConfig}
+                  </pre>
                 </div>
-
-                {/* MCP Config */}
-                {mcpConfig && (
-                  <div>
-                    <div className="mb-1 flex items-center justify-between">
-                      <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>
-                        Claude Code config
-                      </span>
-                      <button
-                        onClick={() => handleCopy(mcpConfig, "config")}
-                        className="rounded px-2 py-0.5 text-xs"
-                        style={{
-                          background: copiedItem === "config" ? "var(--success, #10B981)" : "var(--accent-muted)",
-                          color: copiedItem === "config" ? "#fff" : "var(--accent)",
-                          border: "none",
-                          cursor: "pointer",
-                        }}
-                      >
-                        {copiedItem === "config" ? "Copied" : "Copy config"}
-                      </button>
-                    </div>
-                    <pre
-                      className="overflow-x-auto rounded p-3"
-                      style={{
-                        background: "var(--bg-inset)",
-                        border: "1px solid var(--border-muted)",
-                        fontSize: 10,
-                        lineHeight: 1.5,
-                        color: "var(--text-secondary)",
-                        fontFamily: "var(--font-mono), monospace",
-                        margin: 0,
-                      }}
-                    >
-                      {mcpConfig}
-                    </pre>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </StepWrapper>
   );
 }

@@ -2,10 +2,14 @@
 
 import { useState, useRef } from "react";
 import type { CrawlResult } from "@/lib/cartographer/types";
+import { StepWrapper } from "./StepWrapper";
 
 interface CrawlStepProps {
   onComplete: (result: CrawlResult) => void;
   onSkip: () => void;
+  onBack: () => void;
+  stepNumber: number;
+  totalSteps: number;
 }
 
 const PROGRESS_MESSAGES = [
@@ -13,6 +17,7 @@ const PROGRESS_MESSAGES = [
   "Extracting brand identity...",
   "Analyzing your voice...",
   "Identifying products...",
+  "Analyzing competitive positioning...",
   "Building your profile...",
 ];
 
@@ -23,9 +28,11 @@ const EXTRACTION_LABELS: Record<string, string> = {
   brand: "Brand Identity",
   narrative: "Narrative",
   social_links: "Social Links",
+  competitive: "Competitive",
+  market: "Market",
 };
 
-export function CrawlStep({ onComplete, onSkip }: CrawlStepProps) {
+export function CrawlStep({ onComplete, onSkip, onBack, stepNumber, totalSteps }: CrawlStepProps) {
   const [url, setUrl] = useState("");
   const [crawling, setCrawling] = useState(false);
   const [progressIdx, setProgressIdx] = useState(0);
@@ -71,144 +78,95 @@ export function CrawlStep({ onComplete, onSkip }: CrawlStepProps) {
     const successCount = extractions.filter(([, v]) => v.success).length;
 
     return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <div
-          className="w-full max-w-lg rounded-xl p-10"
-          style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)" }}
-        >
-          <div className="mb-6 flex items-center gap-2">
+      <StepWrapper
+        stepNumber={stepNumber}
+        totalSteps={totalSteps}
+        title={`Found ${successCount} data ${successCount === 1 ? "category" : "categories"}`}
+        subtitle="Here's what we extracted from your website."
+        onBack={onBack}
+        onContinue={() => onComplete(result)}
+        continueLabel="Continue"
+      >
+        <div className="space-y-2">
+          {extractions.map(([key, val]) => (
             <div
-              className="flex h-8 w-8 items-center justify-center rounded-full"
-              style={{ background: "var(--success-muted)" }}
+              key={key}
+              className="flex items-center justify-between rounded-lg px-4 py-2.5"
+              style={{ border: "1px solid var(--border-muted)" }}
             >
-              <svg
-                className="h-4 w-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="var(--success)"
-                strokeWidth={3}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M5 13l4 4L19 7"
-                />
-              </svg>
-            </div>
-            <h2 className="text-lg font-semibold" style={{ color: "var(--text-primary)" }}>
-              Found {successCount} data{" "}
-              {successCount === 1 ? "category" : "categories"}
-            </h2>
-          </div>
-
-          <div className="space-y-2">
-            {extractions.map(([key, val]) => (
-              <div
-                key={key}
-                className="flex items-center justify-between rounded-lg px-4 py-2.5"
-                style={{ border: "1px solid var(--border-muted)" }}
-              >
-                <span className="text-sm" style={{ color: "var(--text-secondary)" }}>
-                  {EXTRACTION_LABELS[key] ?? key}
+              <span className="text-sm" style={{ color: "var(--text-secondary)" }}>
+                {EXTRACTION_LABELS[key] ?? key}
+              </span>
+              {val.success ? (
+                <span
+                  className="text-xs font-medium"
+                  style={{ color: "var(--success)", fontFamily: "var(--font-mono), monospace" }}
+                >
+                  captured
                 </span>
-                {val.success ? (
-                  <span
-                    className="text-xs font-medium"
-                    style={{ color: "var(--success)", fontFamily: "var(--font-mono), monospace" }}
-                  >
-                    captured
-                  </span>
-                ) : (
-                  <span
-                    className="text-xs"
-                    style={{ color: "var(--text-tertiary)", fontFamily: "var(--font-mono), monospace" }}
-                  >
-                    not found
-                  </span>
-                )}
-              </div>
-            ))}
-          </div>
-
-          <button
-            onClick={() => onComplete(result)}
-            className="mt-8 w-full rounded-lg py-3 text-sm font-semibold transition-colors"
-            style={{ background: "var(--accent-emphasis)", color: "var(--text-on-accent)" }}
-          >
-            Continue
-          </button>
+              ) : (
+                <span
+                  className="text-xs"
+                  style={{ color: "var(--text-tertiary)", fontFamily: "var(--font-mono), monospace" }}
+                >
+                  not found
+                </span>
+              )}
+            </div>
+          ))}
         </div>
-      </div>
+      </StepWrapper>
     );
   }
 
   return (
-    <div className="flex min-h-[60vh] items-center justify-center">
-      <div
-        className="w-full max-w-lg rounded-xl p-10"
-        style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)" }}
-      >
-        <h2 className="text-xl font-semibold" style={{ color: "var(--text-primary)" }}>
-          What's your website?
-        </h2>
-        <p className="mt-1 text-sm" style={{ color: "var(--text-secondary)" }}>
-          We'll extract your brand, voice, products, and more from your site.
-        </p>
-
-        <div className="mt-6">
-          <input
-            type="url"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !crawling) handleCrawl();
-            }}
-            placeholder="https://yourcompany.com"
-            disabled={crawling}
-            className="w-full rounded-lg px-4 py-3 text-sm disabled:opacity-50"
-            style={{
-              border: "1px solid var(--border-default)",
-              background: "var(--bg-inset)",
-              color: "var(--text-primary)",
-            }}
-          />
-        </div>
-
-        {crawling && (
-          <div className="mt-6 flex items-center gap-3">
-            <div
-              className="h-4 w-4 animate-spin rounded-full border-2 border-t-transparent"
-              style={{ borderColor: "var(--accent)", borderTopColor: "transparent" }}
-            />
-            <span className="text-sm" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-mono), monospace" }}>
-              {PROGRESS_MESSAGES[progressIdx]}
-            </span>
-          </div>
-        )}
-
-        {error && (
-          <p className="mt-4 text-sm" style={{ color: "var(--error)" }}>{error}</p>
-        )}
-
-        <div className="mt-6 flex items-center gap-3">
-          <button
-            onClick={handleCrawl}
-            disabled={crawling || !url.trim()}
-            className="rounded-lg px-6 py-2.5 text-sm font-semibold transition-colors disabled:opacity-50"
-            style={{ background: "var(--accent-emphasis)", color: "var(--text-on-accent)" }}
-          >
-            {crawling ? "Analyzing..." : "Analyze"}
-          </button>
-          <button
-            onClick={onSkip}
-            disabled={crawling}
-            className="text-sm"
-            style={{ color: "var(--text-tertiary)" }}
-          >
-            Skip - I don't have a website
-          </button>
-        </div>
+    <StepWrapper
+      stepNumber={stepNumber}
+      totalSteps={totalSteps}
+      title="What's your website?"
+      subtitle="We'll extract your brand, voice, products, and competitive positioning from your site."
+      isOptional
+      onBack={onBack}
+      onSkip={onSkip}
+      onContinue={handleCrawl}
+      continueLabel={crawling ? "Analyzing..." : "Analyze"}
+      continueDisabled={crawling || !url.trim()}
+      loading={crawling}
+    >
+      <div>
+        <input
+          type="url"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !crawling) handleCrawl();
+          }}
+          placeholder="https://yourcompany.com"
+          disabled={crawling}
+          className="w-full rounded-lg px-4 py-3 text-sm disabled:opacity-50"
+          style={{
+            border: "1px solid var(--border-default)",
+            background: "var(--bg-inset)",
+            color: "var(--text-primary)",
+          }}
+        />
       </div>
-    </div>
+
+      {crawling && (
+        <div className="mt-5 flex items-center gap-3">
+          <div
+            className="h-4 w-4 animate-spin rounded-full border-2 border-t-transparent"
+            style={{ borderColor: "var(--accent)", borderTopColor: "transparent" }}
+          />
+          <span className="text-sm" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-mono), monospace" }}>
+            {PROGRESS_MESSAGES[progressIdx]}
+          </span>
+        </div>
+      )}
+
+      {error && (
+        <p className="mt-4 text-sm" style={{ color: "var(--error)" }}>{error}</p>
+      )}
+    </StepWrapper>
   );
 }
