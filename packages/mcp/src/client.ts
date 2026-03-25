@@ -87,7 +87,17 @@ async function request<T>(
       );
     }
 
-    const envelope = (await response.json()) as ApiEnvelope<T>;
+    let envelope: ApiEnvelope<T>;
+    try {
+      envelope = (await response.json()) as ApiEnvelope<T>;
+    } catch {
+      const rawBody = await response.text().catch(() => "(unreadable)");
+      throw new KineticsApiError(
+        `Failed to parse JSON response (status ${response.status}): ${rawBody.slice(0, 200)}`,
+        response.status,
+        rawBody
+      );
+    }
 
     if (!envelope.success) {
       throw new KineticsApiError(
@@ -206,6 +216,15 @@ export async function postSSE(
     }
 
     return { text, threadId, actions };
+  } catch (err) {
+    if (err instanceof KineticsApiError) throw err;
+    if (err instanceof DOMException && err.name === "AbortError") {
+      throw new KineticsApiError(`SSE request timed out after ${LONG_TIMEOUT}ms`, 408);
+    }
+    throw new KineticsApiError(
+      `SSE stream error: ${err instanceof Error ? err.message : "Unknown error"}`,
+      0
+    );
   } finally {
     clearTimeout(timer);
   }

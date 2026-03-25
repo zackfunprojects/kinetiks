@@ -24,6 +24,13 @@ export async function handleMarcusTool(
 ): Promise<CallToolResult> {
   switch (name) {
     case "chat_with_marcus": {
+      if (typeof args.message !== "string" || args.message.trim().length === 0) {
+        return {
+          content: [{ type: "text", text: "Error: message is required and must be a non-empty string" }],
+          isError: true,
+        };
+      }
+
       const { text, threadId, actions } = await postSSE("/api/marcus/chat", {
         message: args.message,
         thread_id: args.thread_id,

@@ -23,6 +23,9 @@
     "tsx": "^4.19.0",
     "typescript": "^5.7.0"
   },
+  "engines": {
+    "node": ">=18"
+  },
   "keywords": ["kinetiks", "mcp", "ai-agents", "model-context-protocol"],
   "license": "MIT"
 }

@@ -56,8 +56,8 @@ export function formatContext(
     if (!row || !row.data || Object.keys(row.data).length === 0) {
       parts.push(`[${layer}] - empty`);
     } else {
-      const score = row.confidence_score ? ` (${row.confidence_score}%)` : "";
-      const updated = row.updated_at ? ` - updated ${row.updated_at.split("T")[0]}` : "";
+      const score = row.confidence_score != null ? ` (${row.confidence_score}%)` : "";
+      const updated = row.updated_at != null ? ` - updated ${row.updated_at.split("T")[0]}` : "";
       parts.push(`[${layer}]${score}${updated}`);
       parts.push(summarizeObject(row.data));
     }
@@ -71,9 +71,9 @@ export function formatContextLayer(layer: string, row: ContextLayerRow | null): 
   if (!row || !row.data) return `[${layer}] - no data`;
 
   const parts: string[] = [];
-  const score = row.confidence_score ? ` (${row.confidence_score}%)` : "";
+  const score = row.confidence_score != null ? ` (${row.confidence_score}%)` : "";
   const source = row.source ? ` - source: ${row.source}` : "";
-  const updated = row.updated_at ? ` - updated ${row.updated_at.split("T")[0]}` : "";
+  const updated = row.updated_at != null ? ` - updated ${row.updated_at.split("T")[0]}` : "";
   parts.push(`[${layer}]${score}${source}${updated}`);
   parts.push("");
 
@@ -85,7 +85,7 @@ export function formatContextLayer(layer: string, row: ContextLayerRow | null): 
 
 export function formatConfidence(scores: ConfidenceScores): string {
   const bar = (score: number): string => {
-    const filled = Math.round(score / 5);
+    const filled = Math.max(0, Math.min(20, Math.round(score / 5)));
     return "\u2588".repeat(filled) + "\u2591".repeat(20 - filled);
   };
 

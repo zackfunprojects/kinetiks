@@ -3,6 +3,14 @@ import { get, patch } from "../client.js";
 import { formatContext, formatContextLayer, formatConfidence, formatGeneric } from "../formatters.js";
 
 const LAYERS = ["org", "products", "voice", "customers", "narrative", "competitive", "market", "brand"] as const;
+type Layer = (typeof LAYERS)[number];
+
+function validateLayer(value: unknown): Layer {
+  if (typeof value !== "string" || !LAYERS.includes(value as Layer)) {
+    throw new Error(`Invalid layer: "${String(value)}". Must be one of: ${LAYERS.join(", ")}`);
+  }
+  return value as Layer;
+}
 
 export const contextTools: Tool[] = [
   {
@@ -87,7 +95,7 @@ export async function handleContextTool(
     }
 
     case "get_context_layer": {
-      const layer = args.layer as string;
+      const layer = validateLayer(args.layer);
       const result = await get<{ data: unknown }>(`/api/context/${layer}`);
       return {
         content: [{ type: "text", text: formatContextLayer(layer, result.data as Parameters<typeof formatContextLayer>[1]) }],
@@ -110,7 +118,7 @@ export async function handleContextTool(
     }
 
     case "update_context": {
-      const layer = args.layer as string;
+      const layer = validateLayer(args.layer);
       const data = args.data as Record<string, unknown>;
       const result = await patch<unknown>(`/api/context/${layer}`, { data });
       return {

@@ -1,3 +1,4 @@
+import React from "react";
 import Link from "next/link";
 import type { Metadata } from "next";
 
@@ -7,7 +8,20 @@ export const metadata: Metadata = {
     "MCP server and API documentation for integrating AI agents with the Kinetiks ID platform.",
 };
 
-const TOOLS = [
+interface ToolEntry {
+  category: string;
+  name: string;
+  desc: string;
+  perm: string;
+}
+
+interface EndpointEntry {
+  method: string;
+  path: string;
+  desc: string;
+}
+
+const TOOLS: ToolEntry[] = [
   { category: "Context", name: "get_context", desc: "All 8 layers + confidence scores", perm: "read-only" },
   { category: "Context", name: "get_context_layer", desc: "Single layer detail", perm: "read-only" },
   { category: "Context", name: "get_confidence", desc: "Confidence score breakdown", perm: "read-only" },
@@ -28,7 +42,7 @@ const TOOLS = [
   { category: "Marcus", name: "chat_with_marcus", desc: "Strategic advisor conversation", perm: "read-write" },
 ];
 
-const ENDPOINTS = [
+const ENDPOINTS: EndpointEntry[] = [
   { method: "GET", path: "/api/context", desc: "All layers + confidence" },
   { method: "GET", path: "/api/context/{layer}", desc: "Single layer data" },
   { method: "PATCH", path: "/api/context/{layer}", desc: "Deep merge update" },
@@ -118,7 +132,7 @@ const s = {
   },
 } as const;
 
-function MethodBadge({ method }: { method: string }) {
+function MethodBadge({ method }: { method: string }): React.JSX.Element {
   const colors: Record<string, { bg: string; fg: string }> = {
     GET: { bg: "rgba(0,206,201,0.15)", fg: "#00CEC9" },
     POST: { bg: "rgba(108,92,231,0.15)", fg: "#6C5CE7" },
@@ -128,7 +142,7 @@ function MethodBadge({ method }: { method: string }) {
   return <span style={{ ...s.method, background: c.bg, color: c.fg }}>{method}</span>;
 }
 
-export default function DevelopersPage() {
+export default function DevelopersPage(): React.JSX.Element {
   // Group tools by category for the table
   let lastCategory = "";
 
@@ -234,13 +248,13 @@ export default function DevelopersPage() {
                   const showCategory = tool.category !== lastCategory;
                   lastCategory = tool.category;
                   return (
-                    <>
+                    <React.Fragment key={tool.name}>
                       {showCategory && (
-                        <tr key={`cat-${tool.category}`}>
+                        <tr>
                           <td colSpan={3} style={s.catRow}>{tool.category}</td>
                         </tr>
                       )}
-                      <tr key={tool.name}>
+                      <tr>
                         <td style={s.tdMono}>{tool.name}</td>
                         <td style={s.td}>{tool.desc}</td>
                         <td style={s.td}>
@@ -249,7 +263,7 @@ export default function DevelopersPage() {
                           </span>
                         </td>
                       </tr>
-                    </>
+                    </React.Fragment>
                   );
                 })}
               </tbody>

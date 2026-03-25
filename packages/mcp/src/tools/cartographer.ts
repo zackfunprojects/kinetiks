@@ -132,19 +132,21 @@ export async function handleCartographerTool(
         action: "generate",
         count: args.count,
       });
-      const exercises = result.exercises as Array<Record<string, unknown>>;
-      if (!exercises || exercises.length === 0) {
+
+      if (!Array.isArray(result.exercises) || result.exercises.length === 0) {
         return { content: [{ type: "text", text: "No calibration exercises generated." }] };
       }
 
+      const exercises = result.exercises as Array<Record<string, unknown>>;
       const parts: string[] = [`${exercises.length} calibration exercise(s):`, ""];
       for (let i = 0; i < exercises.length; i++) {
         const ex = exercises[i];
-        parts.push(`Exercise ${i + 1}: ${ex.exercise}`);
-        parts.push(`Scenario: ${ex.scenario}`);
-        parts.push(`  A: ${ex.optionA}`);
-        parts.push(`  B: ${ex.optionB}`);
-        parts.push(`  (dimension: ${ex.dimension})`);
+        if (!ex || typeof ex !== "object") continue;
+        parts.push(`Exercise ${i + 1}: ${ex.exercise ?? "<missing>"}`);
+        parts.push(`Scenario: ${ex.scenario ?? "<missing>"}`);
+        parts.push(`  A: ${ex.optionA ?? "<missing>"}`);
+        parts.push(`  B: ${ex.optionB ?? "<missing>"}`);
+        parts.push(`  (dimension: ${ex.dimension ?? "<unknown>"})`);
         parts.push("");
       }
       parts.push("Use submit_calibration_choice to submit the user's selection for each exercise.");
