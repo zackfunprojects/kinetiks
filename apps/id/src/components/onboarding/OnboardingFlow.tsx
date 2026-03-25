@@ -20,11 +20,12 @@ interface Account {
 interface OnboardingFlowProps {
   account: Account;
   fromApp: string | null;
+  bootstrapKey: string | null;
 }
 
 const STEPS = ["Welcome", "Website", "Questions", "Voice", "Samples", "Done"];
 
-export function OnboardingFlow({ account, fromApp }: OnboardingFlowProps) {
+export function OnboardingFlow({ account, fromApp, bootstrapKey }: OnboardingFlowProps) {
   const [step, setStep] = useState(0);
   const [fillStatus, setFillStatus] = useState<ContextFillStatus | null>(null);
   const [signingOut, setSigningOut] = useState(false);
@@ -148,6 +149,7 @@ export function OnboardingFlow({ account, fromApp }: OnboardingFlowProps) {
           <EducationScreen
             fromApp={fromApp}
             codename={account.codename}
+            bootstrapKey={bootstrapKey}
             onContinue={advance}
           />
         )}

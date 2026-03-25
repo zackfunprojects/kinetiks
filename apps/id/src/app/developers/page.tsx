@@ -34,6 +34,7 @@ const TOOLS: ToolEntry[] = [
   { category: "Cartographer", name: "submit_calibration_choice", desc: "Submit calibration choice", perm: "read-write" },
   { category: "Cartographer", name: "get_onboarding_question", desc: "Next adaptive onboarding question", perm: "read-write" },
   { category: "Cartographer", name: "submit_onboarding_answer", desc: "Answer onboarding question", perm: "read-write" },
+  { category: "Cartographer", name: "onboard_me", desc: "Full automated onboarding in one call", perm: "read-write" },
   { category: "Approvals", name: "list_approvals", desc: "List proposals needing decisions", perm: "read-only" },
   { category: "Approvals", name: "resolve_proposal", desc: "Accept or decline a proposal", perm: "read-write" },
   { category: "Summary", name: "get_daily_brief", desc: "Pre-composed daily snapshot", perm: "read-only" },
@@ -53,6 +54,7 @@ const ENDPOINTS: EndpointEntry[] = [
   { method: "POST", path: "/api/cartographer/writing-sample", desc: "Voice analysis" },
   { method: "POST", path: "/api/cartographer/calibrate", desc: "Voice calibration" },
   { method: "POST", path: "/api/cartographer/conversation", desc: "Onboarding questions" },
+  { method: "PATCH", path: "/api/account/onboarding-complete", desc: "Mark onboarding done" },
   { method: "GET", path: "/api/approvals", desc: "List proposals" },
   { method: "POST", path: "/api/approvals", desc: "Resolve proposals" },
   { method: "GET", path: "/api/summary/daily-brief", desc: "Daily snapshot" },
@@ -163,7 +165,7 @@ export default function DevelopersPage(): React.JSX.Element {
           <p style={s.subtitle}>
             Native MCP server for the Kinetiks ID platform.
             Give your AI agent full access to business context, onboarding,
-            voice calibration, and strategic intelligence.
+            voice calibration, and strategic intelligence. One tool call to onboard.
           </p>
           <pre style={s.code}>{`{
   "mcpServers": {
@@ -186,21 +188,21 @@ export default function DevelopersPage(): React.JSX.Element {
               <p style={s.stepNum}>1</p>
               <p style={s.stepTitle}>Create your Kinetiks ID</p>
               <p style={s.stepDesc}>
-                Sign up at id.kinetiks.ai. Your ID is the business identity that powers every tool.
+                Sign up at id.kinetiks.ai. A bootstrap API key (kntk_) is generated automatically - copy it from the welcome screen.
               </p>
             </div>
             <div style={s.step}>
               <p style={s.stepNum}>2</p>
-              <p style={s.stepTitle}>Generate an API key</p>
+              <p style={s.stepTitle}>Connect your agent</p>
               <p style={s.stepDesc}>
-                Go to Settings, create a read-write API key. Keys start with kntk_ and are shown once.
+                Add the MCP config to Claude Code or any MCP client. Paste in your bootstrap key. 19 tools available instantly.
               </p>
             </div>
             <div style={s.step}>
               <p style={s.stepNum}>3</p>
-              <p style={s.stepTitle}>Connect your agent</p>
+              <p style={s.stepTitle}>Onboard in one call</p>
               <p style={s.stepDesc}>
-                Add the MCP config to Claude Code or any MCP client. 18 tools available instantly.
+                Tell your agent: &quot;onboard my business at example.com&quot; - it crawls, calibrates voice, and completes setup automatically.
               </p>
             </div>
           </div>
@@ -233,7 +235,7 @@ export default function DevelopersPage(): React.JSX.Element {
         {/* Available Tools */}
         <div style={s.section}>
           <h2 style={s.h2}>Available Tools</h2>
-          <p style={s.p}>18 tools across 6 categories. All accessible via MCP tool calls.</p>
+          <p style={s.p}>19 tools across 6 categories. All accessible via MCP tool calls.</p>
           <div style={{ borderRadius: 12, overflow: "hidden", border: "1px solid rgba(255,255,255,0.06)" }}>
             <table style={s.table}>
               <thead>
@@ -276,8 +278,9 @@ export default function DevelopersPage(): React.JSX.Element {
           <h2 style={s.h2}>Authentication</h2>
           <h3 style={s.h3}>API Keys</h3>
           <p style={s.p}>
-            All API keys use the kntk_ prefix. Keys are hashed (SHA-256) before storage -
-            the full key is shown exactly once at creation time.
+            A bootstrap read-write key (kntk_) is generated automatically when you create an account -
+            copy it from the welcome screen. You can also create additional keys from Settings.
+            Keys are hashed (SHA-256) before storage and shown exactly once.
           </p>
           <h3 style={s.h3}>Permission Levels</h3>
           <p style={s.p}>
@@ -327,33 +330,37 @@ export default function DevelopersPage(): React.JSX.Element {
 
         {/* Example Walkthrough */}
         <div style={s.section}>
-          <h2 style={s.h2}>Example: Onboard via Claude Code</h2>
+          <h2 style={s.h2}>Example: Onboard in One Call</h2>
           <p style={s.p}>
-            Once the MCP server is connected, Claude Code can run the entire onboarding flow:
+            The fastest way to set up a Kinetiks ID. One tool call handles everything:
           </p>
           <pre style={s.code}>{`> "Onboard my business at example.com"
 
-Claude uses: crawl_website({ url: "example.com" })
-  -> Extracts org, products, voice, brand into context
-  -> Creates proposals, evaluates through Cortex
+Claude uses: onboard_me({ url: "example.com" })
 
-Claude uses: get_confidence()
-  -> Shows 34% - voice and customers need work
+  Step 1: Website Crawl
+  Crawled example.com - 12 proposals submitted.
+  Extracted layers: org, products, voice, brand, narrative
 
-Claude uses: get_onboarding_question()
-  -> "Who is your ideal customer?"
+  Step 2: Adaptive Questions
+  Q1: Who is your primary customer? -> updated: customers
+  Q2: What problem does your product solve? -> updated: products, narrative
+  Q3: How do you position against competitors? -> updated: competitive
 
-User answers, Claude uses: submit_onboarding_answer({ answer: "..." })
-  -> Extracts customer personas, buying triggers
+  Step 3: Voice Calibration
+  Calibrated 4/4 voice dimensions.
 
-Claude uses: generate_calibration({ count: 4 })
-  -> Returns A/B voice exercises
+  Completing Onboarding
+  Onboarding marked complete.
 
-User picks preferences, Claude uses: submit_calibration_choice(...)
-  -> Refines voice profile (formality, warmth, authority)
-
-Claude uses: get_confidence()
-  -> Now at 61% - ready to start using apps`}</pre>
+  Confidence Scores
+  Aggregate: 58%
+  Org: 72% | Products: 65% | Voice: 48%
+  Customers: 55% | Brand: 61% | Narrative: 44%`}</pre>
+          <p style={{ ...s.p, marginTop: 16 }}>
+            Want more control? Use the individual tools (crawl_website, get_onboarding_question,
+            generate_calibration) to run each step manually.
+          </p>
         </div>
 
         {/* Footer */}

@@ -1,8 +1,11 @@
 "use client";
 
+import { useState } from "react";
+
 interface EducationScreenProps {
   fromApp: string | null;
   codename: string;
+  bootstrapKey: string | null;
   onContinue: () => void;
 }
 
@@ -59,9 +62,41 @@ function getFraming(fromApp: string | null): Framing {
 export function EducationScreen({
   fromApp,
   codename,
+  bootstrapKey,
   onContinue,
 }: EducationScreenProps) {
   const framing = getFraming(fromApp);
+  const [showAgentSection, setShowAgentSection] = useState(false);
+  const [copiedItem, setCopiedItem] = useState<"key" | "config" | null>(null);
+
+  const handleCopy = async (text: string, item: "key" | "config") => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedItem(item);
+      setTimeout(() => setCopiedItem(null), 2000);
+    } catch (err) {
+      console.error("Failed to copy to clipboard:", err);
+    }
+  };
+
+  const mcpConfig = bootstrapKey
+    ? JSON.stringify(
+        {
+          mcpServers: {
+            kinetiks: {
+              command: "npx",
+              args: ["-y", "@kinetiks/mcp"],
+              env: {
+                KINETIKS_API_KEY: bootstrapKey,
+                KINETIKS_API_URL: "https://id.kinetiks.ai",
+              },
+            },
+          },
+        },
+        null,
+        2
+      )
+    : null;
 
   return (
     <div
@@ -116,6 +151,100 @@ export function EducationScreen({
         <p className="mt-2 text-center text-xs" style={{ color: "var(--text-tertiary)" }}>
           About 15 minutes. Skip anything, come back anytime.
         </p>
+
+        {/* Agent access section */}
+        {bootstrapKey && (
+          <div className="mt-6" style={{ borderTop: "1px solid var(--border-muted)", paddingTop: 16 }}>
+            <button
+              onClick={() => setShowAgentSection(!showAgentSection)}
+              className="flex w-full items-center justify-between text-xs"
+              style={{ background: "none", border: "none", color: "var(--text-tertiary)", cursor: "pointer", padding: 0 }}
+            >
+              <span>Want an AI agent to do this for you?</span>
+              <span style={{ fontSize: 10, transform: showAgentSection ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>
+                ▼
+              </span>
+            </button>
+
+            {showAgentSection && (
+              <div className="mt-3 space-y-3">
+                <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>
+                  Add this key to your Claude Code MCP config. The agent can then run the entire onboarding for you.
+                </p>
+
+                {/* API Key */}
+                <div>
+                  <div className="mb-1 text-xs font-medium" style={{ color: "var(--text-secondary)" }}>
+                    Your API key
+                    <span className="ml-2 font-normal" style={{ color: "var(--error, #EF4444)" }}>
+                      shown once - copy now
+                    </span>
+                  </div>
+                  <div
+                    className="flex items-center justify-between rounded px-3 py-2"
+                    style={{
+                      background: "var(--bg-inset)",
+                      border: "1px solid var(--border-muted)",
+                      fontFamily: "var(--font-mono), monospace",
+                      fontSize: 11,
+                    }}
+                  >
+                    <code style={{ color: "var(--text-primary)", wordBreak: "break-all" }}>{bootstrapKey}</code>
+                    <button
+                      onClick={() => handleCopy(bootstrapKey, "key")}
+                      className="ml-2 shrink-0 rounded px-2 py-1 text-xs"
+                      style={{
+                        background: copiedItem === "key" ? "var(--success, #10B981)" : "var(--accent-muted)",
+                        color: copiedItem === "key" ? "#fff" : "var(--accent)",
+                        border: "none",
+                        cursor: "pointer",
+                      }}
+                    >
+                      {copiedItem === "key" ? "Copied" : "Copy"}
+                    </button>
+                  </div>
+                </div>
+
+                {/* MCP Config */}
+                {mcpConfig && (
+                  <div>
+                    <div className="mb-1 flex items-center justify-between">
+                      <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>
+                        Claude Code config
+                      </span>
+                      <button
+                        onClick={() => handleCopy(mcpConfig, "config")}
+                        className="rounded px-2 py-0.5 text-xs"
+                        style={{
+                          background: copiedItem === "config" ? "var(--success, #10B981)" : "var(--accent-muted)",
+                          color: copiedItem === "config" ? "#fff" : "var(--accent)",
+                          border: "none",
+                          cursor: "pointer",
+                        }}
+                      >
+                        {copiedItem === "config" ? "Copied" : "Copy config"}
+                      </button>
+                    </div>
+                    <pre
+                      className="overflow-x-auto rounded p-3"
+                      style={{
+                        background: "var(--bg-inset)",
+                        border: "1px solid var(--border-muted)",
+                        fontSize: 10,
+                        lineHeight: 1.5,
+                        color: "var(--text-secondary)",
+                        fontFamily: "var(--font-mono), monospace",
+                        margin: 0,
+                      }}
+                    >
+                      {mcpConfig}
+                    </pre>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

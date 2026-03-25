@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { generateUniqueCodename } from "@/lib/utils/id-generator";
+import { generateApiKey } from "@/lib/auth/api-keys";
 import { apiSuccess, apiError } from "@/lib/utils/api-response";
 
 export async function POST() {
@@ -24,7 +25,7 @@ export async function POST() {
     .single();
 
   if (existing) {
-    return apiSuccess({ account: existing });
+    return apiSuccess({ account: existing, bootstrap_key: null });
   }
 
   // Generate unique codename
@@ -60,7 +61,7 @@ export async function POST() {
       .single();
 
     if (raceAccount) {
-      return apiSuccess({ account: raceAccount });
+      return apiSuccess({ account: raceAccount, bootstrap_key: null });
     }
 
     return apiError("Failed to create account", 500);
@@ -147,5 +148,28 @@ export async function POST() {
     detail: { codename, from_app: fromApp },
   });
 
-  return apiSuccess({ account });
+  // Generate bootstrap API key for agent access
+  let bootstrapKey: string | null = null;
+  try {
+    const { key, hash, prefix } = generateApiKey();
+    const { error: keyError } = await admin.from("kinetiks_api_keys").insert({
+      account_id: account.id,
+      key_hash: hash,
+      key_prefix: prefix,
+      name: "Bootstrap Key",
+      permissions: "read-write",
+      scope: [],
+      is_active: true,
+    });
+
+    if (!keyError) {
+      bootstrapKey = key;
+    } else {
+      console.error(`Failed to create bootstrap key for ${account.id}:`, keyError.message);
+    }
+  } catch (err) {
+    console.error(`Bootstrap key generation error for ${account.id}:`, err);
+  }
+
+  return apiSuccess({ account, bootstrap_key: bootstrapKey });
 }
