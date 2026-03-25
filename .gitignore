@@ -34,3 +34,10 @@ yarn-error.log*
 
 # supabase
 supabase/.temp/
+
+# claude code
+.claude/
+.mcp.json
+
+# typescript build info
+*.tsbuildinfo
