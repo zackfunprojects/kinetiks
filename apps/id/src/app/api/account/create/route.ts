@@ -61,7 +61,7 @@ export async function POST() {
       .single();
 
     if (raceAccount) {
-      return apiSuccess({ account: raceAccount });
+      return apiSuccess({ account: raceAccount, bootstrap_key: null });
     }
 
     return apiError("Failed to create account", 500);
