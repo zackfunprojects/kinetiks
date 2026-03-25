@@ -1,6 +1,6 @@
 import type { Tool, CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { get, post, patch, postLong } from "../client.js";
-import { formatCrawlResult, formatGeneric, formatConfidence } from "../formatters.js";
+import { formatCrawlResult, formatGeneric, formatConfidence, type ConfidenceScores } from "../formatters.js";
 
 export const cartographerTools: Tool[] = [
   {
@@ -207,8 +207,19 @@ async function runFullOnboarding(
   args: Record<string, unknown>
 ): Promise<CallToolResult> {
   const parts: string[] = ["# Kinetiks ID Auto-Onboarding", ""];
-  const url = args.url as string;
-  const writingSample = args.writing_sample as string | undefined;
+
+  if (!args.url || typeof args.url !== "string" || args.url.trim() === "") {
+    return {
+      content: [{ type: "text", text: "Error: url is required and must be a non-empty string." }],
+      isError: true,
+    };
+  }
+
+  const url = args.url.trim();
+  const writingSample =
+    args.writing_sample && typeof args.writing_sample === "string"
+      ? args.writing_sample
+      : undefined;
 
   // Step 1: Crawl the website
   parts.push("## Step 1: Website Crawl");
@@ -293,6 +304,7 @@ async function runFullOnboarding(
     const exercises = calResult.exercises as Array<Record<string, unknown>> | undefined;
     if (Array.isArray(exercises) && exercises.length > 0) {
       let submitted = 0;
+      let failed = 0;
       for (const ex of exercises) {
         if (!ex || typeof ex !== "object") continue;
         // Pick the choice that leans toward professional/warm defaults
@@ -305,11 +317,16 @@ async function runFullOnboarding(
             choice,
           });
           submitted++;
-        } catch {
-          // Continue with remaining exercises
+        } catch (e) {
+          failed++;
+          const msg = e instanceof Error ? e.message : String(e);
+          process.stderr.write(`kinetiks-mcp: calibration submit failed: ${msg}\n`);
         }
       }
       parts.push(`Calibrated ${submitted}/${exercises.length} voice dimensions.`);
+      if (failed > 0) {
+        parts.push(`(${failed} submission(s) failed)`);
+      }
     } else {
       parts.push("No calibration exercises generated.");
     }
@@ -349,7 +366,7 @@ async function runFullOnboarding(
   // Step 6: Report confidence scores
   parts.push("## Confidence Scores");
   try {
-    const confidence = await get("/api/context/confidence") as { aggregate: number; org: number; products: number; voice: number; customers: number; narrative: number; competitive: number; market: number; brand: number };
+    const confidence = await get<ConfidenceScores>("/api/context/confidence");
     parts.push(formatConfidence(confidence));
   } catch {
     parts.push("Could not retrieve confidence scores.");

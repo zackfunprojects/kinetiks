@@ -13,7 +13,7 @@ interface ContextLayerRow {
   updated_at?: string;
 }
 
-interface ConfidenceScores {
+export interface ConfidenceScores {
   aggregate: number;
   org: number;
   products: number;

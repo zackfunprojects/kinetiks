@@ -67,12 +67,16 @@ export function EducationScreen({
 }: EducationScreenProps) {
   const framing = getFraming(fromApp);
   const [showAgentSection, setShowAgentSection] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [copiedItem, setCopiedItem] = useState<"key" | "config" | null>(null);
 
-  const handleCopy = async (text: string) => {
-    await navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const handleCopy = async (text: string, item: "key" | "config") => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedItem(item);
+      setTimeout(() => setCopiedItem(null), 2000);
+    } catch (err) {
+      console.error("Failed to copy to clipboard:", err);
+    }
   };
 
   const mcpConfig = bootstrapKey
@@ -187,16 +191,16 @@ export function EducationScreen({
                   >
                     <code style={{ color: "var(--text-primary)", wordBreak: "break-all" }}>{bootstrapKey}</code>
                     <button
-                      onClick={() => handleCopy(bootstrapKey)}
+                      onClick={() => handleCopy(bootstrapKey, "key")}
                       className="ml-2 shrink-0 rounded px-2 py-1 text-xs"
                       style={{
-                        background: copied ? "var(--success, #10B981)" : "var(--accent-muted)",
-                        color: copied ? "#fff" : "var(--accent)",
+                        background: copiedItem === "key" ? "var(--success, #10B981)" : "var(--accent-muted)",
+                        color: copiedItem === "key" ? "#fff" : "var(--accent)",
                         border: "none",
                         cursor: "pointer",
                       }}
                     >
-                      {copied ? "Copied" : "Copy"}
+                      {copiedItem === "key" ? "Copied" : "Copy"}
                     </button>
                   </div>
                 </div>
@@ -209,16 +213,16 @@ export function EducationScreen({
                         Claude Code config
                       </span>
                       <button
-                        onClick={() => handleCopy(mcpConfig)}
+                        onClick={() => handleCopy(mcpConfig, "config")}
                         className="rounded px-2 py-0.5 text-xs"
                         style={{
-                          background: "var(--accent-muted)",
-                          color: "var(--accent)",
+                          background: copiedItem === "config" ? "var(--success, #10B981)" : "var(--accent-muted)",
+                          color: copiedItem === "config" ? "#fff" : "var(--accent)",
                           border: "none",
                           cursor: "pointer",
                         }}
                       >
-                        Copy config
+                        {copiedItem === "config" ? "Copied" : "Copy config"}
                       </button>
                     </div>
                     <pre
