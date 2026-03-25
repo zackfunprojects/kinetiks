@@ -82,23 +82,26 @@ async function request<T>(
 
     if (!response.ok && response.status >= 500) {
       let serverMessage = response.statusText;
-      try {
-        const errorBody = await response.json() as Record<string, unknown>;
-        if (errorBody.error && typeof errorBody.error === "string") {
-          serverMessage = errorBody.error;
+      // Read body once as text, then try to parse as JSON
+      const rawBody = await response.text().catch(() => "");
+      if (rawBody) {
+        try {
+          const errorBody = JSON.parse(rawBody) as Record<string, unknown>;
+          if (errorBody.error && typeof errorBody.error === "string") {
+            serverMessage = errorBody.error;
+          }
+          if (errorBody.details) {
+            throw new KineticsApiError(
+              `Server error ${response.status}: ${serverMessage}`,
+              response.status,
+              errorBody.details
+            );
+          }
+        } catch (parseErr) {
+          if (parseErr instanceof KineticsApiError) throw parseErr;
+          // Not JSON - use raw text
+          serverMessage = rawBody.slice(0, 300);
         }
-        if (errorBody.details) {
-          throw new KineticsApiError(
-            `Server error ${response.status}: ${serverMessage}`,
-            response.status,
-            errorBody.details
-          );
-        }
-      } catch (parseErr) {
-        if (parseErr instanceof KineticsApiError) throw parseErr;
-        // JSON parse failed, try raw text
-        const rawText = await response.text().catch(() => "");
-        if (rawText) serverMessage = rawText.slice(0, 300);
       }
       throw new KineticsApiError(
         `Server error ${response.status}: ${serverMessage}`,
