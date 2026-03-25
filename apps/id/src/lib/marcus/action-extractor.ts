@@ -177,9 +177,17 @@ export async function executeActions(
           .single();
 
         if (!error && proposal) {
-          // Evaluate through Cortex pipeline
+          // Fetch full proposal row for Cortex evaluation
           try {
-            await evaluateProposal(admin, proposal.id);
+            const { data: fullProposal } = await admin
+              .from("kinetiks_proposals")
+              .select("*")
+              .eq("id", proposal.id)
+              .single();
+
+            if (fullProposal) {
+              await evaluateProposal(admin, fullProposal as unknown as import("@kinetiks/types").Proposal);
+            }
           } catch {
             // Non-critical - proposal stays as submitted
           }
