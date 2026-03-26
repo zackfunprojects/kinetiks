@@ -1,6 +1,5 @@
 import { readFile } from "fs/promises";
-import { join, dirname } from "path";
-import { fileURLToPath } from "url";
+import { join } from "path";
 import { modules } from "./registry";
 import type {
   KnowledgeFile,
@@ -9,7 +8,20 @@ import type {
   LoadKnowledgeResult,
 } from "./types";
 
-const KNOWLEDGE_DIR = join(dirname(fileURLToPath(import.meta.url)));
+/**
+ * Resolve the knowledge directory path.
+ * Works in both ESM (import.meta.url) and CJS/webpack (__dirname) contexts.
+ */
+function getKnowledgeDir(): string {
+  // __dirname is available in CJS and webpack bundles
+  if (typeof __dirname !== "undefined") {
+    return __dirname;
+  }
+  // Fallback: resolve from process.cwd() for edge cases
+  return join(process.cwd(), "node_modules", "@kinetiks", "ai", "src", "knowledge");
+}
+
+const KNOWLEDGE_DIR = getKnowledgeDir();
 
 /**
  * Rough token estimate: ~4 characters per token for English prose.
