@@ -1,9 +1,9 @@
 {
-  "name": "@kinetiks/id",
+  "name": "@kinetiks/hv",
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --port 3000",
+    "dev": "next dev --port 3002",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -17,13 +17,9 @@
     "@kinetiks/synapse": "workspace:*",
     "@kinetiks/types": "workspace:*",
     "@kinetiks/ui": "workspace:*",
-    "@mendable/firecrawl-js": "^4.16.0",
     "@supabase/ssr": "^0.5.0",
     "@supabase/supabase-js": "^2.49.0",
-    "cron-parser": "^5.5.0",
-    "mammoth": "^1.12.0",
     "next": "14.2.23",
-    "pdf-parse": "1.1.1",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
     "server-only": "^0.0.1"
@@ -31,7 +27,6 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4.0.0",
     "@types/node": "^20.0.0",
-    "@types/pdf-parse": "^1.1.5",
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
     "tailwindcss": "^4.0.0",

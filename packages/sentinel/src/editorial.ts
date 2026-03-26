@@ -5,9 +5,28 @@ import type {
   SentinelFlag,
   FlagSeverity,
 } from "@kinetiks/types";
-import { askClaude } from "@kinetiks/ai";
-import { SENTINEL_EDITORIAL_SYSTEM } from "@/lib/ai/prompts/sentinel";
+import { askClaude, loadKnowledge } from "@kinetiks/ai";
+import { SENTINEL_EDITORIAL_SYSTEM } from "./prompts";
 import { LENGTH_RANGES } from "./thresholds";
+
+/**
+ * Load content quality audit methodology to enrich editorial review.
+ * Gives Sentinel the 8-dimension audit rubric and AI-tell detection patterns.
+ */
+async function loadEditorialMethodology(): Promise<string> {
+  try {
+    const result = await loadKnowledge({
+      operator: "content_generator", // content-quality module targets content_generator
+      intent: "write_blog_post",     // triggers content-quality module
+      tokenBudget: 1500,
+      forceModules: ["content-quality"],
+      excludeModules: ["copywriting", "seo", "email", "positioning", "social", "voice", "product-marketing"],
+    });
+    return result.content || "";
+  } catch {
+    return "";
+  }
+}
 
 /**
  * Weights for computing the composite editorial quality score.
@@ -86,8 +105,14 @@ ${JSON.stringify(context.products, null, 2)}
 ${JSON.stringify(context.competitive, null, 2)}`;
 
   try {
+    // Load content quality methodology (AI-tell detection, voice drift, audit rubric)
+    const methodology = await loadEditorialMethodology();
+    const systemPrompt = methodology
+      ? `${SENTINEL_EDITORIAL_SYSTEM}\n\n## Content Quality Audit Methodology\nUse these additional quality checks alongside your standard evaluation:\n${methodology}`
+      : SENTINEL_EDITORIAL_SYSTEM;
+
     const response = await askClaude(prompt, {
-      system: SENTINEL_EDITORIAL_SYSTEM,
+      system: systemPrompt,
       model: "claude-sonnet-4-20250514",
       maxTokens: 2048,
     });

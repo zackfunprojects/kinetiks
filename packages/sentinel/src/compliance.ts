@@ -5,7 +5,7 @@ import type {
   SentinelFlag,
 } from "@kinetiks/types";
 import { askClaude } from "@kinetiks/ai";
-import { SENTINEL_COMPLIANCE_SYSTEM } from "@/lib/ai/prompts/sentinel";
+import { SENTINEL_COMPLIANCE_SYSTEM } from "./prompts";
 
 /**
  * Which compliance domains apply to which apps/content types.

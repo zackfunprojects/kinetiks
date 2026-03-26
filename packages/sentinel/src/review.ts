@@ -3,8 +3,6 @@ import type {
   ReviewResponse,
   SentinelVerdict,
   SentinelFlag,
-  FatigueCheckResult,
-  ComplianceCheckResult,
 } from "@kinetiks/types";
 import { SupabaseClient } from "@supabase/supabase-js";
 import { evaluateEditorial } from "./editorial";

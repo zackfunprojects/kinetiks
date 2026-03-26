@@ -6,7 +6,7 @@ import type {
   SentinelFlag,
 } from "@kinetiks/types";
 import { askClaude } from "@kinetiks/ai";
-import { SENTINEL_BRAND_SAFETY_SYSTEM } from "@/lib/ai/prompts/sentinel";
+import { SENTINEL_BRAND_SAFETY_SYSTEM } from "./prompts";
 
 interface ContextLayers {
   competitive: Record<string, unknown>;
@@ -33,12 +33,6 @@ const SEVERITY_HOLDS: FlagSeverity[] = ["critical", "high"];
 const SEVERITY_FLAGS: FlagSeverity[] = ["medium"];
 
 /**
- * Run brand safety evaluation.
- *
- * Calls Claude Sonnet with content and context layers to classify
- * risk across 8 categories. Returns per-category severity and flags.
- */
-/**
  * Conservative fallback result returned when the AI call or parsing fails.
  */
 function fallbackBrandSafetyResult(detail: string): BrandSafetyResult {
@@ -60,6 +54,12 @@ function fallbackBrandSafetyResult(detail: string): BrandSafetyResult {
   };
 }
 
+/**
+ * Run brand safety evaluation.
+ *
+ * Calls Claude Sonnet with content and context layers to classify
+ * risk across 8 categories. Returns per-category severity and flags.
+ */
 export async function evaluateBrandSafety(
   content: string,
   contentType: SentinelContentType,
