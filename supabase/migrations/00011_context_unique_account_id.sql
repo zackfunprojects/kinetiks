@@ -31,27 +31,31 @@ begin
   end loop;
 end $$;
 
--- Now add the unique constraints
-alter table kinetiks_context_org
-  add constraint kinetiks_context_org_account_id_key unique (account_id);
-
-alter table kinetiks_context_products
-  add constraint kinetiks_context_products_account_id_key unique (account_id);
-
-alter table kinetiks_context_voice
-  add constraint kinetiks_context_voice_account_id_key unique (account_id);
-
-alter table kinetiks_context_customers
-  add constraint kinetiks_context_customers_account_id_key unique (account_id);
-
-alter table kinetiks_context_narrative
-  add constraint kinetiks_context_narrative_account_id_key unique (account_id);
-
-alter table kinetiks_context_competitive
-  add constraint kinetiks_context_competitive_account_id_key unique (account_id);
-
-alter table kinetiks_context_market
-  add constraint kinetiks_context_market_account_id_key unique (account_id);
-
-alter table kinetiks_context_brand
-  add constraint kinetiks_context_brand_account_id_key unique (account_id);
+-- Now add the unique constraints (IF NOT EXISTS for idempotency)
+do $$
+declare
+  tbl text;
+  cname text;
+begin
+  foreach tbl in array array[
+    'kinetiks_context_org',
+    'kinetiks_context_products',
+    'kinetiks_context_voice',
+    'kinetiks_context_customers',
+    'kinetiks_context_narrative',
+    'kinetiks_context_competitive',
+    'kinetiks_context_market',
+    'kinetiks_context_brand'
+  ]
+  loop
+    cname := tbl || '_account_id_key';
+    if not exists (
+      select 1 from pg_constraint where conname = cname
+    ) then
+      execute format(
+        'alter table %I add constraint %I unique (account_id)',
+        tbl, cname
+      );
+    end if;
+  end loop;
+end $$;
