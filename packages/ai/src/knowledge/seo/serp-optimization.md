@@ -62,7 +62,12 @@ Structured data helps search engines understand content type and can enable rich
 }
 ```
 
-**FAQ JSON-LD** (for pages with FAQ sections):
+**FAQ JSON-LD** (limited eligibility since August 8, 2023):
+
+Google restricted FAQ rich results to government and health authority sites. Most sites will no longer see FAQ snippets in search results even with valid markup. Do not treat FAQPage schema as a broad SERP win tactic. It may still be worth including for semantic clarity and potential future changes, but do not promise SERP visibility from it.
+
+Ref: https://developers.google.com/search/docs/appearance/structured-data/faqpage
+
 ```json
 {
   "@context": "https://schema.org",
@@ -80,7 +85,12 @@ Structured data helps search engines understand content type and can enable rich
 }
 ```
 
-**HowTo JSON-LD** (for tutorial/how-to content):
+**HowTo JSON-LD** (deprecated - removed from Google Search September 13, 2023):
+
+Google removed HowTo rich results from search entirely. This markup no longer produces any visible SERP enhancement. Including it does no harm (valid schema.org), but has zero search visibility benefit. Do not recommend HowTo schema as an SEO tactic.
+
+Ref: https://developers.google.com/search/blog/2023/08/howto-faq-changes
+
 ```json
 {
   "@context": "https://schema.org",
@@ -97,7 +107,7 @@ Structured data helps search engines understand content type and can enable rich
 }
 ```
 
-Include schema as JSON-LD in a `<script type="application/ld+json">` tag in the page head. One schema block per type. Validate with Google's Rich Results Test before publishing.
+Include schema as JSON-LD in a `<script type="application/ld+json">` tag in the page head. One schema block per type. Validate with Google's Rich Results Test before publishing. Prioritize Article, Product, and BreadcrumbList schema - these still produce visible SERP features.
 
 ---
 

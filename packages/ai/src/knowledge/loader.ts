@@ -168,16 +168,19 @@ export async function loadKnowledge(
           }
         }
         truncated = true;
-        break;
+        continue; // Keep scanning - smaller files may still fit
       }
 
       sections.push(content);
       tokensUsed += contentTokens;
       loadedModules.add(entry.moduleId);
       loadedFiles.push(`${entry.moduleId}/${entry.file.name}`);
-    } catch {
-      // File not found - skip silently
-      continue;
+    } catch (err: unknown) {
+      // Only swallow missing-file errors; surface everything else
+      if (err && typeof err === "object" && "code" in err && (err as NodeJS.ErrnoException).code === "ENOENT") {
+        continue;
+      }
+      throw err;
     }
   }
 
