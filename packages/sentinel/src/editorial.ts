@@ -5,19 +5,23 @@ import type {
   SentinelFlag,
   FlagSeverity,
 } from "@kinetiks/types";
-import { askClaude, loadKnowledge } from "@kinetiks/ai";
+import { askClaude } from "@kinetiks/ai";
 import { SENTINEL_EDITORIAL_SYSTEM } from "./prompts";
 import { LENGTH_RANGES } from "./thresholds";
 
 /**
  * Load content quality audit methodology to enrich editorial review.
  * Gives Sentinel the 8-dimension audit rubric and AI-tell detection patterns.
+ *
+ * Uses dynamic import to avoid webpack static analysis of the knowledge
+ * loader's fs/promises dependency.
  */
 async function loadEditorialMethodology(): Promise<string> {
   try {
+    const { loadKnowledge } = await import("@kinetiks/ai");
     const result = await loadKnowledge({
-      operator: "content_generator", // content-quality module targets content_generator
-      intent: "write_blog_post",     // triggers content-quality module
+      operator: "content_generator",
+      intent: "write_blog_post",
       tokenBudget: 1500,
       forceModules: ["content-quality"],
       excludeModules: ["copywriting", "seo", "email", "positioning", "social", "voice", "product-marketing"],
