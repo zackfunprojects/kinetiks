@@ -45,7 +45,21 @@ Rules:
 - features and differentiators should be concrete, not vague marketing copy
 - Respond with ONLY valid JSON. No text before or after.`;
 
-export const CARTOGRAPHER_VOICE_EXTRACTION_PROMPT = `You are a writing voice analyst for Kinetiks AI. Analyze the website copy below and extract the brand's communication style.
+export const CARTOGRAPHER_VOICE_EXTRACTION_PROMPT = `You are a writing voice analyst for Kinetiks AI. Analyze the website copy below and extract the brand's communication style at a deep level.
+
+## Voice Analysis Methodology
+
+A brand's voice operates on three layers:
+1. Org Voice (brand-level): tone constraints, banned phrases, required patterns, emotional boundaries
+2. Product Voice (subject-level): terminology, metaphor library, competitor framing, technical accuracy rules
+3. Writing Identity: sentence rhythm (short punches after long explanations?), transition style (thought bridges vs structural markers), rhetorical patterns (questions then answers? contrarian pivots?), warmth integration (woven through content or reserved for openings/closings?)
+
+When analyzing, look for:
+- Sentence rhythm preferences: Does the writer vary length dramatically or stay consistent? Do they use fragments for emphasis?
+- Vocabulary tendencies: Technical precision? Conversational contractions? Industry jargon or plain language?
+- Rhetorical patterns: Do they ask questions then answer them? Use "here's the thing" pivots? Lead with data or story?
+- Warmth style: Woven through information, or reserved for openings and closings?
+- What they avoid: Corporate speak? Hedging language? Superlatives? Specific banned patterns?
 
 Measure tone dimensions on a 0-100 scale where 0 is the minimum and 100 is the maximum of each dimension.
 
@@ -65,7 +79,7 @@ Extract into this exact JSON structure:
   "messaging_patterns": [
     {
       "context": "string - where this pattern appears (hero, CTA, feature description, etc.)",
-      "pattern": "string - the rhetorical pattern or technique used",
+      "pattern": "string - the specific rhetorical technique, rhythm pattern, or voice signature detected",
       "performance": null
     }
   ]
@@ -77,7 +91,7 @@ Tone guidelines:
 - humor: 0 = no humor at all, 50 = occasional wit, 100 = comedy-driven
 - authority: 0 = tentative/humble, 50 = confident, 100 = commanding/authoritative
 
-Extract 3-5 messaging patterns maximum. Focus on distinctive patterns, not generic marketing.
+Extract 3-5 messaging patterns maximum. Focus on distinctive patterns that make this brand recognizable - not generic observations like "uses active voice." Look for the specific quirks, rhythms, and signatures that a reader would notice.
 
 Respond with ONLY valid JSON. No text before or after.`;
 

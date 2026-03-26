@@ -4,7 +4,7 @@
  * Returns both competitive and market layer data in a single Claude call.
  */
 
-import { askClaude } from "@kinetiks/ai";
+import { askClaude, loadKnowledge } from "@kinetiks/ai";
 import {
   CARTOGRAPHER_POSITIONING_EXTRACTION_PROMPT,
   buildPositioningExtractionPrompt,
@@ -13,6 +13,24 @@ import type { ExtractionResult } from "./types";
 import { parseClaudeJSON, truncateContent } from "./utils";
 
 const MAX_CONTENT_LENGTH = 12_000;
+
+/**
+ * Load positioning methodology to enrich competitive extraction.
+ * Gives the extractor knowledge of positioning frameworks (Dunford, Schwartz
+ * sophistication levels) for deeper competitive analysis.
+ */
+async function loadPositioningMethodology(): Promise<string> {
+  try {
+    const result = await loadKnowledge({
+      operator: "cartographer",
+      intent: "positioning_analysis",
+      tokenBudget: 1500,
+    });
+    return result.content || "";
+  } catch {
+    return "";
+  }
+}
 
 interface CompetitorRaw {
   name?: unknown;
@@ -67,8 +85,14 @@ export async function extractPositioning(
     const content = truncateContent(markdown, MAX_CONTENT_LENGTH);
     const prompt = buildPositioningExtractionPrompt(content, url);
 
+    // Load positioning methodology for deeper competitive analysis
+    const methodology = await loadPositioningMethodology();
+    const systemPrompt = methodology
+      ? `${CARTOGRAPHER_POSITIONING_EXTRACTION_PROMPT}\n\n## Positioning Analysis Methodology\n${methodology}`
+      : CARTOGRAPHER_POSITIONING_EXTRACTION_PROMPT;
+
     const response = await askClaude(prompt, {
-      system: CARTOGRAPHER_POSITIONING_EXTRACTION_PROMPT,
+      system: systemPrompt,
       model: "claude-sonnet-4-20250514",
       maxTokens: 2048,
     });

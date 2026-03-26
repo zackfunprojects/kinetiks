@@ -1,5 +1,5 @@
 import type { VoiceData } from "@kinetiks/types";
-import { askClaude } from "@kinetiks/ai";
+import { askClaude, loadKnowledge } from "@kinetiks/ai";
 import {
   CARTOGRAPHER_VOICE_EXTRACTION_PROMPT,
   buildVoiceExtractionPrompt,
@@ -8,6 +8,23 @@ import type { ExtractionResult } from "./types";
 import { parseClaudeJSON, truncateContent } from "./utils";
 
 const MAX_CONTENT_LENGTH = 10_000;
+
+/**
+ * Load voice profiling methodology to enrich the extraction prompt.
+ * Non-blocking - returns empty string if loading fails.
+ */
+async function loadVoiceMethodology(): Promise<string> {
+  try {
+    const result = await loadKnowledge({
+      operator: "voice_engine",
+      intent: "voice_profiling",
+      tokenBudget: 1500,
+    });
+    return result.content || "";
+  } catch {
+    return "";
+  }
+}
 
 interface VoiceExtractionResponse {
   tone: {
@@ -112,8 +129,14 @@ export async function extractVoice(
     const content = truncateContent(markdown, MAX_CONTENT_LENGTH);
     const prompt = buildVoiceExtractionPrompt(content, url);
 
+    // Load voice profiling methodology to enrich extraction
+    const methodology = await loadVoiceMethodology();
+    const systemPrompt = methodology
+      ? `${CARTOGRAPHER_VOICE_EXTRACTION_PROMPT}\n\n## Reference Methodology\n${methodology}`
+      : CARTOGRAPHER_VOICE_EXTRACTION_PROMPT;
+
     const response = await askClaude(prompt, {
-      system: CARTOGRAPHER_VOICE_EXTRACTION_PROMPT,
+      system: systemPrompt,
       model: "claude-sonnet-4-20250514",
       maxTokens: 2048,
     });

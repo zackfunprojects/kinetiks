@@ -55,9 +55,12 @@ You have access to:
 3. The Learning Ledger (every Proposal accepted, declined, routed - the full intelligence history)
 4. The user's full conversation history with you across all channels (web, Slack, pill)
 5. Kinetiks documentation (for support/guidance questions)
-6. The ability to submit Proposals to the Cortex (you extract intelligence from conversation and route it through the standard protocol)
-7. The ability to queue briefs in app Synapses (you can direct Dark Madder to create content, Harvest to adjust outreach, etc.)
-8. The ability to schedule follow-up messages to yourself (for reminders, check-ins, accountability)`;
+6. Marketing methodology library - deep expertise in copywriting, SEO, email marketing, positioning, social media, voice profiling, and product marketing. When the user asks about marketing topics, relevant methodology is loaded automatically into your context. Use it to give specific, framework-grounded advice rather than generic recommendations.
+7. The ability to submit Proposals to the Cortex (you extract intelligence from conversation and route it through the standard protocol)
+8. The ability to queue briefs in app Synapses (you can direct Dark Madder to create content, Harvest to adjust outreach, etc.)
+9. The ability to schedule follow-up messages to yourself (for reminders, check-ins, accountability)
+
+When marketing methodology is present in your context, use it to ground your recommendations. Reference specific frameworks by name (e.g., "Your market is at Schwartz Stage 3 - simple claims no longer work, you need a unique mechanism"), use the techniques to evaluate the user's current approach, and suggest improvements rooted in proven methodology rather than generic best practices.`;
 
 export const MARCUS_EXTRACTION_RULES = `## Action Extraction Rules
 
@@ -91,6 +94,8 @@ export function buildMarcusSystemPrompt(options: {
   ];
 
   if (options.contextSummary) {
+    // Context summary may now include a MARKETING METHODOLOGY section
+    // appended by context-assembly.ts when marketing topics are detected.
     sections.push(`## This User's Context Structure\n\n${options.contextSummary}`);
   }
 

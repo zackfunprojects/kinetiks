@@ -1,6 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { MarcusIntent, ContextBudget } from "@kinetiks/types";
 import { CONTEXT_BUDGETS } from "@kinetiks/types";
+import { loadKnowledge } from "@kinetiks/ai";
+import type { KnowledgeIntent } from "@kinetiks/ai";
 import { getThreadMessages } from "./thread-manager";
 import { searchDocs } from "./docs-search";
 
@@ -83,6 +85,15 @@ export async function assembleContext(
   if (budget.docs > 0 && userMessage) {
     const docsContext = assembleDocs(userMessage, budget.docs);
     if (docsContext) sections.push(docsContext);
+  }
+
+  // Load marketing methodology when the user's request involves marketing tasks
+  if (userMessage && (intent === "strategic" || intent === "tactical")) {
+    const knowledgeIntent = detectKnowledgeIntent(userMessage);
+    if (knowledgeIntent) {
+      const knowledge = await assembleKnowledge(knowledgeIntent);
+      if (knowledge) sections.push(knowledge);
+    }
   }
 
   return sections.join("\n\n");
@@ -243,6 +254,81 @@ function assembleDocs(query: string, tokenBudget: number): string {
       tokenBudget
     );
   } catch {
+    return "";
+  }
+}
+
+/**
+ * Marketing keyword patterns mapped to knowledge intents.
+ * When Marcus detects these in the user's message, the corresponding
+ * marketing methodology is loaded into context.
+ */
+const KNOWLEDGE_PATTERNS: Array<{ patterns: RegExp; intent: KnowledgeIntent }> = [
+  // Content & SEO
+  { patterns: /\b(blog|article|seo|content strat|pillar|hub.?page|spoke|long.?form|rank)\b/i, intent: "write_blog_post" },
+  { patterns: /\b(keyword|search volume|serp|ranking|search intent)\b/i, intent: "keyword_research" },
+  { patterns: /\b(content plan|editorial|content calendar|topic cluster)\b/i, intent: "content_planning" },
+  // Copywriting
+  { patterns: /\b(landing page|sales page|conversion copy|hero section)\b/i, intent: "write_landing_page" },
+  { patterns: /\b(headline|tagline|hook|subject line)\b/i, intent: "write_headlines" },
+  { patterns: /\b(cta|call.?to.?action|button copy)\b/i, intent: "write_cta" },
+  { patterns: /\b(ad copy|facebook ad|google ad|paid|creative)\b/i, intent: "write_ad_copy" },
+  // Email
+  { patterns: /\b(cold email|outreach|first touch|prospecting)\b/i, intent: "write_cold_email" },
+  { patterns: /\b(follow.?up|sequence|drip|nurture|welcome email)\b/i, intent: "build_email_sequence" },
+  { patterns: /\b(email|newsletter|subscriber|open rate)\b/i, intent: "write_subject_lines" },
+  // Positioning & Strategy
+  { patterns: /\b(position|differentiat|competitive|angle|messaging)\b/i, intent: "positioning_analysis" },
+  { patterns: /\b(competitor|vs |versus|alternative|battle.?card)\b/i, intent: "competitive_analysis" },
+  { patterns: /\b(pricing|tier|plan|free trial|freemium)\b/i, intent: "pricing_copy" },
+  // Social
+  { patterns: /\b(social|linkedin|twitter|instagram|tiktok|carousel|thread)\b/i, intent: "write_social_post" },
+  { patterns: /\b(repurpos|atomiz|distribute|cross.?post)\b/i, intent: "content_repurpose" },
+  // Product marketing
+  { patterns: /\b(launch|announce|feature release|changelog|beta)\b/i, intent: "product_launch" },
+  { patterns: /\b(comparison page|migration|switch from)\b/i, intent: "write_comparison_page" },
+  // Voice
+  { patterns: /\b(brand voice|tone|writing style|voice profile)\b/i, intent: "voice_calibration" },
+  // PR
+  { patterns: /\b(press release|media|journalist|pitch|pr)\b/i, intent: "write_pitch" },
+  // Campaign orchestration
+  { patterns: /\b(campaign|multi.?channel|cross.?channel|touchpoint|funnel)\b/i, intent: "strategic_advice" },
+  // Attribution & measurement
+  { patterns: /\b(attribut|roi|cac|payback|pipeline value|channel.?efficiency|measure)\b/i, intent: "performance_analysis" },
+  // Objection handling
+  { patterns: /\b(objection|deal stage|discovery call|evaluation|close the deal|stalled deal)\b/i, intent: "write_follow_up" },
+  // Ads
+  { patterns: /\b(google ads?|linkedin ads?|meta ads?|facebook ads?|tiktok ads?|paid media|cpc|cpm)\b/i, intent: "write_ad_copy" },
+];
+
+/**
+ * Detect if a user message warrants marketing knowledge injection.
+ * Returns the most relevant knowledge intent, or null if no marketing topic detected.
+ */
+function detectKnowledgeIntent(message: string): KnowledgeIntent | null {
+  for (const { patterns, intent } of KNOWLEDGE_PATTERNS) {
+    if (patterns.test(message)) return intent;
+  }
+  return null;
+}
+
+/**
+ * Load marketing methodology for Marcus based on detected intent.
+ * Budget is conservative (2000 tokens) to leave room for context structure.
+ */
+async function assembleKnowledge(intent: KnowledgeIntent): Promise<string> {
+  try {
+    const result = await loadKnowledge({
+      operator: "marcus",
+      intent,
+      tokenBudget: 2000,
+    });
+
+    if (!result.content || result.modulesLoaded.length === 0) return "";
+
+    return `MARKETING METHODOLOGY (${result.modulesLoaded.join(", ")}):\n${result.content}`;
+  } catch {
+    // Knowledge loading is non-critical - don't block response
     return "";
   }
 }
