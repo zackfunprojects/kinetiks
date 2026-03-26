@@ -63,13 +63,17 @@ export async function POST(request: Request) {
   let orgData: Record<string, string> = {};
   let productsData: Record<string, unknown> = {};
   let voiceData: Record<string, unknown> = {};
+  let customersData: Record<string, unknown> = {};
+  let competitiveData: Record<string, unknown> = {};
 
-  const contextResult = await pullHarvestContext(auth.account_id, ["org", "products", "voice"]);
+  const contextResult = await pullHarvestContext(auth.account_id, ["org", "products", "voice", "customers", "narrative", "competitive"]);
   if (contextResult) {
     // Assertions: Layer data shapes are defined by Context Structure JSON schemas (CLAUDE.md)
     orgData = (contextResult.layers.org?.data ?? {}) as Record<string, string>;
     productsData = (contextResult.layers.products?.data ?? {}) as Record<string, unknown>;
     voiceData = (contextResult.layers.voice?.data ?? {}) as Record<string, unknown>;
+    customersData = (contextResult.layers.customers?.data ?? {}) as Record<string, unknown>;
+    competitiveData = (contextResult.layers.competitive?.data ?? {}) as Record<string, unknown>;
   } else {
     // Fallback: direct DB reads if Synapse pull fails (degraded mode)
     console.warn("[HV Composer] Synapse pull failed, falling back to direct DB reads");
@@ -98,6 +102,8 @@ export async function POST(request: Request) {
       senderProduct: products[0]?.description || products[0]?.name || "",
       voiceLayer: Object.keys(voiceData).length > 0 ? voiceData : undefined,
       productLayer: Object.keys(productsData).length > 0 ? productsData : undefined,
+      customersLayer: Object.keys(customersData).length > 0 ? customersData : undefined,
+      competitiveLayer: Object.keys(competitiveData).length > 0 ? competitiveData : undefined,
     });
 
     return apiSuccess(result);

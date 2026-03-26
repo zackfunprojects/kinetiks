@@ -2,6 +2,7 @@ import { requireAuth } from "@/lib/auth/require-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { apiSuccess, apiError } from "@/lib/utils/api-response";
 import { generateResearchBrief } from "@/lib/composer/research";
+import { pullHarvestContext } from "@/lib/synapse/client";
 import type { ResearchTier } from "@/types/composer";
 
 /**
@@ -51,21 +52,33 @@ export async function POST(request: Request) {
     return apiError("Contact not found", 404);
   }
 
-  // Fetch sender info from account's Context Structure
-  const { data: orgLayer } = await admin
-    .from("kinetiks_context_org")
-    .select("data")
-    .eq("account_id", auth.account_id)
-    .single();
+  // Fetch sender info from Kinetiks ID via Synapse
+  let orgData: Record<string, string> = {};
+  let productsData: Record<string, unknown> = {};
 
-  const { data: productsLayer } = await admin
-    .from("kinetiks_context_products")
-    .select("data")
-    .eq("account_id", auth.account_id)
-    .single();
+  const contextResult = await pullHarvestContext(auth.account_id, ["org", "products"]);
+  if (contextResult) {
+    // Assertions: Layer data shapes follow Context Structure JSON schemas
+    orgData = (contextResult.layers.org?.data ?? {}) as Record<string, string>;
+    productsData = (contextResult.layers.products?.data ?? {}) as Record<string, unknown>;
+  } else {
+    // Fallback: direct DB reads if Synapse pull fails
+    console.warn("[HV Research] Synapse pull failed, falling back to direct DB reads");
+    const { data: orgLayer } = await admin
+      .from("kinetiks_context_org")
+      .select("data")
+      .eq("account_id", auth.account_id)
+      .single();
+    const { data: productsLayer } = await admin
+      .from("kinetiks_context_products")
+      .select("data")
+      .eq("account_id", auth.account_id)
+      .single();
+    // Assertions: DB returns JSONB data column with known schema per migration
+    orgData = (orgLayer?.data as Record<string, string>) ?? {};
+    productsData = (productsLayer?.data as Record<string, unknown>) ?? {};
+  }
 
-  const orgData = (orgLayer?.data as Record<string, string>) ?? {};
-  const productsData = (productsLayer?.data as Record<string, unknown>) ?? {};
   const products = (productsData.products as Array<Record<string, string>>) ?? [];
 
   const brief = await generateResearchBrief({

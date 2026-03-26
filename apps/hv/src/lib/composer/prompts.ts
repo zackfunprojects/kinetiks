@@ -254,8 +254,10 @@ export function buildEmailUserMessage(params: {
   org: HvOrganization | null;
   ccContact?: HvContact | null;
   brief: { company_summary: string; personalization_hooks: string[]; relevance_angle: string };
+  customersLayer?: Record<string, unknown>;
+  competitiveLayer?: Record<string, unknown>;
 }): string {
-  const { contact, org, ccContact, brief } = params;
+  const { contact, org, ccContact, brief, customersLayer, competitiveLayer } = params;
 
   const lines: string[] = [
     "Write a cold outreach email for this target:",
@@ -291,6 +293,42 @@ export function buildEmailUserMessage(params: {
     lines.push(`Name: ${[ccContact.first_name, ccContact.last_name].filter(Boolean).join(" ")}`);
     if (ccContact.first_name) lines.push(`First name: ${ccContact.first_name}`);
     if (ccContact.title) lines.push(`Title: ${ccContact.title}`);
+  }
+
+  // Inject buyer persona context from Kinetiks ID
+  if (customersLayer) {
+    const personas = Array.isArray(customersLayer.personas) ? customersLayer.personas : [];
+    if (personas.length > 0) {
+      lines.push("");
+      lines.push("## Known Buyer Personas (use to tailor pain points and angles)");
+      for (const p of personas) {
+        const persona = p as Record<string, unknown>;
+        const parts: string[] = [];
+        if (persona.name) parts.push(String(persona.name));
+        if (persona.role) parts.push(`Role: ${persona.role}`);
+        const pains = Array.isArray(persona.pain_points) ? persona.pain_points : [];
+        if (pains.length > 0) parts.push(`Pain points: ${pains.join(", ")}`);
+        const objections = Array.isArray(persona.objections) ? persona.objections : [];
+        if (objections.length > 0) parts.push(`Common objections: ${objections.join(", ")}`);
+        if (parts.length > 0) lines.push(`- ${parts.join(" | ")}`);
+      }
+    }
+  }
+
+  // Inject competitive context from Kinetiks ID
+  if (competitiveLayer) {
+    const competitors = Array.isArray(competitiveLayer.competitors) ? competitiveLayer.competitors : [];
+    if (competitors.length > 0) {
+      lines.push("");
+      lines.push("## Competitive Context (differentiate from these)");
+      for (const c of competitors) {
+        const comp = c as Record<string, unknown>;
+        if (comp.name) {
+          const positioning = comp.positioning ? ` - ${comp.positioning}` : "";
+          lines.push(`- ${comp.name}${positioning}`);
+        }
+      }
+    }
   }
 
   return lines.join("\n");

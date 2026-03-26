@@ -2,6 +2,7 @@ import { requireAuth } from "@/lib/auth/require-auth";
 import { apiSuccess, apiError } from "@/lib/utils/api-response";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { enrichDomain } from "@/lib/scout/enrichment";
+import { pullHarvestContext } from "@/lib/synapse/client";
 
 /**
  * POST /api/hv/scout/enrich
@@ -37,8 +38,27 @@ export async function POST(request: Request) {
     .replace(/^www\./, "")
     .split("/")[0];
 
+  // Merge title preferences from Kinetiks ID customers layer
+  let mergedTitleKeywords = title_keywords || [];
   try {
-    const result = await enrichDomain(cleanDomain, title_keywords || []);
+    const ctx = await pullHarvestContext(auth.account_id, ["customers"]);
+    const customersData = ctx?.layers.customers?.data as Record<string, unknown> | undefined;
+    if (customersData && Array.isArray(customersData.personas)) {
+      const personaTitles: string[] = [];
+      for (const p of customersData.personas as Array<Record<string, unknown>>) {
+        if (typeof p.role === "string" && p.role) personaTitles.push(p.role);
+      }
+      if (personaTitles.length > 0 && mergedTitleKeywords.length === 0) {
+        // Only use persona titles as defaults if no explicit keywords provided
+        mergedTitleKeywords = personaTitles;
+      }
+    }
+  } catch {
+    // Non-fatal - enrichment works without persona context
+  }
+
+  try {
+    const result = await enrichDomain(cleanDomain, mergedTitleKeywords);
     const admin = createAdminClient();
 
     // Save organization

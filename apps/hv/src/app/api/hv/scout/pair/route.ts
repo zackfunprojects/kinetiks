@@ -2,6 +2,7 @@ import { requireAuth } from "@/lib/auth/require-auth";
 import { apiSuccess, apiError } from "@/lib/utils/api-response";
 import { selectPair } from "@/lib/scout/pairing";
 import { selectPairWithClaude } from "@/lib/scout/ai-pairing";
+import { pullHarvestContext } from "@/lib/synapse/client";
 import type { ContactCandidate, PairingConfig } from "@/lib/scout/types";
 
 /**
@@ -70,6 +71,18 @@ export async function POST(request: Request) {
     return apiError("No candidates remain after applying exclude_names", 400);
   }
 
+  // Pull personas from Kinetiks ID customers layer to enrich pairing
+  let personas: Array<Record<string, unknown>> = [];
+  try {
+    const ctx = await pullHarvestContext(auth.account_id, ["customers"]);
+    const customersData = ctx?.layers.customers?.data as Record<string, unknown> | undefined;
+    if (customersData && Array.isArray(customersData.personas)) {
+      personas = customersData.personas as Array<Record<string, unknown>>;
+    }
+  } catch {
+    // Non-fatal - pairing works without personas
+  }
+
   // Try AI pairing first, fall back to deterministic
   if (useAi) {
     try {
@@ -80,6 +93,7 @@ export async function POST(request: Request) {
         targetCompany: body.target_company,
         candidates: filteredCandidates,
         excludeNames: body.exclude_names,
+        personas,
       });
 
       return apiSuccess({ ...result, method: "ai" });

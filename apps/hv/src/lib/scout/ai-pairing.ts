@@ -67,10 +67,11 @@ interface AiPairingParams {
   targetCompany: TargetCompany;
   candidates: ContactCandidate[];
   excludeNames?: string[];
+  personas?: Array<Record<string, unknown>>;
 }
 
 function buildUserMessage(params: AiPairingParams): string {
-  const { sender, icp, pairingConfig: pc, targetCompany: co, candidates } = params;
+  const { sender, icp, pairingConfig: pc, targetCompany: co, candidates, personas } = params;
 
   const lines: string[] = [];
 
@@ -104,6 +105,25 @@ function buildUserMessage(params: AiPairingParams): string {
   if (co.location) lines.push(`Location: ${co.location}`);
   if (co.description) lines.push(`Description: ${co.description}`);
   lines.push("");
+
+  // Inject known buyer personas from Kinetiks ID customers layer
+  if (personas && personas.length > 0) {
+    lines.push("## Known Buyer Personas (from past wins and ICP data)");
+    lines.push("Use these to prioritize contacts who match proven buyer profiles:");
+    lines.push("");
+    for (const p of personas) {
+      const parts: string[] = [];
+      if (p.name) parts.push(`Persona: ${p.name}`);
+      if (p.role) parts.push(`Role: ${p.role}`);
+      if (p.company_type) parts.push(`Company type: ${p.company_type}`);
+      const painPoints = Array.isArray(p.pain_points) ? p.pain_points : [];
+      if (painPoints.length > 0) parts.push(`Pain points: ${painPoints.join(", ")}`);
+      const triggers = Array.isArray(p.buying_triggers) ? p.buying_triggers : [];
+      if (triggers.length > 0) parts.push(`Buying triggers: ${triggers.join(", ")}`);
+      if (parts.length > 0) lines.push(`- ${parts.join(" | ")}`);
+    }
+    lines.push("");
+  }
 
   lines.push("## Candidate Contacts");
   lines.push("Select from these candidates by their index number:");

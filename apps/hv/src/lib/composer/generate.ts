@@ -21,6 +21,8 @@ interface GenerateParams {
   senderProduct: string;
   voiceLayer?: Record<string, unknown>;
   productLayer?: Record<string, unknown>;
+  customersLayer?: Record<string, unknown>;
+  competitiveLayer?: Record<string, unknown>;
 }
 
 interface GenerateResult {
@@ -84,6 +86,8 @@ export async function generateEmailDraft(params: GenerateParams): Promise<Genera
     org: params.org,
     ccContact: params.ccContact,
     brief: params.brief,
+    customersLayer: params.customersLayer,
+    competitiveLayer: params.competitiveLayer,
   });
 
   const response = await client.messages.create({
