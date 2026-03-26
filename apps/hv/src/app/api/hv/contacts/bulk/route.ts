@@ -67,7 +67,8 @@ export async function POST(request: Request) {
       const { error: updateError } = await admin
         .from("hv_contacts")
         .update({ tags: Array.from(tagSet), updated_at: now })
-        .eq("id", contact.id);
+        .eq("id", contact.id)
+        .eq("kinetiks_id", auth.account_id);
 
       if (!updateError) updated++;
     }
@@ -114,7 +115,11 @@ export async function POST(request: Request) {
         }));
 
       if (suppressionRecords.length > 0) {
-        await admin.from("hv_suppressions").insert(suppressionRecords);
+        const { error: logError } = await admin.from("hv_suppressions").insert(suppressionRecords);
+        if (logError) {
+          console.error(`Failed to log bulk suppressions (account ${auth.account_id}):`, logError.message);
+          return apiError(`Contacts suppressed but failed to log suppressions: ${logError.message}`, 500);
+        }
       }
     }
 

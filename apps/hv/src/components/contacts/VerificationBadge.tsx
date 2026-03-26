@@ -10,7 +10,7 @@ const GRADE_CONFIG: Record<string, { color: string; label: string }> = {
   unverified: { color: "var(--text-tertiary)", label: "Unverified" },
 };
 
-export function VerificationBadge({ grade }: VerificationBadgeProps) {
+export function VerificationBadge({ grade }: VerificationBadgeProps): JSX.Element | null {
   if (!grade) return null;
 
   const config = GRADE_CONFIG[grade] ?? GRADE_CONFIG.unverified;

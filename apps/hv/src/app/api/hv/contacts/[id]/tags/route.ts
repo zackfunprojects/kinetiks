@@ -36,12 +36,16 @@ export async function POST(request: Request, { params }: RouteContext) {
   const admin = createAdminClient();
 
   // Fetch current tags
-  const { data: contact } = await admin
+  const { data: contact, error: selectError } = await admin
     .from("hv_contacts")
     .select("tags")
     .eq("id", params.id)
     .eq("kinetiks_id", auth.account_id)
     .single();
+
+  if (selectError) {
+    return apiError(`Failed to fetch contact: ${selectError.message}`, 500);
+  }
 
   if (!contact) {
     return apiError("Contact not found", 404);
@@ -53,7 +57,8 @@ export async function POST(request: Request, { params }: RouteContext) {
   if (body.action === "add") {
     const tagSet = new Set(currentTags);
     for (const tag of body.tags) {
-      tagSet.add(tag.trim());
+      const trimmed = tag.trim();
+      if (trimmed) tagSet.add(trimmed);
     }
     newTags = Array.from(tagSet);
   } else {

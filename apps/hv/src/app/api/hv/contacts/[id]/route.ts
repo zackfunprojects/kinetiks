@@ -16,7 +16,7 @@ export async function GET(request: Request, { params }: RouteContext) {
   if (error) return error;
 
   const admin = createAdminClient();
-  const { contact, contactError, activities } = await getContactById(
+  const { contact, contactError, activities, activitiesError } = await getContactById(
     admin,
     auth.account_id,
     params.id
@@ -24,6 +24,10 @@ export async function GET(request: Request, { params }: RouteContext) {
 
   if (contactError || !contact) {
     return apiError("Contact not found", 404);
+  }
+
+  if (activitiesError) {
+    return apiError(`Failed to load activities: ${activitiesError.message}`, 500);
   }
 
   return apiSuccess({ ...contact, activities });
@@ -122,13 +126,17 @@ export async function DELETE(request: Request, { params }: RouteContext) {
 
   // Log to immutable suppressions table
   if (contact.email) {
-    await admin.from("hv_suppressions").insert({
+    const { error: logError } = await admin.from("hv_suppressions").insert({
       kinetiks_id: auth.account_id,
       email: contact.email,
       type: "manual",
       reason: "manually_suppressed",
       source_app: "harvest",
     });
+    if (logError) {
+      console.error(`Failed to log suppression for ${contact.email} (account ${auth.account_id}):`, logError.message);
+      return apiError(`Contact suppressed but failed to log suppression: ${logError.message}`, 500);
+    }
   }
 
   return apiSuccess({ suppressed: true });

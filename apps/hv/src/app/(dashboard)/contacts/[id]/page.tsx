@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { ContactDetail } from "@/components/contacts/ContactDetail";
 
 interface ContactDetailPageProps {
@@ -7,7 +8,7 @@ interface ContactDetailPageProps {
 export default function ContactDetailPage({ params }: ContactDetailPageProps) {
   return (
     <div>
-      <a
+      <Link
         href="/contacts"
         style={{
           fontSize: "0.8125rem",
@@ -18,7 +19,7 @@ export default function ContactDetailPage({ params }: ContactDetailPageProps) {
         }}
       >
         ← Back to contacts
-      </a>
+      </Link>
       <ContactDetail contactId={params.id} />
     </div>
   );

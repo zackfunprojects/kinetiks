@@ -72,9 +72,9 @@ export function OrgCard({ org }: OrgCardProps) {
         <div style={{ marginTop: "10px" }}>
           <div style={{ fontSize: "0.6875rem", color: "var(--text-tertiary)", marginBottom: "4px" }}>Tech stack</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
-            {org.tech_stack.slice(0, 8).map((tech) => (
+            {org.tech_stack.slice(0, 8).map((tech, i) => (
               <span
-                key={tech}
+                key={`${tech}-${i}`}
                 style={{
                   padding: "2px 6px",
                   borderRadius: "3px",

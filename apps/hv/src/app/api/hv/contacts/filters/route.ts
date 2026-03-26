@@ -29,6 +29,9 @@ export async function GET(request: Request) {
   if (sourcesResult.error) {
     return apiError(`Failed to fetch filter values: ${sourcesResult.error.message}`, 500);
   }
+  if (tagsResult.error) {
+    return apiError(`Failed to fetch filter values: ${tagsResult.error.message}`, 500);
+  }
 
   // Extract unique sources
   const sourceSet = new Set<string>();

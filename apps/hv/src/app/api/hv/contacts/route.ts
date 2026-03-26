@@ -38,10 +38,16 @@ export async function GET(request: Request) {
   // default: hide suppressed (suppressed = false)
 
   const scoreMin = url.searchParams.get("score_min");
-  if (scoreMin) filters.score_min = parseInt(scoreMin, 10);
+  if (scoreMin) {
+    const parsed = parseInt(scoreMin, 10);
+    if (!Number.isNaN(parsed)) filters.score_min = parsed;
+  }
 
   const scoreMax = url.searchParams.get("score_max");
-  if (scoreMax) filters.score_max = parseInt(scoreMax, 10);
+  if (scoreMax) {
+    const parsed = parseInt(scoreMax, 10);
+    if (!Number.isNaN(parsed)) filters.score_max = parsed;
+  }
 
   const sortBy = url.searchParams.get("sort_by") ?? "lead_score";
   const sortDir = url.searchParams.get("sort_dir") ?? "desc";

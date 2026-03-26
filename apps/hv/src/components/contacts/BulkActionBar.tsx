@@ -20,12 +20,19 @@ export function BulkActionBar({ selectedCount, selectedIds, onComplete, onClear 
     }
     setLoading(true);
     try {
-      await fetch("/api/hv/contacts/bulk", {
+      const res = await fetch("/api/hv/contacts/bulk", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ids: selectedIds, action: "suppress" }),
       });
-      onComplete();
+      if (res.ok) {
+        onComplete();
+      } else {
+        const data = await res.json().catch(() => null);
+        alert(data?.error || "Failed to suppress contacts");
+      }
+    } catch {
+      alert("Network error");
     } finally {
       setLoading(false);
     }

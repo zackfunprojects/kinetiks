@@ -9,7 +9,7 @@ interface ScoreBreakdownProps {
   engagementScore: number;
 }
 
-const SCORE_LABELS: { key: keyof Omit<ScoreBreakdownProps, never>; label: string; description: string }[] = [
+const SCORE_LABELS: { key: keyof ScoreBreakdownProps; label: string; description: string }[] = [
   { key: "leadScore", label: "LEAD", description: "Composite score" },
   { key: "fitScore", label: "FIT", description: "ICP alignment" },
   { key: "intentScore", label: "INTENT", description: "Purchase signals" },

@@ -92,7 +92,11 @@ export function ContactsTable() {
     textAlign: "left",
   };
 
-  if (!loading && contacts.length === 0 && !filters.q && !filters.source) {
+  const isFiltersEmpty = !filters.q && !filters.source && !filters.seniority &&
+    !filters.verification_grade && !filters.tags?.length && filters.suppressed === undefined &&
+    filters.score_min === undefined && filters.score_max === undefined;
+
+  if (!loading && contacts.length === 0 && isFiltersEmpty) {
     return (
       <>
         <EmptyState

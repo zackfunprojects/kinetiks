@@ -110,32 +110,33 @@ export function AddContactModal({ onCreated, onClose }: AddContactModalProps) {
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
           <div>
-            <label style={labelStyle}>First name</label>
-            <input style={inputStyle} value={form.first_name} onChange={(e) => update("first_name", e.target.value)} />
+            <label htmlFor="ac-first-name" style={labelStyle}>First name</label>
+            <input id="ac-first-name" style={inputStyle} value={form.first_name} onChange={(e) => update("first_name", e.target.value)} />
           </div>
           <div>
-            <label style={labelStyle}>Last name</label>
-            <input style={inputStyle} value={form.last_name} onChange={(e) => update("last_name", e.target.value)} />
+            <label htmlFor="ac-last-name" style={labelStyle}>Last name</label>
+            <input id="ac-last-name" style={inputStyle} value={form.last_name} onChange={(e) => update("last_name", e.target.value)} />
           </div>
           <div style={{ gridColumn: "1 / -1" }}>
-            <label style={labelStyle}>Email</label>
-            <input style={{ ...inputStyle, fontFamily: "var(--font-mono, monospace), monospace" }} type="email" value={form.email} onChange={(e) => update("email", e.target.value)} />
+            <label htmlFor="ac-email" style={labelStyle}>Email</label>
+            <input id="ac-email" style={{ ...inputStyle, fontFamily: "var(--font-mono, monospace), monospace" }} type="email" value={form.email} onChange={(e) => update("email", e.target.value)} />
           </div>
           <div>
-            <label style={labelStyle}>Phone</label>
-            <input style={inputStyle} value={form.phone} onChange={(e) => update("phone", e.target.value)} />
+            <label htmlFor="ac-phone" style={labelStyle}>Phone</label>
+            <input id="ac-phone" style={inputStyle} value={form.phone} onChange={(e) => update("phone", e.target.value)} />
           </div>
           <div>
-            <label style={labelStyle}>LinkedIn URL</label>
-            <input style={inputStyle} value={form.linkedin_url} onChange={(e) => update("linkedin_url", e.target.value)} />
+            <label htmlFor="ac-linkedin" style={labelStyle}>LinkedIn URL</label>
+            <input id="ac-linkedin" style={inputStyle} value={form.linkedin_url} onChange={(e) => update("linkedin_url", e.target.value)} />
           </div>
           <div>
-            <label style={labelStyle}>Title</label>
-            <input style={inputStyle} value={form.title} onChange={(e) => update("title", e.target.value)} />
+            <label htmlFor="ac-title" style={labelStyle}>Title</label>
+            <input id="ac-title" style={inputStyle} value={form.title} onChange={(e) => update("title", e.target.value)} />
           </div>
           <div>
-            <label style={labelStyle}>Seniority</label>
+            <label htmlFor="ac-seniority" style={labelStyle}>Seniority</label>
             <select
+              id="ac-seniority"
               style={inputStyle}
               value={form.seniority}
               onChange={(e) => update("seniority", e.target.value)}
@@ -150,12 +151,13 @@ export function AddContactModal({ onCreated, onClose }: AddContactModalProps) {
             </select>
           </div>
           <div style={{ gridColumn: "1 / -1" }}>
-            <label style={labelStyle}>Department</label>
-            <input style={inputStyle} value={form.department} onChange={(e) => update("department", e.target.value)} />
+            <label htmlFor="ac-department" style={labelStyle}>Department</label>
+            <input id="ac-department" style={inputStyle} value={form.department} onChange={(e) => update("department", e.target.value)} />
           </div>
           <div style={{ gridColumn: "1 / -1" }}>
-            <label style={labelStyle}>Notes</label>
+            <label htmlFor="ac-notes" style={labelStyle}>Notes</label>
             <textarea
+              id="ac-notes"
               style={{ ...inputStyle, minHeight: 60, resize: "vertical" }}
               value={form.notes}
               onChange={(e) => update("notes", e.target.value)}
