@@ -25,7 +25,7 @@ Rules:
 - Primary should match the sender's preferred primary title keywords and seniority when possible, but use judgment - a slightly off-title person who is clearly more relevant is better than an exact keyword match who is not.
 - CC should typically be more senior than primary (e.g., if primary is a Director, CC might be a VP or C-suite), but any second contact is better than no second contact.
 - Consider the product being sold: if someone sells marketing automation, a VP of Marketing is better than a VP of Engineering.
-- CRITICAL: Always select from the provided candidates. Never invent contacts. Use the exact name, title, email, and linkedinUrl values from the candidate data.
+- CRITICAL: Always select from the provided candidates. Never invent contacts. Use the exact index numbers from the candidate list.
 - The two selected contacts MUST have different indices.
 
 Respond with ONLY valid JSON:
@@ -114,9 +114,8 @@ function buildUserMessage(params: AiPairingParams): string {
     const parts = [`[${i}] ${c.name || "Unknown"}`];
     if (c.title) parts.push(`Title: ${c.title}`);
     if (c.seniority) parts.push(`Seniority: ${c.seniority}`);
-    if (c.email) parts.push(`Email: ${c.email}`);
     if (c.hasWorkEmail) parts.push("Has work email: yes");
-    if (c.linkedinUrl) parts.push(`LinkedIn: ${c.linkedinUrl}`);
+    if (c.linkedinUrl) parts.push("Has LinkedIn: yes");
     lines.push(parts.join(" | "));
   }
 
@@ -186,17 +185,23 @@ export async function selectPairWithClaude(params: AiPairingParams): Promise<Pai
   }
 
   const primaryContact = candidates[primaryIdx];
-  let secondaryContact: ContactCandidate | null = null;
 
-  if (
-    result.secondary_index != null &&
-    typeof result.secondary_index === "number" &&
-    result.secondary_index >= 0 &&
-    result.secondary_index < candidates.length &&
-    result.secondary_index !== primaryIdx
-  ) {
-    secondaryContact = candidates[result.secondary_index];
+  // Validate secondary index - throw on invalid so deterministic fallback runs
+  if (result.secondary_index == null) {
+    throw new Error("Claude did not return a secondary_index");
   }
+  if (
+    typeof result.secondary_index !== "number" ||
+    result.secondary_index < 0 ||
+    result.secondary_index >= candidates.length
+  ) {
+    throw new Error(`Claude returned invalid secondary index: ${result.secondary_index}`);
+  }
+  if (result.secondary_index === primaryIdx) {
+    throw new Error(`Claude returned secondary index equal to primary: ${primaryIdx}`);
+  }
+
+  const secondaryContact = candidates[result.secondary_index];
 
   const status: PairResult["status"] =
     primaryContact && secondaryContact ? "pair_found" : primaryContact ? "primary_only" : "none_found";

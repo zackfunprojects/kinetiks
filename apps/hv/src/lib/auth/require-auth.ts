@@ -57,16 +57,16 @@ export async function requireAuth(
     return { auth: null, error: apiError("This endpoint does not accept internal service auth", 403) };
   }
 
-  // Check permission level for API key auth
-  if (options?.permissions && auth.auth_method === "api_key" && auth.permissions) {
+  // Check permission level for API key auth (fail-closed)
+  if (options?.permissions && auth.auth_method === "api_key") {
     const required = PERMISSION_LEVEL[options.permissions];
-    const actual = PERMISSION_LEVEL[auth.permissions];
+    const actual = auth.permissions ? PERMISSION_LEVEL[auth.permissions] : undefined;
 
-    if (actual < required) {
+    if (actual === undefined || typeof actual !== "number" || actual < required) {
       return {
         auth: null,
         error: apiError(
-          `Insufficient permissions. Required: ${options.permissions}, actual: ${auth.permissions}`,
+          `Insufficient permissions. Required: ${options.permissions}, actual: ${auth.permissions ?? "none"}`,
           403
         ),
       };

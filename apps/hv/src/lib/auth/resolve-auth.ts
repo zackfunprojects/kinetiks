@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { hashApiKey, isKineticsApiKey } from "./api-keys";
+import { hashApiKey, isKinetiksApiKey } from "./api-keys";
 import { timingSafeEqual } from "crypto";
 import type { AuthenticatedContext, ApiKeyPermission } from "@kinetiks/types";
 
@@ -50,7 +50,7 @@ export async function resolveAuth(
 async function resolveApiKey(
   key: string
 ): Promise<AuthenticatedContext | null> {
-  if (!isKineticsApiKey(key)) {
+  if (!isKinetiksApiKey(key)) {
     return null;
   }
 
@@ -79,11 +79,14 @@ async function resolveApiKey(
   }
 
   // Update last_used_at (fire-and-forget)
-  admin
-    .from("kinetiks_api_keys")
-    .update({ last_used_at: new Date().toISOString() })
-    .eq("id", keyRecord.id)
-    .then(() => {});
+  Promise.resolve(
+    admin
+      .from("kinetiks_api_keys")
+      .update({ last_used_at: new Date().toISOString() })
+      .eq("id", keyRecord.id)
+  ).catch((err: unknown) => {
+    console.error(`Failed to update last_used_at for key ${keyRecord.id}:`, err);
+  });
 
   // Look up the user_id from the account
   const { data: account } = await admin

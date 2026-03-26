@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Space_Grotesk, JetBrains_Mono } from "next/font/google";
+import { FloatingPillLoader } from "@/components/floating-pill-loader";
 import "./globals.css";
 
 const sansFont = Space_Grotesk({
@@ -26,7 +27,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={`${sansFont.variable} ${monoFont.variable}`}>
-      <body>{children}</body>
+      <body>
+        {children}
+        <FloatingPillLoader />
+      </body>
     </html>
   );
 }

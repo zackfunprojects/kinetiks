@@ -35,7 +35,11 @@ export async function POST(request: Request) {
   };
 
   try {
-    body = await request.json();
+    const parsed = await request.json();
+    if (parsed === null || typeof parsed !== "object") {
+      return apiError("Invalid JSON body", 400);
+    }
+    body = parsed;
   } catch {
     return apiError("Invalid JSON body", 400);
   }
@@ -50,6 +54,22 @@ export async function POST(request: Request) {
 
   const useAi = body.use_ai !== false;
 
+  if (useAi) {
+    if (!body.sender || !body.target_company) {
+      return apiError("sender and target_company are required when use_ai is true", 400);
+    }
+  }
+
+  // Filter out excluded names once, used by both AI and deterministic paths
+  const excludeSet = new Set((body.exclude_names || []).map((n: string) => n.toLowerCase()));
+  const filteredCandidates = excludeSet.size > 0
+    ? body.candidates.filter((c) => !excludeSet.has((c.name || "").toLowerCase()))
+    : body.candidates;
+
+  if (filteredCandidates.length === 0) {
+    return apiError("No candidates remain after applying exclude_names", 400);
+  }
+
   // Try AI pairing first, fall back to deterministic
   if (useAi) {
     try {
@@ -58,7 +78,7 @@ export async function POST(request: Request) {
         icp: body.icp || {},
         pairingConfig: body.pairing_config,
         targetCompany: body.target_company,
-        candidates: body.candidates,
+        candidates: filteredCandidates,
         excludeNames: body.exclude_names,
       });
 
@@ -69,6 +89,6 @@ export async function POST(request: Request) {
   }
 
   // Deterministic fallback
-  const result = selectPair(body.candidates, body.pairing_config);
+  const result = selectPair(filteredCandidates, body.pairing_config);
   return apiSuccess({ ...result, method: "deterministic" });
 }

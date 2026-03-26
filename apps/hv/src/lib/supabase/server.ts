@@ -1,5 +1,5 @@
 import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 
 /**
  * Derive the cookie domain. Priority:
@@ -18,7 +18,8 @@ export function getCookieDomain(host?: string): string | undefined {
 
 export function createClient() {
   const cookieStore = cookies();
-  const domain = getCookieDomain();
+  const host = headers().get("host") ?? undefined;
+  const domain = getCookieDomain(host);
 
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

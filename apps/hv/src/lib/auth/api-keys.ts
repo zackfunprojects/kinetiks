@@ -32,6 +32,6 @@ export function hashApiKey(key: string): string {
 /**
  * Check if a string looks like a Kinetiks API key.
  */
-export function isKineticsApiKey(value: string): boolean {
+export function isKinetiksApiKey(value: string): boolean {
   return value.startsWith(KEY_PREFIX) && value.length > 12;
 }
