@@ -75,9 +75,15 @@ export async function POST(request: Request) {
   let personas: Array<Record<string, unknown>> = [];
   try {
     const ctx = await pullHarvestContext(auth.account_id, ["customers"]);
+    // Assertion: customers layer data follows Context Structure schema (validated at ingestion by Cortex)
     const customersData = ctx?.layers.customers?.data as Record<string, unknown> | undefined;
     if (customersData && Array.isArray(customersData.personas)) {
-      personas = customersData.personas as Array<Record<string, unknown>>;
+      // Filter to only valid persona objects with at least a name or role
+      personas = (customersData.personas as Array<unknown>).filter(
+        (p): p is Record<string, unknown> =>
+          p !== null && typeof p === "object" && !Array.isArray(p) &&
+          (typeof (p as Record<string, unknown>).name === "string" || typeof (p as Record<string, unknown>).role === "string")
+      );
     }
   } catch {
     // Non-fatal - pairing works without personas

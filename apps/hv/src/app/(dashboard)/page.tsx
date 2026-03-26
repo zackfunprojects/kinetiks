@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { formatCurrency } from "@/types/pipeline";
 
+export const dynamic = "force-dynamic";
+
 interface KpiCard {
   label: string;
   value: string;
@@ -8,7 +10,7 @@ interface KpiCard {
 
 export default async function DashboardPage() {
   const supabase = createClient();
-  const { data: { session } } = await supabase.auth.getSession();
+  const { data: { user } } = await supabase.auth.getUser();
 
   let confidenceScore = 0;
   const kpis: KpiCard[] = [
@@ -18,12 +20,14 @@ export default async function DashboardPage() {
     { label: "Pipeline Value", value: "-" },
   ];
 
-  if (session) {
+  let hasAccount = false;
+
+  if (user) {
     // Get account
     const { data: account } = await supabase
       .from("kinetiks_accounts")
       .select("id")
-      .eq("user_id", session.user.id)
+      .eq("user_id", user.id)
       .single();
 
     if (account) {
@@ -49,13 +53,15 @@ export default async function DashboardPage() {
       const contactCount = contactsResult.count ?? 0;
       kpis[1] = { label: "Contacts", value: String(contactCount) };
 
-      const deals = (dealsResult.data ?? []) as Array<{ stage: string; value: number | null }>;
+      const deals = dealsResult.data ?? [];
       const openDeals = deals.filter((d) => d.stage !== "closed_won" && d.stage !== "closed_lost");
-      const pipelineValue = openDeals.reduce((sum, d) => sum + (d.value ?? 0), 0);
+      const prospectingDeals = deals.filter((d) => d.stage === "prospecting");
+      const pipelineValue = openDeals.reduce((sum, d) => sum + (Number(d.value) || 0), 0);
 
-      kpis[0] = { label: "Active Prospects", value: String(openDeals.length) };
+      kpis[0] = { label: "Active Prospects", value: String(prospectingDeals.length) };
       kpis[2] = { label: "Open Deals", value: String(openDeals.length) };
       kpis[3] = { label: "Pipeline Value", value: formatCurrency(pipelineValue) };
+      hasAccount = true;
     }
   }
 
@@ -166,7 +172,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* Context suggestions */}
-      {confidenceScore < 70 && (
+      {hasAccount && confidenceScore < 70 && (
         <div
           style={{
             marginTop: "24px",

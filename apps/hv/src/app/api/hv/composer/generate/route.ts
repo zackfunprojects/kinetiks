@@ -66,7 +66,7 @@ export async function POST(request: Request) {
   let customersData: Record<string, unknown> = {};
   let competitiveData: Record<string, unknown> = {};
 
-  const contextResult = await pullHarvestContext(auth.account_id, ["org", "products", "voice", "customers", "narrative", "competitive"]);
+  const contextResult = await pullHarvestContext(auth.account_id, ["org", "products", "voice", "customers", "competitive"]);
   if (contextResult) {
     // Assertions: Layer data shapes are defined by Context Structure JSON schemas (CLAUDE.md)
     orgData = (contextResult.layers.org?.data ?? {}) as Record<string, string>;

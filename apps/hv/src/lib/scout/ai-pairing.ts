@@ -113,12 +113,12 @@ function buildUserMessage(params: AiPairingParams): string {
     lines.push("");
     for (const p of personas) {
       const parts: string[] = [];
-      if (p.name) parts.push(`Persona: ${p.name}`);
-      if (p.role) parts.push(`Role: ${p.role}`);
-      if (p.company_type) parts.push(`Company type: ${p.company_type}`);
-      const painPoints = Array.isArray(p.pain_points) ? p.pain_points : [];
+      if (typeof p.name === "string" && p.name) parts.push(`Persona: ${p.name}`);
+      if (typeof p.role === "string" && p.role) parts.push(`Role: ${p.role}`);
+      if (typeof p.company_type === "string" && p.company_type) parts.push(`Company type: ${p.company_type}`);
+      const painPoints = Array.isArray(p.pain_points) ? p.pain_points.filter((v): v is string => typeof v === "string") : [];
       if (painPoints.length > 0) parts.push(`Pain points: ${painPoints.join(", ")}`);
-      const triggers = Array.isArray(p.buying_triggers) ? p.buying_triggers : [];
+      const triggers = Array.isArray(p.buying_triggers) ? p.buying_triggers.filter((v): v is string => typeof v === "string") : [];
       if (triggers.length > 0) parts.push(`Buying triggers: ${triggers.join(", ")}`);
       if (parts.length > 0) lines.push(`- ${parts.join(" | ")}`);
     }

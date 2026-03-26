@@ -302,6 +302,7 @@ export function buildEmailUserMessage(params: {
       lines.push("");
       lines.push("## Known Buyer Personas (use to tailor pain points and angles)");
       for (const p of personas) {
+        // Assertion: persona entries follow Context Structure customers schema (validated by Cortex)
         const persona = p as Record<string, unknown>;
         const parts: string[] = [];
         if (persona.name) parts.push(String(persona.name));
@@ -322,6 +323,7 @@ export function buildEmailUserMessage(params: {
       lines.push("");
       lines.push("## Competitive Context (differentiate from these)");
       for (const c of competitors) {
+        // Assertion: competitor entries follow Context Structure competitive schema (validated by Cortex)
         const comp = c as Record<string, unknown>;
         if (comp.name) {
           const positioning = comp.positioning ? ` - ${comp.positioning}` : "";
