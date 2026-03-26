@@ -22,7 +22,6 @@ export function StyleConfigurator({ style, onChange, presets, onSavePreset }: St
     backgroundColor: "var(--surface-base)",
     color: "var(--text-primary)",
     fontSize: "0.8125rem",
-    outline: "none",
   };
 
   const labelStyle: React.CSSProperties = {
@@ -58,14 +57,15 @@ export function StyleConfigurator({ style, onChange, presets, onSavePreset }: St
       {/* Preset selector */}
       {presets.length > 0 && (
         <div style={{ marginBottom: "12px" }}>
-          <label style={labelStyle}>Preset</label>
+          <label htmlFor="sc-preset" style={labelStyle}>Preset</label>
           <select
+            id="sc-preset"
             style={selectStyle}
+            value={presets.find((p) => JSON.stringify(p.config) === JSON.stringify(style))?.id ?? ""}
             onChange={(e) => {
               const preset = presets.find((p) => p.id === e.target.value);
               if (preset) onChange(preset.config);
             }}
-            defaultValue=""
           >
             <option value="">Custom</option>
             {presets.map((p) => (
@@ -77,24 +77,24 @@ export function StyleConfigurator({ style, onChange, presets, onSavePreset }: St
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
         <div>
-          <label style={labelStyle}>Tone</label>
-          <select style={selectStyle} value={style.tone} onChange={(e) => update("tone", e.target.value as EmailStyleConfig["tone"])}>
+          <label htmlFor="sc-tone" style={labelStyle}>Tone</label>
+          <select id="sc-tone" style={selectStyle} value={style.tone} onChange={(e) => update("tone", e.target.value as EmailStyleConfig["tone"])}>
             <option value="conversational">Conversational</option>
             <option value="formal">Formal</option>
             <option value="casual">Casual</option>
           </select>
         </div>
         <div>
-          <label style={labelStyle}>Length</label>
-          <select style={selectStyle} value={style.length} onChange={(e) => update("length", e.target.value as EmailStyleConfig["length"])}>
+          <label htmlFor="sc-length" style={labelStyle}>Length</label>
+          <select id="sc-length" style={selectStyle} value={style.length} onChange={(e) => update("length", e.target.value as EmailStyleConfig["length"])}>
             <option value="short">Short (2-3 sentences)</option>
             <option value="medium">Medium (3-5 sentences)</option>
             <option value="detailed">Detailed (5-7 sentences)</option>
           </select>
         </div>
         <div>
-          <label style={labelStyle}>CTA Style</label>
-          <select style={selectStyle} value={style.cta_style} onChange={(e) => update("cta_style", e.target.value as EmailStyleConfig["cta_style"])}>
+          <label htmlFor="sc-cta" style={labelStyle}>CTA Style</label>
+          <select id="sc-cta" style={selectStyle} value={style.cta_style} onChange={(e) => update("cta_style", e.target.value as EmailStyleConfig["cta_style"])}>
             <option value="quick_question">Quick question</option>
             <option value="meeting_request">Meeting request</option>
             <option value="value_prop">Value proposition</option>
@@ -102,8 +102,8 @@ export function StyleConfigurator({ style, onChange, presets, onSavePreset }: St
           </select>
         </div>
         <div>
-          <label style={labelStyle}>Greeting</label>
-          <select style={selectStyle} value={style.greeting_style} onChange={(e) => update("greeting_style", e.target.value as EmailStyleConfig["greeting_style"])}>
+          <label htmlFor="sc-greeting" style={labelStyle}>Greeting</label>
+          <select id="sc-greeting" style={selectStyle} value={style.greeting_style} onChange={(e) => update("greeting_style", e.target.value as EmailStyleConfig["greeting_style"])}>
             <option value="first_name">First name</option>
             <option value="full_name">Full name</option>
             <option value="title_based">Title-based</option>
@@ -143,8 +143,9 @@ export function StyleConfigurator({ style, onChange, presets, onSavePreset }: St
 
       {/* Writing rules */}
       <div style={{ marginTop: "12px" }}>
-        <label style={labelStyle}>Writing rules (one per line)</label>
+        <label htmlFor="sc-rules" style={labelStyle}>Writing rules (one per line)</label>
         <textarea
+          id="sc-rules"
           value={style.writing_rules.join("\n")}
           onChange={(e) => update("writing_rules", e.target.value.split("\n").filter((r) => r.trim()))}
           placeholder={'e.g., Never use "excited"\nNo more than 1 exclamation point'}

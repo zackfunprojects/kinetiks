@@ -125,12 +125,17 @@ export function buildResearchUserMessage(
   if (contact.seniority) lines.push(`Seniority: ${contact.seniority}`);
   if (contact.department) lines.push(`Department: ${contact.department}`);
 
-  // Include enrichment data if available
-  const enrichment = contact.enrichment_data;
+  // Include selected enrichment fields (not the full blob)
+  const enrichment = contact.enrichment_data as Record<string, unknown>;
   if (enrichment && Object.keys(enrichment).length > 0) {
     lines.push("");
-    lines.push("## Enrichment Data");
-    lines.push(JSON.stringify(enrichment, null, 2));
+    lines.push("## Additional Context");
+    const safeFields = ["industry", "description", "company", "location", "founded", "website", "summary"];
+    for (const key of safeFields) {
+      if (enrichment[key] && typeof enrichment[key] === "string") {
+        lines.push(`${key}: ${enrichment[key]}`);
+      }
+    }
   }
 
   return lines.join("\n");

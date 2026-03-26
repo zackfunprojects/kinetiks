@@ -11,8 +11,10 @@ export async function GET(request: Request) {
   if (error) return error;
 
   const url = new URL(request.url);
-  const page = Math.max(1, parseInt(url.searchParams.get("page") ?? "1", 10));
-  const perPage = Math.min(100, Math.max(1, parseInt(url.searchParams.get("per_page") ?? "25", 10)));
+  const rawPage = parseInt(url.searchParams.get("page") ?? "1", 10);
+  const rawPerPage = parseInt(url.searchParams.get("per_page") ?? "25", 10);
+  const page = Number.isNaN(rawPage) ? 1 : Math.max(1, rawPage);
+  const perPage = Number.isNaN(rawPerPage) ? 25 : Math.min(100, Math.max(1, rawPerPage));
   const status = url.searchParams.get("status");
   const contactId = url.searchParams.get("contact_id");
 

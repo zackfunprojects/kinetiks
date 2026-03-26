@@ -65,8 +65,8 @@ export async function generateEmailDraft(params: GenerateParams): Promise<Genera
       excludeModules: ["seo", "social", "paid-ads", "product-marketing"],
     });
     knowledgeContent = knowledge.content || "";
-  } catch {
-    // Knowledge loading is optional enrichment
+  } catch (err) {
+    console.warn("Knowledge module loading failed (email will generate without methodology):", err);
   }
 
   const systemPrompt = buildEmailSystemPrompt({
@@ -104,9 +104,12 @@ export async function generateEmailDraft(params: GenerateParams): Promise<Genera
     throw new Error("Claude did not return a compose_email tool response");
   }
 
-  const input = toolUseBlock.input as Record<string, string>;
-  const subject = (input.subject || "").slice(0, 100);
-  const body = input.body_html || "";
+  const input = toolUseBlock.input as Record<string, unknown>;
+  if (typeof input.subject !== "string" || typeof input.body_html !== "string") {
+    throw new Error("Claude returned invalid tool input: missing subject or body_html");
+  }
+  const subject = input.subject.slice(0, 100);
+  const body = input.body_html;
   const body_plain = stripHtml(body);
 
   return { subject, body, body_plain };

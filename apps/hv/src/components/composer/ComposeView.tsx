@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { ContactSelector } from "./ContactSelector";
 import { ResearchBriefPanel } from "./ResearchBriefPanel";
 import { StyleConfigurator } from "./StyleConfigurator";
@@ -36,6 +36,10 @@ export function ComposeView({ initialContactId }: ComposeViewProps) {
   const [generating, setGenerating] = useState(false);
   const [reviewing, setReviewing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Request version counter to prevent stale responses from overwriting state
+  const requestVersion = useRef(0);
 
   // Load initial contact if provided
   useEffect(() => {
@@ -63,7 +67,9 @@ export function ComposeView({ initialContactId }: ComposeViewProps) {
   // Generate research brief
   const handleGenerateBrief = useCallback(async (tier: ResearchTier) => {
     if (!contact) return;
+    const version = ++requestVersion.current;
     setLoadingBrief(true);
+    setError(null);
     try {
       const res = await fetch("/api/hv/composer/research", {
         method: "POST",
@@ -71,9 +77,17 @@ export function ComposeView({ initialContactId }: ComposeViewProps) {
         body: JSON.stringify({ contact_id: contact.id, tier }),
       });
       const data = await res.json();
-      if (data.success) setBrief(data.data.brief);
-    } catch { /* ignore */ }
-    finally { setLoadingBrief(false); }
+      if (version !== requestVersion.current) return; // stale response
+      if (data.success) {
+        setBrief(data.data.brief);
+      } else {
+        setError(data.error || "Failed to generate research brief");
+      }
+    } catch {
+      if (version === requestVersion.current) setError("Network error generating brief");
+    } finally {
+      if (version === requestVersion.current) setLoadingBrief(false);
+    }
   }, [contact]);
 
   // Auto-generate brief when contact is selected
@@ -86,8 +100,10 @@ export function ComposeView({ initialContactId }: ComposeViewProps) {
   // Generate email draft
   const handleGenerate = async () => {
     if (!contact || !brief) return;
+    const version = ++requestVersion.current;
     setGenerating(true);
     setReview(null);
+    setError(null);
     try {
       const res = await fetch("/api/hv/composer/generate", {
         method: "POST",
@@ -99,18 +115,25 @@ export function ComposeView({ initialContactId }: ComposeViewProps) {
         }),
       });
       const data = await res.json();
+      if (version !== requestVersion.current) return;
       if (data.success) {
         setSubject(data.data.subject);
         setBody(data.data.body);
+      } else {
+        setError(data.error || "Failed to generate email");
       }
-    } catch { /* ignore */ }
-    finally { setGenerating(false); }
+    } catch {
+      if (version === requestVersion.current) setError("Network error generating email");
+    } finally {
+      if (version === requestVersion.current) setGenerating(false);
+    }
   };
 
   // Run Sentinel review
   const handleReview = async () => {
     if (!subject || !body) return;
     setReviewing(true);
+    setError(null);
     try {
       const res = await fetch("/api/hv/composer/review", {
         method: "POST",
@@ -125,15 +148,23 @@ export function ComposeView({ initialContactId }: ComposeViewProps) {
         }),
       });
       const data = await res.json();
-      if (data.success) setReview(data.data);
-    } catch { /* ignore */ }
-    finally { setReviewing(false); }
+      if (data.success) {
+        setReview(data.data);
+      } else {
+        setError(data.error || "Sentinel review failed");
+      }
+    } catch {
+      setError("Network error during review");
+    } finally {
+      setReviewing(false);
+    }
   };
 
   // Save draft
   const handleSave = async () => {
     if (!contact || !subject || !body) return;
     setSaving(true);
+    setError(null);
     try {
       const endpoint = draftId
         ? `/api/hv/emails/${draftId}`
@@ -162,11 +193,16 @@ export function ComposeView({ initialContactId }: ComposeViewProps) {
         body: JSON.stringify(payload),
       });
       const data = await res.json();
-      if (data.success && !draftId) {
-        setDraftId(data.data.id);
+      if (data.success) {
+        if (!draftId) setDraftId(data.data.id);
+      } else {
+        setError(data.error || "Failed to save draft");
       }
-    } catch { /* ignore */ }
-    finally { setSaving(false); }
+    } catch {
+      setError("Network error saving draft");
+    } finally {
+      setSaving(false);
+    }
   };
 
   // Save style preset
@@ -181,7 +217,9 @@ export function ComposeView({ initialContactId }: ComposeViewProps) {
       if (data.success) {
         setPresets((prev) => [...prev, data.data.preset]);
       }
-    } catch { /* ignore */ }
+    } catch {
+      setError("Failed to save preset");
+    }
   };
 
   const hasContent = subject.length > 0 && body.length > 0;
@@ -196,6 +234,12 @@ export function ComposeView({ initialContactId }: ComposeViewProps) {
           onSelect={(c) => { setContact(c); setBrief(null); setSubject(""); setBody(""); setReview(null); setDraftId(null); }}
           onClear={() => { setContact(null); setBrief(null); setSubject(""); setBody(""); setReview(null); setDraftId(null); }}
         />
+
+        {error && (
+          <div style={{ padding: "10px 14px", borderRadius: "6px", backgroundColor: "rgba(212,64,64,0.1)", border: "1px solid rgba(212,64,64,0.2)", color: "var(--error, #d44040)", fontSize: "0.8125rem" }}>
+            {error}
+          </div>
+        )}
 
         <DraftEditor
           subject={subject}

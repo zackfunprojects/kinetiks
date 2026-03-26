@@ -17,7 +17,8 @@ CREATE UNIQUE INDEX idx_hv_style_presets_default
 
 ALTER TABLE hv_style_presets ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "hv_style_presets_user" ON hv_style_presets FOR ALL
-  USING (kinetiks_id IN (SELECT id FROM kinetiks_accounts WHERE user_id = auth.uid()));
+  USING (kinetiks_id IN (SELECT id FROM kinetiks_accounts WHERE user_id = auth.uid()))
+  WITH CHECK (kinetiks_id IN (SELECT id FROM kinetiks_accounts WHERE user_id = auth.uid()));
 CREATE POLICY "hv_style_presets_service" ON hv_style_presets FOR ALL
   USING (auth.role() = 'service_role');
 

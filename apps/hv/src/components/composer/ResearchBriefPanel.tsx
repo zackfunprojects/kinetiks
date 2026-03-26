@@ -28,7 +28,6 @@ export function ResearchBriefPanel({ brief, onBriefChange, onGenerate, loading }
     backgroundColor: "var(--surface-base)",
     color: "var(--text-primary)",
     fontSize: "0.8125rem",
-    outline: "none",
     resize: "vertical",
     lineHeight: 1.5,
   };
@@ -95,8 +94,9 @@ export function ResearchBriefPanel({ brief, onBriefChange, onGenerate, loading }
       {brief && !loading && (
         <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
           <div>
-            <label style={labelStyle}>Company Summary</label>
+            <label htmlFor="rb-summary" style={labelStyle}>Company Summary</label>
             <textarea
+              id="rb-summary"
               style={{ ...textareaStyle, minHeight: 60 }}
               value={brief.company_summary}
               onChange={(e) => onBriefChange({ ...brief, company_summary: e.target.value })}
@@ -108,6 +108,7 @@ export function ResearchBriefPanel({ brief, onBriefChange, onGenerate, loading }
               <input
                 key={i}
                 type="text"
+                aria-label={`Personalization hook ${i + 1}`}
                 value={hook}
                 onChange={(e) => {
                   const hooks = [...brief.personalization_hooks];
@@ -123,8 +124,9 @@ export function ResearchBriefPanel({ brief, onBriefChange, onGenerate, loading }
             ))}
           </div>
           <div>
-            <label style={labelStyle}>Relevance Angle</label>
+            <label htmlFor="rb-angle" style={labelStyle}>Relevance Angle</label>
             <textarea
+              id="rb-angle"
               style={{ ...textareaStyle, minHeight: 40 }}
               value={brief.relevance_angle}
               onChange={(e) => onBriefChange({ ...brief, relevance_angle: e.target.value })}

@@ -32,6 +32,11 @@ export async function POST(request: Request) {
     return apiError("tier must be none, brief, or deep", 400);
   }
 
+  // tier=none means no research brief needed
+  if (tier === "none") {
+    return apiSuccess({ brief: null });
+  }
+
   const admin = createAdminClient();
 
   // Fetch contact + org
