@@ -41,6 +41,14 @@ const TOOLS: ToolEntry[] = [
   { category: "Summary", name: "get_context_summary", desc: "Compact context overview", perm: "read-only" },
   { category: "Connections", name: "list_connections", desc: "Data source status", perm: "read-only" },
   { category: "Marcus", name: "chat_with_marcus", desc: "Strategic advisor conversation", perm: "read-write" },
+  { category: "Harvest", name: "hv_enrich_domain", desc: "Enrich company domain, find contacts", perm: "read-write" },
+  { category: "Harvest", name: "hv_find_contacts", desc: "Search and list contacts", perm: "read-only" },
+  { category: "Harvest", name: "hv_pair_contacts", desc: "AI-select best primary + secondary contacts", perm: "read-write" },
+  { category: "Harvest", name: "hv_research_contact", desc: "Generate research brief for a contact", perm: "read-write" },
+  { category: "Harvest", name: "hv_generate_email", desc: "Generate cold outreach email", perm: "read-write" },
+  { category: "Harvest", name: "hv_list_deals", desc: "List pipeline deals (kanban or table)", perm: "read-only" },
+  { category: "Harvest", name: "hv_create_deal", desc: "Create a pipeline deal", perm: "read-write" },
+  { category: "Harvest", name: "hv_save_email", desc: "Save email draft", perm: "read-write" },
 ];
 
 const ENDPOINTS: EndpointEntry[] = [
@@ -61,6 +69,15 @@ const ENDPOINTS: EndpointEntry[] = [
   { method: "GET", path: "/api/summary/context", desc: "Compact summary" },
   { method: "GET", path: "/api/connections", desc: "Data connections" },
   { method: "POST", path: "/api/marcus/chat", desc: "Marcus chat (SSE)" },
+  { method: "ALL", path: "/api/apps/{app}/{...path}", desc: "Generic app proxy (routes to connected apps)" },
+  { method: "POST", path: "/api/apps/harvest/scout/enrich", desc: "Enrich domain via Harvest" },
+  { method: "GET", path: "/api/apps/harvest/contacts", desc: "List Harvest contacts" },
+  { method: "POST", path: "/api/apps/harvest/scout/pair", desc: "AI contact pairing" },
+  { method: "POST", path: "/api/apps/harvest/composer/research", desc: "Research brief" },
+  { method: "POST", path: "/api/apps/harvest/composer/generate", desc: "Generate email" },
+  { method: "GET", path: "/api/apps/harvest/deals", desc: "List pipeline deals" },
+  { method: "POST", path: "/api/apps/harvest/deals", desc: "Create deal" },
+  { method: "POST", path: "/api/apps/harvest/emails", desc: "Save email draft" },
 ];
 
 const s = {
@@ -139,6 +156,7 @@ function MethodBadge({ method }: { method: string }): React.JSX.Element {
     GET: { bg: "rgba(0,206,201,0.15)", fg: "#00CEC9" },
     POST: { bg: "rgba(108,92,231,0.15)", fg: "#6C5CE7" },
     PATCH: { bg: "rgba(253,203,110,0.15)", fg: "#FDCB6E" },
+    ALL: { bg: "rgba(255,255,255,0.08)", fg: "#9B9BA7" },
   };
   const c = colors[method] ?? colors.GET;
   return <span style={{ ...s.method, background: c.bg, color: c.fg }}>{method}</span>;
@@ -163,9 +181,10 @@ export default function DevelopersPage(): React.JSX.Element {
             <span style={s.accent}>AI Agents</span>
           </h1>
           <p style={s.subtitle}>
-            Native MCP server for the Kinetiks ID platform.
+            Native MCP server for the Kinetiks platform.
             Give your AI agent full access to business context, onboarding,
-            voice calibration, and strategic intelligence. One tool call to onboard.
+            voice calibration, strategic intelligence, and outbound tools.
+            One gateway to every Kinetiks app.
           </p>
           <pre style={s.code}>{`{
   "mcpServers": {
@@ -195,7 +214,7 @@ export default function DevelopersPage(): React.JSX.Element {
               <p style={s.stepNum}>2</p>
               <p style={s.stepTitle}>Connect your agent</p>
               <p style={s.stepDesc}>
-                Add the MCP config to Claude Code or any MCP client. Paste in your bootstrap key. 19 tools available instantly.
+                Add the MCP config to Claude Code or any MCP client. Paste in your bootstrap key. 27 tools available instantly.
               </p>
             </div>
             <div style={s.step}>
@@ -235,7 +254,7 @@ export default function DevelopersPage(): React.JSX.Element {
         {/* Available Tools */}
         <div style={s.section}>
           <h2 style={s.h2}>Available Tools</h2>
-          <p style={s.p}>19 tools across 6 categories. All accessible via MCP tool calls.</p>
+          <p style={s.p}>27 tools across 7 categories. All accessible via MCP tool calls.</p>
           <div style={{ borderRadius: 12, overflow: "hidden", border: "1px solid rgba(255,255,255,0.06)" }}>
             <table style={s.table}>
               <thead>
@@ -360,6 +379,38 @@ Claude uses: onboard_me({ url: "example.com" })
           <p style={{ ...s.p, marginTop: 16 }}>
             Want more control? Use the individual tools (crawl_website, get_onboarding_question,
             generate_calibration) to run each step manually.
+          </p>
+        </div>
+
+        {/* Harvest Example */}
+        <div style={s.section}>
+          <h2 style={s.h2}>Example: Outbound in Five Calls</h2>
+          <p style={s.p}>
+            Chain Harvest tools to go from a domain to a personalized cold email:
+          </p>
+          <pre style={s.code}>{`> "Enrich acme.com and draft an email to their VP of Marketing"
+
+1. hv_enrich_domain({ domain: "acme.com" })
+   Found: Acme Corp (SaaS, ~200 employees)
+   Saved: 8 contacts, org_id: abc-123
+
+2. hv_find_contacts({ q: "VP Marketing" })
+   Found: Jane Smith - VP of Marketing (jane@acme.com)
+
+3. hv_research_contact({ contact_id: "...", tier: "brief" })
+   Hooks: Recent Series B, hiring 3 marketing roles
+   Angle: Growth-stage marketing automation need
+
+4. hv_generate_email({ contact_id: "...", research_brief: {...}, style: { tone: "casual" } })
+   Subject: Quick thought on scaling content at Acme
+   Body: Hey Jane, saw you're scaling the marketing...
+
+5. hv_save_email({ contact_id: "...", subject: "...", body: "..." })
+   Saved as draft. Ready to send.`}</pre>
+          <p style={{ ...s.p, marginTop: 16 }}>
+            All Harvest tools route through the Kinetiks ID gateway.
+            Your Kinetiks ID context (voice, ICP, competitive intel) automatically
+            enriches every step - no extra configuration.
           </p>
         </div>
 
