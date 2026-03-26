@@ -70,10 +70,10 @@ export async function POST(request: Request) {
       prompt = buildDailyBriefPrompt(contextSummary, recentActivity);
       break;
     case "weekly_digest":
-      prompt = buildWeeklyDigestPrompt(contextSummary, recentActivity);
+      prompt = await buildWeeklyDigestPrompt(contextSummary, recentActivity);
       break;
     case "monthly_review":
-      prompt = buildMonthlyReviewPrompt(contextSummary, recentActivity);
+      prompt = await buildMonthlyReviewPrompt(contextSummary, recentActivity);
       break;
   }
 
