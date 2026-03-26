@@ -19,33 +19,37 @@ export async function PATCH(request: Request, { params }: RouteContext) {
   const { auth, error } = await requireAuth(request);
   if (error) return error;
 
-  let body: { stage: string };
+  let newStage: DealStage;
   try {
     const parsed = await request.json();
     if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
       return apiError("Invalid JSON body", 400);
     }
-    body = parsed as { stage: string };
-  } catch {
-    return apiError("Invalid JSON body", 400);
+    if (typeof parsed.stage !== "string") {
+      return apiError("stage must be a string", 400);
+    }
+    if (!VALID_STAGES.includes(parsed.stage as DealStage)) {
+      return apiError(`Invalid stage. Must be one of: ${VALID_STAGES.join(", ")}`, 400);
+    }
+    newStage = parsed.stage as DealStage;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Invalid JSON body";
+    return apiError(msg, 400);
   }
-
-  if (!body.stage || !VALID_STAGES.includes(body.stage as DealStage)) {
-    return apiError(`Invalid stage. Must be one of: ${VALID_STAGES.join(", ")}`, 400);
-  }
-
-  const newStage = body.stage as DealStage;
   const admin = createAdminClient();
   const now = new Date().toISOString();
 
   // Get current stage for activity log
-  const { data: deal } = await admin
+  const { data: deal, error: readError } = await admin
     .from("hv_deals")
     .select("id, stage, name, contact_id, org_id")
     .eq("id", params.id)
     .eq("kinetiks_id", auth.account_id)
-    .single();
+    .maybeSingle();
 
+  if (readError) {
+    return apiError(`Failed to load deal: ${readError.message}`, 500);
+  }
   if (!deal) {
     return apiError("Deal not found", 404);
   }
@@ -83,7 +87,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
   }
 
   // Log stage change activity
-  await admin.from("hv_activities").insert({
+  const { error: activityError } = await admin.from("hv_activities").insert({
     kinetiks_id: auth.account_id,
     deal_id: params.id,
     contact_id: deal.contact_id,
@@ -96,6 +100,9 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     },
     source_app: "harvest",
   });
+  if (activityError) {
+    console.error("Failed to log stage change activity:", activityError.message);
+  }
 
   return apiSuccess(updated);
 }

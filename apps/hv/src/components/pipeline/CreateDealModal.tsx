@@ -42,6 +42,23 @@ export function CreateDealModal({ initialContactId, onCreated, onClose }: Create
     } catch { /* ignore */ }
   }, []);
 
+  // Hydrate contact name + org when initialContactId is provided
+  useEffect(() => {
+    if (!initialContactId) return;
+    (async () => {
+      try {
+        const res = await fetch(`/api/hv/contacts/${initialContactId}`);
+        const data = await res.json();
+        if (data.success && data.data) {
+          const c = data.data;
+          const cName = [c.first_name, c.last_name].filter(Boolean).join(" ");
+          setSelectedContactName(cName || c.email || "Unknown");
+          if (c.org_id) setOrgId(c.org_id);
+        }
+      } catch { /* ignore - user can still search manually */ }
+    })();
+  }, [initialContactId]);
+
   useEffect(() => {
     clearTimeout(debounceRef.current);
     if (contactQuery.trim()) {

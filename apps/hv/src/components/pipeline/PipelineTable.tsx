@@ -7,9 +7,10 @@ import { getStageConfig, formatCurrency, getDealAge } from "@/types/pipeline";
 
 interface PipelineTableProps {
   onDealClick: (dealId: string) => void;
+  refreshKey?: number;
 }
 
-export function PipelineTable({ onDealClick }: PipelineTableProps) {
+export function PipelineTable({ onDealClick, refreshKey }: PipelineTableProps) {
   const [deals, setDeals] = useState<HvDeal[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -41,7 +42,7 @@ export function PipelineTable({ onDealClick }: PipelineTableProps) {
     } finally {
       setLoading(false);
     }
-  }, [page, perPage, sort, stageFilter]);
+  }, [page, perPage, sort, stageFilter, refreshKey]);
 
   useEffect(() => {
     fetchDeals();
@@ -148,7 +149,16 @@ export function PipelineTable({ onDealClick }: PipelineTableProps) {
                 return (
                   <tr
                     key={deal.id}
+                    tabIndex={0}
+                    role="button"
+                    aria-label={`Deal: ${deal.name}`}
                     onClick={() => onDealClick(deal.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        onDealClick(deal.id);
+                      }
+                    }}
                     style={{ borderBottom: "1px solid var(--border-subtle)", cursor: "pointer" }}
                     onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "var(--surface-elevated, rgba(255,255,255,0.02))"; }}
                     onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}

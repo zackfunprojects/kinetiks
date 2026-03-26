@@ -1,5 +1,3 @@
-"use client";
-
 import type { PipelineMetrics as Metrics } from "@/types/pipeline";
 import { formatCurrency } from "@/types/pipeline";
 

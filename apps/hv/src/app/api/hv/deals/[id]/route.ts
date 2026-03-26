@@ -18,7 +18,10 @@ export async function GET(request: Request, { params }: RouteContext) {
   const admin = createAdminClient();
   const { deal, dealError, activities, activitiesError } = await getDealById(admin, auth.account_id, params.id);
 
-  if (dealError || !deal) {
+  if (dealError) {
+    return apiError(`Failed to load deal: ${dealError.message}`, 500);
+  }
+  if (!deal) {
     return apiError("Deal not found", 404);
   }
   if (activitiesError) {
@@ -75,7 +78,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     .eq("id", params.id)
     .eq("kinetiks_id", auth.account_id)
     .select("*")
-    .single();
+    .maybeSingle();
 
   if (updateError) {
     return apiError(`Failed to update deal: ${updateError.message}`, 500);
@@ -97,28 +100,22 @@ export async function DELETE(request: Request, { params }: RouteContext) {
 
   const admin = createAdminClient();
 
-  // Get deal name for activity log
-  const { data: deal } = await admin
+  // Get deal data for activity log
+  const { data: deal, error: readError } = await admin
     .from("hv_deals")
     .select("id, name, contact_id, org_id")
     .eq("id", params.id)
     .eq("kinetiks_id", auth.account_id)
-    .single();
+    .maybeSingle();
 
+  if (readError) {
+    return apiError(`Failed to read deal: ${readError.message}`, 500);
+  }
   if (!deal) {
     return apiError("Deal not found", 404);
   }
 
-  // Log deletion activity before deleting
-  await admin.from("hv_activities").insert({
-    kinetiks_id: auth.account_id,
-    contact_id: deal.contact_id,
-    org_id: deal.org_id,
-    type: "deal_deleted",
-    content: { detail: `Deal "${deal.name}" deleted` },
-    source_app: "harvest",
-  });
-
+  // Delete first, then log activity only on success
   const { error: deleteError } = await admin
     .from("hv_deals")
     .delete()
@@ -127,6 +124,19 @@ export async function DELETE(request: Request, { params }: RouteContext) {
 
   if (deleteError) {
     return apiError(`Failed to delete deal: ${deleteError.message}`, 500);
+  }
+
+  // Log deletion activity after successful delete
+  const { error: activityError } = await admin.from("hv_activities").insert({
+    kinetiks_id: auth.account_id,
+    contact_id: deal.contact_id,
+    org_id: deal.org_id,
+    type: "deal_deleted",
+    content: { detail: `Deal "${deal.name}" deleted` },
+    source_app: "harvest",
+  });
+  if (activityError) {
+    console.error("Failed to log deal deletion activity:", activityError.message);
   }
 
   return apiSuccess({ deleted: true });

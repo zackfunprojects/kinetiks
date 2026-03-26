@@ -16,7 +16,16 @@ interface KanbanColumnProps {
 
 export function KanbanColumn({ stage, label, color, deals, onDealClick, onDrop }: KanbanColumnProps) {
   const [dragOver, setDragOver] = useState(false);
-  const totalValue = deals.reduce((sum, d) => sum + (d.value ?? 0), 0);
+
+  // Aggregate by currency to avoid mixing amounts
+  const totalsByCurrency: Record<string, number> = {};
+  for (const d of deals) {
+    if (d.value != null && d.value > 0) {
+      const cur = d.currency ?? "USD";
+      totalsByCurrency[cur] = (totalsByCurrency[cur] ?? 0) + d.value;
+    }
+  }
+  const currencyEntries = Object.entries(totalsByCurrency);
 
   return (
     <div
@@ -69,7 +78,7 @@ export function KanbanColumn({ stage, label, color, deals, onDealClick, onDrop }
         >
           {deals.length}
         </span>
-        {totalValue > 0 && (
+        {currencyEntries.length > 0 && (
           <span
             style={{
               fontSize: "0.625rem",
@@ -77,7 +86,7 @@ export function KanbanColumn({ stage, label, color, deals, onDealClick, onDrop }
               color: "var(--text-tertiary)",
             }}
           >
-            {formatCurrency(totalValue)}
+            {currencyEntries.map(([cur, sum]) => formatCurrency(sum, cur)).join(" / ")}
           </span>
         )}
       </div>

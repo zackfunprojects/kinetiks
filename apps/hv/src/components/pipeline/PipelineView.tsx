@@ -22,6 +22,13 @@ export function PipelineView() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [closingDeal, setClosingDeal] = useState<HvDeal | null>(null);
   const [selectedDealId, setSelectedDealId] = useState<string | null>(null);
+  const [tableRefreshKey, setTableRefreshKey] = useState(0);
+
+  /** Refresh whichever view(s) are relevant after a mutation */
+  const refreshViews = useCallback(() => {
+    fetchKanban();
+    setTableRefreshKey((k) => k + 1);
+  }, [fetchKanban]);
 
   const fetchKanban = useCallback(async () => {
     setLoading(true);
@@ -81,15 +88,20 @@ export function PipelineView() {
       return updated;
     });
 
-    // API call
+    // API call - validate response and revert on failure
     try {
-      await fetch(`/api/hv/deals/${dealId}/stage`, {
+      const res = await fetch(`/api/hv/deals/${dealId}/stage`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ stage: newStage }),
       });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        // Revert on server failure
+        fetchKanban();
+      }
     } catch {
-      // Revert on failure
+      // Revert on network failure
       fetchKanban();
     }
   };
@@ -158,13 +170,13 @@ export function PipelineView() {
           />
         )
       ) : (
-        <PipelineTable onDealClick={setSelectedDealId} />
+        <PipelineTable onDealClick={setSelectedDealId} refreshKey={tableRefreshKey} />
       )}
 
       {/* Modals */}
       {showCreateModal && (
         <CreateDealModal
-          onCreated={() => { setShowCreateModal(false); fetchKanban(); }}
+          onCreated={() => { setShowCreateModal(false); refreshViews(); }}
           onClose={() => setShowCreateModal(false)}
         />
       )}
@@ -172,7 +184,7 @@ export function PipelineView() {
       {closingDeal && (
         <CloseDealModal
           deal={closingDeal}
-          onClosed={() => { setClosingDeal(null); fetchKanban(); }}
+          onClosed={() => { setClosingDeal(null); refreshViews(); }}
           onClose={() => setClosingDeal(null)}
         />
       )}
@@ -181,7 +193,7 @@ export function PipelineView() {
         <DealDetailPanel
           dealId={selectedDealId}
           onClose={() => setSelectedDealId(null)}
-          onDealUpdated={fetchKanban}
+          onDealUpdated={refreshViews}
           onCloseDeal={(deal) => { setSelectedDealId(null); setClosingDeal(deal); }}
         />
       )}

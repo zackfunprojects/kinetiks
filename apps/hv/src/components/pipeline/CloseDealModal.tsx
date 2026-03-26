@@ -3,13 +3,14 @@
 import { useState } from "react";
 import type { HvDeal } from "@/types/pipeline";
 
+type Outcome = "won" | "lost";
+
 interface CloseDealModalProps {
   deal: HvDeal;
+  initialOutcome?: Outcome;
   onClosed: () => void;
   onClose: () => void;
 }
-
-type Outcome = "won" | "lost";
 
 const WIN_REASONS = [
   { value: "product_fit", label: "Product fit" },
@@ -29,8 +30,8 @@ const LOSS_REASONS = [
   { value: "other", label: "Other" },
 ];
 
-export function CloseDealModal({ deal, onClosed, onClose }: CloseDealModalProps) {
-  const [outcome, setOutcome] = useState<Outcome>("won");
+export function CloseDealModal({ deal, initialOutcome, onClosed, onClose }: CloseDealModalProps) {
+  const [outcome, setOutcome] = useState<Outcome>(initialOutcome ?? "won");
   const [reasonCategory, setReasonCategory] = useState("");
   const [reasonDetail, setReasonDetail] = useState("");
   const [competitor, setCompetitor] = useState("");
@@ -58,25 +59,31 @@ export function CloseDealModal({ deal, onClosed, onClose }: CloseDealModalProps)
     }
 
     try {
-      const res = await fetch(`/api/hv/deals/${deal.id}`, {
+      // First: save metadata (reason, competitor, etc.)
+      const metaRes = await fetch(`/api/hv/deals/${deal.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
+      const metaData = await metaRes.json();
+      if (!metaData.success) {
+        setError(metaData.error || "Failed to save close details");
+        return;
+      }
 
-      // Also update stage via the stage endpoint for activity logging
-      await fetch(`/api/hv/deals/${deal.id}/stage`, {
+      // Second: update stage for activity logging (only after metadata saved)
+      const stageRes = await fetch(`/api/hv/deals/${deal.id}/stage`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ stage }),
       });
-
-      const data = await res.json();
-      if (data.success) {
-        onClosed();
-      } else {
-        setError(data.error || "Failed to close deal");
+      const stageData = await stageRes.json();
+      if (!stageData.success) {
+        setError(stageData.error || "Failed to update stage");
+        return;
       }
+
+      onClosed();
     } catch {
       setError("Network error");
     } finally {

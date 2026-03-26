@@ -17,6 +17,9 @@ export function DealCard({ deal, onClick }: DealCardProps) {
   return (
     <div
       draggable
+      tabIndex={0}
+      role="button"
+      aria-label={`Deal: ${deal.name}`}
       onDragStart={(e) => {
         e.dataTransfer.setData("text/plain", deal.id);
         e.dataTransfer.effectAllowed = "move";
@@ -26,6 +29,12 @@ export function DealCard({ deal, onClick }: DealCardProps) {
         (e.currentTarget as HTMLElement).style.opacity = "1";
       }}
       onClick={() => onClick(deal.id)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick(deal.id);
+        }
+      }}
       style={{
         backgroundColor: "var(--surface-elevated, #242420)",
         border: "1px solid var(--border-subtle)",

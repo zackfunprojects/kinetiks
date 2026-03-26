@@ -133,23 +133,21 @@ export function ContactDetail({ contactId }: ContactDetailProps) {
                 Compose Email
               </a>
             )}
-            {contact.email && (
-              <a
-                href={`/pipeline?create=true&contact_id=${contact.id}`}
-                style={{
-                  padding: "6px 12px",
-                  borderRadius: "6px",
-                  border: "1px solid var(--border-default)",
-                  backgroundColor: "var(--surface-raised)",
-                  color: "var(--text-primary)",
-                  fontSize: "0.75rem",
-                  fontWeight: 500,
-                  textDecoration: "none",
-                }}
-              >
-                Create Deal
-              </a>
-            )}
+            <a
+              href={`/pipeline?create=true&contact_id=${contact.id}`}
+              style={{
+                padding: "6px 12px",
+                borderRadius: "6px",
+                border: "1px solid var(--border-default)",
+                backgroundColor: "var(--surface-raised)",
+                color: "var(--text-primary)",
+                fontSize: "0.75rem",
+                fontWeight: 500,
+                textDecoration: "none",
+              }}
+            >
+              Create Deal
+            </a>
           </div>
         </div>
 

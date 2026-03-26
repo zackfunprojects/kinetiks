@@ -106,6 +106,18 @@ export async function POST(request: Request) {
     return apiError(`Invalid stage: ${stage}`, 400);
   }
 
+  // Validate currency code
+  let currency = "USD";
+  if (body.currency && typeof body.currency === "string") {
+    const normalized = body.currency.toUpperCase().trim();
+    try {
+      new Intl.NumberFormat(undefined, { style: "currency", currency: normalized });
+      currency = normalized;
+    } catch {
+      return apiError(`Invalid currency code: ${body.currency}`, 400);
+    }
+  }
+
   const admin = createAdminClient();
 
   const { data, error: insertError } = await admin
@@ -117,7 +129,7 @@ export async function POST(request: Request) {
       org_id: body.org_id ?? null,
       stage,
       value: typeof body.value === "number" ? body.value : null,
-      currency: (body.currency as string) ?? "USD",
+      currency,
       notes: body.notes ?? null,
     })
     .select("*")
@@ -128,7 +140,7 @@ export async function POST(request: Request) {
   }
 
   // Log activity
-  await admin.from("hv_activities").insert({
+  const { error: activityError } = await admin.from("hv_activities").insert({
     kinetiks_id: auth.account_id,
     deal_id: data.id,
     contact_id: body.contact_id ?? null,
@@ -137,6 +149,9 @@ export async function POST(request: Request) {
     content: { detail: `Deal "${body.name}" created` },
     source_app: "harvest",
   });
+  if (activityError) {
+    console.error("Failed to log deal creation activity:", activityError.message);
+  }
 
   return apiSuccess(data);
 }

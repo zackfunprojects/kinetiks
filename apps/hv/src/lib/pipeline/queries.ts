@@ -107,10 +107,14 @@ export async function getPipelineMetrics(
   supabase: SupabaseClient,
   accountId: string
 ): Promise<PipelineMetrics> {
-  const { data: deals } = await supabase
+  const { data: deals, error } = await supabase
     .from("hv_deals")
     .select("stage, value, created_at, closed_at")
     .eq("kinetiks_id", accountId);
+
+  if (error) {
+    throw new Error(`Failed to fetch pipeline metrics: ${error.message}`);
+  }
 
   const stageInit = () => ({ count: 0, value: 0 });
   const byStage: Record<string, { count: number; value: number }> = {
