@@ -1,5 +1,4 @@
-import { createSynapse } from "@kinetiks/synapse";
-import { createHarvestConfig } from "@kinetiks/synapse";
+import { createSynapse, createHarvestConfig } from "@kinetiks/synapse";
 import type { SynapseInstance, PullContextResult } from "@kinetiks/synapse";
 import type { ContextLayer } from "@kinetiks/types";
 

@@ -66,6 +66,7 @@ export async function POST(request: Request) {
 
   const contextResult = await pullHarvestContext(auth.account_id, ["org", "products", "voice"]);
   if (contextResult) {
+    // Assertions: Layer data shapes are defined by Context Structure JSON schemas (CLAUDE.md)
     orgData = (contextResult.layers.org?.data ?? {}) as Record<string, string>;
     productsData = (contextResult.layers.products?.data ?? {}) as Record<string, unknown>;
     voiceData = (contextResult.layers.voice?.data ?? {}) as Record<string, unknown>;
@@ -77,6 +78,7 @@ export async function POST(request: Request) {
       admin.from("kinetiks_context_products").select("data").eq("account_id", auth.account_id).single(),
       admin.from("kinetiks_context_voice").select("data").eq("account_id", auth.account_id).single(),
     ]);
+    // Assertions: DB returns JSONB data column with known schema per migration
     orgData = (orgResult.data?.data as Record<string, string>) ?? {};
     productsData = (productsResult.data?.data as Record<string, unknown>) ?? {};
     voiceData = (voiceResult.data?.data as Record<string, unknown>) ?? {};

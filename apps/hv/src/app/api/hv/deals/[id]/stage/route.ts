@@ -109,30 +109,22 @@ export async function PATCH(request: Request, { params }: RouteContext) {
   // Submit deal outcome to Kinetiks ID via Synapse (fire-and-forget)
   if (newStage === "closed_won" || newStage === "closed_lost") {
     try {
+      // Assertion: updated comes from select("*") on hv_deals which returns all HvDeal columns
       const typedDeal = updated as HvDeal;
       const synapse = getHarvestSynapse();
 
       if (newStage === "closed_won") {
-        // Fetch contact/org for persona data
-        let contact: { title?: string | null } | null = null;
-        let org: { name?: string | null } | null = null;
-
-        if (typedDeal.contact_id) {
-          const { data: c } = await admin
-            .from("hv_contacts")
-            .select("title")
-            .eq("id", typedDeal.contact_id)
-            .maybeSingle();
-          contact = c;
-        }
-        if (typedDeal.org_id) {
-          const { data: o } = await admin
-            .from("hv_organizations")
-            .select("name")
-            .eq("id", typedDeal.org_id)
-            .maybeSingle();
-          org = o;
-        }
+        // Fetch contact/org in parallel for persona data
+        const [contactResult, orgResult] = await Promise.all([
+          typedDeal.contact_id
+            ? admin.from("hv_contacts").select("title").eq("id", typedDeal.contact_id).maybeSingle()
+            : Promise.resolve({ data: null }),
+          typedDeal.org_id
+            ? admin.from("hv_organizations").select("name").eq("id", typedDeal.org_id).maybeSingle()
+            : Promise.resolve({ data: null }),
+        ]);
+        const contact = contactResult.data;
+        const org = orgResult.data;
 
         const signal = buildDealClosedWonSignal(typedDeal, contact, org);
         if (signal) {

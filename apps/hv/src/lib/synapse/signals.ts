@@ -52,9 +52,12 @@ export function buildDealClosedWonSignal(
     conversionSignals.push(`Converted via ${deal.attribution_channel}`);
   }
 
-  // Build persona entry
+  // Build persona entry - name is the persona identifier, role is the job title
+  const contactName = contact?.first_name && contact?.last_name
+    ? `${contact.first_name} ${contact.last_name}`
+    : null;
   const persona: Record<string, unknown> = {
-    name: contact?.title ?? "Outbound Prospect",
+    name: contactName ?? "Outbound Prospect",
     role: contact?.title ?? null,
   };
 
@@ -122,7 +125,7 @@ export function buildDealClosedLostSignal(
   const competitor: Record<string, unknown> = {
     name: deal.lost_to_competitor,
     positioning: deal.loss_reason_detail ?? "Unknown positioning",
-    weaknesses: [] as string[],
+    weaknesses: [] as string[], // Populated in Phase 2 from aggregated loss patterns across deals
     last_activity: {
       type: "deal_won",
       detail: deal.loss_reason_detail ?? `Won deal "${deal.name}" from us`,

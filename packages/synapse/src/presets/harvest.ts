@@ -94,9 +94,13 @@ const SIGNAL_LAYER_MAP: Record<string, ContextLayer> = {
  * - Data without a recognized signal type
  */
 function filterProposal(data: Record<string, unknown>): SynapseFilterResult {
-  const signalType = data.signal_type as string | undefined;
-  const payload = data.payload as Record<string, unknown> | undefined;
-  const evidence = data.evidence as Evidence[] | undefined;
+  // Assertions: data is a signal object built by Harvest signal builders (signals.ts)
+  // with known shape { signal_type, payload, evidence, source_operator, action }
+  const signalType = typeof data.signal_type === "string" ? data.signal_type : undefined;
+  const payload = (data.payload !== null && typeof data.payload === "object" && !Array.isArray(data.payload))
+    ? data.payload as Record<string, unknown>
+    : undefined;
+  const evidence = Array.isArray(data.evidence) ? data.evidence as Evidence[] : undefined;
 
   // Block if no signal type provided
   if (!signalType) {
@@ -145,13 +149,17 @@ function filterProposal(data: Record<string, unknown>): SynapseFilterResult {
     confidence = "speculative";
   }
 
+  // Narrowing: source_operator and action are set by signal builders with known string values
+  const sourceOperator = typeof data.source_operator === "string" ? data.source_operator : undefined;
+  const action = data.action === "add" ? "add" as const : "update" as const;
+
   return {
     shouldPropose: true,
     proposal: {
       source_app: "harvest",
-      source_operator: (data.source_operator as string) ?? undefined,
+      source_operator: sourceOperator,
       target_layer: targetLayer,
-      action: (data.action as "add" | "update") ?? "update",
+      action,
       confidence,
       payload,
       evidence: evidence ?? [],
@@ -167,6 +175,7 @@ function filterProposal(data: Record<string, unknown>): SynapseFilterResult {
  * will be added when Harvest introduces caching layers.
  */
 async function handleRoutingEvent(event: RoutingEvent): Promise<void> {
+  // Assertion: RoutingEvent.payload contains layer change metadata from Cortex routing
   const eventPayload = event.payload as {
     layer?: string;
     changes?: Record<string, unknown>;
