@@ -4,14 +4,14 @@ import { useState } from "react";
 
 const NAV_ITEMS = [
   { label: "Dashboard", href: "/", icon: "grid" },
+  { label: "Contacts", href: "/contacts", icon: "book" },
   { label: "Prospects", href: "/prospects", icon: "users" },
-  { label: "Campaigns", href: "/campaigns", icon: "megaphone" },
-  { label: "Sequences", href: "/sequences", icon: "layers" },
   { label: "Compose", href: "/compose", icon: "edit" },
   { label: "Inbox", href: "/inbox", icon: "inbox" },
-  { label: "Calls", href: "/calls", icon: "phone" },
+  { label: "Sequences", href: "/sequences", icon: "layers" },
+  { label: "Campaigns", href: "/campaigns", icon: "megaphone" },
   { label: "Pipeline", href: "/pipeline", icon: "kanban" },
-  { label: "Contacts", href: "/contacts", icon: "book" },
+  { label: "Calls", href: "/calls", icon: "phone" },
   { label: "Analytics", href: "/analytics", icon: "chart" },
   { label: "Infra", href: "/infra", icon: "server" },
   { label: "Settings", href: "/settings", icon: "gear" },
