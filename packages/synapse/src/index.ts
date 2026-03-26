@@ -19,3 +19,4 @@ export { validateProposalPayload, validateLayers } from "./validate";
 export type { PayloadValidation } from "./validate";
 
 export { createDarkMadderConfig, DM_CONTENT_TYPE_MAP } from "./presets";
+export { createHarvestConfig, HV_CONTENT_TYPE_MAP } from "./presets";

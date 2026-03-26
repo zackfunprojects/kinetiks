@@ -24,12 +24,6 @@ export function PipelineView() {
   const [selectedDealId, setSelectedDealId] = useState<string | null>(null);
   const [tableRefreshKey, setTableRefreshKey] = useState(0);
 
-  /** Refresh whichever view(s) are relevant after a mutation */
-  const refreshViews = useCallback(() => {
-    fetchKanban();
-    setTableRefreshKey((k) => k + 1);
-  }, [fetchKanban]);
-
   const fetchKanban = useCallback(async () => {
     setLoading(true);
     try {
@@ -45,6 +39,12 @@ export function PipelineView() {
       setLoading(false);
     }
   }, []);
+
+  /** Refresh whichever view(s) are relevant after a mutation */
+  const refreshViews = useCallback(() => {
+    fetchKanban();
+    setTableRefreshKey((k) => k + 1);
+  }, [fetchKanban]);
 
   useEffect(() => {
     if (viewMode === "kanban") fetchKanban();

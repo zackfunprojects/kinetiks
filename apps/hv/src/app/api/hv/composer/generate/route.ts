@@ -2,6 +2,7 @@ import { requireAuth } from "@/lib/auth/require-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { apiSuccess, apiError } from "@/lib/utils/api-response";
 import { generateEmailDraft } from "@/lib/composer/generate";
+import { pullHarvestContext } from "@/lib/synapse/client";
 import type { EmailStyleConfig, ResearchBrief } from "@/types/composer";
 
 /**
@@ -58,16 +59,28 @@ export async function POST(request: Request) {
     ccContact = data;
   }
 
-  // Fetch sender context from Kinetiks ID
-  const [orgResult, productsResult, voiceResult] = await Promise.all([
-    admin.from("kinetiks_context_org").select("data").eq("account_id", auth.account_id).single(),
-    admin.from("kinetiks_context_products").select("data").eq("account_id", auth.account_id).single(),
-    admin.from("kinetiks_context_voice").select("data").eq("account_id", auth.account_id).single(),
-  ]);
+  // Fetch sender context from Kinetiks ID via Synapse
+  let orgData: Record<string, string> = {};
+  let productsData: Record<string, unknown> = {};
+  let voiceData: Record<string, unknown> = {};
 
-  const orgData = (orgResult.data?.data as Record<string, string>) ?? {};
-  const productsData = (productsResult.data?.data as Record<string, unknown>) ?? {};
-  const voiceData = (voiceResult.data?.data as Record<string, unknown>) ?? {};
+  const contextResult = await pullHarvestContext(auth.account_id, ["org", "products", "voice"]);
+  if (contextResult) {
+    orgData = (contextResult.layers.org?.data ?? {}) as Record<string, string>;
+    productsData = (contextResult.layers.products?.data ?? {}) as Record<string, unknown>;
+    voiceData = (contextResult.layers.voice?.data ?? {}) as Record<string, unknown>;
+  } else {
+    // Fallback: direct DB reads if Synapse pull fails (degraded mode)
+    console.warn("[HV Composer] Synapse pull failed, falling back to direct DB reads");
+    const [orgResult, productsResult, voiceResult] = await Promise.all([
+      admin.from("kinetiks_context_org").select("data").eq("account_id", auth.account_id).single(),
+      admin.from("kinetiks_context_products").select("data").eq("account_id", auth.account_id).single(),
+      admin.from("kinetiks_context_voice").select("data").eq("account_id", auth.account_id).single(),
+    ]);
+    orgData = (orgResult.data?.data as Record<string, string>) ?? {};
+    productsData = (productsResult.data?.data as Record<string, unknown>) ?? {};
+    voiceData = (voiceResult.data?.data as Record<string, unknown>) ?? {};
+  }
   const products = (productsData.products as Array<Record<string, string>>) ?? [];
 
   try {

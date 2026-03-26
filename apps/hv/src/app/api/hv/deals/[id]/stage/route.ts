@@ -1,7 +1,9 @@
 import { requireAuth } from "@/lib/auth/require-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { apiSuccess, apiError } from "@/lib/utils/api-response";
-import type { DealStage } from "@/types/pipeline";
+import { getHarvestSynapse } from "@/lib/synapse/client";
+import { buildDealClosedWonSignal, buildDealClosedLostSignal } from "@/lib/synapse/signals";
+import type { DealStage, HvDeal } from "@/types/pipeline";
 
 const VALID_STAGES: DealStage[] = ["prospecting", "qualified", "proposal", "negotiation", "closed_won", "closed_lost"];
 const CLOSED_STAGES: DealStage[] = ["closed_won", "closed_lost"];
@@ -102,6 +104,54 @@ export async function PATCH(request: Request, { params }: RouteContext) {
   });
   if (activityError) {
     console.error("Failed to log stage change activity:", activityError.message);
+  }
+
+  // Submit deal outcome to Kinetiks ID via Synapse (fire-and-forget)
+  if (newStage === "closed_won" || newStage === "closed_lost") {
+    try {
+      const typedDeal = updated as HvDeal;
+      const synapse = getHarvestSynapse();
+
+      if (newStage === "closed_won") {
+        // Fetch contact/org for persona data
+        let contact: { title?: string | null } | null = null;
+        let org: { name?: string | null } | null = null;
+
+        if (typedDeal.contact_id) {
+          const { data: c } = await admin
+            .from("hv_contacts")
+            .select("title")
+            .eq("id", typedDeal.contact_id)
+            .maybeSingle();
+          contact = c;
+        }
+        if (typedDeal.org_id) {
+          const { data: o } = await admin
+            .from("hv_organizations")
+            .select("name")
+            .eq("id", typedDeal.org_id)
+            .maybeSingle();
+          org = o;
+        }
+
+        const signal = buildDealClosedWonSignal(typedDeal, contact, org);
+        if (signal) {
+          synapse.submitProposal(auth.account_id, { ...signal }).catch((err: unknown) => {
+            console.error("[HV Synapse] Failed to submit deal_closed_won:", err instanceof Error ? err.message : String(err));
+          });
+        }
+      } else {
+        const signal = buildDealClosedLostSignal(typedDeal);
+        if (signal) {
+          synapse.submitProposal(auth.account_id, { ...signal }).catch((err: unknown) => {
+            console.error("[HV Synapse] Failed to submit deal_closed_lost:", err instanceof Error ? err.message : String(err));
+          });
+        }
+      }
+    } catch (err) {
+      // Never fail the stage change for a Synapse error
+      console.error("[HV Synapse] Error building deal signal:", err instanceof Error ? err.message : String(err));
+    }
   }
 
   return apiSuccess(updated);
