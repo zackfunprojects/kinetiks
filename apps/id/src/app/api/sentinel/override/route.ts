@@ -1,6 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAuth } from "@/lib/auth/require-auth";
-import { processOverride } from "@/lib/sentinel/learning";
+import { processOverride } from "@kinetiks/sentinel";
 import type { OverrideUserAction } from "@kinetiks/types";
 import { apiSuccess, apiError } from "@/lib/utils/api-response";
 

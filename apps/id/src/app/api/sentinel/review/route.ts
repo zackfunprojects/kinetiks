@@ -1,6 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAuth } from "@/lib/auth/require-auth";
-import { reviewContent } from "@/lib/sentinel/review";
+import { reviewContent } from "@kinetiks/sentinel";
 import type { ReviewRequest, SentinelContentType } from "@kinetiks/types";
 import { apiSuccess, apiError } from "@/lib/utils/api-response";
 

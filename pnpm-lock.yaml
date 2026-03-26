@@ -15,11 +15,72 @@ importers:
         specifier: ^5.7.0
         version: 5.9.3
 
+  apps/hv:
+    dependencies:
+      '@kinetiks/ai':
+        specifier: workspace:*
+        version: link:../../packages/ai
+      '@kinetiks/sentinel':
+        specifier: workspace:*
+        version: link:../../packages/sentinel
+      '@kinetiks/supabase':
+        specifier: workspace:*
+        version: link:../../packages/supabase
+      '@kinetiks/synapse':
+        specifier: workspace:*
+        version: link:../../packages/synapse
+      '@kinetiks/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      '@kinetiks/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      '@supabase/ssr':
+        specifier: ^0.5.0
+        version: 0.5.2(@supabase/supabase-js@2.99.3)
+      '@supabase/supabase-js':
+        specifier: ^2.49.0
+        version: 2.99.3
+      next:
+        specifier: 14.2.23
+        version: 14.2.23(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      react:
+        specifier: ^18.3.0
+        version: 18.3.1
+      react-dom:
+        specifier: ^18.3.0
+        version: 18.3.1(react@18.3.1)
+      server-only:
+        specifier: ^0.0.1
+        version: 0.0.1
+    devDependencies:
+      '@tailwindcss/postcss':
+        specifier: ^4.0.0
+        version: 4.2.2
+      '@types/node':
+        specifier: ^20.0.0
+        version: 20.19.37
+      '@types/react':
+        specifier: ^18.3.0
+        version: 18.3.28
+      '@types/react-dom':
+        specifier: ^18.3.0
+        version: 18.3.7(@types/react@18.3.28)
+      tailwindcss:
+        specifier: ^4.0.0
+        version: 4.2.2
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
+
   apps/id:
     dependencies:
       '@kinetiks/ai':
         specifier: workspace:*
         version: link:../../packages/ai
+      '@kinetiks/sentinel':
+        specifier: workspace:*
+        version: link:../../packages/sentinel
       '@kinetiks/supabase':
         specifier: workspace:*
         version: link:../../packages/supabase
@@ -110,6 +171,25 @@ importers:
       tsx:
         specifier: ^4.19.0
         version: 4.21.0
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
+
+  packages/sentinel:
+    dependencies:
+      '@kinetiks/ai':
+        specifier: workspace:*
+        version: link:../ai
+      '@kinetiks/types':
+        specifier: workspace:*
+        version: link:../types
+      '@supabase/supabase-js':
+        specifier: ^2.49.1
+        version: 2.99.3
+    devDependencies:
+      '@types/node':
+        specifier: ^20.0.0
+        version: 20.19.37
       typescript:
         specifier: ^5.7.0
         version: 5.9.3
@@ -1727,7 +1807,7 @@ snapshots:
 
   '@types/node-fetch@2.6.13':
     dependencies:
-      '@types/node': 20.19.37
+      '@types/node': 22.19.15
       form-data: 4.0.5
 
   '@types/node@18.19.130':
@@ -1761,7 +1841,7 @@ snapshots:
 
   '@types/ws@8.18.1':
     dependencies:
-      '@types/node': 20.19.37
+      '@types/node': 22.19.15
 
   '@xmldom/xmldom@0.8.11': {}
 
