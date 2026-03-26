@@ -102,39 +102,56 @@ async function handleProxy(request: Request, { params }: RouteContext): Promise<
   const headers: Record<string, string> = {
     "Authorization": `Bearer ${serviceSecret}`,
     "X-Kinetiks-Account-Id": accountId,
-    "Content-Type": "application/json",
   };
 
-  // Build fetch options
+  // Forward content-type from the original request when present
+  const incomingContentType = request.headers.get("content-type");
+  if (incomingContentType) {
+    headers["Content-Type"] = incomingContentType;
+  }
+
+  // 30-second timeout via AbortController
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30_000);
+
+  // Build fetch options - stream body instead of buffering
   const fetchOptions: RequestInit = {
     method: request.method,
     headers,
+    signal: controller.signal,
   };
 
-  // Forward body for non-GET requests
+  // Forward body for non-GET requests (stream raw body)
   if (request.method !== "GET" && request.method !== "HEAD") {
-    try {
-      const body = await request.text();
-      if (body) {
-        fetchOptions.body = body;
-      }
-    } catch {
-      // No body to forward
-    }
+    fetchOptions.body = request.body;
+    // @ts-expect-error -- Node fetch requires duplex for streaming request bodies
+    fetchOptions.duplex = "half";
   }
 
   try {
     const response = await fetch(targetUrl.toString(), fetchOptions);
+    clearTimeout(timeout);
 
-    // Proxy the response back
-    const responseBody = await response.text();
-    return new Response(responseBody, {
+    // Stream the response body back, forwarding upstream headers and status
+    const responseHeaders = new Headers();
+    const forwardHeaders = ["content-type", "content-length", "x-request-id"];
+    for (const name of forwardHeaders) {
+      const value = response.headers.get(name);
+      if (value) responseHeaders.set(name, value);
+    }
+
+    return new Response(response.body, {
       status: response.status,
-      headers: {
-        "Content-Type": response.headers.get("Content-Type") ?? "application/json",
-      },
+      headers: responseHeaders,
     });
   } catch (err) {
+    clearTimeout(timeout);
+    if (err instanceof DOMException && err.name === "AbortError") {
+      return NextResponse.json(
+        { success: false, error: `Request to ${app} timed out after 30s` },
+        { status: 502 }
+      );
+    }
     const message = err instanceof Error ? err.message : "Proxy request failed";
     return NextResponse.json(
       { success: false, error: `Failed to reach ${app}: ${message}` },

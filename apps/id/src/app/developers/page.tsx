@@ -15,8 +15,10 @@ interface ToolEntry {
   perm: string;
 }
 
+type HttpMethod = "GET" | "POST" | "PATCH" | "PUT" | "DELETE" | "ALL";
+
 interface EndpointEntry {
-  method: string;
+  method: HttpMethod;
   path: string;
   desc: string;
 }
@@ -214,7 +216,7 @@ export default function DevelopersPage(): React.JSX.Element {
               <p style={s.stepNum}>2</p>
               <p style={s.stepTitle}>Connect your agent</p>
               <p style={s.stepDesc}>
-                Add the MCP config to Claude Code or any MCP client. Paste in your bootstrap key. 27 tools available instantly.
+                Add the MCP config to Claude Code or any MCP client. Paste in your bootstrap key. {TOOLS.length} tools available instantly.
               </p>
             </div>
             <div style={s.step}>
@@ -254,7 +256,7 @@ export default function DevelopersPage(): React.JSX.Element {
         {/* Available Tools */}
         <div style={s.section}>
           <h2 style={s.h2}>Available Tools</h2>
-          <p style={s.p}>27 tools across 7 categories. All accessible via MCP tool calls.</p>
+          <p style={s.p}>{TOOLS.length} tools across {new Set(TOOLS.map((t) => t.category)).size} categories. All accessible via MCP tool calls.</p>
           <div style={{ borderRadius: 12, overflow: "hidden", border: "1px solid rgba(255,255,255,0.06)" }}>
             <table style={s.table}>
               <thead>

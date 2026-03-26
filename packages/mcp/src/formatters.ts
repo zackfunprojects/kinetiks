@@ -240,15 +240,27 @@ export function formatEnrichResult(data: Record<string, unknown>): string {
   return lines.join("\n");
 }
 
-export function formatContacts(data: Record<string, unknown>): string {
-  const contacts = (Array.isArray(data) ? data : (data as Record<string, unknown>)) as Record<string, unknown>;
-  const items = Array.isArray(contacts) ? contacts : [];
-  const meta = (data as Record<string, unknown>).meta as Record<string, unknown> | undefined;
+export function formatContacts(data: unknown): string {
+  // Handle both array and envelope { contacts, meta } shapes
+  let items: Array<Record<string, unknown>>;
+  let meta: Record<string, unknown> | undefined;
+
+  if (Array.isArray(data)) {
+    items = data as Array<Record<string, unknown>>;
+  } else if (data && typeof data === "object") {
+    const envelope = data as Record<string, unknown>;
+    items = Array.isArray(envelope.contacts)
+      ? (envelope.contacts as Array<Record<string, unknown>>)
+      : [];
+    meta = envelope.meta as Record<string, unknown> | undefined;
+  } else {
+    items = [];
+  }
 
   if (items.length === 0) return "No contacts found.";
 
   const lines: string[] = ["## Contacts\n"];
-  for (const c of items as Array<Record<string, unknown>>) {
+  for (const c of items) {
     const name = [c.first_name, c.last_name].filter(Boolean).join(" ") || "Unknown";
     const title = c.title ? ` - ${c.title}` : "";
     const email = c.email ? ` (${c.email})` : "";
@@ -376,12 +388,20 @@ export function formatDeals(data: Record<string, unknown>): string {
     return lines.join("\n");
   }
 
-  // Table view (paginated)
-  const items = Array.isArray(data) ? data : [];
+  // Table view (paginated) - handle both array and envelope { deals, meta }
+  let items: Array<Record<string, unknown>>;
+  if (Array.isArray(data)) {
+    items = data as Array<Record<string, unknown>>;
+  } else if (Array.isArray((data as Record<string, unknown>).deals)) {
+    items = (data as Record<string, unknown>).deals as Array<Record<string, unknown>>;
+  } else {
+    items = [];
+  }
+
   if (items.length === 0) return "No deals found.";
 
   const lines: string[] = ["## Deals\n"];
-  for (const d of items as Array<Record<string, unknown>>) {
+  for (const d of items) {
     const value = d.value != null ? ` ($${d.value})` : "";
     lines.push(`- **${d.name}** [${d.stage}]${value} [id: ${d.id}]`);
   }

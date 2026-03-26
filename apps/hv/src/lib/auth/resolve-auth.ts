@@ -33,12 +33,14 @@ export async function resolveAuth(
     authHeader.length === expectedBearer.length &&
     timingSafeEqual(Buffer.from(authHeader), Buffer.from(expectedBearer))
   ) {
-    // When proxied from the ID API, account_id comes via header
+    // Internal service auth always gets __internal__ as account_id.
+    // The proxied tenant identity is carried separately to prevent impersonation.
     const accountIdHeader = request.headers.get("x-kinetiks-account-id");
     return {
-      account_id: accountIdHeader ?? "__internal__",
+      account_id: "__internal__",
       user_id: "__internal__",
       auth_method: "internal",
+      ...(accountIdHeader ? { proxied_account_id: accountIdHeader } : {}),
     };
   }
 

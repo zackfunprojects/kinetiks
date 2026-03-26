@@ -44,6 +44,12 @@ export const harvestTools: Tool[] = [
         q: { type: "string", description: "Search by name or email" },
         seniority: { type: "string", description: "Filter by seniority (c-level, executive, vp, director, manager)" },
         source: { type: "string", description: "Filter by source (pdl, hunter, manual)" },
+        tags: {
+          type: "array",
+          items: { type: "string" },
+          description: "Filter by tags (contacts matching any of the provided tags)",
+        },
+        lead_score_min: { type: "number", description: "Minimum lead score (0-100)" },
         page: { type: "number", description: "Page number (default: 1)" },
         per_page: { type: "number", description: "Results per page (default: 25, max: 100)" },
       },
@@ -228,6 +234,10 @@ export async function handleHarvestTool(
       if (typeof args.q === "string") params.set("q", args.q);
       if (typeof args.seniority === "string") params.set("seniority", args.seniority);
       if (typeof args.source === "string") params.set("source", args.source);
+      if (Array.isArray(args.tags) && args.tags.length > 0) {
+        params.set("tags", (args.tags as string[]).join(","));
+      }
+      if (typeof args.lead_score_min === "number") params.set("lead_score_min", String(args.lead_score_min));
       if (typeof args.page === "number") params.set("page", String(args.page));
       if (typeof args.per_page === "number") params.set("per_page", String(args.per_page));
       const qs = params.toString();

@@ -25,8 +25,8 @@ interface RequireAuthOptions {
   /**
    * Allow internal service auth (INTERNAL_SERVICE_SECRET).
    * Defaults to false. Routes that support internal auth must
-   * set this to true and handle the `__internal__` account_id
-   * by reading the real account_id from the request body.
+   * set this to true and use `auth.proxied_account_id` for
+   * the real tenant identity (account_id is always "__internal__").
    */
   allowInternal?: boolean;
 }

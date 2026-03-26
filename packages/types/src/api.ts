@@ -41,6 +41,8 @@ export interface AuthenticatedContext {
   account_id: string;
   user_id: string;
   auth_method: AuthMethod;
+  /** Present only when auth_method is 'internal' and proxied from the ID API gateway */
+  proxied_account_id?: string;
   /** Present only when auth_method is 'api_key' */
   key_id?: string;
   /** Present only when auth_method is 'api_key' */
