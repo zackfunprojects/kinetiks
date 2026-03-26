@@ -112,9 +112,27 @@ export function ContactDetail({ contactId }: ContactDetailProps) {
               {[contact.title, org?.name].filter(Boolean).join(" at ")}
             </p>
           </div>
-          <div style={{ display: "flex", gap: "6px", flexShrink: 0 }}>
+          <div style={{ display: "flex", gap: "6px", flexShrink: 0, alignItems: "center" }}>
             <ScoreBadge score={contact.lead_score} label="LEAD" size="md" />
             <VerificationBadge grade={contact.verification_grade} />
+            {contact.email && (
+              <a
+                href={`/compose?contact_id=${contact.id}`}
+                style={{
+                  padding: "6px 12px",
+                  borderRadius: "6px",
+                  border: "none",
+                  backgroundColor: "var(--accent-primary)",
+                  color: "#fff",
+                  fontSize: "0.75rem",
+                  fontWeight: 500,
+                  textDecoration: "none",
+                  marginLeft: "6px",
+                }}
+              >
+                Compose Email
+              </a>
+            )}
           </div>
         </div>
 
