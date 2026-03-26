@@ -15,6 +15,7 @@ import { approvalTools, handleApprovalTool } from "./tools/approvals.js";
 import { summaryTools, handleSummaryTool } from "./tools/summary.js";
 import { connectionTools, handleConnectionTool } from "./tools/connections.js";
 import { marcusTools, handleMarcusTool } from "./tools/marcus.js";
+import { harvestTools, handleHarvestTool } from "./tools/harvest.js";
 
 // Collect all tools and their handlers
 const allTools: Tool[] = [
@@ -24,6 +25,7 @@ const allTools: Tool[] = [
   ...summaryTools,
   ...connectionTools,
   ...marcusTools,
+  ...harvestTools,
 ];
 
 type ToolHandler = (name: string, args: Record<string, unknown>) => Promise<CallToolResult>;
@@ -42,6 +44,7 @@ registerTools(approvalTools, handleApprovalTool);
 registerTools(summaryTools, handleSummaryTool);
 registerTools(connectionTools, handleConnectionTool);
 registerTools(marcusTools, handleMarcusTool);
+registerTools(harvestTools, handleHarvestTool);
 
 // Create server
 const server = new Server(

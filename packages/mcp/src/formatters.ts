@@ -207,3 +207,192 @@ export function formatGeneric(data: unknown): string {
   if (typeof data === "string") return data;
   return JSON.stringify(data, null, 2);
 }
+
+// ---------------------------------------------------------------------------
+// Harvest formatters
+// ---------------------------------------------------------------------------
+
+export function formatEnrichResult(data: Record<string, unknown>): string {
+  const lines: string[] = ["## Enrichment Results\n"];
+  const company = data.company as Record<string, unknown> | null;
+  if (company) {
+    lines.push(`**Company:** ${company.name ?? "Unknown"}`);
+    if (company.industry) lines.push(`Industry: ${company.industry}`);
+    if (company.size) lines.push(`Size: ~${company.size} employees`);
+  } else {
+    lines.push("No company data found.");
+  }
+
+  lines.push("");
+  lines.push(`Contacts found: ${data.contacts_found ?? 0}`);
+  lines.push(`Contacts saved: ${data.contacts_saved ?? 0}`);
+  lines.push(`Sources used: ${Array.isArray(data.sources) ? (data.sources as string[]).join(", ") : "none"}`);
+  if (data.org_id) lines.push(`Organization ID: ${data.org_id}`);
+
+  const contacts = data.contacts as Array<Record<string, unknown>> | undefined;
+  if (contacts && contacts.length > 0) {
+    lines.push("\n### Saved Contacts\n");
+    for (const c of contacts) {
+      lines.push(`- ${c.name ?? "Unknown"} (${c.email ?? "no email"}) [id: ${c.id}]`);
+    }
+  }
+
+  return lines.join("\n");
+}
+
+export function formatContacts(data: Record<string, unknown>): string {
+  const contacts = (Array.isArray(data) ? data : (data as Record<string, unknown>)) as Record<string, unknown>;
+  const items = Array.isArray(contacts) ? contacts : [];
+  const meta = (data as Record<string, unknown>).meta as Record<string, unknown> | undefined;
+
+  if (items.length === 0) return "No contacts found.";
+
+  const lines: string[] = ["## Contacts\n"];
+  for (const c of items as Array<Record<string, unknown>>) {
+    const name = [c.first_name, c.last_name].filter(Boolean).join(" ") || "Unknown";
+    const title = c.title ? ` - ${c.title}` : "";
+    const email = c.email ? ` (${c.email})` : "";
+    lines.push(`- **${name}**${title}${email} [id: ${c.id}]`);
+  }
+
+  if (meta) {
+    lines.push(`\nPage ${meta.page ?? 1} of ${Math.ceil((meta.total as number ?? 0) / (meta.per_page as number ?? 25))} (${meta.total ?? 0} total)`);
+  }
+
+  return lines.join("\n");
+}
+
+export function formatPairResult(data: Record<string, unknown>): string {
+  const lines: string[] = ["## Pairing Result\n"];
+  lines.push(`Method: ${data.method ?? "unknown"}\n`);
+
+  const primary = data.primary as Record<string, unknown> | null;
+  if (primary) {
+    lines.push(`**Primary (To):** ${primary.name ?? "Unknown"}`);
+    if (primary.title) lines.push(`Title: ${primary.title}`);
+    if (primary.email) lines.push(`Email: ${primary.email}`);
+    if (primary.reason) lines.push(`Reason: ${primary.reason}`);
+  } else {
+    lines.push("No primary contact selected.");
+  }
+
+  lines.push("");
+  const secondary = data.secondary as Record<string, unknown> | null;
+  if (secondary) {
+    lines.push(`**Secondary (CC):** ${secondary.name ?? "Unknown"}`);
+    if (secondary.title) lines.push(`Title: ${secondary.title}`);
+    if (secondary.email) lines.push(`Email: ${secondary.email}`);
+    if (secondary.reason) lines.push(`Reason: ${secondary.reason}`);
+  } else {
+    lines.push("No secondary contact selected.");
+  }
+
+  if (data.reasoning) {
+    lines.push(`\n**Reasoning:** ${data.reasoning}`);
+  }
+
+  return lines.join("\n");
+}
+
+export function formatResearchBrief(data: Record<string, unknown>): string {
+  const brief = data.brief as Record<string, unknown> | null;
+  if (!brief) return "No research brief generated.";
+
+  const lines: string[] = ["## Research Brief\n"];
+
+  if (brief.company_summary) lines.push(`**Summary:** ${brief.company_summary}\n`);
+
+  const hooks = brief.personalization_hooks;
+  if (Array.isArray(hooks) && hooks.length > 0) {
+    lines.push("**Personalization Hooks:**");
+    for (const hook of hooks) {
+      lines.push(`- ${hook}`);
+    }
+    lines.push("");
+  }
+
+  if (brief.relevance_angle) {
+    lines.push(`**Relevance Angle:** ${brief.relevance_angle}`);
+  }
+
+  // Include any other sections
+  for (const [key, value] of Object.entries(brief)) {
+    if (["company_summary", "personalization_hooks", "relevance_angle"].includes(key)) continue;
+    if (typeof value === "string" && value) {
+      lines.push(`\n**${key.replace(/_/g, " ")}:** ${value}`);
+    }
+  }
+
+  return lines.join("\n");
+}
+
+export function formatEmailDraft(data: Record<string, unknown>): string {
+  const lines: string[] = ["## Generated Email\n"];
+
+  if (data.subject) lines.push(`**Subject:** ${data.subject}\n`);
+  if (data.body_plain) {
+    lines.push("**Body:**");
+    lines.push(String(data.body_plain));
+  } else if (data.body) {
+    lines.push("**Body (HTML):**");
+    // Strip HTML tags for readability
+    const plain = String(data.body)
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<\/p>/gi, "\n\n")
+      .replace(/<[^>]+>/g, "")
+      .trim();
+    lines.push(plain);
+  }
+
+  return lines.join("\n");
+}
+
+export function formatDeals(data: Record<string, unknown>): string {
+  // Kanban view
+  const dealsByStage = data.deals_by_stage as Record<string, Array<Record<string, unknown>>> | undefined;
+  if (dealsByStage) {
+    const lines: string[] = ["## Pipeline (Kanban)\n"];
+    const stages = ["prospecting", "qualified", "proposal", "negotiation", "closed_won", "closed_lost"];
+    for (const stage of stages) {
+      const deals = dealsByStage[stage] ?? [];
+      lines.push(`### ${stage.replace(/_/g, " ").toUpperCase()} (${deals.length})`);
+      if (deals.length === 0) {
+        lines.push("  (empty)");
+      } else {
+        for (const d of deals) {
+          const value = d.value != null ? ` - $${d.value}` : "";
+          lines.push(`  - ${d.name}${value} [id: ${d.id}]`);
+        }
+      }
+      lines.push("");
+    }
+
+    const metrics = data.metrics as Record<string, unknown> | undefined;
+    if (metrics) {
+      lines.push(`Total deals: ${metrics.total_deals ?? 0}`);
+      lines.push(`Pipeline value: $${metrics.total_value ?? 0}`);
+    }
+
+    return lines.join("\n");
+  }
+
+  // Table view (paginated)
+  const items = Array.isArray(data) ? data : [];
+  if (items.length === 0) return "No deals found.";
+
+  const lines: string[] = ["## Deals\n"];
+  for (const d of items as Array<Record<string, unknown>>) {
+    const value = d.value != null ? ` ($${d.value})` : "";
+    lines.push(`- **${d.name}** [${d.stage}]${value} [id: ${d.id}]`);
+  }
+  return lines.join("\n");
+}
+
+export function formatDealCreated(data: Record<string, unknown>): string {
+  const lines: string[] = ["## Deal Created\n"];
+  lines.push(`**Name:** ${data.name ?? "Unknown"}`);
+  lines.push(`**Stage:** ${data.stage ?? "prospecting"}`);
+  if (data.value != null) lines.push(`**Value:** $${data.value} ${data.currency ?? "USD"}`);
+  lines.push(`**ID:** ${data.id}`);
+  return lines.join("\n");
+}
