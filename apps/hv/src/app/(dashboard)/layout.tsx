@@ -26,8 +26,8 @@ const WORKSPACES: Workspace[] = [
     label: "Greenhouse",
     emoji: "🌱",
     items: [
-      { label: "Seedbed", href: "/greenhouse", icon: "book" },
-      { label: "Sprouts", href: "/greenhouse?tab=sprouts", icon: "users" },
+      { label: "Contacts", href: "/greenhouse", icon: "book" },
+      { label: "Prospects", href: "/greenhouse/prospects", icon: "users" },
     ],
   },
   {
@@ -35,11 +35,10 @@ const WORKSPACES: Workspace[] = [
     label: "Field",
     emoji: "🌾",
     items: [
-      { label: "Overview", href: "/field", icon: "grid" },
-      { label: "Plant", href: "/field/compose", icon: "edit" },
+      { label: "Compose", href: "/field/compose", icon: "edit" },
       { label: "Inbox", href: "/field/inbox", icon: "inbox" },
-      { label: "Rows", href: "/field/sequences", icon: "layers" },
-      { label: "Plots", href: "/field/campaigns", icon: "megaphone" },
+      { label: "Sequences", href: "/field/sequences", icon: "layers" },
+      { label: "Campaigns", href: "/field/campaigns", icon: "megaphone" },
       { label: "Calls", href: "/field/calls", icon: "phone" },
     ],
   },
@@ -48,8 +47,8 @@ const WORKSPACES: Workspace[] = [
     label: "Market",
     emoji: "🥕",
     items: [
-      { label: "Harvest Board", href: "/market/pipeline", icon: "kanban" },
-      { label: "Yield", href: "/market/analytics", icon: "chart" },
+      { label: "Pipeline", href: "/market/pipeline", icon: "kanban" },
+      { label: "Analytics", href: "/market/analytics", icon: "chart" },
     ],
   },
 ];
