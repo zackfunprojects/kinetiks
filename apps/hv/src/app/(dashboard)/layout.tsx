@@ -99,7 +99,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   function isActive(href: string): boolean {
     if (href === "/greenhouse" && pathname === "/greenhouse") return true;
     if (href === "/field" && pathname === "/field") return true;
-    if (href.includes("?")) return pathname === href.split("?")[0];
     return pathname === href || pathname.startsWith(href + "/");
   }
 

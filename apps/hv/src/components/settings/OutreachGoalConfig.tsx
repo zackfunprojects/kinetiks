@@ -25,6 +25,7 @@ export default function OutreachGoalConfig() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -33,9 +34,12 @@ export default function OutreachGoalConfig() {
         if (res.ok) {
           const json = await res.json();
           if (json.data) setGoal(json.data);
+        } else {
+          setError("Failed to load configuration");
         }
       } catch (err) {
         console.error("Failed to load outreach goal:", err);
+        setError("Failed to load configuration");
       } finally {
         setLoading(false);
       }
@@ -46,6 +50,7 @@ export default function OutreachGoalConfig() {
   async function handleSave() {
     setSaving(true);
     setSaved(false);
+    setError(null);
     try {
       const res = await fetch("/api/hv/outreach-goal", {
         method: "PUT",
@@ -55,9 +60,13 @@ export default function OutreachGoalConfig() {
       if (res.ok) {
         setSaved(true);
         setTimeout(() => setSaved(false), 2000);
+      } else {
+        const json = await res.json().catch(() => ({}));
+        setError(json.error ?? "Failed to save");
       }
     } catch (err) {
       console.error("Failed to save outreach goal:", err);
+      setError("Failed to save");
     } finally {
       setSaving(false);
     }
@@ -272,7 +281,7 @@ export default function OutreachGoalConfig() {
               min={3}
               max={10}
               value={goal.rules.breakup_after_touches}
-              onChange={(e) => updateRules({ breakup_after_touches: parseInt(e.target.value, 10) || 5 })}
+              onChange={(e) => updateRules({ breakup_after_touches: parseInt(e.target.value, 10) || 3 })}
               style={{
                 width: 60, padding: "6px 8px", borderRadius: "var(--radius-md)",
                 border: "1px solid var(--border-default)", backgroundColor: "var(--surface-base)",
@@ -282,6 +291,20 @@ export default function OutreachGoalConfig() {
           </div>
         </div>
       </div>
+
+      {/* Error feedback */}
+      {error && (
+        <div style={{
+          marginBottom: "var(--space-3)",
+          padding: "var(--space-3)",
+          borderRadius: "var(--radius-md)",
+          backgroundColor: "var(--error-subtle, #fef2f2)",
+          color: "var(--error, #dc2626)",
+          fontSize: 13,
+        }}>
+          {error}
+        </div>
+      )}
 
       {/* Save */}
       <button

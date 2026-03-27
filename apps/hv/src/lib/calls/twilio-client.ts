@@ -24,9 +24,13 @@ export async function makeCall(options: {
   record?: boolean;
 }): Promise<CallInstance> {
   const client = getClient();
+  const fromNumber = options.from ?? phoneNumber;
+  if (!fromNumber) {
+    throw new Error("Twilio from number not configured: provide options.from or set TWILIO_PHONE_NUMBER");
+  }
   const call = await client.calls.create({
     to: options.to,
-    from: options.from ?? phoneNumber ?? "",
+    from: fromNumber,
     url: options.twimlUrl,
     statusCallback: options.statusCallbackUrl,
     statusCallbackEvent: ["initiated", "ringing", "answered", "completed"],

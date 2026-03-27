@@ -17,10 +17,16 @@ export default function BulkEnrichPanel() {
   const [currentIndex, setCurrentIndex] = useState(-1);
 
   async function handleEnrich() {
+    const seen = new Set<string>();
     const domainList = domains
       .split("\n")
-      .map((d) => d.trim())
-      .filter((d) => d.length > 0 && d.includes("."));
+      .map((d) => d.trim().toLowerCase())
+      .filter((d) => {
+        if (d.length === 0 || !d.includes(".")) return false;
+        if (seen.has(d)) return false;
+        seen.add(d);
+        return true;
+      });
 
     if (domainList.length === 0) return;
 

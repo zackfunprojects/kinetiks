@@ -45,8 +45,8 @@ export default function FieldPage() {
 
   const cards = [
     { label: "Pending Drafts", value: summary.pendingDrafts, href: "/field/compose", emoji: "✏️" },
-    { label: "Active Rows", value: summary.activeSequences, href: "/field/sequences", emoji: "🌾" },
-    { label: "Active Plots", value: summary.activeCampaigns, href: "/field/campaigns", emoji: "🗺️" },
+    { label: "Active Sequences", value: summary.activeSequences, href: "/field/sequences", emoji: "🌾" },
+    { label: "Active Campaigns", value: summary.activeCampaigns, href: "/field/campaigns", emoji: "🗺️" },
     { label: "Inbox", value: summary.unreadInbox, href: "/field/inbox", emoji: "📬" },
   ];
 
@@ -123,7 +123,7 @@ export default function FieldPage() {
                 backgroundColor: "transparent",
               }}
             >
-              Create a row
+              Create sequence
             </Link>
           </div>
         </>

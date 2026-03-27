@@ -151,7 +151,7 @@ export async function initiateAiCall(options: InitiateCallOptions): Promise<Call
   const firstMessage = `Hi ${firstName}, this is a call from ${orgData.company_name ?? "our team"}. Do you have a moment to chat?`;
 
   // 4. Create conversation config
-  const { agentId, conversationConfig } = await createConversationConfig({
+  const { agentId, conversationConfig } = createConversationConfig({
     systemPrompt,
     firstMessage,
     voiceId: options.voiceId,
@@ -229,6 +229,12 @@ export async function processCallComplete(options: {
     .single();
 
   if (!callRecord) return;
+
+  // Idempotency: skip if already completed to prevent duplicate processing on webhook retries
+  if (callRecord.status === "completed") {
+    console.log(`[HV Calls] Call ${options.callId} already processed, skipping`);
+    return;
+  }
 
   // Try to get transcript from ElevenLabs if conversation ID exists
   let transcript = "";

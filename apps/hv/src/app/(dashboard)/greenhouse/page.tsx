@@ -1,5 +1,3 @@
-"use client";
-
 import { ContactsTable } from "@/components/contacts/ContactsTable";
 import IcpPanel from "@/components/greenhouse/IcpPanel";
 import BulkEnrichPanel from "@/components/greenhouse/BulkEnrichPanel";

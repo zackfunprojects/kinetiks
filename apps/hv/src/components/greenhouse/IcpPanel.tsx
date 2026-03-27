@@ -38,7 +38,8 @@ export default function IcpPanel() {
 
         if (distRes.ok) {
           const distJson = await distRes.json();
-          // Calculate fit distribution from contact scores
+          // Note: /api/hv/contacts/filters does not currently return score_distribution.
+          // This will populate once the endpoint is updated to include ICP fit scores.
           const scores: number[] = distJson.data?.score_distribution ?? [];
           if (scores.length > 0) {
             setDistribution({

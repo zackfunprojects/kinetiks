@@ -24,11 +24,16 @@ export async function GET(request: Request) {
 
   // Outreach goal stored in hv_accounts or a dedicated config table
   // For now, store in the existing kinetiks_accounts metadata or hv-specific config
-  const { data } = await admin
+  const { data, error: selectError } = await admin
     .from("hv_accounts_config")
     .select("outreach_goal")
     .eq("kinetiks_id", auth.account_id)
     .maybeSingle();
+
+  if (selectError) {
+    console.error("Failed to fetch outreach goal:", selectError);
+    return apiError(`Failed to fetch outreach goal: ${selectError.message}`, 500);
+  }
 
   if (data?.outreach_goal) {
     // Safe cast: outreach_goal is JSONB stored in our schema

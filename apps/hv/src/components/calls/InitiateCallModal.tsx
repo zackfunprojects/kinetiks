@@ -43,11 +43,16 @@ export default function InitiateCallModal({ onClose, onCallStarted, preselectedC
   useEffect(() => {
     if (preselectedContactId) {
       fetch(`/api/hv/contacts/${preselectedContactId}`)
-        .then((r) => r.json())
+        .then((r) => {
+          if (!r.ok) throw new Error(`Failed to load contact (${r.status})`);
+          return r.json();
+        })
         .then((json) => {
           if (json.success && json.data) setSelectedContact(json.data);
         })
-        .catch(() => {});
+        .catch((err) => {
+          console.error("Failed to load preselected contact:", err);
+        });
     }
   }, [preselectedContactId]);
 

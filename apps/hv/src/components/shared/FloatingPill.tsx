@@ -127,22 +127,32 @@ export default function FloatingPill() {
           return;
         }
 
-        const { data: acc } = await supabase
+        const { data: acc, error: accError } = await supabase
           .from("kinetiks_accounts")
           .select("id, codename")
           .eq("user_id", user.id)
-          .single();
+          .maybeSingle();
+
+        if (accError) {
+          console.error("Failed to load Kinetiks account:", accError.message);
+          setLoading(false);
+          return;
+        }
 
         if (!acc) {
           setLoading(false);
           return;
         }
 
-        const { data: conf } = await supabase
+        const { data: conf, error: confError } = await supabase
           .from("kinetiks_confidence")
           .select("aggregate")
           .eq("account_id", acc.id)
-          .single();
+          .maybeSingle();
+
+        if (confError) {
+          console.error("Failed to load confidence score:", confError.message);
+        }
 
         setAccount({
           codename: acc.codename,

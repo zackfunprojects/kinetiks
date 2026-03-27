@@ -68,15 +68,15 @@ ${context.competitiveContext}
  * Create a conversational AI agent configuration for a call.
  * Returns the agent config to be used with the ElevenLabs Conversational AI API.
  */
-export async function createConversationConfig(options: {
+export function createConversationConfig(options: {
   systemPrompt: string;
   firstMessage: string;
   voiceId?: string;
   agentId?: string;
-}): Promise<{
+}): {
   agentId: string;
   conversationConfig: Record<string, unknown>;
-}> {
+} {
   const agentId = options.agentId ?? defaultAgentId;
   if (!agentId) {
     throw new Error("ELEVENLABS_AGENT_ID must be set or agentId provided");
@@ -125,7 +125,7 @@ export async function getConversationTranscript(conversationId: string): Promise
   }
 
   // Safe cast: conversation_turns contains the message history per ElevenLabs API
-  const turns = (conversation as Record<string, unknown>).conversation_turns as Array<Record<string, unknown>> | undefined;
+  const turns = conversation.conversation_turns as Array<Record<string, unknown>> | undefined;
   if (Array.isArray(turns)) {
     for (const turn of turns) {
       messages.push({
@@ -138,7 +138,7 @@ export async function getConversationTranscript(conversationId: string): Promise
 
   return {
     transcript: fullTranscript,
-    duration: Number((conversation as Record<string, unknown>).duration ?? 0),
+    duration: Number(conversation.duration ?? 0),
     messages,
   };
 }

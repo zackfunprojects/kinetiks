@@ -32,11 +32,15 @@ export async function GET(request: Request) {
 
     // Fallback: direct DB read
     const admin = createAdminClient();
-    const { data: customersRow } = await admin
+    const { data: customersRow, error: customersError } = await admin
       .from("kinetiks_context_customers")
       .select("data")
       .eq("account_id", auth.account_id)
-      .single();
+      .maybeSingle();
+
+    if (customersError) {
+      return apiError(`Failed to read customers context: ${customersError.message}`, 500);
+    }
 
     if (customersRow?.data) {
       // Safe cast: DB JSONB follows same schema
@@ -55,7 +59,7 @@ export async function GET(request: Request) {
   } catch (err) {
     console.error("[HV ICP] Failed to load ICP data:", err);
     return apiError(
-      err instanceof Error ? err.message : "Failed to load ICP data",
+      err instanceof Error ? err.message : String(err),
       500
     );
   }
