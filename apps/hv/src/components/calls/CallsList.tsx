@@ -6,6 +6,7 @@ import type { HvCall, CallStatus } from "@/types/calls";
 interface CallsListProps {
   onSelect: (call: HvCall) => void;
   onLogClick: () => void;
+  onAiCallClick?: () => void;
 }
 
 const STATUS_COLORS: Record<CallStatus, { bg: string; fg: string }> = {
@@ -22,7 +23,7 @@ function formatDuration(seconds: number): string {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
-export default function CallsList({ onSelect, onLogClick }: CallsListProps) {
+export default function CallsList({ onSelect, onLogClick, onAiCallClick }: CallsListProps) {
   const [calls, setCalls] = useState<HvCall[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<CallStatus | "">("");
@@ -52,18 +53,32 @@ export default function CallsList({ onSelect, onLogClick }: CallsListProps) {
         <div>
           <h1 style={{ fontSize: 24, fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>Calls</h1>
           <p style={{ fontSize: 14, color: "var(--text-secondary)", margin: "4px 0 0" }}>
-            Track and log call activity
+            AI-powered voice calls with automatic transcription and key moment extraction
           </p>
         </div>
-        <button
-          onClick={onLogClick}
-          style={{
-            padding: "8px 16px", borderRadius: 8, border: "none", cursor: "pointer",
-            backgroundColor: "var(--harvest-green)", color: "#fff", fontSize: 13, fontWeight: 600,
-          }}
-        >
-          + Log Call
-        </button>
+        <div style={{ display: "flex", gap: 8 }}>
+          {onAiCallClick && (
+            <button
+              onClick={onAiCallClick}
+              style={{
+                padding: "8px 16px", borderRadius: 8, border: "none", cursor: "pointer",
+                backgroundColor: "var(--harvest-green)", color: "#fff", fontSize: 13, fontWeight: 600,
+              }}
+            >
+              Start AI Call
+            </button>
+          )}
+          <button
+            onClick={onLogClick}
+            style={{
+              padding: "8px 16px", borderRadius: 8, cursor: "pointer",
+              border: "1px solid var(--border-default)", backgroundColor: "transparent",
+              color: "var(--text-secondary)", fontSize: 13, fontWeight: 500,
+            }}
+          >
+            + Log Call
+          </button>
+        </div>
       </div>
 
       {/* Filter tabs */}
