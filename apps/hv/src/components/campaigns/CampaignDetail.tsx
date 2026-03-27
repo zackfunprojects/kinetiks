@@ -29,9 +29,14 @@ export default function CampaignDetail({ campaign, onClose, onUpdated }: Campaig
 
   useEffect(() => {
     async function loadSequences() {
-      const res = await fetch("/api/hv/sequences?per_page=100");
-      const json = await res.json();
-      setSequences(json.data ?? []);
+      try {
+        const res = await fetch("/api/hv/sequences?per_page=100");
+        if (!res.ok) throw new Error(`Failed to load sequences: ${res.status}`);
+        const json = await res.json();
+        setSequences(json.data ?? []);
+      } catch (err) {
+        console.error("Error loading sequences:", err);
+      }
     }
     loadSequences();
   }, []);
@@ -45,24 +50,35 @@ export default function CampaignDetail({ campaign, onClose, onUpdated }: Campaig
     }
 
     setSaving(true);
-    const res = await fetch(`/api/hv/campaigns/${campaign.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name,
-        status,
-        sequence_id: sequenceId || null,
-        prospect_filter: parsedFilter,
-      }),
-    });
-    setSaving(false);
-    if (res.ok) onUpdated();
+    try {
+      const res = await fetch(`/api/hv/campaigns/${campaign.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          status,
+          sequence_id: sequenceId || null,
+          prospect_filter: parsedFilter,
+        }),
+      });
+      if (!res.ok) throw new Error(`Failed to save campaign: ${res.status}`);
+      onUpdated();
+    } catch (err) {
+      console.error("Error saving campaign:", err);
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function handleDelete() {
     if (!confirm("Delete this campaign? This cannot be undone.")) return;
-    await fetch(`/api/hv/campaigns/${campaign.id}`, { method: "DELETE" });
-    onUpdated();
+    try {
+      const res = await fetch(`/api/hv/campaigns/${campaign.id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error(`Failed to delete campaign: ${res.status}`);
+      onUpdated();
+    } catch (err) {
+      console.error("Error deleting campaign:", err);
+    }
   }
 
   const stats = campaign.stats ?? {};

@@ -37,12 +37,18 @@ export default function InboxList({ onSelect }: InboxListProps) {
 
   const fetchEmails = useCallback(async () => {
     setLoading(true);
-    const params = new URLSearchParams();
-    if (filter) params.set("classification", filter);
-    const res = await fetch(`/api/hv/inbox?${params}`);
-    const json = await res.json();
-    setEmails(json.data ?? []);
-    setLoading(false);
+    try {
+      const params = new URLSearchParams();
+      if (filter) params.set("classification", filter);
+      const res = await fetch(`/api/hv/inbox?${params}`);
+      if (!res.ok) throw new Error(`Failed to fetch inbox: ${res.status}`);
+      const json = await res.json();
+      setEmails(json.data ?? []);
+    } catch (err) {
+      console.error("Error fetching inbox:", err);
+    } finally {
+      setLoading(false);
+    }
   }, [filter]);
 
   useEffect(() => { fetchEmails(); }, [fetchEmails]);

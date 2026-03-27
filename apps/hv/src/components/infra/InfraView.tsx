@@ -106,20 +106,26 @@ function AddWebhookModal({ onClose, onCreated }: { onClose: () => void; onCreate
     setSaving(true);
     setError("");
 
-    const res = await fetch("/api/hv/webhooks", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url: url.trim(), events: eventList }),
-    });
+    try {
+      const res = await fetch("/api/hv/webhooks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: url.trim(), events: eventList }),
+      });
 
-    if (!res.ok) {
-      const json = await res.json().catch(() => ({}));
-      setError(json.error ?? "Failed to create webhook");
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        setError(json.error ?? "Failed to create webhook");
+        return;
+      }
+
+      onCreated();
+    } catch (err) {
+      console.error("Error creating webhook:", err);
+      setError("Failed to create webhook");
+    } finally {
       setSaving(false);
-      return;
     }
-
-    onCreated();
   }
 
   return (

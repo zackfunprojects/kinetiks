@@ -22,12 +22,18 @@ export default function CampaignsList({ onSelect, onCreateClick }: CampaignsList
 
   const fetchCampaigns = useCallback(async () => {
     setLoading(true);
-    const params = new URLSearchParams();
-    if (filter) params.set("status", filter);
-    const res = await fetch(`/api/hv/campaigns?${params}`);
-    const json = await res.json();
-    setCampaigns(json.data ?? []);
-    setLoading(false);
+    try {
+      const params = new URLSearchParams();
+      if (filter) params.set("status", filter);
+      const res = await fetch(`/api/hv/campaigns?${params}`);
+      if (!res.ok) throw new Error(`Failed to fetch campaigns: ${res.status}`);
+      const json = await res.json();
+      setCampaigns(json.data ?? []);
+    } catch (err) {
+      console.error("Error fetching campaigns:", err);
+    } finally {
+      setLoading(false);
+    }
   }, [filter]);
 
   useEffect(() => { fetchCampaigns(); }, [fetchCampaigns]);

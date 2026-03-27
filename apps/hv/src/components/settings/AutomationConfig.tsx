@@ -15,10 +15,16 @@ export default function AutomationConfig() {
 
   const fetchOperators = useCallback(async () => {
     setLoading(true);
-    const res = await fetch("/api/hv/automations");
-    const json = await res.json();
-    setOperators(json.data ?? []);
-    setLoading(false);
+    try {
+      const res = await fetch("/api/hv/automations");
+      if (!res.ok) throw new Error(`Failed to fetch automations: ${res.status}`);
+      const json = await res.json();
+      setOperators(json.data ?? []);
+    } catch (err) {
+      console.error("Error fetching automations:", err);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {

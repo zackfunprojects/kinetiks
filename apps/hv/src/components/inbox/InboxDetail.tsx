@@ -26,13 +26,19 @@ export default function InboxDetail({ email, onClose, onUpdated }: InboxDetailPr
   async function handleClassify(value: ReplyClassification) {
     setClassification(value);
     setSaving(true);
-    const res = await fetch(`/api/hv/inbox/${email.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ reply_classification: value }),
-    });
-    setSaving(false);
-    if (res.ok) onUpdated();
+    try {
+      const res = await fetch(`/api/hv/inbox/${email.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reply_classification: value }),
+      });
+      if (!res.ok) throw new Error(`Failed to classify email: ${res.status}`);
+      onUpdated();
+    } catch (err) {
+      console.error("Error classifying email:", err);
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (

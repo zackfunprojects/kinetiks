@@ -14,20 +14,26 @@ export default function ProspectsView() {
 
   const fetchProspects = useCallback(async () => {
     setLoading(true);
-    const params = new URLSearchParams({
-      suppressed: "false",
-      sort_by: "lead_score",
-      sort_dir: "desc",
-      page: String(page),
-      per_page: String(perPage),
-    });
-    if (search) params.set("q", search);
+    try {
+      const params = new URLSearchParams({
+        suppressed: "false",
+        sort_by: "lead_score",
+        sort_dir: "desc",
+        page: String(page),
+        per_page: String(perPage),
+      });
+      if (search) params.set("q", search);
 
-    const res = await fetch(`/api/hv/contacts?${params}`);
-    const json = await res.json();
-    setContacts(json.data ?? []);
-    setTotal(json.meta?.total ?? 0);
-    setLoading(false);
+      const res = await fetch(`/api/hv/contacts?${params}`);
+      if (!res.ok) throw new Error(`Failed to fetch prospects: ${res.status}`);
+      const json = await res.json();
+      setContacts(json.data ?? []);
+      setTotal(json.meta?.total ?? 0);
+    } catch (err) {
+      console.error("Error fetching prospects:", err);
+    } finally {
+      setLoading(false);
+    }
   }, [page, search]);
 
   useEffect(() => {

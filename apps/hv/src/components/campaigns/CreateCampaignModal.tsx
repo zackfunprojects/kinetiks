@@ -18,9 +18,14 @@ export default function CreateCampaignModal({ onClose, onCreated }: CreateCampai
 
   useEffect(() => {
     async function loadSequences() {
-      const res = await fetch("/api/hv/sequences?per_page=100");
-      const json = await res.json();
-      setSequences(json.data ?? []);
+      try {
+        const res = await fetch("/api/hv/sequences?per_page=100");
+        if (!res.ok) throw new Error(`Failed to load sequences: ${res.status}`);
+        const json = await res.json();
+        setSequences(json.data ?? []);
+      } catch (err) {
+        console.error("Error loading sequences:", err);
+      }
     }
     loadSequences();
   }, []);
@@ -42,24 +47,30 @@ export default function CreateCampaignModal({ onClose, onCreated }: CreateCampai
     setSaving(true);
     setError("");
 
-    const res = await fetch("/api/hv/campaigns", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: name.trim(),
-        sequence_id: sequenceId || null,
-        prospect_filter: parsedFilter,
-      }),
-    });
+    try {
+      const res = await fetch("/api/hv/campaigns", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim(),
+          sequence_id: sequenceId || null,
+          prospect_filter: parsedFilter,
+        }),
+      });
 
-    if (!res.ok) {
-      const json = await res.json().catch(() => ({}));
-      setError(json.error ?? "Failed to create campaign");
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        setError(json.error ?? "Failed to create campaign");
+        return;
+      }
+
+      onCreated();
+    } catch (err) {
+      console.error("Error creating campaign:", err);
+      setError("Failed to create campaign");
+    } finally {
       setSaving(false);
-      return;
     }
-
-    onCreated();
   }
 
   return (

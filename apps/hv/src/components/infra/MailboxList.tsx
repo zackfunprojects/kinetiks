@@ -20,20 +20,31 @@ export default function MailboxList({ onAddClick }: MailboxListProps) {
 
   const fetchMailboxes = useCallback(async () => {
     setLoading(true);
-    const res = await fetch("/api/hv/mailboxes");
-    const json = await res.json();
-    setMailboxes(json.data ?? []);
-    setLoading(false);
+    try {
+      const res = await fetch("/api/hv/mailboxes");
+      if (!res.ok) throw new Error(`Failed to fetch mailboxes: ${res.status}`);
+      const json = await res.json();
+      setMailboxes(json.data ?? []);
+    } catch (err) {
+      console.error("Error fetching mailboxes:", err);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => { fetchMailboxes(); }, [fetchMailboxes]);
 
   async function toggleActive(mailbox: HvMailbox) {
-    await fetch(`/api/hv/mailboxes/${mailbox.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ is_active: !mailbox.is_active }),
-    });
+    try {
+      const res = await fetch(`/api/hv/mailboxes/${mailbox.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_active: !mailbox.is_active }),
+      });
+      if (!res.ok) throw new Error(`Failed to toggle mailbox: ${res.status}`);
+    } catch (err) {
+      console.error("Error toggling mailbox:", err);
+    }
     fetchMailboxes();
   }
 

@@ -38,16 +38,22 @@ export default function CallDetail({ call, onClose, onUpdated }: CallDetailProps
 
   async function handleSave() {
     setSaving(true);
-    const res = await fetch(`/api/hv/calls/${call.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        outcome: outcome || null,
-        transcript: transcript.trim() || null,
-      }),
-    });
-    setSaving(false);
-    if (res.ok) onUpdated();
+    try {
+      const res = await fetch(`/api/hv/calls/${call.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          outcome: outcome || null,
+          transcript: transcript.trim() || null,
+        }),
+      });
+      if (!res.ok) throw new Error(`Failed to save call: ${res.status}`);
+      onUpdated();
+    } catch (err) {
+      console.error("Error saving call:", err);
+    } finally {
+      setSaving(false);
+    }
   }
 
   const statusColor = STATUS_COLORS[call.status] ?? STATUS_COLORS.completed;

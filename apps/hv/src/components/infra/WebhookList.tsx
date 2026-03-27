@@ -13,10 +13,16 @@ export default function WebhookList({ onAddClick }: WebhookListProps) {
 
   const fetchWebhooks = useCallback(async () => {
     setLoading(true);
-    const res = await fetch("/api/hv/webhooks");
-    const json = await res.json();
-    setWebhooks(json.data ?? []);
-    setLoading(false);
+    try {
+      const res = await fetch("/api/hv/webhooks");
+      if (!res.ok) throw new Error(`Failed to fetch webhooks: ${res.status}`);
+      const json = await res.json();
+      setWebhooks(json.data ?? []);
+    } catch (err) {
+      console.error("Error fetching webhooks:", err);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => { fetchWebhooks(); }, [fetchWebhooks]);

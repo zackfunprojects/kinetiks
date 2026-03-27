@@ -18,20 +18,26 @@ export default function AddDomainModal({ onClose, onCreated }: AddDomainModalPro
     setSaving(true);
     setError("");
 
-    const res = await fetch("/api/hv/domains", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ domain: domain.trim() }),
-    });
+    try {
+      const res = await fetch("/api/hv/domains", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ domain: domain.trim() }),
+      });
 
-    if (!res.ok) {
-      const json = await res.json().catch(() => ({}));
-      setError(json.error ?? "Failed to add domain");
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        setError(json.error ?? "Failed to add domain");
+        return;
+      }
+
+      onCreated();
+    } catch (err) {
+      console.error("Error adding domain:", err);
+      setError("Failed to add domain");
+    } finally {
       setSaving(false);
-      return;
     }
-
-    onCreated();
   }
 
   return (

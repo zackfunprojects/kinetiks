@@ -9,10 +9,16 @@ export default function StylePresetsList() {
 
   const fetchPresets = useCallback(async () => {
     setLoading(true);
-    const res = await fetch("/api/hv/composer/styles");
-    const json = await res.json();
-    setPresets(json.data?.presets ?? []);
-    setLoading(false);
+    try {
+      const res = await fetch("/api/hv/composer/styles");
+      if (!res.ok) throw new Error(`Failed to fetch style presets: ${res.status}`);
+      const json = await res.json();
+      setPresets(json.data?.presets ?? []);
+    } catch (err) {
+      console.error("Error fetching style presets:", err);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {

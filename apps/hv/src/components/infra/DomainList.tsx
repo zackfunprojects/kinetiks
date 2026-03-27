@@ -13,10 +13,16 @@ export default function DomainList({ onAddClick }: DomainListProps) {
 
   const fetchDomains = useCallback(async () => {
     setLoading(true);
-    const res = await fetch("/api/hv/domains");
-    const json = await res.json();
-    setDomains(json.data ?? []);
-    setLoading(false);
+    try {
+      const res = await fetch("/api/hv/domains");
+      if (!res.ok) throw new Error(`Failed to fetch domains: ${res.status}`);
+      const json = await res.json();
+      setDomains(json.data ?? []);
+    } catch (err) {
+      console.error("Error fetching domains:", err);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => { fetchDomains(); }, [fetchDomains]);

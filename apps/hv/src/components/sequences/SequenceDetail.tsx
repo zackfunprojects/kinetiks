@@ -25,13 +25,19 @@ export default function SequenceDetail({ sequence, onClose, onUpdated }: Sequenc
 
   async function handleSave() {
     setSaving(true);
-    const res = await fetch(`/api/hv/sequences/${sequence.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, steps, status }),
-    });
-    setSaving(false);
-    if (res.ok) onUpdated();
+    try {
+      const res = await fetch(`/api/hv/sequences/${sequence.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, steps, status }),
+      });
+      if (!res.ok) throw new Error(`Failed to save sequence: ${res.status}`);
+      onUpdated();
+    } catch (err) {
+      console.error("Error saving sequence:", err);
+    } finally {
+      setSaving(false);
+    }
   }
 
   function addStep(type: "email" | "delay" | "condition") {
@@ -56,8 +62,13 @@ export default function SequenceDetail({ sequence, onClose, onUpdated }: Sequenc
 
   async function handleDelete() {
     if (!confirm("Delete this sequence? This cannot be undone.")) return;
-    await fetch(`/api/hv/sequences/${sequence.id}`, { method: "DELETE" });
-    onUpdated();
+    try {
+      const res = await fetch(`/api/hv/sequences/${sequence.id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error(`Failed to delete sequence: ${res.status}`);
+      onUpdated();
+    } catch (err) {
+      console.error("Error deleting sequence:", err);
+    }
   }
 
   return (

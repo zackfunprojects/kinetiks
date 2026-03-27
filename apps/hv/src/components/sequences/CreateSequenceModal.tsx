@@ -20,27 +20,33 @@ export default function CreateSequenceModal({ onClose, onCreated }: CreateSequen
     setSaving(true);
     setError("");
 
-    const res = await fetch("/api/hv/sequences", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: name.trim(),
-        steps: [
-          { id: crypto.randomUUID(), type: "email", order: 0, subject_line: "", template: "" },
-          { id: crypto.randomUUID(), type: "delay", order: 1, delay_days: 2 },
-          { id: crypto.randomUUID(), type: "email", order: 2, subject_line: "", template: "" },
-        ],
-      }),
-    });
+    try {
+      const res = await fetch("/api/hv/sequences", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim(),
+          steps: [
+            { id: crypto.randomUUID(), type: "email", order: 0, subject_line: "", template: "" },
+            { id: crypto.randomUUID(), type: "delay", order: 1, delay_days: 2 },
+            { id: crypto.randomUUID(), type: "email", order: 2, subject_line: "", template: "" },
+          ],
+        }),
+      });
 
-    if (!res.ok) {
-      const json = await res.json().catch(() => ({}));
-      setError(json.error ?? "Failed to create sequence");
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        setError(json.error ?? "Failed to create sequence");
+        return;
+      }
+
+      onCreated();
+    } catch (err) {
+      console.error("Error creating sequence:", err);
+      setError("Failed to create sequence");
+    } finally {
       setSaving(false);
-      return;
     }
-
-    onCreated();
   }
 
   return (

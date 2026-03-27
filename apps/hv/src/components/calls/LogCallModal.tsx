@@ -40,10 +40,16 @@ export default function LogCallModal({ onClose, onCreated }: LogCallModalProps) 
   const searchContacts = useCallback(async (q: string) => {
     if (q.length < 2) { setContactResults([]); return; }
     setSearching(true);
-    const res = await fetch(`/api/hv/contacts?q=${encodeURIComponent(q)}&per_page=10`);
-    const json = await res.json();
-    setContactResults(json.data ?? []);
-    setSearching(false);
+    try {
+      const res = await fetch(`/api/hv/contacts?q=${encodeURIComponent(q)}&per_page=10`);
+      if (!res.ok) throw new Error(`Failed to search contacts: ${res.status}`);
+      const json = await res.json();
+      setContactResults(json.data ?? []);
+    } catch (err) {
+      console.error("Error searching contacts:", err);
+    } finally {
+      setSearching(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -63,30 +69,36 @@ export default function LogCallModal({ onClose, onCreated }: LogCallModalProps) 
     setSaving(true);
     setError("");
 
-    const res = await fetch("/api/hv/calls", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contact_id: selectedContact.id,
-        phone_from: phoneFrom.trim(),
-        phone_to: phoneTo.trim(),
-        call_type: "follow_up",
-        status: "completed",
-        outcome,
-        duration_seconds: totalSeconds,
-        transcript: transcript.trim() || null,
-        notes: [],
-      }),
-    });
+    try {
+      const res = await fetch("/api/hv/calls", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contact_id: selectedContact.id,
+          phone_from: phoneFrom.trim(),
+          phone_to: phoneTo.trim(),
+          call_type: "follow_up",
+          status: "completed",
+          outcome,
+          duration_seconds: totalSeconds,
+          transcript: transcript.trim() || null,
+          notes: [],
+        }),
+      });
 
-    if (!res.ok) {
-      const json = await res.json().catch(() => ({}));
-      setError(json.error ?? "Failed to log call");
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        setError(json.error ?? "Failed to log call");
+        return;
+      }
+
+      onCreated();
+    } catch (err) {
+      console.error("Error logging call:", err);
+      setError("Failed to log call");
+    } finally {
       setSaving(false);
-      return;
     }
-
-    onCreated();
   }
 
   return (

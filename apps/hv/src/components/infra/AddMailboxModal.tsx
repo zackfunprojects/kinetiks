@@ -21,24 +21,30 @@ export default function AddMailboxModal({ onClose, onCreated }: AddMailboxModalP
     setSaving(true);
     setError("");
 
-    const res = await fetch("/api/hv/mailboxes", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email: email.trim(),
-        display_name: displayName.trim(),
-        provider,
-      }),
-    });
+    try {
+      const res = await fetch("/api/hv/mailboxes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: email.trim(),
+          display_name: displayName.trim(),
+          provider,
+        }),
+      });
 
-    if (!res.ok) {
-      const json = await res.json().catch(() => ({}));
-      setError(json.error ?? "Failed to create mailbox");
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        setError(json.error ?? "Failed to create mailbox");
+        return;
+      }
+
+      onCreated();
+    } catch (err) {
+      console.error("Error creating mailbox:", err);
+      setError("Failed to create mailbox");
+    } finally {
       setSaving(false);
-      return;
     }
-
-    onCreated();
   }
 
   return (

@@ -23,14 +23,20 @@ export default function AnalyticsView() {
 
   const fetchData = useCallback(async (view: Tab) => {
     setLoading(true);
-    const res = await fetch(`/api/hv/analytics?view=${view}`);
-    const json = await res.json();
-    if (json.success) {
-      if (view === "overview") setOverviewData(json.data as OverviewMetricsType);
-      if (view === "campaigns") setCampaignData(json.data as CampaignMetric[]);
-      if (view === "sequences") setSequenceData(json.data as SequenceMetric[]);
+    try {
+      const res = await fetch(`/api/hv/analytics?view=${view}`);
+      if (!res.ok) throw new Error(`Failed to fetch analytics: ${res.status}`);
+      const json = await res.json();
+      if (json.success) {
+        if (view === "overview") setOverviewData(json.data as OverviewMetricsType);
+        if (view === "campaigns") setCampaignData(json.data as CampaignMetric[]);
+        if (view === "sequences") setSequenceData(json.data as SequenceMetric[]);
+      }
+    } catch (err) {
+      console.error("Error fetching analytics:", err);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, []);
 
   useEffect(() => {

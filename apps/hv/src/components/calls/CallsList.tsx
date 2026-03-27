@@ -29,12 +29,18 @@ export default function CallsList({ onSelect, onLogClick }: CallsListProps) {
 
   const fetchCalls = useCallback(async () => {
     setLoading(true);
-    const params = new URLSearchParams();
-    if (filter) params.set("status", filter);
-    const res = await fetch(`/api/hv/calls?${params}`);
-    const json = await res.json();
-    setCalls(json.data ?? []);
-    setLoading(false);
+    try {
+      const params = new URLSearchParams();
+      if (filter) params.set("status", filter);
+      const res = await fetch(`/api/hv/calls?${params}`);
+      if (!res.ok) throw new Error(`Failed to fetch calls: ${res.status}`);
+      const json = await res.json();
+      setCalls(json.data ?? []);
+    } catch (err) {
+      console.error("Error fetching calls:", err);
+    } finally {
+      setLoading(false);
+    }
   }, [filter]);
 
   useEffect(() => { fetchCalls(); }, [fetchCalls]);

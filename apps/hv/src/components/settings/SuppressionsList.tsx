@@ -16,10 +16,16 @@ export default function SuppressionsList() {
 
   const fetchSuppressions = useCallback(async () => {
     setLoading(true);
-    const res = await fetch("/api/hv/suppressions");
-    const json = await res.json();
-    setSuppressions(json.data ?? []);
-    setLoading(false);
+    try {
+      const res = await fetch("/api/hv/suppressions");
+      if (!res.ok) throw new Error(`Failed to fetch suppressions: ${res.status}`);
+      const json = await res.json();
+      setSuppressions(json.data ?? []);
+    } catch (err) {
+      console.error("Error fetching suppressions:", err);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -30,24 +36,29 @@ export default function SuppressionsList() {
     if (!formValue.trim()) return;
     setSubmitting(true);
 
-    const body: Record<string, string> = {
-      type: formType,
-    };
-    body[formField] = formValue.trim();
-    if (formReason.trim()) body.reason = formReason.trim();
+    try {
+      const body: Record<string, string> = {
+        type: formType,
+      };
+      body[formField] = formValue.trim();
+      if (formReason.trim()) body.reason = formReason.trim();
 
-    const res = await fetch("/api/hv/suppressions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
+      const res = await fetch("/api/hv/suppressions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
 
-    if (res.ok) {
-      setFormValue("");
-      setFormReason("");
-      await fetchSuppressions();
+      if (res.ok) {
+        setFormValue("");
+        setFormReason("");
+        await fetchSuppressions();
+      }
+    } catch (err) {
+      console.error("Error adding suppression:", err);
+    } finally {
+      setSubmitting(false);
     }
-    setSubmitting(false);
   };
 
   return (

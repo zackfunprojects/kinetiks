@@ -22,12 +22,16 @@ export default function SequencesList({ onSelect, onCreateClick }: SequencesList
 
   const fetchSequences = useCallback(async () => {
     setLoading(true);
-    const params = new URLSearchParams();
-    if (filter) params.set("status", filter);
-    const res = await fetch(`/api/hv/sequences?${params}`);
-    const json = await res.json();
-    setSequences(json.data ?? []);
-    setLoading(false);
+    try {
+      const res = await fetch(`/api/hv/sequences?${new URLSearchParams(filter ? { status: filter } : {})}`);
+      if (!res.ok) throw new Error(`Failed to fetch sequences: ${res.status}`);
+      const json = await res.json();
+      setSequences(json.data ?? []);
+    } catch (err) {
+      console.error("Error fetching sequences:", err);
+    } finally {
+      setLoading(false);
+    }
   }, [filter]);
 
   useEffect(() => { fetchSequences(); }, [fetchSequences]);
