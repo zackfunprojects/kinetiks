@@ -117,7 +117,7 @@ export function ContactDetail({ contactId }: ContactDetailProps) {
             <VerificationBadge grade={contact.verification_grade} />
             {contact.email && (
               <a
-                href={`/compose?contact_id=${contact.id}`}
+                href={`/field/compose?contact_id=${contact.id}`}
                 style={{
                   padding: "6px 12px",
                   borderRadius: "var(--radius-md, 8px)",
@@ -135,7 +135,7 @@ export function ContactDetail({ contactId }: ContactDetailProps) {
               </a>
             )}
             <a
-              href={`/pipeline?create=true&contact_id=${contact.id}`}
+              href={`/market/pipeline?create=true&contact_id=${contact.id}`}
               style={{
                 padding: "6px 12px",
                 borderRadius: "var(--radius-md, 8px)",

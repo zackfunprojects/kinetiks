@@ -1,14 +1,10 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
-import { Suspense } from "react";
 import { ContactsTable } from "@/components/contacts/ContactsTable";
-import ProspectsView from "@/components/prospects/ProspectsView";
+import IcpPanel from "@/components/greenhouse/IcpPanel";
+import BulkEnrichPanel from "@/components/greenhouse/BulkEnrichPanel";
 
-function GreenhouseContent() {
-  const searchParams = useSearchParams();
-  const tab = searchParams.get("tab") ?? "seedbed";
-
+export default function GreenhousePage() {
   return (
     <div>
       {/* Page header */}
@@ -17,50 +13,26 @@ function GreenhouseContent() {
           fontSize: 22, fontWeight: 600, color: "var(--text-primary)",
           margin: 0, letterSpacing: "-0.02em",
         }}>
-          Greenhouse
+          Contacts
         </h1>
         <p style={{ fontSize: 14, color: "var(--text-tertiary)", margin: "4px 0 0" }}>
-          Find, enrich, and score your prospects before planting outreach.
+          Build and manage your prospect lists. Enrich with company data and score against your ICP.
         </p>
       </div>
 
-      {/* Tab strip */}
+      {/* ICP summary + Bulk enrichment */}
       <div style={{
-        display: "flex", gap: 0, borderBottom: "1px solid var(--border-default)",
-        marginBottom: "var(--space-5)",
+        display: "grid",
+        gridTemplateColumns: "1fr 380px",
+        gap: "var(--space-5)",
+        marginBottom: "var(--space-6)",
       }}>
-        {[
-          { key: "seedbed", label: "Seedbed", desc: "All contacts" },
-          { key: "sprouts", label: "Sprouts", desc: "Ready for outreach" },
-        ].map((t) => (
-          <a
-            key={t.key}
-            href={t.key === "seedbed" ? "/greenhouse" : "/greenhouse?tab=sprouts"}
-            style={{
-              padding: "10px 16px",
-              fontSize: 14,
-              fontWeight: tab === t.key ? 500 : 400,
-              color: tab === t.key ? "var(--text-primary)" : "var(--text-tertiary)",
-              textDecoration: "none",
-              borderBottom: tab === t.key ? "2px solid var(--harvest-green)" : "2px solid transparent",
-              transition: "all var(--duration-fast) var(--ease-smooth)",
-            }}
-          >
-            {t.label}
-          </a>
-        ))}
+        <IcpPanel />
+        <BulkEnrichPanel />
       </div>
 
-      {/* Tab content */}
-      {tab === "sprouts" ? <ProspectsView /> : <ContactsTable />}
+      {/* Contacts table */}
+      <ContactsTable />
     </div>
-  );
-}
-
-export default function GreenhousePage() {
-  return (
-    <Suspense fallback={<div style={{ color: "var(--text-tertiary)", padding: 20 }}>Loading...</div>}>
-      <GreenhouseContent />
-    </Suspense>
   );
 }
