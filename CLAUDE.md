@@ -951,6 +951,26 @@ Generated at account creation. Immutable. Used as the human-readable identifier 
 13. **Conventional commits.** `feat:`, `fix:`, `refactor:`, `chore:`, `docs:`. One logical change per commit.
 14. **Commit after each completed task.** Don't batch an entire phase into one commit.
 
+### Build Standards (CRITICAL - NEVER SKIP)
+
+15. **Read specs before building.** Before building ANY feature, read the relevant spec document in `docs/` completely. The CLAUDE.md overview describes what exists, not how it should work. The actual product vision, UX flows, and AI integrations live in the spec docs and build companions. If no spec exists for a feature, ASK before building. Never build from assumptions.
+16. **Depth over breadth.** Build fewer features at full depth rather than many features as shallow CRUD scaffolds. A contacts page without ICP matching, bulk enrichment workflows, and lead scoring visualization is not a contacts page - it is a table. A calls page without AI voice agent integration is not a calls page - it is a form. If a feature cannot be built properly in the current scope, say so instead of building a hollow version.
+17. **What "done" means.** A feature is NOT done when it compiles. It is done when: (a) it matches the spec document's described behavior, (b) the AI-powered workflows are functional, not stubbed, (c) the UX is designed for the actual use case, not generic CRUD, (d) it would impress a user, not just pass a type check. "pnpm build passes" is the floor, not the ceiling.
+18. **No scaffold products.** Never build a page as "table + create modal + detail panel" without understanding what the feature actually does. Every page must implement the workflows and intelligence described in the spec. If you find yourself copy-pasting the same CRUD pattern across 8 pages, stop - you are building a scaffold, not a product.
+19. **Terminology must clarify, never confuse.** Thematic naming (harvest metaphors, garden terminology) is only acceptable when it makes the product MORE intuitive, not less. "Plant new outreach" is confusing. "New outreach" is clear. If a user would need to learn your vocabulary to use the app, the vocabulary is wrong.
+20. **Compare against spec before marking complete.** Before calling any feature done, re-read the relevant section of the spec doc and verify each described capability is implemented. List any gaps explicitly. Do not hide missing functionality behind "Phase 2" or "Coming soon."
+
+### Anti-patterns (NEVER do these)
+
+- Building a page as generic CRUD without understanding what the feature actually does
+- Adding thematic terminology to generic scaffolds and calling it a redesign
+- Marking a feature complete without comparing it to the spec doc
+- Building 8 shallow pages instead of 3 deep ones when asked to "build everything"
+- Using "Coming in Phase 2" as an excuse for missing core logic that was in the spec
+- Optimizing for "number of files created" or "lines of code written" as a success metric
+- Skipping the docs/ folder when it contains the actual product requirements
+- Saying "Clean compile. All done." when the product doesn't match what was designed
+
 ---
 
 ## Environment Variables

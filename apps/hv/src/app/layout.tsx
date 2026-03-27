@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { DM_Sans, JetBrains_Mono } from "next/font/google";
-import { FloatingPillLoader } from "@/components/floating-pill-loader";
+import FloatingPill from "@/components/shared/FloatingPill";
 import "./globals.css";
 
 const sansFont = DM_Sans({
@@ -36,7 +36,7 @@ export default function RootLayout({
       </head>
       <body>
         {children}
-        <FloatingPillLoader />
+        <FloatingPill />
       </body>
     </html>
   );

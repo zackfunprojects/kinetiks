@@ -1,6 +1,6 @@
 {
   "name": "@kinetiks/mcp",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "MCP server for the Kinetiks ID platform - gives AI agents native tool access to context, onboarding, approvals, and more",
   "type": "module",
   "main": "./dist/index.js",
