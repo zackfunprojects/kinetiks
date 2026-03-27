@@ -15,7 +15,7 @@ const TAB_LABELS: { key: InfraTab; label: string; addLabel: string }[] = [
   { key: "webhooks", label: "Webhooks", addLabel: "+ Add Webhook" },
 ];
 
-export default function InfraView() {
+export default function InfraView({ embedded = false }: { embedded?: boolean }) {
   const [activeTab, setActiveTab] = useState<InfraTab>("mailboxes");
   const [showAddMailbox, setShowAddMailbox] = useState(false);
   const [showAddDomain, setShowAddDomain] = useState(false);
@@ -39,27 +39,29 @@ export default function InfraView() {
 
   return (
     <div>
-      {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-        <div>
-          <h1 style={{ fontSize: 24, fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>Infrastructure</h1>
-          <p style={{ fontSize: 14, color: "var(--text-secondary)", margin: "4px 0 0" }}>
-            Manage mailboxes, domains, and webhooks
-          </p>
+      {/* Header - hidden when embedded in Settings */}
+      {!embedded && (
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+          <div>
+            <h1 style={{ fontSize: 24, fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>Infrastructure</h1>
+            <p style={{ fontSize: 14, color: "var(--text-secondary)", margin: "4px 0 0" }}>
+              Manage mailboxes, domains, and webhooks
+            </p>
+          </div>
+          <button
+            onClick={handleAddClick}
+            style={{
+              padding: "8px 16px", borderRadius: 8, border: "none", cursor: "pointer",
+              backgroundColor: "var(--harvest-green)", color: "#fff", fontSize: 13, fontWeight: 600,
+            }}
+          >
+            {currentTabMeta?.addLabel}
+          </button>
         </div>
-        <button
-          onClick={handleAddClick}
-          style={{
-            padding: "8px 16px", borderRadius: 8, border: "none", cursor: "pointer",
-            backgroundColor: "var(--harvest-green)", color: "#fff", fontSize: 13, fontWeight: 600,
-          }}
-        >
-          {currentTabMeta?.addLabel}
-        </button>
-      </div>
+      )}
 
-      {/* Tabs */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+      {/* Sub-tabs + add button when embedded */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 16, alignItems: "center" }}>
         {TAB_LABELS.map((tab) => (
           <button
             key={tab.key}
@@ -74,6 +76,17 @@ export default function InfraView() {
             {tab.label}
           </button>
         ))}
+        {embedded && (
+          <button
+            onClick={handleAddClick}
+            style={{
+              marginLeft: "auto", padding: "6px 14px", borderRadius: 6, border: "none", cursor: "pointer",
+              backgroundColor: "var(--harvest-green)", color: "#fff", fontSize: 13, fontWeight: 600,
+            }}
+          >
+            {currentTabMeta?.addLabel}
+          </button>
+        )}
       </div>
 
       {/* Content */}

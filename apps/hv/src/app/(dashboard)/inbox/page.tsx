@@ -1,5 +1,5 @@
-import InboxView from "@/components/inbox/InboxView";
+import { redirect } from "next/navigation";
 
-export default function InboxPage() {
-  return <InboxView />;
+export default function InboxRedirect() {
+  redirect("/field/inbox");
 }

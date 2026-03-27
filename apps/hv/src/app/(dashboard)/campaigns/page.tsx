@@ -1,5 +1,5 @@
-import CampaignsView from "@/components/campaigns/CampaignsView";
+import { redirect } from "next/navigation";
 
-export default function CampaignsPage() {
-  return <CampaignsView />;
+export default function CampaignsRedirect() {
+  redirect("/field/campaigns");
 }

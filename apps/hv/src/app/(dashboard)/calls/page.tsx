@@ -1,5 +1,5 @@
-import CallsView from "@/components/calls/CallsView";
+import { redirect } from "next/navigation";
 
-export default function CallsPage() {
-  return <CallsView />;
+export default function CallsRedirect() {
+  redirect("/field/calls");
 }

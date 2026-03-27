@@ -1,5 +1,5 @@
-import ProspectsView from "@/components/prospects/ProspectsView";
+import { redirect } from "next/navigation";
 
-export default function ProspectsPage() {
-  return <ProspectsView />;
+export default function ProspectsRedirect() {
+  redirect("/greenhouse?tab=sprouts");
 }

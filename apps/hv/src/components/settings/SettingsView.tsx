@@ -5,14 +5,16 @@ import GeneralSettings from "./GeneralSettings";
 import StylePresetsList from "./StylePresetsList";
 import SuppressionsList from "./SuppressionsList";
 import AutomationConfig from "./AutomationConfig";
+import InfraView from "../infra/InfraView";
 
-type Tab = "general" | "styles" | "suppressions" | "automations";
+type Tab = "general" | "styles" | "suppressions" | "automations" | "infra";
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "general", label: "General" },
   { key: "styles", label: "Style Presets" },
   { key: "suppressions", label: "Suppressions" },
   { key: "automations", label: "Growth" },
+  { key: "infra", label: "Infra" },
 ];
 
 export default function SettingsView() {
@@ -55,6 +57,7 @@ export default function SettingsView() {
       {tab === "styles" && <StylePresetsList />}
       {tab === "suppressions" && <SuppressionsList />}
       {tab === "automations" && <AutomationConfig />}
+      {tab === "infra" && <InfraView embedded />}
     </div>
   );
 }

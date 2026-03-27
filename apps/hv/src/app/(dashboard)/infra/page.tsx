@@ -1,5 +1,5 @@
-import InfraView from "@/components/infra/InfraView";
+import { redirect } from "next/navigation";
 
-export default function InfraPage() {
-  return <InfraView />;
+export default function InfraRedirect() {
+  redirect("/settings");
 }

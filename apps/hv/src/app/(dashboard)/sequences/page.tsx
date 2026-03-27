@@ -1,5 +1,5 @@
-import SequencesView from "@/components/sequences/SequencesView";
+import { redirect } from "next/navigation";
 
-export default function SequencesPage() {
-  return <SequencesView />;
+export default function SequencesRedirect() {
+  redirect("/field/sequences");
 }
