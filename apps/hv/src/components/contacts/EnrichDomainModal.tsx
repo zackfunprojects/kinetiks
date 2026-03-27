@@ -58,6 +58,9 @@ export function EnrichDomainModal({ onComplete, onClose }: EnrichDomainModalProp
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="enrich-domain-title"
         style={{
           backgroundColor: "var(--surface-elevated, #FFFFFF)",
           border: "none",
@@ -69,6 +72,7 @@ export function EnrichDomainModal({ onComplete, onClose }: EnrichDomainModalProp
         }}
       >
         <h2
+          id="enrich-domain-title"
           style={{
             fontSize: "1.125rem",
             fontWeight: 600,

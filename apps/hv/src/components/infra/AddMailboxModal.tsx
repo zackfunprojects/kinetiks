@@ -56,13 +56,16 @@ export default function AddMailboxModal({ onClose, onCreated }: AddMailboxModalP
       onClick={onClose}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="add-mailbox-title"
         onClick={(e) => e.stopPropagation()}
         style={{
           backgroundColor: "var(--surface-elevated)", borderRadius: 12,
           padding: 24, width: 440, boxShadow: "var(--shadow-overlay)",
         }}
       >
-        <h2 style={{ fontSize: 18, fontWeight: 700, color: "var(--text-primary)", margin: "0 0 16px" }}>
+        <h2 id="add-mailbox-title" style={{ fontSize: 18, fontWeight: 700, color: "var(--text-primary)", margin: "0 0 16px" }}>
           Add Mailbox
         </h2>
 

@@ -9,6 +9,13 @@ interface SequenceDetailProps {
   onUpdated: () => void;
 }
 
+const STATUS_COLORS: Record<SequenceStatus, { bg: string; fg: string }> = {
+  draft: { bg: "rgba(155,155,167,0.10)", fg: "var(--text-secondary)" },
+  active: { bg: "rgba(61,124,71,0.10)", fg: "var(--harvest-green)" },
+  paused: { bg: "rgba(192,139,45,0.10)", fg: "var(--harvest-amber)" },
+  archived: { bg: "rgba(139,115,85,0.10)", fg: "var(--harvest-soil)" },
+};
+
 const STEP_TYPE_LABELS: Record<string, { label: string; color: string }> = {
   email: { label: "Email", color: "var(--harvest-green)" },
   delay: { label: "Wait", color: "var(--harvest-amber)" },
@@ -96,9 +103,9 @@ export default function SequenceDetail({ sequence, onClose, onUpdated }: Sequenc
                 onClick={() => setStatus(s)}
                 style={{
                   padding: "4px 10px", borderRadius: 4, fontSize: 12, fontWeight: 600, cursor: "pointer",
-                  border: status === s ? "1px solid var(--harvest-green)" : "1px solid var(--border-subtle)",
-                  backgroundColor: status === s ? "rgba(61,124,71,0.08)" : "transparent",
-                  color: status === s ? "var(--harvest-green)" : "var(--text-secondary)",
+                  border: status === s ? `1px solid ${STATUS_COLORS[s].fg}` : "1px solid var(--border-subtle)",
+                  backgroundColor: status === s ? STATUS_COLORS[s].bg : "transparent",
+                  color: status === s ? STATUS_COLORS[s].fg : "var(--text-secondary)",
                 }}
               >
                 {s}

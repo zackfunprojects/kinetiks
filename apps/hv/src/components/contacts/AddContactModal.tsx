@@ -90,6 +90,9 @@ export function AddContactModal({ onCreated, onClose }: AddContactModalProps) {
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="add-contact-title"
         style={{
           backgroundColor: "var(--surface-elevated, #FFFFFF)",
           border: "none",
@@ -103,6 +106,7 @@ export function AddContactModal({ onCreated, onClose }: AddContactModalProps) {
         }}
       >
         <h2
+          id="add-contact-title"
           style={{
             fontSize: "1.125rem",
             fontWeight: 600,

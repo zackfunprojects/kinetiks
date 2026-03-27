@@ -207,12 +207,15 @@ export function ContactsTable() {
                 return (
                   <tr
                     key={contact.id}
+                    tabIndex={0}
                     style={{
                       borderBottom: "1px solid var(--border-subtle)",
                       cursor: "pointer",
                     }}
                     onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "var(--surface-highlight, #ECEAE4)"; }}
                     onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
+                    onFocus={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "var(--surface-highlight, #ECEAE4)"; }}
+                    onBlur={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
                   >
                     <td style={{ padding: "10px 12px" }} onClick={(e) => e.stopPropagation()}>
                       <input

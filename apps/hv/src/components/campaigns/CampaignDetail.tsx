@@ -108,9 +108,9 @@ export default function CampaignDetail({ campaign, onClose, onUpdated }: Campaig
                 onClick={() => setStatus(s)}
                 style={{
                   padding: "4px 10px", borderRadius: 4, fontSize: 12, fontWeight: 600, cursor: "pointer",
-                  border: status === s ? "1px solid var(--harvest-green)" : "1px solid var(--border-subtle)",
-                  backgroundColor: status === s ? "rgba(61,124,71,0.08)" : "transparent",
-                  color: status === s ? "var(--harvest-green)" : "var(--text-secondary)",
+                  border: status === s ? `1px solid ${STATUS_COLORS[s].fg}` : "1px solid var(--border-subtle)",
+                  backgroundColor: status === s ? STATUS_COLORS[s].bg : "transparent",
+                  color: status === s ? STATUS_COLORS[s].fg : "var(--text-secondary)",
                 }}
               >
                 {s}

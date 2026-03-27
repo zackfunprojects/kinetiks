@@ -60,6 +60,8 @@ export default function GrowthMeter({ level, mode }: GrowthMeterProps) {
     >
       <div style={{ position: "relative", width, height }}>
         <svg
+          role="img"
+          aria-label={`Growth meter: ${level}% in ${MODE_LABELS[mode]} mode`}
           width={width}
           height={height}
           viewBox={`0 0 ${width} ${height}`}

@@ -129,8 +129,8 @@ export function CloseDealModal({ deal, initialOutcome, onClosed, onClose }: Clos
       style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.25)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div style={{ backgroundColor: "var(--surface-elevated)", borderRadius: "12px", padding: "24px", width: "100%", maxWidth: 440, boxShadow: "var(--shadow-overlay)" }}>
-        <h2 style={{ fontSize: "1.125rem", fontWeight: 600, color: "var(--text-primary)", marginBottom: "6px" }}>
+      <div role="dialog" aria-modal="true" aria-labelledby="close-deal-title" style={{ backgroundColor: "var(--surface-elevated)", borderRadius: "12px", padding: "24px", width: "100%", maxWidth: 440, boxShadow: "var(--shadow-overlay)" }}>
+        <h2 id="close-deal-title" style={{ fontSize: "1.125rem", fontWeight: 600, color: "var(--text-primary)", marginBottom: "6px" }}>
           Close Deal
         </h2>
         <p style={{ fontSize: "0.8125rem", color: "var(--text-secondary)", marginBottom: "20px" }}>

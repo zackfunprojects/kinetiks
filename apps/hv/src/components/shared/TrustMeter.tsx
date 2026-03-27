@@ -78,6 +78,11 @@ export default function TrustMeter({
     <div style={{ width: "100%" }}>
       {/* Bar container */}
       <div
+        role="progressbar"
+        aria-valuenow={Math.round(agreementRate * 100)}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-label={`Trust meter: ${Math.round(agreementRate * 100)}% agreement, ${totalDecisions} decisions`}
         style={{
           position: "relative",
           height: barHeight,

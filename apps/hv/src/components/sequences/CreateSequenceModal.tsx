@@ -58,13 +58,16 @@ export default function CreateSequenceModal({ onClose, onCreated }: CreateSequen
       onClick={onClose}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="create-sequence-title"
         onClick={(e) => e.stopPropagation()}
         style={{
           backgroundColor: "var(--surface-elevated)", borderRadius: 12,
           padding: 24, width: 440, boxShadow: "var(--shadow-overlay)",
         }}
       >
-        <h2 style={{ fontSize: 18, fontWeight: 700, color: "var(--text-primary)", margin: "0 0 16px" }}>
+        <h2 id="create-sequence-title" style={{ fontSize: 18, fontWeight: 700, color: "var(--text-primary)", margin: "0 0 16px" }}>
           New Sequence
         </h2>
 

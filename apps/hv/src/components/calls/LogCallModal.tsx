@@ -110,6 +110,9 @@ export default function LogCallModal({ onClose, onCreated }: LogCallModalProps) 
       onClick={onClose}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="log-call-title"
         onClick={(e) => e.stopPropagation()}
         style={{
           backgroundColor: "var(--surface-elevated)", borderRadius: 12,
@@ -117,7 +120,7 @@ export default function LogCallModal({ onClose, onCreated }: LogCallModalProps) 
           maxHeight: "90vh", overflowY: "auto",
         }}
       >
-        <h2 style={{ fontSize: 18, fontWeight: 700, color: "var(--text-primary)", margin: "0 0 16px" }}>
+        <h2 id="log-call-title" style={{ fontSize: 18, fontWeight: 700, color: "var(--text-primary)", margin: "0 0 16px" }}>
           Log Call
         </h2>
 
