@@ -239,7 +239,7 @@ export async function sendHarvestEmail(
       kinetiks_id: accountId,
       contact_id: typedEmail.contact_id,
       type: "email_sent",
-      detail: {
+      content: {
         email_id: emailId,
         subject: typedEmail.subject,
         to: typedContact.email,

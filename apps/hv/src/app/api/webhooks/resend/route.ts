@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
+import { Webhook } from "svix";
 import { createAdminClient } from "@/lib/supabase/admin";
+
+const RESEND_WEBHOOK_SECRET = process.env.RESEND_WEBHOOK_SECRET ?? "";
 
 /**
  * POST /api/webhooks/resend
@@ -7,7 +10,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
  * Updates hv_emails status and creates hv_tracking_events.
  */
 export async function POST(request: Request) {
-  // Verify webhook signature
+  // 1. Read raw body for signature verification
+  const rawBody = await request.text();
+
+  // 2. Verify webhook signature via Svix
   const svixId = request.headers.get("svix-id");
   const svixTimestamp = request.headers.get("svix-timestamp");
   const svixSignature = request.headers.get("svix-signature");
@@ -16,11 +22,23 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Missing webhook signature headers" }, { status: 401 });
   }
 
+  if (!RESEND_WEBHOOK_SECRET) {
+    console.error("[Resend Webhook] RESEND_WEBHOOK_SECRET not configured");
+    return NextResponse.json({ error: "Webhook secret not configured" }, { status: 500 });
+  }
+
   let payload: Record<string, unknown>;
   try {
-    payload = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    const wh = new Webhook(RESEND_WEBHOOK_SECRET);
+    payload = wh.verify(rawBody, {
+      "svix-id": svixId,
+      "svix-timestamp": svixTimestamp,
+      "svix-signature": svixSignature,
+    }) as Record<string, unknown>;
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Invalid signature";
+    console.error("[Resend Webhook] Signature verification failed:", message);
+    return NextResponse.json({ error: "Invalid webhook signature" }, { status: 401 });
   }
 
   const eventType = payload.type as string | undefined;
@@ -32,24 +50,43 @@ export async function POST(request: Request) {
 
   const admin = createAdminClient();
 
-  // Extract email_id from tags or headers
+  // Extract email_id from tags
+  // Assertion: tags array structure is set by our sendViaResend() call
   const tags = (eventData.tags as Array<{ name: string; value: string }>) ?? [];
   const emailIdTag = tags.find((t) => t.name === "email_id");
   const emailId = emailIdTag?.value as string | undefined;
 
   if (!emailId) {
-    // Can't correlate - log and acknowledge
     console.warn("[Resend Webhook] No email_id in tags for event:", eventType);
     return NextResponse.json({ received: true });
   }
+
+  // Look up kinetiks_id from the email record (needed for all tracking inserts)
+  const { data: emailRecord } = await admin
+    .from("hv_emails")
+    .select("kinetiks_id, contact_id")
+    .eq("id", emailId)
+    .single();
+
+  if (!emailRecord) {
+    console.warn("[Resend Webhook] Email not found:", emailId);
+    return NextResponse.json({ received: true });
+  }
+
+  // Assertion: select columns match this shape from hv_emails migration
+  const { kinetiks_id: accountId, contact_id: contactId } = emailRecord as {
+    kinetiks_id: string;
+    contact_id: string;
+  };
 
   const now = new Date().toISOString();
 
   switch (eventType) {
     case "email.delivered": {
-      // Mark as delivered (no separate status - still "sent")
       admin.from("hv_tracking_events").insert({
+        kinetiks_id: accountId,
         email_id: emailId,
+        contact_id: contactId,
         event_type: "delivered",
         occurred_at: now,
         metadata: eventData,
@@ -63,12 +100,15 @@ export async function POST(request: Request) {
       await admin.from("hv_emails").update({
         status: "opened",
         opened_at: now,
-      }).eq("id", emailId).is("opened_at", null); // Only update first open
+      }).eq("id", emailId).is("opened_at", null);
 
       admin.from("hv_tracking_events").insert({
+        kinetiks_id: accountId,
         email_id: emailId,
+        contact_id: contactId,
         event_type: "open",
         occurred_at: now,
+        // Assertion: Resend event data includes ip and user_agent for open events
         ip_address: (eventData.ip as string) ?? null,
         user_agent: (eventData.user_agent as string) ?? null,
         metadata: eventData,
@@ -82,15 +122,19 @@ export async function POST(request: Request) {
       await admin.from("hv_emails").update({
         status: "clicked",
         clicked_at: now,
-      }).eq("id", emailId).is("clicked_at", null); // Only update first click
+      }).eq("id", emailId).is("clicked_at", null);
 
       admin.from("hv_tracking_events").insert({
+        kinetiks_id: accountId,
         email_id: emailId,
+        contact_id: contactId,
         event_type: "click",
         occurred_at: now,
+        // Assertion: Resend click event includes ip, user_agent, and click.link
         ip_address: (eventData.ip as string) ?? null,
         user_agent: (eventData.user_agent as string) ?? null,
         url: (eventData.click as Record<string, unknown>)?.link as string ?? null,
+        click_url: (eventData.click as Record<string, unknown>)?.link as string ?? null,
         metadata: eventData,
       }).then(({ error: insertErr }) => {
         if (insertErr) console.error("[Resend Webhook] Failed to log click:", insertErr.message);
@@ -104,41 +148,32 @@ export async function POST(request: Request) {
         bounced_at: now,
       }).eq("id", emailId);
 
-      // Add to suppression list
+      // Suppress bounced recipient
       const recipientEmail = eventData.to as string | undefined;
       if (recipientEmail) {
-        // Look up account via email record
-        const { data: emailRecord } = await admin
-          .from("hv_emails")
-          .select("kinetiks_id, contact_id")
-          .eq("id", emailId)
-          .single();
+        void admin.from("hv_suppressions").insert({
+          kinetiks_id: accountId,
+          email: recipientEmail,
+          type: "bounce",
+          // Assertion: Resend bounce event includes bounce.type
+          reason: `Bounced: ${(eventData.bounce as Record<string, unknown>)?.type ?? "unknown"}`,
+        });
 
-        if (emailRecord) {
-          // Type assertion: emailRecord shape matches select columns
-          const record = emailRecord as { kinetiks_id: string; contact_id: string };
-          // May already exist - that's fine (immutable suppression list)
-          void admin.from("hv_suppressions").insert({
-            kinetiks_id: record.kinetiks_id,
-            email: recipientEmail,
-            type: "bounce",
-            reason: `Bounced: ${(eventData.bounce as Record<string, unknown>)?.type ?? "unknown"}`,
+        // Stop active enrollment
+        admin
+          .from("hv_enrollments")
+          .update({ status: "bounced", completed_at: now })
+          .eq("contact_id", contactId)
+          .eq("status", "active")
+          .then(({ error: updateErr }) => {
+            if (updateErr) console.error("[Resend Webhook] Failed to stop enrollment:", updateErr.message);
           });
-
-          // Stop any active enrollment for this contact
-          admin
-            .from("hv_enrollments")
-            .update({ status: "bounced", completed_at: now })
-            .eq("contact_id", record.contact_id)
-            .eq("status", "active")
-            .then(({ error: updateErr }) => {
-              if (updateErr) console.error("[Resend Webhook] Failed to stop enrollment:", updateErr.message);
-            });
-        }
       }
 
       admin.from("hv_tracking_events").insert({
+        kinetiks_id: accountId,
         email_id: emailId,
+        contact_id: contactId,
         event_type: "bounce",
         occurred_at: now,
         metadata: eventData,
@@ -149,30 +184,19 @@ export async function POST(request: Request) {
     }
 
     case "email.complained": {
-      // Complaint = spam report. Suppress immediately.
       await admin.from("hv_emails").update({
-        status: "bounced", // Treat complaints as bounces
+        status: "bounced",
         bounced_at: now,
       }).eq("id", emailId);
 
       const complaintRecipient = eventData.to as string | undefined;
       if (complaintRecipient) {
-        const { data: emailRec } = await admin
-          .from("hv_emails")
-          .select("kinetiks_id")
-          .eq("id", emailId)
-          .single();
-
-        if (emailRec) {
-          // Type assertion: emailRec shape matches select column
-          const rec = emailRec as { kinetiks_id: string };
-          void admin.from("hv_suppressions").insert({
-            kinetiks_id: rec.kinetiks_id,
-            email: complaintRecipient,
-            type: "complaint",
-            reason: "Recipient marked email as spam",
-          });
-        }
+        void admin.from("hv_suppressions").insert({
+          kinetiks_id: accountId,
+          email: complaintRecipient,
+          type: "complaint",
+          reason: "Recipient marked email as spam",
+        });
       }
       break;
     }
