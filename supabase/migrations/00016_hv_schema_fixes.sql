@@ -9,3 +9,6 @@ CREATE INDEX IF NOT EXISTS idx_hv_emails_message_id ON hv_emails(message_id) WHE
 ALTER TABLE hv_tracking_events ADD COLUMN IF NOT EXISTS occurred_at TIMESTAMPTZ DEFAULT NOW();
 ALTER TABLE hv_tracking_events ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}';
 ALTER TABLE hv_tracking_events ADD COLUMN IF NOT EXISTS url TEXT;
+
+-- 3. hv_emails: Add style_config for preserving email style preferences
+ALTER TABLE hv_emails ADD COLUMN IF NOT EXISTS style_config JSONB DEFAULT '{}';
