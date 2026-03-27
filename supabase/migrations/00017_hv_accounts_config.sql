@@ -6,6 +6,8 @@ CREATE TABLE IF NOT EXISTS hv_accounts_config (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   kinetiks_id uuid NOT NULL REFERENCES kinetiks_accounts(id) ON DELETE CASCADE,
   outreach_goal jsonb NOT NULL DEFAULT '{}',
+  sender_profile jsonb,
+  onboarding_state jsonb,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE(kinetiks_id)

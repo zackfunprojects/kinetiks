@@ -210,6 +210,52 @@ export const harvestTools: Tool[] = [
       required: ["contact_id", "subject", "body"],
     },
   },
+  {
+    name: "hv_onboard",
+    description:
+      "Complete Harvest onboarding end-to-end. Sets up sender profile, outreach goal, reviews ICP, generates starter templates, and runs first enrichment. This is the fastest way to set up Harvest - one tool call, fully automated.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        sender_name: { type: "string", description: "Your name" },
+        sender_title: { type: "string", description: "Your job title" },
+        sender_company: { type: "string", description: "Your company name" },
+        sender_email: { type: "string", description: "Your sending email address" },
+        product_description: { type: "string", description: "Brief description of what you sell" },
+        goal_type: {
+          type: "string",
+          enum: ["booked_call", "demo_request", "trial_signup", "reply", "form_submission"],
+          description: "What your outreach optimizes for",
+        },
+        cta_url: { type: "string", description: "Your CTA link (e.g. cal.com/you/30min)" },
+        sales_motion: {
+          type: "string",
+          enum: ["consultative", "direct", "enterprise", "product_led"],
+          description: "Your sales approach (default: consultative)",
+        },
+        first_domain: { type: "string", description: "A target company domain to enrich as first test (e.g. acme.com)" },
+      },
+      required: ["sender_name", "sender_company", "sender_email", "product_description"],
+    },
+  },
+  {
+    name: "hv_generate_templates",
+    description:
+      "Generate AI email templates for a category. Uses your product, ICP, voice, and outreach goal to create contextual templates with merge fields.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        category: {
+          type: "string",
+          enum: ["cold_outreach", "follow_up", "breakup", "value_add", "meeting_request", "post_call"],
+          description: "Template category to generate",
+        },
+        count: { type: "number", description: "Number of templates to generate (1-5, default: 1)" },
+        context: { type: "string", description: "Additional context or instructions for template generation" },
+      },
+      required: ["category"],
+    },
+  },
 ];
 
 export async function handleHarvestTool(
@@ -334,6 +380,101 @@ export async function handleHarvestTool(
       if (typeof args.status === "string") payload.status = args.status;
       const result = await post<Record<string, unknown>>(`${BASE}/emails`, payload);
       return { content: [{ type: "text", text: `Email draft saved.\n\n${formatGeneric(result)}` }] };
+    }
+
+    case "hv_onboard": {
+      if (typeof args.sender_name !== "string" || typeof args.sender_company !== "string" ||
+          typeof args.sender_email !== "string" || typeof args.product_description !== "string") {
+        return { content: [{ type: "text", text: "Error: sender_name, sender_company, sender_email, and product_description are required" }], isError: true };
+      }
+
+      const steps: string[] = [];
+
+      // Step 1: Save sender profile
+      const senderProfile = {
+        name: args.sender_name,
+        title: (args.sender_title as string) ?? "",
+        company: args.sender_company,
+        product_description: args.product_description,
+        email: args.sender_email,
+        phone: null,
+        linkedin: null,
+      };
+      await post(`${BASE}/onboarding`, { step: 1, data: { sender_profile: senderProfile } });
+      steps.push(`Step 1: Sender profile saved (${args.sender_name} at ${args.sender_company})`);
+
+      // Step 2: Save outreach goal
+      const goalPayload = {
+        goal_type: (args.goal_type as string) ?? "reply",
+        goal_label: (args.goal_type as string) === "booked_call" ? "Booked Call"
+          : (args.goal_type as string) === "demo_request" ? "Demo Request"
+          : (args.goal_type as string) === "trial_signup" ? "Trial Signup"
+          : "Get a Reply",
+        cta_url: (args.cta_url as string) ?? null,
+        sales_motion: (args.sales_motion as string) ?? "consultative",
+      };
+      await post(`${BASE}/onboarding`, { step: 2, data: { outreach_goal: goalPayload } });
+      // Also save outreach goal directly
+      try {
+        await post(`${BASE}/outreach-goal`, goalPayload);
+      } catch { /* best-effort */ }
+      steps.push(`Step 2: Outreach goal set (${goalPayload.goal_label}${goalPayload.cta_url ? ` -> ${goalPayload.cta_url}` : ""})`);
+
+      // Step 3: Mark ICP reviewed
+      await post(`${BASE}/onboarding`, { step: 3, data: { icp_reviewed: true } });
+      steps.push("Step 3: ICP reviewed from Kinetiks ID");
+
+      // Step 4: Generate starter templates
+      try {
+        const templateResult = await postLong<Record<string, unknown>>(`${BASE}/templates/generate`, {
+          category: "cold_outreach",
+          count: 2,
+          context: `Product: ${args.product_description}. Goal: ${goalPayload.goal_label}.`,
+        });
+        const savedCount = (templateResult as Record<string, unknown>)?.saved ?? 0;
+        await post(`${BASE}/onboarding`, { step: 4, data: { templates_generated: true } });
+        steps.push(`Step 4: Generated ${savedCount} starter templates`);
+      } catch {
+        steps.push("Step 4: Template generation skipped (can retry later)");
+      }
+
+      // Step 5: First enrichment
+      if (typeof args.first_domain === "string" && args.first_domain.trim()) {
+        try {
+          const enrichResult = await postLong<Record<string, unknown>>(`${BASE}/scout/enrich`, {
+            domain: args.first_domain.trim(),
+          });
+          await post(`${BASE}/onboarding`, { step: 5, data: { first_enrichment_done: true, domain: args.first_domain } });
+          const contactsSaved = (enrichResult as Record<string, unknown>)?.contacts_saved ?? 0;
+          steps.push(`Step 5: Enriched ${args.first_domain} - ${contactsSaved} contacts found`);
+        } catch {
+          steps.push(`Step 5: Enrichment of ${args.first_domain} failed (can retry later)`);
+        }
+      } else {
+        steps.push("Step 5: First enrichment skipped (no domain provided)");
+      }
+
+      const summary = `Harvest Onboarding Complete\n\n${steps.join("\n")}\n\nHarvest is ready for outreach.`;
+      return { content: [{ type: "text", text: summary }] };
+    }
+
+    case "hv_generate_templates": {
+      const category = (args.category as string) ?? "cold_outreach";
+      const count = typeof args.count === "number" ? args.count : 1;
+      const payload: Record<string, unknown> = { category, count };
+      if (typeof args.context === "string") payload.context = args.context;
+
+      const result = await postLong<Record<string, unknown>>(`${BASE}/templates/generate`, payload);
+      const saved = (result as Record<string, unknown>)?.saved ?? 0;
+      const templates = ((result as Record<string, unknown>)?.templates ?? []) as Array<Record<string, unknown>>;
+
+      const lines = [`Generated ${saved} ${category} template${saved !== 1 ? "s" : ""}:\n`];
+      for (const t of templates) {
+        lines.push(`- ${t.name}`);
+        lines.push(`  Subject: ${t.subject_template}`);
+        lines.push("");
+      }
+      return { content: [{ type: "text", text: lines.join("\n") }] };
     }
 
     default:
