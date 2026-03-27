@@ -5,12 +5,14 @@ import GeneralSettings from "./GeneralSettings";
 import StylePresetsList from "./StylePresetsList";
 import SuppressionsList from "./SuppressionsList";
 import AutomationConfig from "./AutomationConfig";
+import OutreachGoalConfig from "./OutreachGoalConfig";
 import InfraView from "../infra/InfraView";
 
-type Tab = "general" | "styles" | "suppressions" | "automations" | "infra";
+type Tab = "general" | "outreach" | "styles" | "suppressions" | "automations" | "infra";
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "general", label: "General" },
+  { key: "outreach", label: "Outreach Goal" },
   { key: "styles", label: "Style Presets" },
   { key: "suppressions", label: "Suppressions" },
   { key: "automations", label: "Growth" },
@@ -54,6 +56,7 @@ export default function SettingsView() {
 
       {/* Content */}
       {tab === "general" && <GeneralSettings />}
+      {tab === "outreach" && <OutreachGoalConfig />}
       {tab === "styles" && <StylePresetsList />}
       {tab === "suppressions" && <SuppressionsList />}
       {tab === "automations" && <AutomationConfig />}

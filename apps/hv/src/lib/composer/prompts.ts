@@ -151,8 +151,9 @@ export function buildEmailSystemPrompt(params: {
   style: EmailStyleConfig;
   voiceLayer?: Record<string, unknown>;
   knowledgeContent?: string;
+  ctaContext?: string;
 }): string {
-  const { senderName, senderTitle, senderCompany, senderProduct, style, voiceLayer, knowledgeContent } = params;
+  const { senderName, senderTitle, senderCompany, senderProduct, style, voiceLayer, knowledgeContent, ctaContext } = params;
 
   const lines: string[] = [
     "You are a B2B cold email copywriter. Write a personalized cold outreach email.",
@@ -237,6 +238,13 @@ export function buildEmailSystemPrompt(params: {
     for (const rule of style.writing_rules) {
       lines.push(`- ${rule}`);
     }
+  }
+
+  // Outreach goal CTA context (controls when/how to include CTA)
+  if (ctaContext) {
+    lines.push("");
+    lines.push("CALL-TO-ACTION GUIDANCE (follow this exactly):");
+    lines.push(ctaContext);
   }
 
   // Personal style (highest priority override)

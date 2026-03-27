@@ -3,6 +3,8 @@ import { pullHarvestContext } from "@/lib/synapse/client";
 import { makeCall, isTwilioConfigured } from "./twilio-client";
 import { buildAgentPrompt, createConversationConfig, isElevenLabsConfigured } from "./elevenlabs-agent";
 import { askClaude } from "@kinetiks/ai";
+import { buildCallGoalContext, DEFAULT_OUTREACH_GOAL } from "@/types/outreach-goal";
+import type { OutreachGoal } from "@/types/outreach-goal";
 
 interface InitiateCallOptions {
   accountId: string;
@@ -109,6 +111,28 @@ export async function initiateAiCall(options: InitiateCallOptions): Promise<Call
     ? competitors.map((c) => `${(c as Record<string, unknown>).name}: ${(c as Record<string, unknown>).positioning}`).join("; ")
     : "No known competitors";
 
+  // 2b. Load outreach goal
+  let outreachGoal: OutreachGoal = DEFAULT_OUTREACH_GOAL;
+  const { data: configRow } = await admin
+    .from("hv_accounts_config")
+    .select("outreach_goal")
+    .eq("kinetiks_id", options.accountId)
+    .maybeSingle();
+  if (configRow?.outreach_goal) {
+    // Safe cast: outreach_goal is JSONB stored in our schema
+    outreachGoal = configRow.outreach_goal as OutreachGoal;
+  }
+
+  // Check if prospect has engaged (any prior activity)
+  const { count: engagementCount } = await admin
+    .from("hv_activities")
+    .select("id", { count: "exact", head: true })
+    .eq("contact_id", options.contactId)
+    .eq("kinetiks_id", options.accountId);
+  const hasEngaged = (engagementCount ?? 0) > 0;
+
+  const callGoalContext = buildCallGoalContext(outreachGoal, hasEngaged);
+
   // 3. Build agent prompt
   const systemPrompt = buildAgentPrompt({
     senderName: orgData.company_name ?? "Our team",
@@ -117,7 +141,7 @@ export async function initiateAiCall(options: InitiateCallOptions): Promise<Call
     prospectName: `${contact.first_name ?? ""} ${contact.last_name ?? ""}`.trim(),
     prospectTitle: contact.title ?? "Unknown role",
     prospectCompany: orgName || "their company",
-    callObjective: options.objective,
+    callObjective: `${options.objective}\n\n${callGoalContext}`,
     painPoints,
     objectionHandling: "Listen carefully, acknowledge their concern, then share a relevant data point or customer story.",
     competitiveContext,
