@@ -34,6 +34,7 @@ export async function executeStep(
     };
   }
 
+  // Assertion: hv_sequences.steps is jsonb; schema enforced at write time to match SequenceStep[]
   const steps = (sequence.steps ?? []) as SequenceStep[];
 
   // 2. Get current step
@@ -429,6 +430,7 @@ async function loadSteps(
     .eq("id", sequenceId)
     .single();
 
+  // Assertion: hv_sequences.steps is jsonb; schema enforced at write time to match SequenceStep[]
   return (data?.steps ?? []) as SequenceStep[];
 }
 

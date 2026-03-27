@@ -65,6 +65,7 @@ export async function calculateOverviewMetrics(
     throw new Error(`Failed to calculate overview metrics: ${error.message}`);
   }
 
+  // Assertion: Supabase .select() returns untyped rows; fields match EmailRow schema from hv_emails table
   const rows = (emails ?? []) as EmailRow[];
   const total_sent = rows.length;
   const total_opened = rows.filter((e) => e.opened_at !== null).length;
@@ -110,6 +111,7 @@ export async function calculateCampaignMetrics(
 
   if (!campaigns || campaigns.length === 0) return [];
 
+  // Assertion: Supabase .select() returns untyped rows; fields match CampaignRow schema from hv_campaigns table
   const typedCampaigns = campaigns as CampaignRow[];
   const campaignIds = typedCampaigns.map((c) => c.id);
 
@@ -126,6 +128,7 @@ export async function calculateCampaignMetrics(
     throw new Error(`Failed to calculate campaign metrics: ${emailError.message}`);
   }
 
+  // Assertion: Supabase .select() returns untyped rows; fields match CampaignEmailRow schema from hv_emails table
   const typedEmails = (emails ?? []) as CampaignEmailRow[];
 
   // Group emails by campaign
@@ -184,6 +187,7 @@ export async function calculateSequenceMetrics(
 
   if (!sequences || sequences.length === 0) return [];
 
+  // Assertion: Supabase .select() returns untyped rows; fields match SequenceRow schema from hv_sequences table
   const typedSequences = sequences as SequenceRow[];
   const sequenceIds = typedSequences.map((s) => s.id);
 
@@ -199,6 +203,7 @@ export async function calculateSequenceMetrics(
     throw new Error(`Failed to calculate sequence metrics: ${enrollError.message}`);
   }
 
+  // Assertion: Supabase .select() returns untyped rows; fields match EnrollmentRow schema from hv_enrollments table
   const typedEnrollments = (enrollments ?? []) as EnrollmentRow[];
 
   // Group enrollments by sequence

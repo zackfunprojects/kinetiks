@@ -8,6 +8,8 @@ import {
 
 type AnalyticsView = "overview" | "campaigns" | "sequences";
 
+const validViews = ["overview", "campaigns", "sequences"] as const;
+
 /**
  * GET /api/hv/analytics?view=overview|campaigns|sequences
  * Returns email analytics for the authenticated account.
@@ -20,7 +22,9 @@ export async function GET(request: Request) {
   if (error) return error;
 
   const url = new URL(request.url);
-  const view = (url.searchParams.get("view") ?? "overview") as AnalyticsView;
+  // Runtime validation instead of type assertion - ensures invalid params fall back to "overview"
+  const rawView = url.searchParams.get("view") ?? "overview";
+  const view = validViews.includes(rawView as typeof validViews[number]) ? rawView : "overview";
 
   try {
     if (view === "overview") {

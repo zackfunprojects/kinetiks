@@ -2,6 +2,15 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { SequenceStep } from "@/types/sequences";
 import type { EnrollResult, EnrollBatchResult } from "@/types/execution";
 
+/** Row shape returned by hv_contacts select queries in this module. */
+interface ContactRow {
+  id: string;
+  email: string | null;
+  suppressed: boolean;
+  first_name?: string | null;
+  last_name?: string | null;
+}
+
 /**
  * Calculate the first next_step_at based on the sequence steps.
  * If the first step is a delay, add delay_days. Otherwise, execute immediately.
@@ -93,6 +102,7 @@ export async function enrollContact(
     return { success: false, error: "Sequence not found" };
   }
 
+  // Assertion: hv_sequences.steps is jsonb; schema enforced at write time to match SequenceStep[]
   const steps = (sequence.steps ?? []) as SequenceStep[];
   if (steps.length === 0) {
     return { success: false, error: "Sequence has no steps" };
@@ -179,6 +189,7 @@ export async function enrollBatch(
     return { enrolled: 0, skipped: contactIds.length, results: [] };
   }
 
+  // Assertion: hv_sequences.steps is jsonb; schema enforced at write time to match SequenceStep[]
   const steps = (sequence.steps ?? []) as SequenceStep[];
   if (steps.length === 0) {
     return { enrolled: 0, skipped: contactIds.length, results: [] };
@@ -195,8 +206,8 @@ export async function enrollBatch(
     return { enrolled: 0, skipped: contactIds.length, results: [] };
   }
 
-  const activeContacts = contacts.filter(
-    (c: { id: string; email: string | null; suppressed: boolean }) => !c.suppressed
+  const activeContacts = (contacts as ContactRow[]).filter(
+    (c) => !c.suppressed
   );
 
   // Filter out already-enrolled contacts
@@ -204,14 +215,15 @@ export async function enrollBatch(
     .from("hv_enrollments")
     .select("contact_id")
     .eq("sequence_id", sequenceId)
-    .in("contact_id", activeContacts.map((c: { id: string }) => c.id));
+    .in("contact_id", activeContacts.map((c) => c.id));
 
   const enrolledContactIds = new Set(
+    // Assertion: Supabase .select("contact_id") returns rows with contact_id string field
     (existingEnrollments ?? []).map((e: { contact_id: string }) => e.contact_id)
   );
 
   const eligibleContacts = activeContacts.filter(
-    (c: { id: string }) => !enrolledContactIds.has(c.id)
+    (c) => !enrolledContactIds.has(c.id)
   );
 
   if (eligibleContacts.length === 0) {
@@ -224,8 +236,9 @@ export async function enrollBatch(
 
   // Check email suppressions in bulk
   const emailsToCheck = eligibleContacts
-    .filter((c: { email: string | null }) => c.email)
-    .map((c: { id: string; email: string | null }) => ({ id: c.id, email: c.email as string }));
+    .filter((c) => c.email)
+    // Assertion: c.email is non-null after the filter above
+    .map((c) => ({ id: c.id, email: c.email as string }));
 
   const suppressedContactIds = new Set<string>();
 
@@ -241,7 +254,7 @@ export async function enrollBatch(
   }
 
   const finalContacts = eligibleContacts.filter(
-    (c: { id: string }) => !suppressedContactIds.has(c.id)
+    (c) => !suppressedContactIds.has(c.id)
   );
 
   if (finalContacts.length === 0) {
@@ -256,7 +269,7 @@ export async function enrollBatch(
   const now = new Date().toISOString();
 
   // Bulk insert enrollments
-  const rows = finalContacts.map((c: { id: string }) => ({
+  const rows = finalContacts.map((c) => ({
     kinetiks_id: accountId,
     contact_id: c.id,
     sequence_id: sequenceId,
@@ -282,6 +295,7 @@ export async function enrollBatch(
   }
 
   // Bulk log activities
+  // Assertion: Supabase .select("id, contact_id") returns rows with these two string fields
   const activities = inserted.map((e: { id: string; contact_id: string }) => ({
     kinetiks_id: accountId,
     contact_id: e.contact_id,
@@ -303,6 +317,7 @@ export async function enrollBatch(
       if (activityErr) console.error("[enrollBatch] Failed to log activities:", activityErr.message);
     });
 
+  // Assertion: same inserted rows as above with id and contact_id fields
   const results: EnrollResult[] = inserted.map((e: { id: string; contact_id: string }) => ({
     enrollment_id: e.id,
     contact_id: e.contact_id,

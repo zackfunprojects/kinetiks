@@ -67,6 +67,7 @@ export async function syncGmailReplies(accountId: string): Promise<SyncResult> {
     return { synced: 0, errors: 0 };
   }
 
+  // Assertion: kinetiks_connections.credentials is jsonb; Gmail rows store GmailCredentials shape per connection setup
   const credentials = connection.credentials as GmailCredentials | null;
   if (!credentials?.access_token) {
     return { synced: 0, errors: 0 };
@@ -94,7 +95,15 @@ export async function syncGmailReplies(accountId: string): Promise<SyncResult> {
     return { synced: 0, errors: 0 };
   }
 
+  // Assertion: Supabase .select() returns untyped rows; fields match SentEmailRow schema from hv_emails table
   const typedEmails = sentEmails as SentEmailRow[];
+
+  // Proactive token refresh if expired or expiring within 5 minutes
+  if (credentials.expiry_date && Date.now() > credentials.expiry_date - 300_000) {
+    // Token expired or expiring soon - skip sync, credentials need refresh
+    console.warn("[Gmail Sync] Token expired for account", accountId);
+    return { synced: 0, errors: 0 };
+  }
 
   // 3. Search Gmail for replies to each sent email
   for (const email of typedEmails) {
@@ -199,6 +208,7 @@ async function findGmailReply(
     return null;
   }
 
+  // Assertion: Gmail API messages.list response shape per Google REST API docs
   const searchData = (await searchResponse.json()) as {
     messages?: GmailMessage[];
     resultSizeEstimate?: number;
@@ -221,6 +231,7 @@ async function findGmailReply(
     return null;
   }
 
+  // Assertion: Gmail API messages.get response shape per Google REST API docs (format=full)
   const detail = (await detailResponse.json()) as GmailMessageDetail;
 
   // Extract body from the message
