@@ -11,6 +11,7 @@
     "clean": "rm -rf .next"
   },
   "dependencies": {
+    "@aws-sdk/client-sesv2": "^3.1018.0",
     "@kinetiks/ai": "workspace:*",
     "@kinetiks/sentinel": "workspace:*",
     "@kinetiks/supabase": "workspace:*",
@@ -22,6 +23,7 @@
     "next": "14.2.23",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
+    "resend": "^6.9.4",
     "server-only": "^0.0.1"
   },
   "devDependencies": {
