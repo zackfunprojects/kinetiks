@@ -31,15 +31,24 @@ export function CreateDealModal({ initialContactId, onCreated, onClose }: Create
   const [selectedContactName, setSelectedContactName] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [searchError, setSearchError] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
   const searchContacts = useCallback(async (q: string) => {
     if (!q.trim()) { setContactResults([]); return; }
+    setSearchError(null);
     try {
       const res = await fetch(`/api/hv/contacts?q=${encodeURIComponent(q)}&per_page=6`);
       const data = await res.json();
-      if (data.success) setContactResults(data.data);
-    } catch { /* ignore */ }
+      if (data.success) {
+        setContactResults(data.data);
+      } else {
+        setSearchError(data.error || "Failed to search contacts");
+      }
+    } catch (err) {
+      console.error("Contact search failed:", err);
+      setSearchError("Network error searching contacts");
+    }
   }, []);
 
   // Hydrate contact name + org when initialContactId is provided
@@ -162,6 +171,9 @@ export function CreateDealModal({ initialContactId, onCreated, onClose }: Create
             ) : (
               <>
                 <input id="cd-contact" style={inputStyle} value={contactQuery} onChange={(e) => setContactQuery(e.target.value)} placeholder="Search contacts..." />
+                {searchError && (
+                  <p style={{ margin: "4px 0 0", fontSize: "0.6875rem", color: "var(--error, #d44040)" }}>{searchError}</p>
+                )}
                 {contactResults.length > 0 && (
                   <div style={{ position: "absolute", top: "100%", left: 0, right: 0, marginTop: "4px", backgroundColor: "var(--surface-elevated)", border: "1px solid var(--border-default)", borderRadius: "6px", boxShadow: "var(--shadow-overlay)", zIndex: 50, maxHeight: 200, overflowY: "auto" }}>
                     {contactResults.map((c) => {

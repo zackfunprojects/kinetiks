@@ -13,16 +13,25 @@ export function ContactSelector({ selectedContact, onSelect, onClear }: ContactS
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<HvContact[]>([]);
   const [open, setOpen] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
   const containerRef = useRef<HTMLDivElement>(null);
 
   const search = useCallback(async (q: string) => {
     if (!q.trim()) { setResults([]); return; }
+    setSearchError(null);
     try {
       const res = await fetch(`/api/hv/contacts?q=${encodeURIComponent(q)}&per_page=8`);
       const data = await res.json();
-      if (data.success) setResults(data.data);
-    } catch { /* ignore */ }
+      if (data.success) {
+        setResults(data.data);
+      } else {
+        setSearchError(data.error || "Failed to search contacts");
+      }
+    } catch (err) {
+      console.error("Contact search failed:", err);
+      setSearchError("Network error searching contacts");
+    }
   }, []);
 
   useEffect(() => {
@@ -109,6 +118,12 @@ export function ContactSelector({ selectedContact, onSelect, onClear }: ContactS
           outline: "none",
         }}
       />
+
+      {searchError && (
+        <p style={{ margin: "4px 0 0", fontSize: "0.75rem", color: "var(--error, #d44040)" }}>
+          {searchError}
+        </p>
+      )}
 
       {open && results.length > 0 && (
         <div

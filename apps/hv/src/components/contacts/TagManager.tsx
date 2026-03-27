@@ -12,12 +12,14 @@ interface TagManagerProps {
 export function TagManager({ contactId, tags, onTagsChange }: TagManagerProps) {
   const [input, setInput] = useState("");
   const [saving, setSaving] = useState(false);
+  const [tagError, setTagError] = useState<string | null>(null);
 
   const addTag = async (tag: string) => {
     const trimmed = tag.trim().toLowerCase();
     if (!trimmed || tags.includes(trimmed)) return;
 
     setSaving(true);
+    setTagError(null);
     try {
       const res = await fetch(`/api/hv/contacts/${contactId}/tags`, {
         method: "POST",
@@ -27,9 +29,12 @@ export function TagManager({ contactId, tags, onTagsChange }: TagManagerProps) {
       const data = await res.json();
       if (data.success) {
         onTagsChange(data.data.tags);
+      } else {
+        setTagError(data.error || "Failed to add tag");
       }
-    } catch {
-      // Silently fail
+    } catch (err) {
+      console.error("Failed to add tag:", err);
+      setTagError("Network error adding tag");
     } finally {
       setSaving(false);
       setInput("");
@@ -38,6 +43,7 @@ export function TagManager({ contactId, tags, onTagsChange }: TagManagerProps) {
 
   const removeTag = async (tag: string) => {
     setSaving(true);
+    setTagError(null);
     try {
       const res = await fetch(`/api/hv/contacts/${contactId}/tags`, {
         method: "POST",
@@ -47,9 +53,12 @@ export function TagManager({ contactId, tags, onTagsChange }: TagManagerProps) {
       const data = await res.json();
       if (data.success) {
         onTagsChange(data.data.tags);
+      } else {
+        setTagError(data.error || "Failed to remove tag");
       }
-    } catch {
-      // Silently fail
+    } catch (err) {
+      console.error("Failed to remove tag:", err);
+      setTagError("Network error removing tag");
     } finally {
       setSaving(false);
     }
@@ -85,6 +94,11 @@ export function TagManager({ contactId, tags, onTagsChange }: TagManagerProps) {
           outline: "none",
         }}
       />
+      {tagError && (
+        <p style={{ margin: "4px 0 0", fontSize: "0.6875rem", color: "var(--error, #d44040)" }}>
+          {tagError}
+        </p>
+      )}
     </div>
   );
 }

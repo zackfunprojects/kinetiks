@@ -9,6 +9,7 @@ import { SentinelReviewPanel } from "./SentinelReviewPanel";
 import { DEFAULT_STYLE_CONFIG } from "@/lib/composer/styles";
 import type { HvContact } from "@/types/contacts";
 import type { ResearchBrief, ResearchTier, EmailStyleConfig, StylePreset } from "@/types/composer";
+import type { HvTemplate } from "@/types/templates";
 
 interface ComposeViewProps {
   initialContactId?: string;
@@ -31,6 +32,9 @@ export function ComposeView({ initialContactId }: ComposeViewProps) {
   const [body, setBody] = useState("");
   const [review, setReview] = useState<ReviewData | null>(null);
   const [draftId, setDraftId] = useState<string | null>(null);
+  const [templates, setTemplates] = useState<HvTemplate[]>([]);
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
 
   const [loadingBrief, setLoadingBrief] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -49,6 +53,32 @@ export function ComposeView({ initialContactId }: ComposeViewProps) {
       .then((res) => { if (res.success) setContact(res.data); })
       .catch(() => {});
   }, [initialContactId]);
+
+  // Load templates
+  useEffect(() => {
+    setLoadingTemplates(true);
+    fetch("/api/hv/templates")
+      .then((r) => r.json())
+      .then((res) => {
+        if (res.success) setTemplates(res.data);
+      })
+      .catch((err) => {
+        console.error("Failed to load templates:", err);
+      })
+      .finally(() => setLoadingTemplates(false));
+  }, []);
+
+  // Handle template selection
+  const handleTemplateSelect = (templateId: string) => {
+    setSelectedTemplateId(templateId);
+    if (!templateId) return;
+    const tmpl = templates.find((t) => t.id === templateId);
+    if (tmpl) {
+      setSubject(tmpl.subject_template);
+      setBody(tmpl.body_template);
+      setReview(null);
+    }
+  };
 
   // Load style presets
   useEffect(() => {
@@ -238,6 +268,41 @@ export function ComposeView({ initialContactId }: ComposeViewProps) {
         {error && (
           <div style={{ padding: "10px 14px", borderRadius: "6px", backgroundColor: "rgba(212,64,64,0.1)", border: "1px solid rgba(212,64,64,0.2)", color: "var(--error, #d44040)", fontSize: "0.8125rem" }}>
             {error}
+          </div>
+        )}
+
+        {/* Template selector */}
+        {templates.length > 0 && (
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <label
+              htmlFor="template-select"
+              style={{ fontSize: "0.8125rem", fontWeight: 500, color: "var(--text-secondary)", whiteSpace: "nowrap" }}
+            >
+              Use Template
+            </label>
+            <select
+              id="template-select"
+              value={selectedTemplateId}
+              onChange={(e) => handleTemplateSelect(e.target.value)}
+              disabled={loadingTemplates}
+              style={{
+                flex: 1,
+                padding: "7px 10px",
+                borderRadius: "6px",
+                border: "1px solid var(--border-default)",
+                backgroundColor: "var(--surface-raised)",
+                color: "var(--text-primary)",
+                fontSize: "0.8125rem",
+                outline: "none",
+              }}
+            >
+              <option value="">-- Select a template --</option>
+              {templates.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name} ({t.category.replace(/_/g, " ")})
+                </option>
+              ))}
+            </select>
           </div>
         )}
 

@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { HvSequence, SequenceStep, SequenceStatus } from "@/types/sequences";
+import type { HvTemplate } from "@/types/templates";
 
 interface SequenceDetailProps {
   sequence: HvSequence;
@@ -29,6 +30,14 @@ export default function SequenceDetail({ sequence, onClose, onUpdated }: Sequenc
   const [name, setName] = useState(sequence.name);
   const [status, setStatus] = useState<SequenceStatus>(sequence.status);
   const [saving, setSaving] = useState(false);
+  const [templates, setTemplates] = useState<HvTemplate[]>([]);
+
+  useEffect(() => {
+    fetch("/api/hv/templates")
+      .then((r) => r.json())
+      .then((res) => { if (res.success) setTemplates(res.data); })
+      .catch((err) => console.error("Failed to load templates:", err));
+  }, []);
 
   async function handleSave() {
     setSaving(true);
@@ -153,6 +162,32 @@ export default function SequenceDetail({ sequence, onClose, onUpdated }: Sequenc
 
               {step.type === "email" && (
                 <div>
+                  {templates.length > 0 && (
+                    <select
+                      value=""
+                      onChange={(e) => {
+                        const tmpl = templates.find((t) => t.id === e.target.value);
+                        if (tmpl) {
+                          updateStep(step.id, {
+                            subject_line: tmpl.subject_template,
+                            template: tmpl.body_template,
+                          });
+                        }
+                      }}
+                      style={{
+                        width: "100%", padding: "5px 8px", borderRadius: 4, fontSize: 12,
+                        border: "1px solid var(--border-subtle)", backgroundColor: "var(--surface-raised)",
+                        color: "var(--text-secondary)", outline: "none", marginBottom: 6, boxSizing: "border-box",
+                      }}
+                    >
+                      <option value="">Choose template...</option>
+                      {templates.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.name} ({t.category.replace(/_/g, " ")})
+                        </option>
+                      ))}
+                    </select>
+                  )}
                   <input
                     type="text"
                     placeholder="Subject line"

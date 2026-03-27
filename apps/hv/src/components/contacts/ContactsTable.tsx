@@ -20,6 +20,7 @@ export function ContactsTable() {
   const [sort, setSort] = useState<ContactSort>({ field: "lead_score", direction: "desc" });
   const [filters, setFilters] = useState<FilterState>({});
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEnrichModal, setShowEnrichModal] = useState(false);
@@ -41,15 +42,19 @@ export function ContactsTable() {
     if (filters.score_min !== undefined) params.set("score_min", String(filters.score_min));
     if (filters.score_max !== undefined) params.set("score_max", String(filters.score_max));
 
+    setFetchError(null);
     try {
       const res = await fetch(`/api/hv/contacts?${params}`);
       const data = await res.json();
       if (data.success) {
         setContacts(data.data);
         setTotal(data.meta?.total ?? 0);
+      } else {
+        setFetchError(data.error || "Failed to load contacts");
       }
-    } catch {
-      // Silently fail
+    } catch (err) {
+      console.error("Failed to fetch contacts:", err);
+      setFetchError("Network error loading contacts");
     } finally {
       setLoading(false);
     }
@@ -154,6 +159,12 @@ export function ContactsTable() {
           </button>
         </div>
       </div>
+
+      {fetchError && (
+        <div style={{ padding: "10px 14px", borderRadius: "var(--radius-md, 8px)", backgroundColor: "rgba(212,64,64,0.08)", border: "1px solid rgba(212,64,64,0.15)", color: "var(--error, #d44040)", fontSize: "0.8125rem", marginTop: "8px" }}>
+          {fetchError}
+        </div>
+      )}
 
       {/* Table */}
       <div
