@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import GrowthMeter from "@/components/shared/GrowthMeter";
 
 /* ── Workspace definitions ──────────────────────────────────── */
 
@@ -274,45 +275,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             );
           })}
 
-          {/* Growth meter placeholder - Phase 5 */}
+          {/* Growth meter */}
           {!collapsed && (
             <div style={{
               marginTop: 12,
               padding: "10px 8px",
               borderRadius: "var(--radius-md)",
               backgroundColor: "var(--harvest-green-subtle)",
+              display: "flex",
+              justifyContent: "center",
             }}>
-              <div style={{
-                fontSize: 11,
-                fontWeight: 600,
-                color: "var(--text-tertiary)",
-                textTransform: "uppercase",
-                letterSpacing: "0.04em",
-                marginBottom: 6,
-              }}>
-                Growth
-              </div>
-              <div style={{
-                height: 4,
-                backgroundColor: "var(--border-default)",
-                borderRadius: 2,
-                overflow: "hidden",
-              }}>
-                <div style={{
-                  height: "100%",
-                  width: "15%",
-                  backgroundColor: "var(--mode-human)",
-                  borderRadius: 2,
-                  transition: "width var(--duration-slow) var(--ease-smooth)",
-                }} />
-              </div>
-              <div style={{
-                fontSize: 11,
-                color: "var(--text-tertiary)",
-                marginTop: 4,
-              }}>
-                Human mode
-              </div>
+              <GrowthMeter level={15} mode="human" />
             </div>
           )}
         </div>

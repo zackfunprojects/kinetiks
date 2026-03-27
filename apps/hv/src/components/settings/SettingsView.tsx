@@ -12,7 +12,7 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "general", label: "General" },
   { key: "styles", label: "Style Presets" },
   { key: "suppressions", label: "Suppressions" },
-  { key: "automations", label: "Automations" },
+  { key: "automations", label: "Growth" },
 ];
 
 export default function SettingsView() {
