@@ -60,7 +60,7 @@ export default function FieldPage() {
           Field
         </h1>
         <p style={{ fontSize: 14, color: "var(--text-tertiary)", margin: "4px 0 0" }}>
-          Plant outreach, tend your rows, and watch conversations grow.
+          Compose outreach, manage sequences, and track conversations.
         </p>
       </div>
 
@@ -112,7 +112,7 @@ export default function FieldPage() {
                 textDecoration: "none", fontSize: 13, fontWeight: 500,
               }}
             >
-              Plant new outreach
+              New outreach
             </Link>
             <Link
               href="/field/sequences"

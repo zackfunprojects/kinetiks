@@ -32,7 +32,7 @@ export default function MarketPage() {
           Market
         </h1>
         <p style={{ fontSize: 14, color: "var(--text-tertiary)", margin: "4px 0 0" }}>
-          Track your harvest - deals, outcomes, and yield.
+          Track your pipeline, deal outcomes, and outreach performance.
         </p>
       </div>
 
@@ -49,7 +49,7 @@ export default function MarketPage() {
             textDecoration: "none", fontSize: 13, fontWeight: 500,
           }}
         >
-          Open Harvest Board
+          Open Pipeline
         </Link>
         <Link
           href="/market/analytics"
@@ -60,7 +60,7 @@ export default function MarketPage() {
             backgroundColor: "transparent",
           }}
         >
-          View Yield
+          View Analytics
         </Link>
       </div>
     </div>
