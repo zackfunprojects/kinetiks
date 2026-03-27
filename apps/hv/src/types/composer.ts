@@ -21,6 +21,11 @@ export interface EmailStyleConfig {
   writing_rules: string[];
   personal_style: string | null;
   sample_email: string | null;
+  // Outreach context (set by sequence executor or compose UI)
+  touch_number?: number;
+  total_touches?: number;
+  has_engaged?: boolean;
+  last_touch_had_cta?: boolean;
 }
 
 export interface StylePreset {

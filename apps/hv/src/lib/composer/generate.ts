@@ -23,6 +23,7 @@ interface GenerateParams {
   productLayer?: Record<string, unknown>;
   customersLayer?: Record<string, unknown>;
   competitiveLayer?: Record<string, unknown>;
+  ctaContext?: string;
 }
 
 interface GenerateResult {
@@ -79,6 +80,7 @@ export async function generateEmailDraft(params: GenerateParams): Promise<Genera
     style,
     voiceLayer: params.voiceLayer,
     knowledgeContent,
+    ctaContext: params.ctaContext,
   });
 
   const userMessage = buildEmailUserMessage({

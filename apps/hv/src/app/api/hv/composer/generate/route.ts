@@ -3,6 +3,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { apiSuccess, apiError } from "@/lib/utils/api-response";
 import { generateEmailDraft } from "@/lib/composer/generate";
 import { pullHarvestContext } from "@/lib/synapse/client";
+import { buildCtaContext, shouldIncludeCta, DEFAULT_OUTREACH_GOAL } from "@/types/outreach-goal";
+import type { OutreachGoal } from "@/types/outreach-goal";
+import type { SenderProfile } from "@/types/onboarding";
 import type { EmailStyleConfig, ResearchBrief } from "@/types/composer";
 
 /**
@@ -89,6 +92,34 @@ export async function POST(request: Request) {
   }
   const products = (productsData.products as Array<Record<string, string>>) ?? [];
 
+  // Load outreach goal + sender profile for CTA context
+  const { data: configRow } = await admin
+    .from("hv_accounts_config")
+    .select("outreach_goal, sender_profile")
+    .eq("kinetiks_id", auth.account_id)
+    .maybeSingle();
+
+  // Safe cast: JSONB follows OutreachGoal schema
+  const outreachGoal: OutreachGoal = (configRow?.outreach_goal as OutreachGoal) ?? DEFAULT_OUTREACH_GOAL;
+  // Safe cast: JSONB follows SenderProfile schema
+  const senderProfile = configRow?.sender_profile as SenderProfile | null;
+
+  // Determine CTA inclusion based on outreach rules
+  const touchNumber = body.style.touch_number ?? 1;
+  const hasEngaged = body.style.has_engaged ?? false;
+  const lastTouchHadCta = body.style.last_touch_had_cta ?? false;
+  const { include: includeCta } = shouldIncludeCta(outreachGoal, touchNumber, hasEngaged, lastTouchHadCta);
+
+  // Build CTA context for the prompt
+  const totalTouches = body.style.total_touches ?? 5;
+  const ctaContext = buildCtaContext(outreachGoal, includeCta, touchNumber, totalTouches);
+
+  // Use sender profile if available, fall back to org data
+  const senderName = senderProfile?.name || orgData.company_name || "";
+  const senderTitle = senderProfile?.title || "";
+  const senderCompany = senderProfile?.company || orgData.company_name || "";
+  const senderProduct = senderProfile?.product_description || products[0]?.description || products[0]?.name || "";
+
   try {
     const result = await generateEmailDraft({
       contact,
@@ -96,14 +127,15 @@ export async function POST(request: Request) {
       ccContact,
       brief: body.research_brief,
       style: body.style,
-      senderName: orgData.company_name || "",
-      senderTitle: "",
-      senderCompany: orgData.company_name || "",
-      senderProduct: products[0]?.description || products[0]?.name || "",
+      senderName,
+      senderTitle,
+      senderCompany,
+      senderProduct,
       voiceLayer: Object.keys(voiceData).length > 0 ? voiceData : undefined,
       productLayer: Object.keys(productsData).length > 0 ? productsData : undefined,
       customersLayer: Object.keys(customersData).length > 0 ? customersData : undefined,
       competitiveLayer: Object.keys(competitiveData).length > 0 ? competitiveData : undefined,
+      ctaContext,
     });
 
     return apiSuccess(result);
