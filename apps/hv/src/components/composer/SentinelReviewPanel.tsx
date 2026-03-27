@@ -65,7 +65,7 @@ export function SentinelReviewPanel({ review, loading, onReview, disabled }: Sen
             padding: "4px 10px",
             borderRadius: "4px",
             border: "none",
-            backgroundColor: disabled ? "var(--surface-elevated)" : "var(--accent-primary)",
+            backgroundColor: disabled ? "var(--surface-elevated)" : "var(--harvest-green)",
             color: disabled ? "var(--text-tertiary)" : "#fff",
             fontSize: "0.6875rem",
             fontWeight: 500,

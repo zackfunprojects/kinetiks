@@ -19,19 +19,20 @@ export function ScoreBadge({ score, label, size = "sm" }: ScoreBadgeProps) {
       style={{
         display: "inline-flex",
         alignItems: "center",
-        gap: "4px",
+        gap: "var(--space-1, 4px)",
         padding,
-        borderRadius: "4px",
+        borderRadius: "var(--radius-sm, 4px)",
         backgroundColor: bg,
         color,
         fontSize,
         fontFamily: "var(--font-mono, monospace), monospace",
         fontWeight: 600,
         lineHeight: 1.2,
+        letterSpacing: "0.01em",
       }}
     >
       {label && (
-        <span style={{ fontSize: "0.625rem", fontWeight: 500, textTransform: "uppercase", opacity: 0.7 }}>
+        <span style={{ fontSize: "0.625rem", fontWeight: 500, textTransform: "uppercase", opacity: 0.8 }}>
           {label}
         </span>
       )}

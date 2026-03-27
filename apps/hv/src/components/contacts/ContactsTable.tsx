@@ -83,13 +83,14 @@ export function ContactsTable() {
   };
 
   const thStyle: React.CSSProperties = {
-    padding: "8px 12px",
+    padding: "10px 12px",
     fontSize: "0.6875rem",
     fontWeight: 600,
     textTransform: "uppercase",
     letterSpacing: "0.05em",
     color: "var(--text-tertiary)",
     textAlign: "left",
+    backgroundColor: "transparent",
   };
 
   const isFiltersEmpty = !filters.q && !filters.source && !filters.seniority &&
@@ -118,18 +119,19 @@ export function ContactsTable() {
       {/* Action buttons */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <ContactFilters initialFilters={filters} onFiltersChange={handleFiltersChange} />
-        <div style={{ display: "flex", gap: "8px", flexShrink: 0 }}>
+        <div style={{ display: "flex", gap: "var(--space-2, 8px)", flexShrink: 0 }}>
           <button
             onClick={() => setShowAddModal(true)}
             style={{
               padding: "7px 14px",
-              borderRadius: "6px",
+              borderRadius: "var(--radius-md, 8px)",
               border: "1px solid var(--border-default)",
-              backgroundColor: "var(--surface-raised)",
+              backgroundColor: "var(--surface-elevated, #FFFFFF)",
               color: "var(--text-primary)",
               fontSize: "0.8125rem",
               fontWeight: 500,
               cursor: "pointer",
+              transition: "background-color var(--duration-fast, 150ms) var(--ease-smooth)",
             }}
           >
             Add contact
@@ -138,13 +140,14 @@ export function ContactsTable() {
             onClick={() => setShowEnrichModal(true)}
             style={{
               padding: "7px 14px",
-              borderRadius: "6px",
+              borderRadius: "var(--radius-md, 8px)",
               border: "none",
-              backgroundColor: "var(--accent-primary)",
+              backgroundColor: "var(--harvest-green, #3D7C47)",
               color: "#fff",
               fontSize: "0.8125rem",
               fontWeight: 500,
               cursor: "pointer",
+              transition: "opacity var(--duration-fast, 150ms) var(--ease-smooth)",
             }}
           >
             Enrich domain
@@ -155,9 +158,9 @@ export function ContactsTable() {
       {/* Table */}
       <div
         style={{
-          backgroundColor: "var(--surface-raised)",
-          border: "1px solid var(--border-subtle)",
-          borderRadius: "8px",
+          backgroundColor: "var(--surface-elevated, #FFFFFF)",
+          border: "none",
+          borderRadius: "0",
           overflow: "hidden",
         }}
       >
@@ -169,7 +172,7 @@ export function ContactsTable() {
                   type="checkbox"
                   checked={contacts.length > 0 && selectedIds.size === contacts.length}
                   onChange={toggleSelectAll}
-                  style={{ accentColor: "var(--accent-primary)" }}
+                  style={{ accentColor: "var(--harvest-green, #3D7C47)" }}
                 />
               </th>
               <SortableHeader label="Name" field="first_name" currentSort={sort} onSort={setSort} />
@@ -208,7 +211,7 @@ export function ContactsTable() {
                       borderBottom: "1px solid var(--border-subtle)",
                       cursor: "pointer",
                     }}
-                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "var(--surface-elevated, rgba(255,255,255,0.02))"; }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "var(--surface-highlight, #ECEAE4)"; }}
                     onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
                   >
                     <td style={{ padding: "10px 12px" }} onClick={(e) => e.stopPropagation()}>
@@ -216,7 +219,7 @@ export function ContactsTable() {
                         type="checkbox"
                         checked={selectedIds.has(contact.id)}
                         onChange={() => toggleSelect(contact.id)}
-                        style={{ accentColor: "var(--accent-primary)" }}
+                        style={{ accentColor: "var(--harvest-green, #3D7C47)" }}
                       />
                     </td>
                     <td style={{ padding: "10px 12px" }}>

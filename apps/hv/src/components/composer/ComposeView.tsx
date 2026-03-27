@@ -257,7 +257,7 @@ export function ComposeView({ initialContactId }: ComposeViewProps) {
               padding: "8px 16px",
               borderRadius: "6px",
               border: "none",
-              backgroundColor: !contact || !brief ? "var(--surface-elevated)" : "var(--accent-primary)",
+              backgroundColor: !contact || !brief ? "var(--surface-elevated)" : "var(--harvest-green)",
               color: !contact || !brief ? "var(--text-tertiary)" : "#fff",
               fontSize: "0.8125rem",
               fontWeight: 500,

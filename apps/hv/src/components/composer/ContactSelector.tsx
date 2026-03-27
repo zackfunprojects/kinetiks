@@ -121,7 +121,7 @@ export function ContactSelector({ selectedContact, onSelect, onClear }: ContactS
             backgroundColor: "var(--surface-elevated)",
             border: "1px solid var(--border-default)",
             borderRadius: "8px",
-            boxShadow: "0 8px 24px rgba(0,0,0,0.3)",
+            boxShadow: "var(--shadow-overlay)",
             zIndex: 50,
             maxHeight: 300,
             overflowY: "auto",

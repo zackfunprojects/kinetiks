@@ -56,20 +56,24 @@ export function AddContactModal({ onCreated, onClose }: AddContactModalProps) {
   const inputStyle: React.CSSProperties = {
     width: "100%",
     padding: "8px 12px",
-    borderRadius: "6px",
+    height: 36,
+    borderRadius: "var(--radius-md, 8px)",
     border: "1px solid var(--border-default)",
-    backgroundColor: "var(--surface-base)",
+    backgroundColor: "var(--surface-elevated, #FFFFFF)",
     color: "var(--text-primary)",
     fontSize: "0.8125rem",
     outline: "none",
+    transition: "border-color var(--duration-fast, 150ms) var(--ease-smooth)",
   };
 
   const labelStyle: React.CSSProperties = {
-    fontSize: "0.75rem",
+    fontSize: "0.6875rem",
     fontWeight: 500,
-    color: "var(--text-secondary)",
-    marginBottom: "4px",
+    color: "var(--text-tertiary)",
+    marginBottom: "var(--space-1, 4px)",
     display: "block",
+    textTransform: "uppercase",
+    letterSpacing: "0.05em",
   };
 
   return (
@@ -77,7 +81,7 @@ export function AddContactModal({ onCreated, onClose }: AddContactModalProps) {
       style={{
         position: "fixed",
         inset: 0,
-        backgroundColor: "rgba(0,0,0,0.5)",
+        backgroundColor: "rgba(0,0,0,0.4)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -87,14 +91,15 @@ export function AddContactModal({ onCreated, onClose }: AddContactModalProps) {
     >
       <div
         style={{
-          backgroundColor: "var(--surface-elevated)",
-          border: "1px solid var(--border-default)",
-          borderRadius: "12px",
-          padding: "24px",
+          backgroundColor: "var(--surface-elevated, #FFFFFF)",
+          border: "none",
+          borderRadius: "var(--radius-lg, 12px)",
+          padding: "var(--space-6, 24px)",
           width: "100%",
           maxWidth: 480,
           maxHeight: "90vh",
           overflowY: "auto",
+          boxShadow: "var(--shadow-overlay, 0 16px 48px rgba(0,0,0,0.12), 0 4px 16px rgba(0,0,0,0.08))",
         }}
       >
         <h2
@@ -176,12 +181,13 @@ export function AddContactModal({ onCreated, onClose }: AddContactModalProps) {
             onClick={onClose}
             style={{
               padding: "8px 16px",
-              borderRadius: "6px",
+              borderRadius: "var(--radius-md, 8px)",
               border: "1px solid var(--border-default)",
-              backgroundColor: "transparent",
+              backgroundColor: "var(--surface-elevated, #FFFFFF)",
               color: "var(--text-secondary)",
               fontSize: "0.8125rem",
               cursor: "pointer",
+              transition: "background-color var(--duration-fast, 150ms) var(--ease-smooth)",
             }}
           >
             Cancel
@@ -191,14 +197,15 @@ export function AddContactModal({ onCreated, onClose }: AddContactModalProps) {
             disabled={submitting}
             style={{
               padding: "8px 16px",
-              borderRadius: "6px",
+              borderRadius: "var(--radius-md, 8px)",
               border: "none",
-              backgroundColor: "var(--accent-primary)",
+              backgroundColor: "var(--harvest-green, #3D7C47)",
               color: "#fff",
               fontSize: "0.8125rem",
               fontWeight: 500,
               cursor: submitting ? "wait" : "pointer",
               opacity: submitting ? 0.7 : 1,
+              transition: "opacity var(--duration-fast, 150ms) var(--ease-smooth)",
             }}
           >
             {submitting ? "Creating..." : "Create contact"}

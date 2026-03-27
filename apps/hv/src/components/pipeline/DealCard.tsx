@@ -36,7 +36,7 @@ export function DealCard({ deal, onClick }: DealCardProps) {
         }
       }}
       style={{
-        backgroundColor: "var(--surface-elevated, #242420)",
+        backgroundColor: "var(--surface-elevated)",
         border: "1px solid var(--border-subtle)",
         borderRadius: "6px",
         padding: "10px 12px",

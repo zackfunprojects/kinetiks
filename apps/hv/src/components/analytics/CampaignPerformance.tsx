@@ -3,10 +3,10 @@
 import type { CampaignMetric } from "@/types/analytics";
 
 const STATUS_COLORS: Record<string, { bg: string; fg: string }> = {
-  draft: { bg: "rgba(155,155,167,0.12)", fg: "var(--text-secondary)" },
-  active: { bg: "rgba(0,206,201,0.12)", fg: "#00CEC9" },
-  paused: { bg: "rgba(253,203,110,0.12)", fg: "#FDCB6E" },
-  completed: { bg: "rgba(108,92,231,0.12)", fg: "#6C5CE7" },
+  draft: { bg: "rgba(155,155,167,0.10)", fg: "var(--text-secondary)" },
+  active: { bg: "rgba(61,124,71,0.10)", fg: "var(--harvest-green)" },
+  paused: { bg: "rgba(192,139,45,0.10)", fg: "var(--harvest-amber)" },
+  completed: { bg: "rgba(139,115,85,0.10)", fg: "var(--harvest-soil)" },
 };
 
 interface CampaignPerformanceProps {

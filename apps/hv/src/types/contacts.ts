@@ -107,14 +107,14 @@ export function getScoreLevel(score: number): ScoreLevel {
 
 export function getScoreColor(score: number): string {
   const level = getScoreLevel(score);
-  if (level === "high") return "var(--success, #3d8f46)";
-  if (level === "medium") return "var(--warning, #d4a017)";
-  return "var(--error, #d44040)";
+  if (level === "high") return "#ffffff";
+  if (level === "medium") return "#ffffff";
+  return "#ffffff";
 }
 
 export function getScoreBg(score: number): string {
   const level = getScoreLevel(score);
-  if (level === "high") return "rgba(61,143,70,0.12)";
-  if (level === "medium") return "rgba(212,160,23,0.12)";
-  return "rgba(212,64,64,0.12)";
+  if (level === "high") return "var(--harvest-green, #3D7C47)";
+  if (level === "medium") return "var(--harvest-amber, #C08B2D)";
+  return "var(--harvest-soil, #8B7355)";
 }

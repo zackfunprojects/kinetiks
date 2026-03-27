@@ -8,10 +8,10 @@ interface MailboxListProps {
 }
 
 const WARMUP_COLORS: Record<WarmupStatus, { bg: string; fg: string }> = {
-  not_started: { bg: "rgba(155,155,167,0.12)", fg: "var(--text-secondary)" },
-  warming: { bg: "rgba(253,203,110,0.12)", fg: "#FDCB6E" },
-  warm: { bg: "rgba(0,206,201,0.12)", fg: "#00CEC9" },
-  paused: { bg: "rgba(255,118,117,0.12)", fg: "#FF7675" },
+  not_started: { bg: "rgba(155,155,167,0.10)", fg: "var(--text-secondary)" },
+  warming: { bg: "rgba(192,139,45,0.10)", fg: "var(--harvest-amber)" },
+  warm: { bg: "rgba(61,124,71,0.10)", fg: "var(--harvest-green)" },
+  paused: { bg: "rgba(212,64,64,0.10)", fg: "var(--error, #d44040)" },
 };
 
 export default function MailboxList({ onAddClick }: MailboxListProps) {
@@ -110,7 +110,7 @@ export default function MailboxList({ onAddClick }: MailboxListProps) {
                   }}>
                     <div style={{
                       width: `${mb.reputation_score}%`, height: "100%", borderRadius: 3,
-                      backgroundColor: mb.reputation_score >= 80 ? "#00CEC9" : mb.reputation_score >= 50 ? "#FDCB6E" : "#FF7675",
+                      backgroundColor: mb.reputation_score >= 80 ? "var(--harvest-green)" : mb.reputation_score >= 50 ? "var(--harvest-amber)" : "var(--error, #d44040)",
                     }} />
                   </div>
                   <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>{mb.reputation_score}</span>
@@ -124,7 +124,7 @@ export default function MailboxList({ onAddClick }: MailboxListProps) {
                   onClick={() => toggleActive(mb)}
                   style={{
                     width: 36, height: 20, borderRadius: 10, border: "none", cursor: "pointer",
-                    backgroundColor: mb.is_active ? "#00CEC9" : "var(--border-subtle)",
+                    backgroundColor: mb.is_active ? "var(--harvest-green)" : "var(--border-subtle)",
                     position: "relative", transition: "background-color 0.2s",
                   }}
                 >

@@ -68,12 +68,14 @@ export default function ProspectsView() {
             width: "100%",
             maxWidth: 360,
             padding: "8px 12px",
-            borderRadius: 8,
-            border: "1px solid var(--border-subtle)",
-            backgroundColor: "transparent",
+            height: 36,
+            borderRadius: "var(--radius-md, 8px)",
+            border: "1px solid var(--border-default)",
+            backgroundColor: "var(--surface-elevated, #FFFFFF)",
             color: "var(--text-primary)",
             fontSize: 13,
             outline: "none",
+            transition: "border-color var(--duration-fast, 150ms) var(--ease-smooth)",
           }}
         />
       </div>
@@ -87,8 +89,9 @@ export default function ProspectsView() {
             textAlign: "center",
             padding: 60,
             color: "var(--text-secondary)",
-            border: "1px dashed var(--border-subtle)",
-            borderRadius: 12,
+            border: "1px dashed var(--border-default)",
+            borderRadius: "var(--radius-lg, 12px)",
+            backgroundColor: "var(--surface-elevated, #FFFFFF)",
           }}
         >
           <p style={{ fontSize: 15, margin: "0 0 8px" }}>No prospects found</p>
@@ -112,12 +115,13 @@ export default function ProspectsView() {
                 onClick={() => setPage((p) => p - 1)}
                 style={{
                   padding: "6px 12px",
-                  borderRadius: 6,
-                  border: "1px solid var(--border-subtle)",
-                  backgroundColor: "transparent",
+                  borderRadius: "var(--radius-md, 8px)",
+                  border: "1px solid var(--border-default)",
+                  backgroundColor: "var(--surface-elevated, #FFFFFF)",
                   color: page <= 1 ? "var(--text-tertiary)" : "var(--text-secondary)",
                   fontSize: 13,
                   cursor: page <= 1 ? "default" : "pointer",
+                  transition: "background-color var(--duration-fast, 150ms) var(--ease-smooth)",
                 }}
               >
                 Previous
@@ -130,12 +134,13 @@ export default function ProspectsView() {
                 onClick={() => setPage((p) => p + 1)}
                 style={{
                   padding: "6px 12px",
-                  borderRadius: 6,
-                  border: "1px solid var(--border-subtle)",
-                  backgroundColor: "transparent",
+                  borderRadius: "var(--radius-md, 8px)",
+                  border: "1px solid var(--border-default)",
+                  backgroundColor: "var(--surface-elevated, #FFFFFF)",
                   color: page >= totalPages ? "var(--text-tertiary)" : "var(--text-secondary)",
                   fontSize: 13,
                   cursor: page >= totalPages ? "default" : "pointer",
+                  transition: "background-color var(--duration-fast, 150ms) var(--ease-smooth)",
                 }}
               >
                 Next

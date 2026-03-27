@@ -33,9 +33,9 @@ export function KanbanColumn({ stage, label, color, deals, onDealClick, onDrop }
         flex: "0 0 260px",
         display: "flex",
         flexDirection: "column",
-        backgroundColor: dragOver ? "rgba(90,173,98,0.04)" : "transparent",
+        backgroundColor: dragOver ? "rgba(61,124,71,0.04)" : "transparent",
         borderRadius: "8px",
-        border: dragOver ? "1px dashed var(--accent-primary)" : "1px solid transparent",
+        border: dragOver ? "1px dashed var(--harvest-green)" : "1px solid transparent",
         transition: "background-color 0.15s, border-color 0.15s",
         minHeight: 200,
       }}

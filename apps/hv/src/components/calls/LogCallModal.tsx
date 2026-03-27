@@ -104,7 +104,7 @@ export default function LogCallModal({ onClose, onCreated }: LogCallModalProps) 
   return (
     <div
       style={{
-        position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)",
+        position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.25)",
         display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000,
       }}
       onClick={onClose}
@@ -112,8 +112,8 @@ export default function LogCallModal({ onClose, onCreated }: LogCallModalProps) 
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          backgroundColor: "var(--surface-raised)", borderRadius: 12,
-          padding: 24, width: 480, border: "1px solid var(--border-subtle)",
+          backgroundColor: "var(--surface-elevated)", borderRadius: 12,
+          padding: 24, width: 480, boxShadow: "var(--shadow-overlay)",
           maxHeight: "90vh", overflowY: "auto",
         }}
       >
@@ -287,7 +287,7 @@ export default function LogCallModal({ onClose, onCreated }: LogCallModalProps) 
           }}
         />
 
-        {error && <p style={{ fontSize: 13, color: "#FF7675", margin: "12px 0 0" }}>{error}</p>}
+        {error && <p style={{ fontSize: 13, color: "var(--error, #d44040)", margin: "12px 0 0" }}>{error}</p>}
 
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 20 }}>
           <button
@@ -304,7 +304,7 @@ export default function LogCallModal({ onClose, onCreated }: LogCallModalProps) 
             disabled={saving}
             style={{
               padding: "8px 16px", borderRadius: 6, border: "none", cursor: "pointer",
-              backgroundColor: "var(--accent-primary)", color: "#0f0f0d", fontSize: 13, fontWeight: 600,
+              backgroundColor: "var(--harvest-green)", color: "#fff", fontSize: 13, fontWeight: 600,
               opacity: saving ? 0.6 : 1,
             }}
           >

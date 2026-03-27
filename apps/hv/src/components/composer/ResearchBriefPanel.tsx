@@ -67,7 +67,7 @@ export function ResearchBriefPanel({ brief, onBriefChange, onGenerate, loading }
               padding: "4px 10px",
               borderRadius: "4px",
               border: "none",
-              backgroundColor: "var(--accent-primary)",
+              backgroundColor: "var(--harvest-green)",
               color: "#fff",
               fontSize: "0.6875rem",
               cursor: loading ? "wait" : "pointer",

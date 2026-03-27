@@ -16,13 +16,15 @@ export default function ProspectCard({ contact }: ProspectCardProps) {
   return (
     <div
       style={{
-        padding: 16,
-        borderRadius: 12,
+        padding: "var(--space-4, 16px)",
+        borderRadius: "var(--radius-md, 8px)",
         border: "1px solid var(--border-subtle)",
-        backgroundColor: "var(--surface-raised)",
+        backgroundColor: "var(--surface-elevated, #FFFFFF)",
         display: "flex",
         alignItems: "center",
-        gap: 16,
+        gap: "var(--space-4, 16px)",
+        transition: "box-shadow var(--duration-fast, 150ms) var(--ease-smooth), background-color var(--duration-fast, 150ms) var(--ease-smooth)",
+        cursor: "pointer",
       }}
     >
       {/* Score badge */}
@@ -30,7 +32,7 @@ export default function ProspectCard({ contact }: ProspectCardProps) {
         style={{
           width: 48,
           height: 48,
-          borderRadius: 10,
+          borderRadius: "var(--radius-md, 8px)",
           backgroundColor: scoreBg,
           color: scoreColor,
           display: "flex",
@@ -38,6 +40,7 @@ export default function ProspectCard({ contact }: ProspectCardProps) {
           justifyContent: "center",
           fontSize: 16,
           fontWeight: 700,
+          fontFamily: "var(--font-mono, monospace), monospace",
           flexShrink: 0,
         }}
       >
@@ -46,7 +49,7 @@ export default function ProspectCard({ contact }: ProspectCardProps) {
 
       {/* Info */}
       <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ fontSize: 14, fontWeight: 600, color: "var(--text-primary)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        <p style={{ fontSize: 14, fontWeight: 500, color: "var(--text-primary)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {name}
         </p>
         {contact.title && (
@@ -76,9 +79,9 @@ export default function ProspectCard({ contact }: ProspectCardProps) {
                 style={{
                   fontSize: 11,
                   padding: "1px 6px",
-                  borderRadius: 4,
-                  backgroundColor: "rgba(108,92,231,0.12)",
-                  color: "#6C5CE7",
+                  borderRadius: "var(--radius-sm, 4px)",
+                  backgroundColor: "rgba(61,124,71,0.1)",
+                  color: "var(--harvest-green, #3D7C47)",
                   fontWeight: 500,
                 }}
               >

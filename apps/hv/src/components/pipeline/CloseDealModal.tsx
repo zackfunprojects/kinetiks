@@ -126,10 +126,10 @@ export function CloseDealModal({ deal, initialOutcome, onClosed, onClose }: Clos
 
   return (
     <div
-      style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}
+      style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.25)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div style={{ backgroundColor: "var(--surface-elevated)", border: "1px solid var(--border-default)", borderRadius: "12px", padding: "24px", width: "100%", maxWidth: 440 }}>
+      <div style={{ backgroundColor: "var(--surface-elevated)", borderRadius: "12px", padding: "24px", width: "100%", maxWidth: 440, boxShadow: "var(--shadow-overlay)" }}>
         <h2 style={{ fontSize: "1.125rem", fontWeight: 600, color: "var(--text-primary)", marginBottom: "6px" }}>
           Close Deal
         </h2>

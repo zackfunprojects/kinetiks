@@ -3,10 +3,10 @@
 import type { SequenceMetric } from "@/types/analytics";
 
 const STATUS_COLORS: Record<string, { bg: string; fg: string }> = {
-  draft: { bg: "rgba(155,155,167,0.12)", fg: "var(--text-secondary)" },
-  active: { bg: "rgba(0,206,201,0.12)", fg: "#00CEC9" },
-  paused: { bg: "rgba(253,203,110,0.12)", fg: "#FDCB6E" },
-  archived: { bg: "rgba(255,118,117,0.12)", fg: "#FF7675" },
+  draft: { bg: "rgba(155,155,167,0.10)", fg: "var(--text-secondary)" },
+  active: { bg: "rgba(61,124,71,0.10)", fg: "var(--harvest-green)" },
+  paused: { bg: "rgba(192,139,45,0.10)", fg: "var(--harvest-amber)" },
+  archived: { bg: "rgba(139,115,85,0.10)", fg: "var(--harvest-soil)" },
 };
 
 interface SequencePerformanceProps {

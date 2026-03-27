@@ -10,10 +10,10 @@ interface InboxDetailProps {
 }
 
 const CLASSIFICATION_OPTIONS: { value: ReplyClassification; label: string; color: string }[] = [
-  { value: "interested", label: "Interested", color: "#00CEC9" },
-  { value: "not_interested", label: "Not Interested", color: "#FF7675" },
-  { value: "ooo", label: "OOO", color: "#FDCB6E" },
-  { value: "referral", label: "Referral", color: "#6C5CE7" },
+  { value: "interested", label: "Interested", color: "var(--harvest-green)" },
+  { value: "not_interested", label: "Not Interested", color: "var(--error, #d44040)" },
+  { value: "ooo", label: "OOO", color: "var(--harvest-amber)" },
+  { value: "referral", label: "Referral", color: "var(--harvest-soil)" },
   { value: "bounce", label: "Bounce", color: "var(--text-secondary)" },
 ];
 
@@ -43,9 +43,9 @@ export default function InboxDetail({ email, onClose, onUpdated }: InboxDetailPr
 
   return (
     <div style={{
-      position: "fixed", top: 0, right: 0, bottom: 0, width: 560, backgroundColor: "var(--surface-raised)",
+      position: "fixed", top: 0, right: 0, bottom: 0, width: 560, backgroundColor: "var(--surface-elevated)",
       borderLeft: "1px solid var(--border-subtle)", zIndex: 1000, overflowY: "auto", padding: 24,
-      boxShadow: "-4px 0 24px rgba(0,0,0,0.3)",
+      boxShadow: "var(--shadow-overlay)",
     }}>
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>

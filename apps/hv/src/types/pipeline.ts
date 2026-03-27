@@ -15,10 +15,10 @@ export type DealStage =
 
 export const DEAL_STAGES: { value: DealStage; label: string; color: string }[] = [
   { value: "prospecting", label: "Prospecting", color: "var(--text-tertiary)" },
-  { value: "qualified", label: "Qualified", color: "#4a90d9" },
-  { value: "proposal", label: "Proposal", color: "#8b5cf6" },
-  { value: "negotiation", label: "Negotiation", color: "var(--warning, #d4a017)" },
-  { value: "closed_won", label: "Closed Won", color: "var(--success, #3d8f46)" },
+  { value: "qualified", label: "Qualified", color: "var(--harvest-soil)" },
+  { value: "proposal", label: "Proposal", color: "var(--harvest-amber)" },
+  { value: "negotiation", label: "Negotiation", color: "var(--harvest-amber)" },
+  { value: "closed_won", label: "Closed Won", color: "var(--harvest-green)" },
   { value: "closed_lost", label: "Closed Lost", color: "var(--error, #d44040)" },
 ];
 

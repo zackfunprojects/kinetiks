@@ -8,12 +8,12 @@ interface InboxListProps {
 }
 
 const CLASSIFICATION_COLORS: Record<ReplyClassification, { bg: string; fg: string }> = {
-  interested: { bg: "rgba(0,206,201,0.12)", fg: "#00CEC9" },
-  not_interested: { bg: "rgba(255,118,117,0.12)", fg: "#FF7675" },
-  bounce: { bg: "rgba(155,155,167,0.12)", fg: "var(--text-secondary)" },
-  ooo: { bg: "rgba(253,203,110,0.12)", fg: "#FDCB6E" },
-  referral: { bg: "rgba(108,92,231,0.12)", fg: "#6C5CE7" },
-  unclassified: { bg: "rgba(155,155,167,0.08)", fg: "var(--text-tertiary)" },
+  interested: { bg: "rgba(61,124,71,0.10)", fg: "var(--harvest-green)" },
+  not_interested: { bg: "rgba(212,64,64,0.10)", fg: "var(--error, #d44040)" },
+  bounce: { bg: "rgba(155,155,167,0.10)", fg: "var(--text-secondary)" },
+  ooo: { bg: "rgba(192,139,45,0.10)", fg: "var(--harvest-amber)" },
+  referral: { bg: "rgba(139,115,85,0.10)", fg: "var(--harvest-soil)" },
+  unclassified: { bg: "rgba(155,155,167,0.06)", fg: "var(--text-tertiary)" },
 };
 
 const CLASSIFICATION_LABELS: Record<ReplyClassification, string> = {

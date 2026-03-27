@@ -90,15 +90,15 @@ export function ContactDetail({ contactId }: ContactDetailProps) {
             style={{
               width: 52,
               height: 52,
-              borderRadius: "12px",
-              backgroundColor: "var(--surface-raised)",
+              borderRadius: "var(--radius-lg, 12px)",
+              backgroundColor: "var(--harvest-cream, #F5EFE0)",
               border: "1px solid var(--border-subtle)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               fontSize: "1.125rem",
               fontWeight: 600,
-              color: "var(--text-secondary)",
+              color: "var(--harvest-soil, #8B7355)",
               flexShrink: 0,
             }}
           >
@@ -120,14 +120,15 @@ export function ContactDetail({ contactId }: ContactDetailProps) {
                 href={`/compose?contact_id=${contact.id}`}
                 style={{
                   padding: "6px 12px",
-                  borderRadius: "6px",
+                  borderRadius: "var(--radius-md, 8px)",
                   border: "none",
-                  backgroundColor: "var(--accent-primary)",
+                  backgroundColor: "var(--harvest-green, #3D7C47)",
                   color: "#fff",
                   fontSize: "0.75rem",
                   fontWeight: 500,
                   textDecoration: "none",
                   marginLeft: "6px",
+                  transition: "opacity var(--duration-fast, 150ms) var(--ease-smooth)",
                 }}
               >
                 Compose Email
@@ -137,13 +138,14 @@ export function ContactDetail({ contactId }: ContactDetailProps) {
               href={`/pipeline?create=true&contact_id=${contact.id}`}
               style={{
                 padding: "6px 12px",
-                borderRadius: "6px",
+                borderRadius: "var(--radius-md, 8px)",
                 border: "1px solid var(--border-default)",
-                backgroundColor: "var(--surface-raised)",
+                backgroundColor: "var(--surface-elevated, #FFFFFF)",
                 color: "var(--text-primary)",
                 fontSize: "0.75rem",
                 fontWeight: 500,
                 textDecoration: "none",
+                transition: "background-color var(--duration-fast, 150ms) var(--ease-smooth)",
               }}
             >
               Create Deal
@@ -155,10 +157,10 @@ export function ContactDetail({ contactId }: ContactDetailProps) {
         <div
           style={{
             display: "flex",
-            gap: "16px",
-            padding: "12px 16px",
-            borderRadius: "8px",
-            backgroundColor: "var(--surface-raised)",
+            gap: "var(--space-4, 16px)",
+            padding: "var(--space-3, 12px) var(--space-4, 16px)",
+            borderRadius: "var(--radius-md, 8px)",
+            backgroundColor: "var(--surface-elevated, #FFFFFF)",
             border: "1px solid var(--border-subtle)",
             marginBottom: "20px",
             fontSize: "0.8125rem",
@@ -178,7 +180,7 @@ export function ContactDetail({ contactId }: ContactDetailProps) {
               href={contact.linkedin_url}
               target="_blank"
               rel="noopener noreferrer"
-              style={{ color: "var(--accent-primary)", textDecoration: "none" }}
+              style={{ color: "var(--harvest-green, #3D7C47)", textDecoration: "none" }}
             >
               LinkedIn
             </a>
@@ -213,7 +215,7 @@ export function ContactDetail({ contactId }: ContactDetailProps) {
                 color: activeTab === tab.id ? "var(--text-primary)" : "var(--text-tertiary)",
                 backgroundColor: "transparent",
                 border: "none",
-                borderBottom: activeTab === tab.id ? "2px solid var(--accent-primary)" : "2px solid transparent",
+                borderBottom: activeTab === tab.id ? "2px solid var(--harvest-green, #3D7C47)" : "2px solid transparent",
                 cursor: "pointer",
                 marginBottom: "-1px",
               }}
@@ -248,7 +250,7 @@ export function ContactDetail({ contactId }: ContactDetailProps) {
               ["Suppressed", contact.suppressed ? `Yes - ${contact.suppression_reason}` : null],
             ].map(([label, value]) => value ? (
               <div key={label as string}>
-                <div style={{ fontSize: "0.6875rem", color: "var(--text-tertiary)", marginBottom: "2px" }}>{label}</div>
+                <div style={{ fontSize: "0.6875rem", color: "var(--text-tertiary)", marginBottom: "2px", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 500 }}>{label}</div>
                 <div style={{ color: "var(--text-primary)" }}>{value}</div>
               </div>
             ) : null)}
@@ -265,15 +267,16 @@ export function ContactDetail({ contactId }: ContactDetailProps) {
               style={{
                 width: "100%",
                 minHeight: 120,
-                padding: "12px",
-                borderRadius: "8px",
+                padding: "var(--space-3, 12px)",
+                borderRadius: "var(--radius-md, 8px)",
                 border: "1px solid var(--border-default)",
-                backgroundColor: "var(--surface-base)",
+                backgroundColor: "var(--surface-elevated, #FFFFFF)",
                 color: "var(--text-primary)",
                 fontSize: "0.8125rem",
                 resize: "vertical",
                 outline: "none",
                 lineHeight: 1.6,
+                transition: "border-color var(--duration-fast, 150ms) var(--ease-smooth)",
               }}
             />
             <div style={{ marginTop: "8px", display: "flex", justifyContent: "flex-end" }}>
@@ -282,13 +285,15 @@ export function ContactDetail({ contactId }: ContactDetailProps) {
                 disabled={savingNotes || notes === (contact.notes ?? "")}
                 style={{
                   padding: "6px 14px",
-                  borderRadius: "6px",
+                  borderRadius: "var(--radius-md, 8px)",
                   border: "none",
-                  backgroundColor: "var(--accent-primary)",
+                  backgroundColor: "var(--harvest-green, #3D7C47)",
                   color: "#fff",
                   fontSize: "0.8125rem",
+                  fontWeight: 500,
                   cursor: savingNotes ? "wait" : "pointer",
                   opacity: savingNotes || notes === (contact.notes ?? "") ? 0.5 : 1,
+                  transition: "opacity var(--duration-fast, 150ms) var(--ease-smooth)",
                 }}
               >
                 {savingNotes ? "Saving..." : "Save notes"}
@@ -300,9 +305,9 @@ export function ContactDetail({ contactId }: ContactDetailProps) {
         {activeTab === "enrichment" && (
           <pre
             style={{
-              padding: "16px",
-              borderRadius: "8px",
-              backgroundColor: "var(--surface-raised)",
+              padding: "var(--space-4, 16px)",
+              borderRadius: "var(--radius-md, 8px)",
+              backgroundColor: "var(--surface-elevated, #FFFFFF)",
               border: "1px solid var(--border-subtle)",
               fontSize: "0.75rem",
               fontFamily: "var(--font-mono, monospace), monospace",
@@ -330,10 +335,10 @@ export function ContactDetail({ contactId }: ContactDetailProps) {
 
         <div
           style={{
-            backgroundColor: "var(--surface-raised)",
+            backgroundColor: "var(--surface-elevated, #FFFFFF)",
             border: "1px solid var(--border-subtle)",
-            borderRadius: "8px",
-            padding: "16px",
+            borderRadius: "var(--radius-md, 8px)",
+            padding: "var(--space-4, 16px)",
           }}
         >
           <h4

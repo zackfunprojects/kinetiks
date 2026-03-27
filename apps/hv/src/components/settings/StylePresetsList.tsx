@@ -98,8 +98,8 @@ export default function StylePresetsList() {
                     borderRadius: 4,
                     fontSize: 12,
                     fontWeight: 600,
-                    backgroundColor: "rgba(0,206,201,0.12)",
-                    color: "#00CEC9",
+                    backgroundColor: "rgba(61,124,71,0.10)",
+                    color: "var(--harvest-green)",
                   }}
                 >
                   default

@@ -10,11 +10,11 @@ interface CallDetailProps {
 }
 
 const STATUS_COLORS: Record<CallStatus, { bg: string; fg: string }> = {
-  scheduled: { bg: "rgba(108,92,231,0.12)", fg: "#6C5CE7" },
-  in_progress: { bg: "rgba(253,203,110,0.12)", fg: "#FDCB6E" },
-  completed: { bg: "rgba(0,206,201,0.12)", fg: "#00CEC9" },
-  failed: { bg: "rgba(255,118,117,0.12)", fg: "#FF7675" },
-  cancelled: { bg: "rgba(155,155,167,0.12)", fg: "var(--text-secondary)" },
+  scheduled: { bg: "rgba(139,115,85,0.10)", fg: "var(--harvest-soil)" },
+  in_progress: { bg: "rgba(192,139,45,0.10)", fg: "var(--harvest-amber)" },
+  completed: { bg: "rgba(61,124,71,0.10)", fg: "var(--harvest-green)" },
+  failed: { bg: "rgba(212,64,64,0.10)", fg: "var(--error, #d44040)" },
+  cancelled: { bg: "rgba(155,155,167,0.10)", fg: "var(--text-secondary)" },
 };
 
 const OUTCOMES: { value: CallOutcome; label: string }[] = [
@@ -61,9 +61,9 @@ export default function CallDetail({ call, onClose, onUpdated }: CallDetailProps
 
   return (
     <div style={{
-      position: "fixed", top: 0, right: 0, bottom: 0, width: 560, backgroundColor: "var(--surface-raised)",
+      position: "fixed", top: 0, right: 0, bottom: 0, width: 560, backgroundColor: "var(--surface-elevated)",
       borderLeft: "1px solid var(--border-subtle)", zIndex: 1000, overflowY: "auto", padding: 24,
-      boxShadow: "-4px 0 24px rgba(0,0,0,0.3)",
+      boxShadow: "var(--shadow-overlay)",
     }}>
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
@@ -189,7 +189,7 @@ export default function CallDetail({ call, onClose, onUpdated }: CallDetailProps
           disabled={saving}
           style={{
             padding: "8px 20px", borderRadius: 6, border: "none", cursor: "pointer",
-            backgroundColor: "var(--accent-primary)", color: "#0f0f0d", fontSize: 13, fontWeight: 600,
+            backgroundColor: "var(--harvest-green)", color: "#fff", fontSize: 13, fontWeight: 600,
             opacity: saving ? 0.6 : 1,
           }}
         >

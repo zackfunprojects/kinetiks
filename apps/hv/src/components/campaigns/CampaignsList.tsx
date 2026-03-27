@@ -9,10 +9,10 @@ interface CampaignsListProps {
 }
 
 const STATUS_COLORS: Record<CampaignStatus, { bg: string; fg: string }> = {
-  draft: { bg: "rgba(155,155,167,0.12)", fg: "var(--text-secondary)" },
-  active: { bg: "rgba(0,206,201,0.12)", fg: "#00CEC9" },
-  paused: { bg: "rgba(253,203,110,0.12)", fg: "#FDCB6E" },
-  completed: { bg: "rgba(108,92,231,0.12)", fg: "#6C5CE7" },
+  draft: { bg: "rgba(155,155,167,0.10)", fg: "var(--text-secondary)" },
+  active: { bg: "rgba(61,124,71,0.10)", fg: "var(--harvest-green)" },
+  paused: { bg: "rgba(192,139,45,0.10)", fg: "var(--harvest-amber)" },
+  completed: { bg: "rgba(139,115,85,0.10)", fg: "var(--harvest-soil)" },
 };
 
 export default function CampaignsList({ onSelect, onCreateClick }: CampaignsListProps) {
@@ -52,7 +52,7 @@ export default function CampaignsList({ onSelect, onCreateClick }: CampaignsList
           onClick={onCreateClick}
           style={{
             padding: "8px 16px", borderRadius: 8, border: "none", cursor: "pointer",
-            backgroundColor: "var(--accent-primary)", color: "#0f0f0d", fontSize: 13, fontWeight: 600,
+            backgroundColor: "var(--harvest-green)", color: "#fff", fontSize: 13, fontWeight: 600,
           }}
         >
           + New Campaign

@@ -4,9 +4,9 @@ import { useState, useEffect, useCallback } from "react";
 import type { HvConfidenceRow } from "@/types/settings";
 
 const MODE_COLORS: Record<string, { bg: string; fg: string }> = {
-  human: { bg: "rgba(155,155,167,0.12)", fg: "var(--text-secondary)" },
-  approvals: { bg: "rgba(253,203,110,0.12)", fg: "#FDCB6E" },
-  autopilot: { bg: "rgba(0,206,201,0.12)", fg: "#00CEC9" },
+  human: { bg: "rgba(155,155,167,0.10)", fg: "var(--text-secondary)" },
+  approvals: { bg: "rgba(192,139,45,0.10)", fg: "var(--harvest-amber)" },
+  autopilot: { bg: "rgba(61,124,71,0.10)", fg: "var(--harvest-green)" },
 };
 
 export default function AutomationConfig() {

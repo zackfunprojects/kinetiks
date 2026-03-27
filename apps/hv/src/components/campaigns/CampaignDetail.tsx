@@ -11,10 +11,10 @@ interface CampaignDetailProps {
 }
 
 const STATUS_COLORS: Record<CampaignStatus, { bg: string; fg: string }> = {
-  draft: { bg: "rgba(155,155,167,0.12)", fg: "var(--text-secondary)" },
-  active: { bg: "rgba(0,206,201,0.12)", fg: "#00CEC9" },
-  paused: { bg: "rgba(253,203,110,0.12)", fg: "#FDCB6E" },
-  completed: { bg: "rgba(108,92,231,0.12)", fg: "#6C5CE7" },
+  draft: { bg: "rgba(155,155,167,0.10)", fg: "var(--text-secondary)" },
+  active: { bg: "rgba(61,124,71,0.10)", fg: "var(--harvest-green)" },
+  paused: { bg: "rgba(192,139,45,0.10)", fg: "var(--harvest-amber)" },
+  completed: { bg: "rgba(139,115,85,0.10)", fg: "var(--harvest-soil)" },
 };
 
 export default function CampaignDetail({ campaign, onClose, onUpdated }: CampaignDetailProps) {
@@ -85,9 +85,9 @@ export default function CampaignDetail({ campaign, onClose, onUpdated }: Campaig
 
   return (
     <div style={{
-      position: "fixed", top: 0, right: 0, bottom: 0, width: 560, backgroundColor: "var(--surface-raised)",
+      position: "fixed", top: 0, right: 0, bottom: 0, width: 560, backgroundColor: "var(--surface-elevated)",
       borderLeft: "1px solid var(--border-subtle)", zIndex: 1000, overflowY: "auto", padding: 24,
-      boxShadow: "-4px 0 24px rgba(0,0,0,0.3)",
+      boxShadow: "var(--shadow-overlay)",
     }}>
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
@@ -108,9 +108,9 @@ export default function CampaignDetail({ campaign, onClose, onUpdated }: Campaig
                 onClick={() => setStatus(s)}
                 style={{
                   padding: "4px 10px", borderRadius: 4, fontSize: 12, fontWeight: 600, cursor: "pointer",
-                  border: status === s ? "1px solid var(--accent-primary)" : "1px solid var(--border-subtle)",
-                  backgroundColor: status === s ? "rgba(108,92,231,0.12)" : "transparent",
-                  color: status === s ? "var(--accent-primary)" : "var(--text-secondary)",
+                  border: status === s ? "1px solid var(--harvest-green)" : "1px solid var(--border-subtle)",
+                  backgroundColor: status === s ? "rgba(61,124,71,0.08)" : "transparent",
+                  color: status === s ? "var(--harvest-green)" : "var(--text-secondary)",
                 }}
               >
                 {s}
@@ -192,7 +192,7 @@ export default function CampaignDetail({ campaign, onClose, onUpdated }: Campaig
           onClick={handleDelete}
           style={{
             padding: "8px 16px", borderRadius: 6, border: "1px solid var(--border-subtle)",
-            backgroundColor: "transparent", color: "#FF7675", fontSize: 13, cursor: "pointer",
+            backgroundColor: "transparent", color: "var(--error, #d44040)", fontSize: 13, cursor: "pointer",
           }}
         >
           Delete
@@ -202,7 +202,7 @@ export default function CampaignDetail({ campaign, onClose, onUpdated }: Campaig
           disabled={saving}
           style={{
             padding: "8px 20px", borderRadius: 6, border: "none", cursor: "pointer",
-            backgroundColor: "var(--accent-primary)", color: "#0f0f0d", fontSize: 13, fontWeight: 600,
+            backgroundColor: "var(--harvest-green)", color: "#fff", fontSize: 13, fontWeight: 600,
             opacity: saving ? 0.6 : 1,
           }}
         >

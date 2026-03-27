@@ -73,7 +73,7 @@ export default function DomainList({ onAddClick }: DomainListProps) {
                 }}>
                   <div style={{
                     width: `${d.health_score}%`, height: "100%", borderRadius: 3,
-                    backgroundColor: d.health_score >= 80 ? "#00CEC9" : d.health_score >= 50 ? "#FDCB6E" : "#FF7675",
+                    backgroundColor: d.health_score >= 80 ? "var(--harvest-green)" : d.health_score >= 50 ? "var(--harvest-amber)" : "var(--error, #d44040)",
                   }} />
                 </div>
                 <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>{d.health_score}</span>
@@ -83,7 +83,7 @@ export default function DomainList({ onAddClick }: DomainListProps) {
               {d.is_primary ? (
                 <span style={{
                   display: "inline-block", padding: "2px 8px", borderRadius: 4,
-                  fontSize: 12, fontWeight: 600, backgroundColor: "rgba(108,92,231,0.12)", color: "#6C5CE7",
+                  fontSize: 12, fontWeight: 600, backgroundColor: "rgba(61,124,71,0.10)", color: "var(--harvest-green)",
                 }}>
                   Primary
                 </span>

@@ -77,8 +77,8 @@ export default function WebhookList({ onAddClick }: WebhookListProps) {
               <span style={{
                 display: "inline-block", padding: "2px 8px", borderRadius: 4,
                 fontSize: 12, fontWeight: 600,
-                backgroundColor: wh.is_active ? "rgba(0,206,201,0.12)" : "rgba(155,155,167,0.12)",
-                color: wh.is_active ? "#00CEC9" : "var(--text-secondary)",
+                backgroundColor: wh.is_active ? "rgba(61,124,71,0.10)" : "rgba(155,155,167,0.10)",
+                color: wh.is_active ? "var(--harvest-green)" : "var(--text-secondary)",
               }}>
                 {wh.is_active ? "active" : "inactive"}
               </span>
@@ -88,7 +88,7 @@ export default function WebhookList({ onAddClick }: WebhookListProps) {
             </td>
             <td style={{ padding: "10px 12px", borderBottom: "1px solid var(--border-subtle)" }}>
               <span style={{
-                color: wh.consecutive_failures > 0 ? "#FF7675" : "var(--text-secondary)",
+                color: wh.consecutive_failures > 0 ? "var(--error, #d44040)" : "var(--text-secondary)",
                 fontWeight: wh.consecutive_failures > 0 ? 600 : 400, fontSize: 13,
               }}>
                 {wh.consecutive_failures}

@@ -134,7 +134,7 @@ export function StyleConfigurator({ style, onChange, presets, onSavePreset }: St
               type="checkbox"
               checked={style[key]}
               onChange={(e) => update(key, e.target.checked)}
-              style={{ accentColor: "var(--accent-primary)" }}
+              style={{ accentColor: "var(--harvest-green)" }}
             />
             {label}
           </label>

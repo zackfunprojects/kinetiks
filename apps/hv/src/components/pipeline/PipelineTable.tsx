@@ -160,7 +160,7 @@ export function PipelineTable({ onDealClick, refreshKey }: PipelineTableProps) {
                       }
                     }}
                     style={{ borderBottom: "1px solid var(--border-subtle)", cursor: "pointer" }}
-                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "var(--surface-elevated, rgba(255,255,255,0.02))"; }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "var(--surface-raised)"; }}
                     onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
                   >
                     <td style={{ padding: "10px 12px", fontSize: "0.8125rem", fontWeight: 500, color: "var(--text-primary)" }}>

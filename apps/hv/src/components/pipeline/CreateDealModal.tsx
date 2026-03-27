@@ -121,10 +121,10 @@ export function CreateDealModal({ initialContactId, onCreated, onClose }: Create
 
   return (
     <div
-      style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}
+      style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.25)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div style={{ backgroundColor: "var(--surface-elevated)", border: "1px solid var(--border-default)", borderRadius: "12px", padding: "24px", width: "100%", maxWidth: 480 }}>
+      <div style={{ backgroundColor: "var(--surface-elevated)", borderRadius: "12px", padding: "24px", width: "100%", maxWidth: 480, boxShadow: "var(--shadow-overlay)" }}>
         <h2 style={{ fontSize: "1.125rem", fontWeight: 600, color: "var(--text-primary)", marginBottom: "20px" }}>
           Create Deal
         </h2>
@@ -163,7 +163,7 @@ export function CreateDealModal({ initialContactId, onCreated, onClose }: Create
               <>
                 <input id="cd-contact" style={inputStyle} value={contactQuery} onChange={(e) => setContactQuery(e.target.value)} placeholder="Search contacts..." />
                 {contactResults.length > 0 && (
-                  <div style={{ position: "absolute", top: "100%", left: 0, right: 0, marginTop: "4px", backgroundColor: "var(--surface-elevated)", border: "1px solid var(--border-default)", borderRadius: "6px", boxShadow: "0 4px 16px rgba(0,0,0,0.3)", zIndex: 50, maxHeight: 200, overflowY: "auto" }}>
+                  <div style={{ position: "absolute", top: "100%", left: 0, right: 0, marginTop: "4px", backgroundColor: "var(--surface-elevated)", border: "1px solid var(--border-default)", borderRadius: "6px", boxShadow: "var(--shadow-overlay)", zIndex: 50, maxHeight: 200, overflowY: "auto" }}>
                     {contactResults.map((c) => {
                       const cName = [c.first_name, c.last_name].filter(Boolean).join(" ");
                       return (
@@ -200,7 +200,7 @@ export function CreateDealModal({ initialContactId, onCreated, onClose }: Create
           <button onClick={onClose} style={{ padding: "8px 16px", borderRadius: "6px", border: "1px solid var(--border-default)", backgroundColor: "transparent", color: "var(--text-secondary)", fontSize: "0.8125rem", cursor: "pointer" }}>
             Cancel
           </button>
-          <button onClick={handleSubmit} disabled={submitting} style={{ padding: "8px 16px", borderRadius: "6px", border: "none", backgroundColor: "var(--accent-primary)", color: "#fff", fontSize: "0.8125rem", fontWeight: 500, cursor: submitting ? "wait" : "pointer", opacity: submitting ? 0.7 : 1 }}>
+          <button onClick={handleSubmit} disabled={submitting} style={{ padding: "8px 16px", borderRadius: "6px", border: "none", backgroundColor: "var(--harvest-green)", color: "#fff", fontSize: "0.8125rem", fontWeight: 500, cursor: submitting ? "wait" : "pointer", opacity: submitting ? 0.7 : 1 }}>
             {submitting ? "Creating..." : "Create deal"}
           </button>
         </div>

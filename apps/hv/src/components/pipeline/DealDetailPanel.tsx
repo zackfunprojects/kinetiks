@@ -77,7 +77,7 @@ export function DealDetailPanel({ dealId, onClose, onDealUpdated, onCloseDeal }:
       {/* Backdrop */}
       <div
         onClick={onClose}
-        style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.3)", zIndex: 200 }}
+        style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.15)", zIndex: 200 }}
       />
 
       {/* Panel */}
@@ -159,7 +159,7 @@ export function DealDetailPanel({ dealId, onClose, onDealUpdated, onCloseDeal }:
                 {deal.contact && (
                   <div>
                     <div style={{ fontSize: "0.6875rem", color: "var(--text-tertiary)", marginBottom: "2px" }}>Contact</div>
-                    <a href={`/contacts/${deal.contact.id}`} style={{ color: "var(--accent-primary)", textDecoration: "none" }}>
+                    <a href={`/contacts/${deal.contact.id}`} style={{ color: "var(--harvest-green)", textDecoration: "none" }}>
                       {[deal.contact.first_name, deal.contact.last_name].filter(Boolean).join(" ")}
                     </a>
                   </div>
@@ -213,7 +213,7 @@ export function DealDetailPanel({ dealId, onClose, onDealUpdated, onCloseDeal }:
                       padding: "5px 12px",
                       borderRadius: "4px",
                       border: "none",
-                      backgroundColor: "var(--accent-primary)",
+                      backgroundColor: "var(--harvest-green)",
                       color: "#fff",
                       fontSize: "0.75rem",
                       cursor: savingNotes ? "wait" : "pointer",

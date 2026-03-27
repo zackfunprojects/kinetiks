@@ -49,7 +49,7 @@ export function EnrichDomainModal({ onComplete, onClose }: EnrichDomainModalProp
       style={{
         position: "fixed",
         inset: 0,
-        backgroundColor: "rgba(0,0,0,0.5)",
+        backgroundColor: "rgba(0,0,0,0.4)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -59,12 +59,13 @@ export function EnrichDomainModal({ onComplete, onClose }: EnrichDomainModalProp
     >
       <div
         style={{
-          backgroundColor: "var(--surface-elevated)",
-          border: "1px solid var(--border-default)",
-          borderRadius: "12px",
-          padding: "24px",
+          backgroundColor: "var(--surface-elevated, #FFFFFF)",
+          border: "none",
+          borderRadius: "var(--radius-lg, 12px)",
+          padding: "var(--space-6, 24px)",
           width: "100%",
           maxWidth: 420,
+          boxShadow: "var(--shadow-overlay, 0 16px 48px rgba(0,0,0,0.12), 0 4px 16px rgba(0,0,0,0.08))",
         }}
       >
         <h2
@@ -99,14 +100,16 @@ export function EnrichDomainModal({ onComplete, onClose }: EnrichDomainModalProp
               style={{
                 width: "100%",
                 padding: "10px 12px",
-                borderRadius: "6px",
+                height: 36,
+                borderRadius: "var(--radius-md, 8px)",
                 border: "1px solid var(--border-default)",
-                backgroundColor: "var(--surface-base)",
+                backgroundColor: "var(--surface-elevated, #FFFFFF)",
                 color: "var(--text-primary)",
                 fontSize: "0.875rem",
                 fontFamily: "var(--font-mono, monospace), monospace",
                 outline: "none",
                 marginBottom: "12px",
+                transition: "border-color var(--duration-fast, 150ms) var(--ease-smooth)",
               }}
               autoFocus
               disabled={loading}
@@ -130,12 +133,13 @@ export function EnrichDomainModal({ onComplete, onClose }: EnrichDomainModalProp
                 disabled={loading}
                 style={{
                   padding: "8px 16px",
-                  borderRadius: "6px",
+                  borderRadius: "var(--radius-md, 8px)",
                   border: "1px solid var(--border-default)",
-                  backgroundColor: "transparent",
+                  backgroundColor: "var(--surface-elevated, #FFFFFF)",
                   color: "var(--text-secondary)",
                   fontSize: "0.8125rem",
                   cursor: "pointer",
+                  transition: "background-color var(--duration-fast, 150ms) var(--ease-smooth)",
                 }}
               >
                 Cancel
@@ -145,14 +149,15 @@ export function EnrichDomainModal({ onComplete, onClose }: EnrichDomainModalProp
                 disabled={loading || !domain.trim()}
                 style={{
                   padding: "8px 16px",
-                  borderRadius: "6px",
+                  borderRadius: "var(--radius-md, 8px)",
                   border: "none",
-                  backgroundColor: "var(--accent-primary)",
+                  backgroundColor: "var(--harvest-green, #3D7C47)",
                   color: "#fff",
                   fontSize: "0.8125rem",
                   fontWeight: 500,
                   cursor: loading ? "wait" : "pointer",
                   opacity: loading || !domain.trim() ? 0.7 : 1,
+                  transition: "opacity var(--duration-fast, 150ms) var(--ease-smooth)",
                 }}
               >
                 {loading ? "Enriching..." : "Enrich"}
@@ -163,11 +168,11 @@ export function EnrichDomainModal({ onComplete, onClose }: EnrichDomainModalProp
           <>
             <div
               style={{
-                padding: "16px",
-                borderRadius: "8px",
-                backgroundColor: "rgba(90,173,98,0.08)",
-                border: "1px solid rgba(90,173,98,0.2)",
-                marginBottom: "16px",
+                padding: "var(--space-4, 16px)",
+                borderRadius: "var(--radius-md, 8px)",
+                backgroundColor: "rgba(61,124,71,0.08)",
+                border: "1px solid rgba(61,124,71,0.2)",
+                marginBottom: "var(--space-4, 16px)",
               }}
             >
               <p style={{ fontSize: "0.875rem", color: "var(--text-primary)", fontWeight: 500 }}>
@@ -179,13 +184,14 @@ export function EnrichDomainModal({ onComplete, onClose }: EnrichDomainModalProp
                 onClick={() => { onComplete(); onClose(); }}
                 style={{
                   padding: "8px 16px",
-                  borderRadius: "6px",
+                  borderRadius: "var(--radius-md, 8px)",
                   border: "none",
-                  backgroundColor: "var(--accent-primary)",
+                  backgroundColor: "var(--harvest-green, #3D7C47)",
                   color: "#fff",
                   fontSize: "0.8125rem",
                   fontWeight: 500,
                   cursor: "pointer",
+                  transition: "opacity var(--duration-fast, 150ms) var(--ease-smooth)",
                 }}
               >
                 View contacts

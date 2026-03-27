@@ -146,7 +146,7 @@ export function PipelineView() {
             padding: "7px 14px",
             borderRadius: "6px",
             border: "none",
-            backgroundColor: "var(--accent-primary)",
+            backgroundColor: "var(--harvest-green)",
             color: "#fff",
             fontSize: "0.8125rem",
             fontWeight: 500,

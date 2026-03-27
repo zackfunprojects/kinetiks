@@ -45,14 +45,16 @@ export function ContactFilters({ initialFilters, onFiltersChange }: ContactFilte
   );
 
   const selectStyle: React.CSSProperties = {
-    padding: "6px 10px",
-    borderRadius: "6px",
+    padding: "8px 10px",
+    height: 36,
+    borderRadius: "var(--radius-md, 8px)",
     border: "1px solid var(--border-default)",
-    backgroundColor: "var(--surface-raised)",
+    backgroundColor: "var(--surface-elevated, #FFFFFF)",
     color: "var(--text-primary)",
     fontSize: "0.8125rem",
     outline: "none",
     minWidth: 100,
+    transition: "border-color var(--duration-fast, 150ms) var(--ease-smooth)",
   };
 
   return (
@@ -74,13 +76,15 @@ export function ContactFilters({ initialFilters, onFiltersChange }: ContactFilte
           onChange={(e) => emitChange({ ...filters, q: e.target.value || undefined })}
           style={{
             width: "100%",
-            padding: "7px 12px 7px 32px",
-            borderRadius: "6px",
+            padding: "8px 12px 8px 32px",
+            height: 36,
+            borderRadius: "var(--radius-md, 8px)",
             border: "1px solid var(--border-default)",
-            backgroundColor: "var(--surface-raised)",
+            backgroundColor: "var(--surface-elevated, #FFFFFF)",
             color: "var(--text-primary)",
             fontSize: "0.8125rem",
             outline: "none",
+            transition: "border-color var(--duration-fast, 150ms) var(--ease-smooth)",
           }}
         />
         <svg
@@ -150,7 +154,7 @@ export function ContactFilters({ initialFilters, onFiltersChange }: ContactFilte
           onChange={(e) =>
             emitChange({ ...filters, suppressed: e.target.checked ? true : undefined })
           }
-          style={{ accentColor: "var(--accent-primary)" }}
+          style={{ accentColor: "var(--harvest-green, #3D7C47)" }}
         />
         Suppressed
       </label>
@@ -161,12 +165,14 @@ export function ContactFilters({ initialFilters, onFiltersChange }: ContactFilte
           onClick={() => emitChange({})}
           style={{
             padding: "6px 12px",
-            borderRadius: "6px",
+            height: 36,
+            borderRadius: "var(--radius-md, 8px)",
             border: "1px solid var(--border-default)",
-            backgroundColor: "transparent",
+            backgroundColor: "var(--surface-elevated, #FFFFFF)",
             color: "var(--text-secondary)",
             fontSize: "0.75rem",
             cursor: "pointer",
+            transition: "background-color var(--duration-fast, 150ms) var(--ease-smooth)",
           }}
         >
           Clear
