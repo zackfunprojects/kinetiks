@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
-import { Space_Grotesk, JetBrains_Mono } from "next/font/google";
+import { DM_Sans, JetBrains_Mono } from "next/font/google";
 import { FloatingPillLoader } from "@/components/floating-pill-loader";
 import "./globals.css";
 
-const sansFont = Space_Grotesk({
+const sansFont = DM_Sans({
   subsets: ["latin"],
   variable: "--font-sans",
   display: "swap",
@@ -17,7 +17,7 @@ const monoFont = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: "Harvest",
-  description: "Outbound that doesn't feel like outbound",
+  description: "Outbound that grows with you",
 };
 
 export default function RootLayout({

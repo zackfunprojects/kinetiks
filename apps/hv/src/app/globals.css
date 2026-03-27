@@ -1,47 +1,71 @@
 @import "tailwindcss";
 
-/* ── Harvest Design Tokens ──────────────────────────────────── */
+/* ── Harvest Design System ────────────────────────────────────
+   Light mode default. Notion-inspired, harvest-themed.
+   Warm earthy tones. Content-first. Generous whitespace.
+   ──────────────────────────────────────────────────────────── */
 
-/* Dark mode (default) */
 :root {
-  /* Surfaces */
-  --surface-base: #0f0f0d;
-  --surface-raised: #1a1a18;
-  --surface-elevated: #242420;
-  --surface-highlight: #333330;
+  /* Surfaces (warm off-whites) */
+  --surface-base: #FAFAF7;
+  --surface-raised: #F4F3EF;
+  --surface-elevated: #FFFFFF;
+  --surface-highlight: #ECEAE4;
+  --surface-sidebar: #F8F7F4;
 
-  /* Borders */
-  --border-subtle: rgba(255, 255, 255, 0.06);
-  --border-default: rgba(255, 255, 255, 0.10);
-  --border-strong: rgba(255, 255, 255, 0.16);
+  /* Borders (Notion-thin) */
+  --border-subtle: rgba(0, 0, 0, 0.04);
+  --border-default: rgba(0, 0, 0, 0.08);
+  --border-strong: rgba(0, 0, 0, 0.13);
 
-  /* Text */
-  --text-primary: #ececec;
-  --text-secondary: #a0a09a;
-  --text-tertiary: #6b6b65;
-  --text-disabled: #4a4a46;
+  /* Text (warm grays) */
+  --text-primary: #1A1918;
+  --text-secondary: #6B6860;
+  --text-tertiary: #9C9889;
+  --text-disabled: #C5C1B8;
 
-  /* Harvest green accent */
-  --accent-primary: #5aad62;
-  --accent-primary-hover: #6bbd72;
-  --accent-primary-muted: rgba(90, 173, 98, 0.15);
+  /* Harvest brand */
+  --harvest-green: #3D7C47;
+  --harvest-green-hover: #2E6336;
+  --harvest-green-muted: rgba(61, 124, 71, 0.10);
+  --harvest-green-subtle: rgba(61, 124, 71, 0.05);
+  --harvest-amber: #C08B2D;
+  --harvest-amber-hover: #A67824;
+  --harvest-amber-muted: rgba(192, 139, 45, 0.10);
+  --harvest-soil: #8B7355;
+  --harvest-soil-muted: rgba(139, 115, 85, 0.10);
+  --harvest-cream: #F5EFE0;
+
+  /* Legacy compat (components use these) */
+  --accent-primary: var(--harvest-green);
+  --accent-primary-hover: var(--harvest-green-hover);
+  --accent-primary-muted: var(--harvest-green-muted);
 
   /* Semantic */
-  --success: #5aad62;
-  --success-muted: rgba(90, 173, 98, 0.15);
-  --warning: #d4a026;
-  --warning-muted: rgba(212, 160, 38, 0.15);
-  --error: #d4392f;
-  --error-muted: rgba(212, 57, 47, 0.15);
-  --info: #3a9dd8;
-  --info-muted: rgba(58, 157, 216, 0.15);
+  --success: #3D7C47;
+  --success-muted: rgba(61, 124, 71, 0.10);
+  --warning: #C08B2D;
+  --warning-muted: rgba(192, 139, 45, 0.10);
+  --error: #C53030;
+  --error-muted: rgba(197, 48, 48, 0.10);
+  --info: #3182CE;
+  --info-muted: rgba(49, 130, 206, 0.10);
 
   /* Sidebar */
-  --sidebar-active-bg: rgba(90, 173, 98, 0.10);
-  --sidebar-active-text: #ececec;
+  --sidebar-active-bg: rgba(61, 124, 71, 0.08);
+  --sidebar-active-text: var(--text-primary);
+  --sidebar-active-border: var(--harvest-green);
+  --sidebar-section-label: var(--text-tertiary);
+
+  /* Automation mode colors */
+  --mode-human: #6B6860;
+  --mode-human-muted: rgba(107, 104, 96, 0.10);
+  --mode-assisted: #C08B2D;
+  --mode-assisted-muted: rgba(192, 139, 45, 0.10);
+  --mode-autopilot: #3D7C47;
+  --mode-autopilot-muted: rgba(61, 124, 71, 0.10);
 
   /* Operator identity colors */
-  --op-postmaster: #94a3b8;
   --op-scout: #a1887f;
   --op-composer: #b39ddb;
   --op-concierge: #90caf9;
@@ -49,36 +73,63 @@
   --op-keeper: #66bb6a;
   --op-analyst: #ffd54f;
 
-  /* Driving mode colors */
-  --mode-human: #6b6b65;
-  --mode-approvals: #d4a026;
-  --mode-autopilot: #5aad62;
+  /* Spacing scale (8px base) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* Radii */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+
+  /* Shadows (subtle, Notion-inspired) */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.08);
+  --shadow-overlay: 0 8px 32px rgba(0, 0, 0, 0.12);
+
+  /* Transitions */
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+  --duration-fast: 150ms;
+  --duration-normal: 250ms;
+  --duration-slow: 400ms;
 }
 
-/* Light mode */
-@media (prefers-color-scheme: light) {
-  :root {
-    --surface-base: #fafaf8;
-    --surface-raised: #f5f5f2;
-    --surface-elevated: #ffffff;
-    --surface-highlight: #eaeae6;
+/* Dark mode (manual toggle via data attribute) */
+[data-theme="dark"] {
+  --surface-base: #1A1917;
+  --surface-raised: #232220;
+  --surface-elevated: #2C2B28;
+  --surface-highlight: #3A3935;
+  --surface-sidebar: #1E1D1B;
 
-    --border-subtle: rgba(0, 0, 0, 0.04);
-    --border-default: rgba(0, 0, 0, 0.08);
-    --border-strong: rgba(0, 0, 0, 0.14);
+  --border-subtle: rgba(255, 255, 255, 0.05);
+  --border-default: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.14);
 
-    --text-primary: #1a1a18;
-    --text-secondary: #6b6b65;
-    --text-tertiary: #9a9a92;
-    --text-disabled: #c0c0b8;
+  --text-primary: #ECECEC;
+  --text-secondary: #A0A09A;
+  --text-tertiary: #6B6B65;
+  --text-disabled: #4A4A46;
 
-    --accent-primary: #3d8f46;
-    --accent-primary-hover: #2f7237;
-    --accent-primary-muted: rgba(61, 143, 70, 0.12);
+  --harvest-green: #5AAD62;
+  --harvest-green-hover: #6BBD72;
+  --harvest-green-muted: rgba(90, 173, 98, 0.15);
+  --harvest-green-subtle: rgba(90, 173, 98, 0.06);
 
-    --sidebar-active-bg: rgba(61, 143, 70, 0.08);
-    --sidebar-active-text: #1a1a18;
-  }
+  --sidebar-active-bg: rgba(90, 173, 98, 0.10);
+  --sidebar-active-text: #ECECEC;
+
+  --harvest-cream: #2A2720;
 }
 
 /* ── Base styles ─────────────────────────────────────────────── */
@@ -86,13 +137,15 @@ body {
   background-color: var(--surface-base);
   color: var(--text-secondary);
   font-family: var(--font-sans), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* ── Focus styles ────────────────────────────────────────────── */
 input:focus-visible,
 textarea:focus-visible,
 select:focus-visible {
-  outline: 2px solid var(--accent-primary);
+  outline: 2px solid var(--harvest-green);
   outline-offset: 1px;
 }
 
@@ -102,14 +155,39 @@ select:focus-visible {
   to { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes pulse-green {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(90, 173, 98, 0.4); }
-  50% { box-shadow: 0 0 0 6px rgba(90, 173, 98, 0); }
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes slide-in-right {
-  from { opacity: 0; transform: translateX(8px); }
+  from { opacity: 0; transform: translateX(12px); }
   to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes slide-in-left {
+  from { opacity: 0; transform: translateX(-12px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes grow-leaf {
+  0% { transform: scale(0.8); opacity: 0.5; }
+  60% { transform: scale(1.15); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes pulse-green {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(61, 124, 71, 0.3); }
+  50% { box-shadow: 0 0 0 6px rgba(61, 124, 71, 0); }
+}
+
+@keyframes progress-fill {
+  from { width: 0%; }
 }
 
 /* ── Scrollbar ───────────────────────────────────────────────── */
@@ -133,6 +211,27 @@ select:focus-visible {
 
 /* ── Selection ───────────────────────────────────────────────── */
 ::selection {
-  background: var(--accent-primary-muted);
+  background: var(--harvest-green-muted);
   color: var(--text-primary);
+}
+
+/* ── Utility classes ─────────────────────────────────────────── */
+.animate-fade-in {
+  animation: fade-in var(--duration-normal) var(--ease-smooth) both;
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up var(--duration-normal) var(--ease-smooth) both;
+}
+
+.animate-slide-right {
+  animation: slide-in-right var(--duration-normal) var(--ease-spring) both;
+}
+
+.animate-scale-in {
+  animation: scale-in var(--duration-normal) var(--ease-spring) both;
+}
+
+.animate-grow-leaf {
+  animation: grow-leaf var(--duration-slow) var(--ease-spring) both;
 }

@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-sesv2": "^3.1018.0",
+    "@fontsource-variable/dm-sans": "^5.2.8",
     "@kinetiks/ai": "workspace:*",
     "@kinetiks/sentinel": "workspace:*",
     "@kinetiks/supabase": "workspace:*",
