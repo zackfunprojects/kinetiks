@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
   const { data: goals, error: queryError } = await query;
 
   if (queryError) {
-    return apiError("Failed to fetch goals", 500);
+    return apiError(`Failed to fetch goals: ${queryError.message}`, 500);
   }
 
   return apiSuccess({ goals: goals ?? [] });
@@ -80,7 +80,7 @@ export async function POST(request: Request) {
     .single();
 
   if (insertError) {
-    return apiError("Failed to create goal", 500);
+    return apiError(`Failed to create goal: ${insertError.message}`, 500);
   }
 
   return apiSuccess(goal);
@@ -131,7 +131,7 @@ export async function PATCH(request: Request) {
     .single();
 
   if (updateError) {
-    return apiError("Failed to update goal", 500);
+    return apiError(`Failed to update goal: ${updateError.message}`, 500);
   }
 
   return apiSuccess(goal);

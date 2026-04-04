@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
     .limit(100);
 
   if (queryError) {
-    return apiError("Failed to fetch progress", 500);
+    return apiError(`Failed to fetch progress: ${queryError.message}`, 500);
   }
 
   return apiSuccess({ snapshots: snapshots ?? [] });

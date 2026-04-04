@@ -9,16 +9,17 @@ export function GoalsManager() {
   const [goals, setGoals] = useState<Goal[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Goal | null | "new">(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   const fetchGoals = useCallback(async () => {
     try {
       const res = await fetch("/api/goals?status=all");
-      if (res.ok) {
-        const data = await res.json();
-        setGoals(data.data?.goals ?? []);
-      }
-    } catch {
-      // Keep existing
+      if (!res.ok) throw new Error(`Failed to load goals (${res.status})`);
+      const data = await res.json();
+      setGoals(data.data?.goals ?? []);
+      setFetchError(null);
+    } catch (err) {
+      setFetchError(err instanceof Error ? err.message : "Failed to load goals");
     } finally {
       setLoading(false);
     }
@@ -59,7 +60,8 @@ export function GoalsManager() {
   };
 
   const activeGoals = goals.filter((g) => g.status === "active" || g.status === "paused");
-  const archivedGoals = goals.filter((g) => g.status === "archived" || g.status === "completed");
+  const completedGoals = goals.filter((g) => g.status === "completed");
+  const archivedGoals = goals.filter((g) => g.status === "archived");
 
   return (
     <div>
@@ -101,6 +103,10 @@ export function GoalsManager() {
         <div style={{ padding: 24, textAlign: "center", color: "var(--text-tertiary)", fontSize: 13 }}>
           Loading goals...
         </div>
+      ) : fetchError ? (
+        <div style={{ padding: 24, borderRadius: 8, border: "1px dashed var(--error-muted)", background: "var(--bg-surface)", textAlign: "center" }}>
+          <p style={{ fontSize: 13, color: "var(--error)", margin: 0 }}>{fetchError}</p>
+        </div>
       ) : activeGoals.length === 0 && editing === null ? (
         <div
           style={{
@@ -128,12 +134,25 @@ export function GoalsManager() {
             />
           ))}
 
-          {archivedGoals.length > 0 && (
+          {completedGoals.length > 0 && (
             <details style={{ marginTop: 24 }}>
+              <summary style={{ fontSize: 13, color: "var(--success)", cursor: "pointer" }}>
+                {completedGoals.length} completed goal{completedGoals.length !== 1 ? "s" : ""}
+              </summary>
+              <div style={{ marginTop: 8, opacity: 0.7 }}>
+                {completedGoals.map((goal) => (
+                  <GoalCard key={goal.id} goal={goal} onEdit={() => {}} onArchive={() => {}} />
+                ))}
+              </div>
+            </details>
+          )}
+
+          {archivedGoals.length > 0 && (
+            <details style={{ marginTop: 16 }}>
               <summary style={{ fontSize: 13, color: "var(--text-tertiary)", cursor: "pointer" }}>
                 {archivedGoals.length} archived goal{archivedGoals.length !== 1 ? "s" : ""}
               </summary>
-              <div style={{ marginTop: 8, opacity: 0.6 }}>
+              <div style={{ marginTop: 8, opacity: 0.5 }}>
                 {archivedGoals.map((goal) => (
                   <GoalCard key={goal.id} goal={goal} onEdit={() => {}} onArchive={() => {}} />
                 ))}

@@ -33,7 +33,7 @@ export function GoalEditor({ goal, onSave, onCancel }: GoalEditorProps) {
 
     if (goal) data.id = goal.id;
 
-    onSave(data);
+    await onSave(data);
     setSaving(false);
   };
 

@@ -5,7 +5,8 @@ interface SystemConnectionCardProps {
 }
 
 export function SystemConnectionCard({ label, status, description }: SystemConnectionCardProps) {
-  const connected = status.toLowerCase().includes("connected") && !status.toLowerCase().includes("not");
+  const lower = status.toLowerCase();
+  const connected = lower === "connected" || lower === "active";
 
   return (
     <div
