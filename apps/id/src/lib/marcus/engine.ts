@@ -1,16 +1,24 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { MarcusChannel, MarcusChatResponse } from "@kinetiks/types";
 import type { ConversationMessage } from "@kinetiks/ai";
-import { askClaudeMultiTurn, streamClaude } from "@kinetiks/ai";
+import { askClaudeMultiTurn, askClaude, streamClaude } from "@kinetiks/ai";
 import { buildMarcusSystemPrompt } from "@/lib/ai/prompts/marcus-core";
+import { buildMarcusSystemPromptV2 } from "./prompts/marcus-system";
+import { MAX_RESPONSE_SENTENCES } from "./prompts/marcus-system";
 import { classifyIntent } from "./intent";
-import { assembleContext } from "./context-assembly";
+import { assembleContext, buildDataAvailabilityManifest } from "./context-assembly";
 import {
   getOrCreateThread,
   addMessage,
   getRecentThreadMessages,
   autoTitleThread,
 } from "./thread-manager";
+import { validateResponse } from "./validators/response-validator";
+import {
+  buildRewritePrompt,
+  buildFallbackResponse,
+} from "./prompts/marcus-validation";
+import type { DataAvailabilityManifest } from "./types";
 
 /**
  * Process a Marcus conversation message through the full pipeline.
@@ -21,10 +29,13 @@ import {
  * 3. Classify intent
  * 4. Save user message
  * 5. Assemble context (token-budgeted per intent)
- * 6. Build system prompt
+ * 5b. Build data availability manifest
+ * 6. Build system prompt (v2 with manifest + hard constraints)
  * 7. Build messages array from history + new user message
  * 8. Generate response
+ * 8b. Validate response - rewrite if violations detected
  * 9. Save Marcus response
+ * 9b. Log validation results to Learning Ledger
  * 10. Auto-title thread if first exchange
  * 11. Return response
  *
@@ -36,7 +47,7 @@ export async function processMarcusMessage(
   message: string,
   threadId?: string,
   channel: MarcusChannel = "web"
-): Promise<MarcusChatResponse> {
+): Promise<MarcusChatResponse & { _validation?: ValidationMetadata; manifest?: DataAvailabilityManifest }> {
   // 1. Get or create thread (validates ownership before any reads)
   const thread = await getOrCreateThread(admin, accountId, threadId, channel);
 
@@ -59,8 +70,18 @@ export async function processMarcusMessage(
     message
   );
 
-  // 6. Build system prompt
-  const systemPrompt = buildMarcusSystemPrompt({ contextSummary });
+  // 5b. Build data availability manifest
+  const manifest = await buildDataAvailabilityManifest(accountId, admin);
+
+  // 6. Build system prompt (v2 with manifest, evidence rules, anti-sycophancy)
+  // Fall back to v1 prompt with context summary appended
+  const systemName = "Marcus"; // Could be customized per account in the future
+  const systemPrompt = buildMarcusSystemPromptV2(
+    systemName,
+    manifest,
+    [], // activeGoals - TODO: load from account settings
+    null // productStack - already in context summary
+  ) + `\n\n---\n\n## Assembled Context\n\n${contextSummary}`;
 
   // 7. Build messages array: prior history + new user message
   const conversationMessages: ConversationMessage[] = [
@@ -78,8 +99,86 @@ export async function processMarcusMessage(
     maxTokens: 2048,
   });
 
+  // 8b. Validate response before delivery
+  const validation = validateResponse(responseText, manifest, intent, message);
+
+  let finalResponse = responseText;
+
+  if (validation.needs_rewrite && validation.rewrite_instructions) {
+    // Request a rewrite from Haiku
+    const rewritePrompt = buildRewritePrompt(
+      responseText,
+      validation.rewrite_instructions,
+      intent,
+      MAX_RESPONSE_SENTENCES[intent] ?? 8
+    );
+
+    try {
+      const rewrittenText = await askClaude(rewritePrompt, {
+        model: "claude-haiku-4-5-20251001",
+        maxTokens: 1024,
+      });
+
+      // Validate the rewrite
+      const revalidation = validateResponse(rewrittenText, manifest, intent, message);
+
+      if (
+        revalidation.passed ||
+        revalidation.evidence.violations.filter((v) => v.severity === "hard").length === 0
+      ) {
+        finalResponse = rewrittenText;
+      } else {
+        // Rewrite also failed - use fallback
+        console.warn("Marcus rewrite also failed validation", {
+          original_violations: validation.evidence.violations,
+          rewrite_violations: revalidation.evidence.violations,
+        });
+        finalResponse = buildFallbackResponse(
+          intent,
+          manifest.known_gaps.map((g) => g.what_is_missing)
+        );
+      }
+    } catch (error) {
+      console.error("Marcus rewrite failed", error);
+      // Keep original response if rewrite call fails - better than nothing
+      finalResponse = responseText;
+    }
+  }
+
   // 9. Save Marcus response
-  await addMessage(admin, thread.id, "marcus", responseText, channel);
+  await addMessage(admin, thread.id, "marcus", finalResponse, channel);
+
+  // 9b. Log validation results to Learning Ledger (non-blocking)
+  try {
+    await admin.from("kinetiks_learning_ledger").insert({
+      account_id: accountId,
+      event_type: "marcus_response_validation",
+      source: "marcus",
+      data: {
+        thread_id: thread.id,
+        intent_type: intent,
+        validation_passed: validation.passed,
+        was_rewritten: finalResponse !== responseText,
+        violation_count: validation.evidence.violations.length,
+        violation_types: validation.evidence.violations.map((v) => v.type),
+        sentence_count: validation.verbosity.sentence_count,
+        max_allowed: validation.verbosity.max_allowed,
+        manifest_summary: {
+          cortex_confidence: manifest.cortex_coverage.overall_confidence,
+          connected_apps: manifest.connections
+            .filter((c) => c.connected)
+            .map((c) => c.app_name),
+          disconnected_apps: manifest.connections
+            .filter((c) => !c.connected)
+            .map((c) => c.app_name),
+          gap_count: manifest.known_gaps.length,
+        },
+      },
+    });
+  } catch (error) {
+    // Ledger logging should never block response delivery
+    console.error("Failed to log validation to ledger", error);
+  }
 
   // 10. Auto-title if this is the first exchange (no prior history)
   if (history.length === 0 && !thread.title) {
@@ -91,13 +190,34 @@ export async function processMarcusMessage(
   // 11. Return
   return {
     thread_id: thread.id,
-    message: responseText,
+    message: finalResponse,
+    manifest,
+    _validation: {
+      original_passed: validation.passed,
+      was_rewritten: finalResponse !== responseText,
+      violations_caught: validation.evidence.violations.length,
+      sentence_count: validation.verbosity.sentence_count,
+      intent_type: intent,
+    },
   };
+}
+
+interface ValidationMetadata {
+  original_passed: boolean;
+  was_rewritten: boolean;
+  violations_caught: number;
+  sentence_count: number;
+  intent_type: string;
 }
 
 /**
  * Stream a Marcus conversation message.
  * Returns a ReadableStream that emits SSE-formatted text deltas.
+ *
+ * Note: Streaming bypasses the validation loop since we can't rewrite
+ * mid-stream. The validation runs post-stream and logs results for
+ * quality monitoring. Future improvement: buffer the full response
+ * before streaming to enable validation.
  *
  * After the stream completes, the caller should trigger action extraction.
  */
@@ -107,7 +227,7 @@ export async function streamMarcusMessage(
   message: string,
   threadId?: string,
   channel: MarcusChannel = "web"
-): Promise<{ stream: ReadableStream; threadId: string }> {
+): Promise<{ stream: ReadableStream; threadId: string; manifest: DataAvailabilityManifest }> {
   // 1. Get or create thread (validates ownership before any reads)
   const thread = await getOrCreateThread(admin, accountId, threadId, channel);
 
@@ -130,8 +250,17 @@ export async function streamMarcusMessage(
     message
   );
 
-  // 6. Build system prompt
-  const systemPrompt = buildMarcusSystemPrompt({ contextSummary });
+  // 5b. Build data availability manifest
+  const manifest = await buildDataAvailabilityManifest(accountId, admin);
+
+  // 6. Build system prompt (v2 with manifest + hard constraints)
+  const systemName = "Marcus";
+  const systemPrompt = buildMarcusSystemPromptV2(
+    systemName,
+    manifest,
+    [],
+    null
+  ) + `\n\n---\n\n## Assembled Context\n\n${contextSummary}`;
 
   // 7. Build messages array: prior history + new user message
   const conversationMessages: ConversationMessage[] = [
@@ -179,6 +308,39 @@ export async function streamMarcusMessage(
         // Save complete response
         await addMessage(admin, thread.id, "marcus", fullResponse, channel);
 
+        // Post-stream validation logging (for quality monitoring)
+        const validation = validateResponse(fullResponse, manifest, intent, message);
+        try {
+          await admin.from("kinetiks_learning_ledger").insert({
+            account_id: accountId,
+            event_type: "marcus_response_validation",
+            source: "marcus",
+            data: {
+              thread_id: thread.id,
+              intent_type: intent,
+              validation_passed: validation.passed,
+              was_rewritten: false, // Streaming can't rewrite
+              violation_count: validation.evidence.violations.length,
+              violation_types: validation.evidence.violations.map((v) => v.type),
+              sentence_count: validation.verbosity.sentence_count,
+              max_allowed: validation.verbosity.max_allowed,
+              streaming: true,
+              manifest_summary: {
+                cortex_confidence: manifest.cortex_coverage.overall_confidence,
+                connected_apps: manifest.connections
+                  .filter((c) => c.connected)
+                  .map((c) => c.app_name),
+                disconnected_apps: manifest.connections
+                  .filter((c) => !c.connected)
+                  .map((c) => c.app_name),
+                gap_count: manifest.known_gaps.length,
+              },
+            },
+          });
+        } catch {
+          // Non-critical
+        }
+
         // Auto-title if first exchange
         if (isFirstExchange) {
           autoTitleThread(admin, thread.id).catch(() => {});
@@ -199,5 +361,5 @@ export async function streamMarcusMessage(
     },
   });
 
-  return { stream: readableStream, threadId: thread.id };
+  return { stream: readableStream, threadId: thread.id, manifest };
 }

@@ -5,6 +5,14 @@ import { loadKnowledge } from "@kinetiks/ai";
 import type { KnowledgeIntent } from "@kinetiks/ai";
 import { getThreadMessages } from "./thread-manager";
 import { searchDocs } from "./docs-search";
+import type {
+  DataAvailabilityManifest,
+  CortexLayerCoverage,
+  ConnectionStatus,
+  DataGap,
+  AvailableDataPoint,
+  DataFreshness,
+} from "./types";
 
 /**
  * Approximate token count from character count.
@@ -331,4 +339,405 @@ async function assembleKnowledge(intent: KnowledgeIntent): Promise<string> {
     // Knowledge loading is non-critical - don't block response
     return "";
   }
+}
+
+// --- Data Availability Manifest ---
+
+const CORTEX_LAYERS = [
+  "voice",
+  "customers",
+  "products",
+  "narrative",
+  "competitive",
+  "market",
+  "brand",
+  "content",
+] as const;
+
+const CORTEX_LAYER_TABLES: Record<string, string> = {
+  voice: "kinetiks_context_voice",
+  customers: "kinetiks_context_customers",
+  products: "kinetiks_context_products",
+  narrative: "kinetiks_context_narrative",
+  competitive: "kinetiks_context_competitive",
+  market: "kinetiks_context_market",
+  brand: "kinetiks_context_brand",
+  content: "kinetiks_context_content",
+};
+
+// Field counts per layer (total possible fields)
+const LAYER_FIELD_COUNTS: Record<string, number> = {
+  voice: 12,
+  customers: 15,
+  products: 10,
+  narrative: 8,
+  competitive: 12,
+  market: 10,
+  brand: 14,
+  content: 8,
+};
+
+/**
+ * Build a DataAvailabilityManifest for this account.
+ * Queries Cortex layers, Synapse connections, and identifies gaps.
+ * This manifest is injected into the system prompt so Marcus knows
+ * exactly what data it has and what it doesn't.
+ */
+export async function buildDataAvailabilityManifest(
+  accountId: string,
+  supabase: SupabaseClient
+): Promise<DataAvailabilityManifest> {
+  // 1. Get overall Cortex confidence
+  const { data: confidenceData } = await supabase
+    .from("kinetiks_confidence")
+    .select("aggregate")
+    .eq("account_id", accountId)
+    .single();
+
+  const overallConfidence = confidenceData?.aggregate ?? 0;
+
+  // 2. Check each Cortex layer
+  const layerCoverages: CortexLayerCoverage[] = await Promise.all(
+    CORTEX_LAYERS.map(async (layerName) => {
+      const tableName = CORTEX_LAYER_TABLES[layerName];
+      const { data: layerData } = await supabase
+        .from(tableName)
+        .select("*")
+        .eq("account_id", accountId)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .single();
+
+      if (!layerData) {
+        return {
+          layer_name: layerName,
+          confidence: 0,
+          has_data: false,
+          field_count: 0,
+          total_fields: LAYER_FIELD_COUNTS[layerName] ?? 10,
+          last_updated: null,
+          source: "empty" as const,
+        };
+      }
+
+      // Count non-null, non-empty fields (exclude metadata fields)
+      const metadataFields = [
+        "id",
+        "account_id",
+        "created_at",
+        "updated_at",
+        "confidence_score",
+        "source",
+      ];
+      const dataFields = Object.entries(layerData).filter(
+        ([key, val]) =>
+          !metadataFields.includes(key) &&
+          val !== null &&
+          val !== "" &&
+          !(Array.isArray(val) && val.length === 0)
+      );
+
+      const totalFields = LAYER_FIELD_COUNTS[layerName] ?? 10;
+
+      return {
+        layer_name: layerName,
+        confidence:
+          layerData.confidence_score ??
+          Math.round((dataFields.length / totalFields) * 100),
+        has_data: dataFields.length > 0,
+        field_count: dataFields.length,
+        total_fields: totalFields,
+        last_updated: layerData.updated_at ?? null,
+        source: (layerData.source as CortexLayerCoverage["source"]) ?? "mixed",
+      };
+    })
+  );
+
+  // 3. Check Synapse connections
+  const { data: synapses } = await supabase
+    .from("kinetiks_synapses")
+    .select("*")
+    .eq("account_id", accountId);
+
+  const knownApps = ["harvest", "dark_madder", "hypothesis", "litmus"];
+
+  const connections: ConnectionStatus[] = knownApps.map((appName) => {
+    const synapse = (synapses ?? []).find(
+      (s: any) => s.app_name === appName
+    );
+    if (!synapse) {
+      return {
+        app_name: appName,
+        connected: false,
+        synapse_healthy: false,
+        last_sync: null,
+        capabilities_available: getAppCapabilities(appName),
+        capabilities_broken: getAppCapabilities(appName),
+      };
+    }
+    const isHealthy =
+      synapse.status === "healthy" || synapse.status === "active";
+    return {
+      app_name: appName,
+      connected: true,
+      synapse_healthy: isHealthy,
+      last_sync: synapse.last_sync_at ?? null,
+      capabilities_available:
+        synapse.capabilities ?? getAppCapabilities(appName),
+      capabilities_broken: isHealthy
+        ? []
+        : (synapse.capabilities ?? getAppCapabilities(appName)),
+    };
+  });
+
+  // 4. Build available data points from connected + healthy apps
+  const availableData: AvailableDataPoint[] = [];
+  for (const conn of connections) {
+    if (conn.connected && conn.synapse_healthy) {
+      availableData.push(
+        ...getAvailableDataForApp(conn.app_name, conn.last_sync)
+      );
+    }
+  }
+
+  // Add Cortex-derived data points
+  for (const layer of layerCoverages) {
+    if (layer.has_data) {
+      availableData.push({
+        category: `cortex_${layer.layer_name}`,
+        source_app: "kinetiks",
+        data_type: "status",
+        description: `${layer.layer_name} layer: ${layer.field_count}/${layer.total_fields} fields populated (${layer.confidence}% confidence)`,
+        freshness: getManifestFreshness(layer.last_updated),
+      });
+    }
+  }
+
+  // 5. Identify gaps
+  const knownGaps: DataGap[] = [];
+
+  // Cortex gaps
+  for (const layer of layerCoverages) {
+    if (!layer.has_data || layer.confidence < 40) {
+      knownGaps.push({
+        category: `cortex_${layer.layer_name}`,
+        what_is_missing: `${layer.layer_name} layer is ${layer.has_data ? "sparse" : "empty"} (${layer.field_count}/${layer.total_fields} fields, ${layer.confidence}% confidence)`,
+        why_it_matters: getLayerImportance(layer.layer_name),
+        how_to_fill: `Complete the ${layer.layer_name} section in Cortex, or provide this information in conversation`,
+      });
+    }
+  }
+
+  // App connection gaps
+  for (const conn of connections) {
+    if (!conn.connected) {
+      knownGaps.push({
+        category: `app_${conn.app_name}`,
+        what_is_missing: `${conn.app_name} is not connected - no ${getAppDataDescription(conn.app_name)} available`,
+        why_it_matters: `Cannot provide data-grounded advice about ${getAppDomain(conn.app_name)} without this connection`,
+        how_to_fill: `Activate ${conn.app_name} in the Integrations view`,
+      });
+    } else if (!conn.synapse_healthy) {
+      knownGaps.push({
+        category: `app_${conn.app_name}`,
+        what_is_missing: `${conn.app_name} Synapse is unhealthy - data may be stale or unavailable`,
+        why_it_matters: `Recommendations about ${getAppDomain(conn.app_name)} may not reflect current state`,
+        how_to_fill: `Check ${conn.app_name} connection in Integrations`,
+      });
+    }
+  }
+
+  // 6. Data freshness
+  const freshness: DataFreshness[] = [
+    {
+      source: "cortex",
+      last_sync: layerCoverages.reduce(
+        (latest, l) => {
+          if (!l.last_updated) return latest;
+          if (!latest) return l.last_updated;
+          return l.last_updated > latest ? l.last_updated : latest;
+        },
+        null as string | null
+      ),
+      sync_status: overallConfidence > 0 ? "healthy" : "never_synced",
+    },
+    ...connections.map((c) => ({
+      source: c.app_name,
+      last_sync: c.last_sync,
+      sync_status: (!c.connected
+        ? "disconnected"
+        : !c.synapse_healthy
+          ? "stale"
+          : c.last_sync
+            ? "healthy"
+            : "never_synced") as DataFreshness["sync_status"],
+    })),
+  ];
+
+  return {
+    cortex_coverage: {
+      overall_confidence: overallConfidence,
+      layers: layerCoverages,
+    },
+    connections,
+    available_data: availableData,
+    known_gaps: knownGaps,
+    data_freshness: freshness,
+  };
+}
+
+// --- Manifest Helper Functions ---
+
+function getAppCapabilities(appName: string): string[] {
+  const caps: Record<string, string[]> = {
+    harvest: [
+      "create_sequence",
+      "query_pipeline",
+      "manage_prospects",
+      "send_outreach",
+      "track_replies",
+    ],
+    dark_madder: [
+      "draft_content",
+      "query_performance",
+      "manage_editorial",
+      "publish_content",
+    ],
+    hypothesis: [
+      "create_landing_page",
+      "run_ab_test",
+      "query_conversions",
+    ],
+    litmus: [
+      "pitch_journalists",
+      "track_mentions",
+      "manage_media_list",
+    ],
+  };
+  return caps[appName] ?? [];
+}
+
+function getAvailableDataForApp(
+  appName: string,
+  lastSync: string | null
+): AvailableDataPoint[] {
+  const freshness = getManifestFreshness(lastSync);
+  const appData: Record<string, AvailableDataPoint[]> = {
+    harvest: [
+      {
+        category: "outbound_metrics",
+        source_app: "harvest",
+        data_type: "metric",
+        description: "Reply rates, open rates, sequence performance",
+        freshness,
+      },
+      {
+        category: "pipeline",
+        source_app: "harvest",
+        data_type: "status",
+        description:
+          "Active prospects, pipeline stages, deal status",
+        freshness,
+      },
+    ],
+    dark_madder: [
+      {
+        category: "content_metrics",
+        source_app: "dark_madder",
+        data_type: "metric",
+        description: "Traffic, engagement, topic performance",
+        freshness,
+      },
+      {
+        category: "editorial",
+        source_app: "dark_madder",
+        data_type: "status",
+        description:
+          "Draft queue, publishing schedule, content backlog",
+        freshness,
+      },
+    ],
+    hypothesis: [
+      {
+        category: "conversion_metrics",
+        source_app: "hypothesis",
+        data_type: "metric",
+        description:
+          "Landing page conversions, A/B test results",
+        freshness,
+      },
+    ],
+    litmus: [
+      {
+        category: "pr_metrics",
+        source_app: "litmus",
+        data_type: "metric",
+        description:
+          "Media mentions, pitch success rates, journalist engagement",
+        freshness,
+      },
+    ],
+  };
+  return appData[appName] ?? [];
+}
+
+function getManifestFreshness(
+  timestamp: string | null
+): "live" | "recent" | "stale" | "unavailable" {
+  if (!timestamp) return "unavailable";
+  const age = Date.now() - new Date(timestamp).getTime();
+  const oneHour = 60 * 60 * 1000;
+  const oneDay = 24 * oneHour;
+  if (age < oneHour) return "live";
+  if (age < oneDay) return "recent";
+  return "stale";
+}
+
+function getLayerImportance(layerName: string): string {
+  const importance: Record<string, string> = {
+    voice:
+      "Without voice data, generated content and messaging lacks brand consistency",
+    customers:
+      "Without customer data, targeting recommendations are generic guesses",
+    products:
+      "Without product data, value propositions and positioning are vague",
+    narrative:
+      "Without narrative data, strategic direction is ungrounded",
+    competitive:
+      "Without competitive data, differentiation claims are unsupported",
+    market:
+      "Without market data, market sizing and opportunity assessment is speculation",
+    brand:
+      "Without brand data, visual and tonal consistency cannot be enforced",
+    content:
+      "Without content data, editorial strategy has no performance baseline",
+  };
+  return (
+    importance[layerName] ??
+    "Missing data reduces recommendation quality"
+  );
+}
+
+function getAppDataDescription(appName: string): string {
+  const descriptions: Record<string, string> = {
+    harvest:
+      "outbound metrics, pipeline data, or prospect intelligence",
+    dark_madder:
+      "content performance, editorial calendar, or topic analytics",
+    hypothesis:
+      "landing page conversions or A/B test results",
+    litmus:
+      "media mentions, pitch performance, or journalist engagement data",
+  };
+  return descriptions[appName] ?? "app-specific data";
+}
+
+function getAppDomain(appName: string): string {
+  const domains: Record<string, string> = {
+    harvest: "outbound and pipeline",
+    dark_madder: "content strategy",
+    hypothesis: "conversion optimization",
+    litmus: "PR and media relations",
+  };
+  return domains[appName] ?? appName;
 }

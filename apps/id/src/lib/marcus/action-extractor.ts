@@ -12,6 +12,7 @@ import {
   buildExtractionPrompt,
 } from "@/lib/ai/prompts/marcus-extract";
 import { evaluateProposal } from "@/lib/cortex/evaluate";
+import type { DataAvailabilityManifest } from "./types";
 
 const VALID_LAYERS: ContextLayer[] = [
   "org",
@@ -47,18 +48,36 @@ interface RawExtraction {
 /**
  * Extract actionable intelligence from a conversation turn.
  * Uses Haiku for speed - this runs after every response.
+ *
+ * When a manifest is provided, connection status is injected into
+ * the extraction prompt so Haiku doesn't extract actions for
+ * disconnected apps.
  */
 export async function extractActions(
   userMessage: string,
   marcusResponse: string,
-  contextSummary: string
+  contextSummary: string,
+  manifest?: DataAvailabilityManifest
 ): Promise<ExtractedAction[]> {
   const prompt = buildExtractionPrompt(userMessage, marcusResponse, contextSummary);
+
+  // Build connection awareness context for the extraction prompt
+  let connectionContext = "";
+  if (manifest) {
+    const connectionLines = manifest.connections
+      .map(
+        (c) =>
+          `${c.app_name}: ${c.connected && c.synapse_healthy ? "AVAILABLE" : "UNAVAILABLE - do not extract actions for this app"}`
+      )
+      .join("\n");
+
+    connectionContext = `\n\n## Connected Systems\n${connectionLines}\n\nCRITICAL: Only extract briefs and follow-ups for AVAILABLE systems. If a system is UNAVAILABLE, do not create briefs targeting that system.`;
+  }
 
   let result: string;
   try {
     result = await askClaude(prompt, {
-      system: MARCUS_EXTRACTION_PROMPT,
+      system: MARCUS_EXTRACTION_PROMPT + connectionContext,
       model: "claude-haiku-4-5-20251001",
       maxTokens: 1024,
     });
@@ -103,10 +122,19 @@ export async function extractActions(
     }
   }
 
-  // Validate briefs
+  // Validate briefs (filter out briefs for disconnected apps)
   if (Array.isArray(raw.briefs)) {
     for (const b of raw.briefs) {
       if (b.target_app && VALID_APPS.includes(b.target_app) && b.content) {
+        // Skip briefs for disconnected/unhealthy apps
+        if (manifest) {
+          const conn = manifest.connections.find(
+            (c) => c.app_name === b.target_app
+          );
+          if (conn && (!conn.connected || !conn.synapse_healthy)) {
+            continue;
+          }
+        }
         actions.push({
           type: "brief",
           target_app: b.target_app,
