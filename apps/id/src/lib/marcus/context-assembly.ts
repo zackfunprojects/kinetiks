@@ -344,6 +344,7 @@ async function assembleKnowledge(intent: KnowledgeIntent): Promise<string> {
 // --- Data Availability Manifest ---
 
 const CORTEX_LAYERS = [
+  "org",
   "voice",
   "customers",
   "products",
@@ -355,6 +356,7 @@ const CORTEX_LAYERS = [
 ] as const;
 
 const CORTEX_LAYER_TABLES: Record<string, string> = {
+  org: "kinetiks_context_org",
   voice: "kinetiks_context_voice",
   customers: "kinetiks_context_customers",
   products: "kinetiks_context_products",
@@ -367,6 +369,7 @@ const CORTEX_LAYER_TABLES: Record<string, string> = {
 
 // Field counts per layer (total possible fields)
 const LAYER_FIELD_COUNTS: Record<string, number> = {
+  org: 11,
   voice: 12,
   customers: 15,
   products: 10,
@@ -388,11 +391,16 @@ export async function buildDataAvailabilityManifest(
   supabase: SupabaseClient
 ): Promise<DataAvailabilityManifest> {
   // 1. Get overall Cortex confidence
-  const { data: confidenceData } = await supabase
+  const { data: confidenceData, error: confidenceError } = await supabase
     .from("kinetiks_confidence")
     .select("aggregate")
     .eq("account_id", accountId)
     .single();
+
+  if (confidenceError && confidenceError.code !== "PGRST116") {
+    // PGRST116 = no rows - that's expected for new accounts
+    console.error("Failed to fetch Cortex confidence", confidenceError);
+  }
 
   const overallConfidence = confidenceData?.aggregate ?? 0;
 
@@ -400,13 +408,17 @@ export async function buildDataAvailabilityManifest(
   const layerCoverages: CortexLayerCoverage[] = await Promise.all(
     CORTEX_LAYERS.map(async (layerName) => {
       const tableName = CORTEX_LAYER_TABLES[layerName];
-      const { data: layerData } = await supabase
+      const { data: layerData, error: layerError } = await supabase
         .from(tableName)
         .select("*")
         .eq("account_id", accountId)
         .order("updated_at", { ascending: false })
         .limit(1)
         .single();
+
+      if (layerError && layerError.code !== "PGRST116") {
+        console.error(`Failed to fetch ${layerName} layer`, layerError);
+      }
 
       if (!layerData) {
         return {
@@ -454,10 +466,14 @@ export async function buildDataAvailabilityManifest(
   );
 
   // 3. Check Synapse connections
-  const { data: synapses } = await supabase
+  const { data: synapses, error: synapsesError } = await supabase
     .from("kinetiks_synapses")
     .select("*")
     .eq("account_id", accountId);
+
+  if (synapsesError) {
+    console.error("Failed to fetch Synapses", synapsesError);
+  }
 
   const knownApps = ["harvest", "dark_madder", "hypothesis", "litmus"];
 
@@ -506,9 +522,10 @@ export async function buildDataAvailabilityManifest(
       availableData.push({
         category: `cortex_${layer.layer_name}`,
         source_app: "kinetiks",
-        data_type: "status",
+        data_type: "metric",
         description: `${layer.layer_name} layer: ${layer.field_count}/${layer.total_fields} fields populated (${layer.confidence}% confidence)`,
         freshness: getManifestFreshness(layer.last_updated),
+        value_summary: `${layer.confidence}% confidence, ${layer.field_count}/${layer.total_fields} fields, source: ${layer.source}`,
       });
     }
   }
@@ -548,18 +565,28 @@ export async function buildDataAvailabilityManifest(
   }
 
   // 6. Data freshness
+  const cortexLastSync = layerCoverages.reduce(
+    (latest, l) => {
+      if (!l.last_updated) return latest;
+      if (!latest) return l.last_updated;
+      return l.last_updated > latest ? l.last_updated : latest;
+    },
+    null as string | null
+  );
+
+  const cortexSyncStatus = (() => {
+    if (!cortexLastSync) return "never_synced" as const;
+    const ageMs = Date.now() - new Date(cortexLastSync).getTime();
+    const sevenDays = 7 * 24 * 60 * 60 * 1000;
+    if (ageMs > sevenDays) return "stale" as const;
+    return "healthy" as const;
+  })();
+
   const freshness: DataFreshness[] = [
     {
       source: "cortex",
-      last_sync: layerCoverages.reduce(
-        (latest, l) => {
-          if (!l.last_updated) return latest;
-          if (!latest) return l.last_updated;
-          return l.last_updated > latest ? l.last_updated : latest;
-        },
-        null as string | null
-      ),
-      sync_status: overallConfidence > 0 ? "healthy" : "never_synced",
+      last_sync: cortexLastSync,
+      sync_status: cortexSyncStatus,
     },
     ...connections.map((c) => ({
       source: c.app_name,
@@ -695,6 +722,8 @@ function getManifestFreshness(
 
 function getLayerImportance(layerName: string): string {
   const importance: Record<string, string> = {
+    org:
+      "Without org data, company context and team structure are unknown",
     voice:
       "Without voice data, generated content and messaging lacks brand consistency",
     customers:

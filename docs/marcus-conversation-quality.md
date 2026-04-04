@@ -4,7 +4,7 @@
 
 Marcus was generating responses that violated its own voice spec:
 1. Generic advice with no data citations
-2. Responses 4-6 paragraphs when spec says 5-8 sentences
+2. Responses 4-6 paragraphs when spec says max 3-10 sentences depending on intent type (defined in `MAX_RESPONSE_SENTENCES`)
 3. Sycophantic praise ("your positioning is sharp") without evidence
 4. No acknowledgment of data gaps or system disconnections
 5. False promises about disconnected apps ("I've queued briefs to Harvest")

@@ -148,37 +148,34 @@ export async function processMarcusMessage(
   // 9. Save Marcus response
   await addMessage(admin, thread.id, "marcus", finalResponse, channel);
 
-  // 9b. Log validation results to Learning Ledger (non-blocking)
-  try {
-    await admin.from("kinetiks_learning_ledger").insert({
-      account_id: accountId,
-      event_type: "marcus_response_validation",
-      source: "marcus",
-      data: {
-        thread_id: thread.id,
-        intent_type: intent,
-        validation_passed: validation.passed,
-        was_rewritten: finalResponse !== responseText,
-        violation_count: validation.evidence.violations.length,
-        violation_types: validation.evidence.violations.map((v) => v.type),
-        sentence_count: validation.verbosity.sentence_count,
-        max_allowed: validation.verbosity.max_allowed,
-        manifest_summary: {
-          cortex_confidence: manifest.cortex_coverage.overall_confidence,
-          connected_apps: manifest.connections
-            .filter((c) => c.connected)
-            .map((c) => c.app_name),
-          disconnected_apps: manifest.connections
-            .filter((c) => !c.connected)
-            .map((c) => c.app_name),
-          gap_count: manifest.known_gaps.length,
-        },
+  // 9b. Log validation results to Learning Ledger (non-blocking, fire-and-forget)
+  admin.from("kinetiks_learning_ledger").insert({
+    account_id: accountId,
+    event_type: "marcus_response_validation",
+    source: "marcus",
+    data: {
+      thread_id: thread.id,
+      intent_type: intent,
+      validation_passed: validation.passed,
+      was_rewritten: finalResponse !== responseText,
+      violation_count: validation.evidence.violations.length,
+      violation_types: validation.evidence.violations.map((v) => v.type),
+      sentence_count: validation.verbosity.sentence_count,
+      max_allowed: validation.verbosity.max_allowed,
+      manifest_summary: {
+        cortex_confidence: manifest.cortex_coverage.overall_confidence,
+        connected_apps: manifest.connections
+          .filter((c) => c.connected)
+          .map((c) => c.app_name),
+        disconnected_apps: manifest.connections
+          .filter((c) => !c.connected)
+          .map((c) => c.app_name),
+        gap_count: manifest.known_gaps.length,
       },
-    });
-  } catch (error) {
-    // Ledger logging should never block response delivery
-    console.error("Failed to log validation to ledger", error);
-  }
+    },
+  }).then(({ error }) => {
+    if (error) console.error("Failed to log validation to ledger", error);
+  });
 
   // 10. Auto-title if this is the first exchange (no prior history)
   if (history.length === 0 && !thread.title) {
@@ -308,38 +305,36 @@ export async function streamMarcusMessage(
         // Save complete response
         await addMessage(admin, thread.id, "marcus", fullResponse, channel);
 
-        // Post-stream validation logging (for quality monitoring)
+        // Post-stream validation logging (non-blocking, fire-and-forget)
         const validation = validateResponse(fullResponse, manifest, intent, message);
-        try {
-          await admin.from("kinetiks_learning_ledger").insert({
-            account_id: accountId,
-            event_type: "marcus_response_validation",
-            source: "marcus",
-            data: {
-              thread_id: thread.id,
-              intent_type: intent,
-              validation_passed: validation.passed,
-              was_rewritten: false, // Streaming can't rewrite
-              violation_count: validation.evidence.violations.length,
-              violation_types: validation.evidence.violations.map((v) => v.type),
-              sentence_count: validation.verbosity.sentence_count,
-              max_allowed: validation.verbosity.max_allowed,
-              streaming: true,
-              manifest_summary: {
-                cortex_confidence: manifest.cortex_coverage.overall_confidence,
-                connected_apps: manifest.connections
-                  .filter((c) => c.connected)
-                  .map((c) => c.app_name),
-                disconnected_apps: manifest.connections
-                  .filter((c) => !c.connected)
-                  .map((c) => c.app_name),
-                gap_count: manifest.known_gaps.length,
-              },
+        admin.from("kinetiks_learning_ledger").insert({
+          account_id: accountId,
+          event_type: "marcus_response_validation",
+          source: "marcus",
+          data: {
+            thread_id: thread.id,
+            intent_type: intent,
+            validation_passed: validation.passed,
+            was_rewritten: false, // Streaming can't rewrite
+            violation_count: validation.evidence.violations.length,
+            violation_types: validation.evidence.violations.map((v) => v.type),
+            sentence_count: validation.verbosity.sentence_count,
+            max_allowed: validation.verbosity.max_allowed,
+            streaming: true,
+            manifest_summary: {
+              cortex_confidence: manifest.cortex_coverage.overall_confidence,
+              connected_apps: manifest.connections
+                .filter((c) => c.connected)
+                .map((c) => c.app_name),
+              disconnected_apps: manifest.connections
+                .filter((c) => !c.connected)
+                .map((c) => c.app_name),
+              gap_count: manifest.known_gaps.length,
             },
-          });
-        } catch {
-          // Non-critical
-        }
+          },
+        }).then(({ error: ledgerError }) => {
+          if (ledgerError) console.error("Failed to log validation to ledger", ledgerError);
+        });
 
         // Auto-title if first exchange
         if (isFirstExchange) {

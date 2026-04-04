@@ -126,12 +126,12 @@ export async function extractActions(
   if (Array.isArray(raw.briefs)) {
     for (const b of raw.briefs) {
       if (b.target_app && VALID_APPS.includes(b.target_app) && b.content) {
-        // Skip briefs for disconnected/unhealthy apps
+        // Skip briefs for disconnected/unhealthy/unknown apps
         if (manifest) {
           const conn = manifest.connections.find(
             (c) => c.app_name === b.target_app
           );
-          if (conn && (!conn.connected || !conn.synapse_healthy)) {
+          if (!conn || !conn.connected || !conn.synapse_healthy) {
             continue;
           }
         }

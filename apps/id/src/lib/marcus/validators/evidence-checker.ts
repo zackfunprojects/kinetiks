@@ -34,6 +34,21 @@ const PROMISE_PATTERNS = [
   { pattern: /I('ll| will) (pitch|contact|reach out to).+journalist/i, app: 'litmus' },
 ];
 
+// Tokens that indicate nearby evidence supports a claim.
+// Must be specific data citations, not just any number.
+const EVIDENCE_TOKENS = /\d+%|\d+\/\d+|confidence score|confidence is|\bscore\b|\blayer\b is|\bmetric\b|\bbenchmark\b|\d+ (fields|prospects|sequences|deals|replies|customers|users|responses)/i;
+
+/**
+ * Check if a sycophancy match has nearby evidence in the surrounding text.
+ * Looks within ~100 chars on either side of the match.
+ */
+function hasNearbyEvidence(response: string, matchIndex: number, matchLength: number): boolean {
+  const windowStart = Math.max(0, matchIndex - 100);
+  const windowEnd = Math.min(response.length, matchIndex + matchLength + 100);
+  const surrounding = response.slice(windowStart, windowEnd);
+  return EVIDENCE_TOKENS.test(surrounding);
+}
+
 export function checkEvidence(
   response: string,
   manifest: DataAvailabilityManifest,
@@ -42,14 +57,17 @@ export function checkEvidence(
   const violations: EvidenceViolation[] = [];
   const warnings: string[] = [];
 
-  // 1. Check for sycophancy patterns
+  // 1. Check for sycophancy patterns (only flag when no nearby evidence)
   for (const pattern of SYCOPHANCY_PATTERNS) {
-    if (pattern.test(response)) {
-      violations.push({
-        type: 'sycophancy',
-        description: `Response contains ungrounded praise: "${response.match(pattern)?.[0]}"`,
-        severity: 'hard',
-      });
+    const match = response.match(pattern);
+    if (match && match.index !== undefined) {
+      if (!hasNearbyEvidence(response, match.index, match[0].length)) {
+        violations.push({
+          type: 'sycophancy',
+          description: `Response contains ungrounded praise: "${match[0]}"`,
+          severity: 'hard',
+        });
+      }
     }
   }
 

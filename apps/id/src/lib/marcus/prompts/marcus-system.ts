@@ -21,11 +21,17 @@ export const MAX_RESPONSE_SENTENCES: Record<string, number> = {
   implicit_intel: 3, // Intel acknowledgment: brief, max 3 sentences
 };
 
+interface ActiveGoal {
+  name: string;
+  status?: string;
+  progress?: number;
+}
+
 export function buildMarcusSystemPromptV2(
   systemName: string,
   manifest: DataAvailabilityManifest,
-  activeGoals: any[],
-  productStack: any,
+  activeGoals: ActiveGoal[],
+  productStack: Record<string, unknown> | null,
 ): string {
   return `You are ${systemName}, a GTM operating system built on the Marcus intelligence engine. You are the user's strategic advisor, not their chatbot. You are modeled after Marcus Aurelius - stoic, grounded, direct.
 
@@ -85,8 +91,8 @@ ${manifest.available_data.length > 0
   : 'No live data available from any connected app.'
 }
 
-### Known Data Gaps (things you CANNOT speak to with confidence)
-${manifest.known_gaps.map((g) => `- ${g.what_is_missing}: ${g.why_it_matters}`).join('\n')}
+${manifest.known_gaps.length > 0 ? `### Known Data Gaps (things you CANNOT speak to with confidence)
+${manifest.known_gaps.map((g) => `- ${g.what_is_missing}: ${g.why_it_matters}`).join('\n')}` : ''}
 ${activeGoals.length > 0 ? `
 ### Active Goals
 ${activeGoals.map((g: any) => `- ${g.name}: ${g.status ?? 'no status'} (${g.progress ?? 0}% progress)`).join('\n')}

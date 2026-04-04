@@ -47,10 +47,15 @@ export function validateResponse(
           case 'false_promise':
             instructions.push(`- REMOVE false promise: ${v.description}. Replace with honest statement about what you can and cannot do given current connections.`);
             break;
-          case 'restatement':
-            instructions.push(`- REDUCE restatement: ${v.description}. Jump to new information instead of repeating what the user said.`);
-            break;
         }
+      }
+    }
+
+    // Include soft violations as warnings in rewrite instructions
+    const softViolations = evidence.violations.filter((v) => v.severity === 'soft');
+    for (const v of softViolations) {
+      if (v.type === 'restatement') {
+        instructions.push(`- REDUCE restatement: ${v.description}. Jump to new information instead of repeating what the user said.`);
       }
     }
 

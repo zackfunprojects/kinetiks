@@ -98,6 +98,7 @@ describe("checkEvidence", () => {
       "build me a sequence"
     );
     expect(result.passed).toBe(false);
-    expect(result.violations[0].type).toBe("false_promise");
+    expect(result.violations.length).toBeGreaterThan(0);
+    expect(result.violations.some((v) => v.type === "false_promise")).toBe(true);
   });
 });

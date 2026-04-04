@@ -93,6 +93,8 @@ const userManifest: DataAvailabilityManifest = {
       connected: false,
       synapse_healthy: false,
       last_sync: null,
+      // Both arrays are identical for disconnected apps: these are features
+      // that would be available if connected, currently broken due to disconnection
       capabilities_available: ["create_sequence", "query_pipeline"],
       capabilities_broken: ["create_sequence", "query_pipeline"],
     },
