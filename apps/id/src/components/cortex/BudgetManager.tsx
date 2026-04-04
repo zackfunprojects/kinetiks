@@ -7,16 +7,17 @@ export function BudgetManager() {
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchBudgets = useCallback(async () => {
     try {
       const res = await fetch("/api/budgets");
-      if (res.ok) {
-        const data = await res.json();
-        setBudgets(data.data?.budgets ?? []);
-      }
-    } catch {
-      // Keep existing
+      if (!res.ok) throw new Error(`Failed to load budgets (${res.status})`);
+      const data = await res.json();
+      setBudgets(data.data?.budgets ?? []);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load budgets");
     } finally {
       setLoading(false);
     }
@@ -33,7 +34,7 @@ export function BudgetManager() {
     const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
 
     try {
-      await fetch("/api/budgets", {
+      const res = await fetch("/api/budgets", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -44,9 +45,10 @@ export function BudgetManager() {
           allocations: [],
         }),
       });
+      if (!res.ok) throw new Error(`Failed to create budget (${res.status})`);
       fetchBudgets();
-    } catch {
-      // Ignore
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create budget");
     } finally {
       setCreating(false);
     }
@@ -54,6 +56,14 @@ export function BudgetManager() {
 
   if (loading) {
     return <div style={{ padding: 16, color: "var(--text-tertiary)", fontSize: 13 }}>Loading budgets...</div>;
+  }
+
+  if (error) {
+    return (
+      <div style={{ padding: 24, borderRadius: 8, border: "1px dashed var(--error-muted)", background: "var(--bg-surface)", textAlign: "center" }}>
+        <p style={{ fontSize: 13, color: "var(--error)", margin: 0 }}>{error}</p>
+      </div>
+    );
   }
 
   if (budgets.length === 0) {

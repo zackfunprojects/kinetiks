@@ -4,7 +4,6 @@ import { apiSuccess, apiError } from "@/lib/utils/api-response";
 
 /**
  * GET /api/budgets
- * List budgets for the account.
  */
 export async function GET(request: Request) {
   const { auth, error } = await requireAuth(request);
@@ -19,7 +18,7 @@ export async function GET(request: Request) {
     .order("period_start", { ascending: false });
 
   if (queryError) {
-    return apiError("Failed to fetch budgets", 500);
+    return apiError(`Failed to fetch budgets: ${queryError.message}`, 500);
   }
 
   return apiSuccess({ budgets: budgets ?? [] });
@@ -27,7 +26,6 @@ export async function GET(request: Request) {
 
 /**
  * POST /api/budgets
- * Create a budget with allocations.
  */
 export async function POST(request: Request) {
   const { auth, error } = await requireAuth(request, { permissions: "read-write" });
@@ -48,8 +46,8 @@ export async function POST(request: Request) {
     return apiError("Invalid JSON body", 400);
   }
 
-  if (!body.total_budget || !body.period || !body.period_start || !body.period_end) {
-    return apiError("Missing required fields", 400);
+  if (body.total_budget === undefined || body.total_budget === null || !body.period || !body.period_start || !body.period_end) {
+    return apiError("Missing required fields: total_budget, period, period_start, period_end", 400);
   }
 
   const admin = createAdminClient();
@@ -68,12 +66,11 @@ export async function POST(request: Request) {
     .single();
 
   if (insertError || !budget) {
-    return apiError("Failed to create budget", 500);
+    return apiError(`Failed to create budget: ${insertError?.message ?? "Unknown error"}`, 500);
   }
 
-  // Insert allocations if provided
   if (body.allocations?.length) {
-    await admin.from("kinetiks_budget_allocations").insert(
+    const { error: allocError } = await admin.from("kinetiks_budget_allocations").insert(
       body.allocations.map((a) => ({
         budget_id: budget.id,
         category: a.category,
@@ -81,6 +78,10 @@ export async function POST(request: Request) {
         allocated_amount: a.allocated_amount,
       }))
     );
+
+    if (allocError) {
+      return apiError(`Budget created but allocations failed: ${allocError.message}`, 500);
+    }
   }
 
   return apiSuccess(budget);
