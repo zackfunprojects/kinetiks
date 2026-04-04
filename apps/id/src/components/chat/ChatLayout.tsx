@@ -111,6 +111,7 @@ export function ChatLayout({
         onSelectThread={handleSelectThread}
         onNewThread={handleNewThread}
         onSearch={handleSearch}
+        systemName={systemName}
       />
       <ChatArea
         currentThreadId={currentThreadId}
