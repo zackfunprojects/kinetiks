@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { NameSystem } from "./NameSystem";
+import { ConnectEmail } from "./ConnectEmail";
+import { ConnectSlack } from "./ConnectSlack";
 import { SetupComplete } from "./SetupComplete";
 
 interface SetupFlowProps {
@@ -9,7 +11,7 @@ interface SetupFlowProps {
   existingName: string | null;
 }
 
-type SetupStep = "name" | "complete";
+type SetupStep = "name" | "email" | "slack" | "complete";
 
 export function SetupFlow({ accountId, existingName }: SetupFlowProps) {
   const [step, setStep] = useState<SetupStep>("name");
@@ -33,8 +35,21 @@ export function SetupFlow({ accountId, existingName }: SetupFlowProps) {
             initialName={systemName}
             onComplete={(name) => {
               setSystemName(name);
-              setStep("complete");
+              setStep("email");
             }}
+          />
+        )}
+        {step === "email" && (
+          <ConnectEmail
+            onComplete={() => setStep("slack")}
+            onSkip={() => setStep("slack")}
+          />
+        )}
+        {step === "slack" && (
+          <ConnectSlack
+            systemName={systemName}
+            onComplete={() => setStep("complete")}
+            onSkip={() => setStep("complete")}
           />
         )}
         {step === "complete" && (
