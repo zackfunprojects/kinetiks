@@ -44,7 +44,7 @@ export async function PATCH(request: Request) {
     .eq("id", auth.account_id);
 
   if (updateError) {
-    return apiError("Failed to update account", 500);
+    return apiError(`Failed to update account: ${updateError.message}`, 500);
   }
 
   return apiSuccess({ updated: true });
