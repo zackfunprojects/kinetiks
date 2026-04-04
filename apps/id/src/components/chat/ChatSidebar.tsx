@@ -4,7 +4,7 @@ import { useState } from "react";
 import type { MarcusThread } from "@kinetiks/types";
 import { SidebarToggle, type SidebarPanel } from "./SidebarToggle";
 import { ThreadList } from "./ThreadList";
-import { ApprovalPanel } from "./ApprovalPanel";
+import { ApprovalPanel } from "@/components/approvals/ApprovalPanel";
 
 interface ChatSidebarProps {
   threads: MarcusThread[];
@@ -12,6 +12,7 @@ interface ChatSidebarProps {
   onSelectThread: (threadId: string) => void;
   onNewThread: () => void;
   onSearch: (query: string) => void;
+  systemName?: string | null;
 }
 
 export function ChatSidebar({
@@ -20,6 +21,7 @@ export function ChatSidebar({
   onSelectThread,
   onNewThread,
   onSearch,
+  systemName,
 }: ChatSidebarProps) {
   const [activePanel, setActivePanel] = useState<SidebarPanel>("chats");
 
@@ -48,7 +50,7 @@ export function ChatSidebar({
             onSearch={onSearch}
           />
         ) : (
-          <ApprovalPanel />
+          <ApprovalPanel systemName={systemName ?? null} />
         )}
       </div>
     </div>
