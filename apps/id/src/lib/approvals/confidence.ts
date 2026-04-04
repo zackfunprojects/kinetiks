@@ -53,6 +53,12 @@ function calculateCategoryScore(history: ConfidenceInputs["category_history"]): 
 
   let score = history.approval_rate; // Start with approval rate (0-100)
 
+  // Small sample discount: blend toward default (30) for < 5 approvals
+  if (history.approval_count < 5) {
+    const sampleWeight = history.approval_count / 5;
+    score = score * sampleWeight + 30 * (1 - sampleWeight);
+  }
+
   // High edit rate penalty: cap at 50 if edit rate > 50%
   if (history.edit_rate > 50) {
     score = Math.min(score, 50);

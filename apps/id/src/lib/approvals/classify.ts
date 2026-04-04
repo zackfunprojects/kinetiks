@@ -57,6 +57,15 @@ function isQuick(submission: ApprovalSubmission, history: CategoryHistory): bool
   // Must have sufficient history (>5 prior approvals)
   if (history.approval_count <= 5) return false;
 
+  // Recent rejection disqualifies from quick
+  if (history.last_rejection_at) {
+    const daysSinceRejection = (Date.now() - new Date(history.last_rejection_at).getTime()) / (1000 * 60 * 60 * 24);
+    if (daysSinceRejection <= 7) return false;
+  }
+
+  // High edit rate disqualifies from quick
+  if (history.edit_rate > 50) return false;
+
   // No strategic implications (already checked above, but guard)
   if (submission.changes_strategy || submission.affects_multiple_outputs) return false;
 

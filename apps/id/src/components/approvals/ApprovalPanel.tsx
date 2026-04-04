@@ -45,7 +45,6 @@ export function ApprovalPanel({ systemName }: ApprovalPanelProps) {
           event: "*",
           schema: "public",
           table: "kinetiks_approvals",
-          filter: "status=eq.pending",
         },
         () => {
           // Refetch on any change

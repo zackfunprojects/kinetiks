@@ -30,6 +30,9 @@ export function RejectModal({ onReject, onCancel }: RejectModalProps) {
         }}
       />
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="reject-modal-title"
         style={{
           position: "relative",
           width: 400,
@@ -39,7 +42,7 @@ export function RejectModal({ onReject, onCancel }: RejectModalProps) {
           padding: 24,
         }}
       >
-        <h3 style={{ fontSize: 16, fontWeight: 600, color: "var(--text-primary)", margin: "0 0 12px" }}>
+        <h3 id="reject-modal-title" style={{ fontSize: 16, fontWeight: 600, color: "var(--text-primary)", margin: "0 0 12px" }}>
           Reject with reason
         </h3>
         <textarea
