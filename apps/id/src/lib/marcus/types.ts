@@ -69,3 +69,75 @@ export function isManifestComplete(manifest: DataAvailabilityManifest): boolean 
     Array.isArray(manifest.known_gaps)
   );
 }
+
+// --- Pre-Analysis Brief ---
+// Produced by Haiku BEFORE Sonnet generates a response.
+// Placed directly adjacent to the user's message in the Sonnet call.
+
+export interface PreAnalysisBrief {
+  available_evidence: EvidencePoint[];
+  not_available: string[];
+  memory_facts: string[];
+  response_shape: ResponseShape;
+  action_availability: ActionAvailability[];
+}
+
+export interface EvidencePoint {
+  label: string;          // "competitive_confidence"
+  value: string;          // "97%"
+  citation: string;       // "Competitive layer: 97% confidence, agencies and fractional CMOs documented"
+}
+
+export interface ResponseShape {
+  max_sentences: number;
+  lead_with: string;      // "The core recommendation about outbound strategy"
+  must_flag: string[];    // ["No pipeline data", "Cannot validate close rate"]
+  must_not: string[];     // ["Promise Harvest actions", "Recommend Series A/B targeting"]
+}
+
+export interface ActionAvailability {
+  app_name: string;
+  available: boolean;
+  reason: string;         // "Connected and healthy" or "Not connected - cannot queue actions"
+}
+
+// --- Thread Memory ---
+
+export interface ThreadMemory {
+  id: string;
+  thread_id: string;
+  memory_type: 'correction' | 'decision' | 'preference' | 'constraint' | 'fact';
+  content: string;
+  source_message_index: number | null;
+  confidence: number;
+  active: boolean;
+  created_at: string;
+}
+
+export interface MemoryExtraction {
+  memories: NewMemory[];
+  supersedes: string[];   // IDs of memories this extraction replaces
+}
+
+export interface NewMemory {
+  memory_type: ThreadMemory['memory_type'];
+  content: string;
+  confidence: number;
+}
+
+// --- Action Output ---
+// Produced by Haiku AFTER Sonnet generates the response.
+// Completely separated from response text.
+
+export interface GeneratedAction {
+  type: 'proposal' | 'brief' | 'follow_up' | 'connection_needed';
+  target_app: string | null;        // null for connection_needed
+  description: string;              // Human-readable summary for the action footer
+  payload: Record<string, any>;     // Structured data for the action system
+  requires_connection: boolean;     // True if this needs an app that isn't connected
+}
+
+export interface ActionGenerationResult {
+  actions: GeneratedAction[];
+  footer_text: string;              // Pre-formatted footer for the response
+}
