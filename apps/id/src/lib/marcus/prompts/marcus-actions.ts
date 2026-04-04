@@ -47,6 +47,9 @@ ${conversationSummary || 'Start of conversation.'}
 - Do not create redundant actions (check against what was already discussed).
 - If no actions are warranted, return an empty array.
 - For follow-ups: only schedule if the conversation warrants checking back.
+- Do NOT create actions that merely restate data gaps. "Document organizational foundation" is NOT an action - it's restating that the org layer is empty. Only create actions that perform CONCRETE WORK: drafting something, building something, analyzing something specific, or capturing a specific piece of intelligence the user shared in this conversation.
+- If the user hasn't shared specific intelligence worth capturing, and no connected apps can do concrete work, return an empty actions array. Zero actions is better than garbage actions.
+- Maximum 3 actions per conversation turn. If you have more, keep only the 3 most concrete and valuable.
 
 Respond with ONLY valid JSON, no markdown fences:
 {

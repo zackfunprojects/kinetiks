@@ -352,7 +352,6 @@ const CORTEX_LAYERS = [
   "competitive",
   "market",
   "brand",
-  "content",
 ] as const;
 
 const CORTEX_LAYER_TABLES: Record<string, string> = {
@@ -364,7 +363,6 @@ const CORTEX_LAYER_TABLES: Record<string, string> = {
   competitive: "kinetiks_context_competitive",
   market: "kinetiks_context_market",
   brand: "kinetiks_context_brand",
-  content: "kinetiks_context_content",
 };
 
 // Field counts per layer (total possible fields)
@@ -377,7 +375,6 @@ const LAYER_FIELD_COUNTS: Record<string, number> = {
   competitive: 12,
   market: 10,
   brand: 14,
-  content: 8,
 };
 
 /**
@@ -390,33 +387,26 @@ export async function buildDataAvailabilityManifest(
   accountId: string,
   supabase: SupabaseClient
 ): Promise<DataAvailabilityManifest> {
-  // 1. Get overall Cortex confidence
-  const { data: confidenceData, error: confidenceError } = await supabase
-    .from("kinetiks_confidence")
-    .select("aggregate")
-    .eq("account_id", accountId)
-    .single();
+  console.log("[MANIFEST] accountId:", accountId);
 
-  if (confidenceError && confidenceError.code !== "PGRST116") {
-    // PGRST116 = no rows - that's expected for new accounts
-    console.error("Failed to fetch Cortex confidence", confidenceError);
-  }
-
-  const overallConfidence = confidenceData?.aggregate ?? 0;
-
-  // 2. Check each Cortex layer
+  // 1. Check each Cortex layer
+  // Each layer table has: id, account_id, data (jsonb), confidence_score, source, source_detail, created_at, updated_at
+  // Data lives INSIDE the `data` jsonb column - field counting must look there, not at top-level columns
   const layerCoverages: CortexLayerCoverage[] = await Promise.all(
     CORTEX_LAYERS.map(async (layerName) => {
       const tableName = CORTEX_LAYER_TABLES[layerName];
+      console.log("[MANIFEST] querying table:", tableName, "for account:", accountId);
+
       const { data: layerData, error: layerError } = await supabase
         .from(tableName)
-        .select("*")
+        .select("data, confidence_score, source, updated_at")
         .eq("account_id", accountId)
-        .order("updated_at", { ascending: false })
-        .limit(1)
         .single();
 
+      console.log("[MANIFEST] raw query result:", tableName, JSON.stringify(layerData?.confidence_score ?? "null"));
+
       if (layerError && layerError.code !== "PGRST116") {
+        // PGRST116 = no rows - expected for new accounts
         console.error(`Failed to fetch ${layerName} layer`, layerError);
       }
 
@@ -432,22 +422,14 @@ export async function buildDataAvailabilityManifest(
         };
       }
 
-      // Count non-null, non-empty fields (exclude metadata fields)
-      const metadataFields = [
-        "id",
-        "account_id",
-        "created_at",
-        "updated_at",
-        "confidence_score",
-        "source",
-      ];
-      const dataFields = Object.entries(layerData).filter(
-        ([key, val]) =>
-          !metadataFields.includes(key) &&
-          val !== null &&
-          val !== "" &&
-          !(Array.isArray(val) && val.length === 0)
-      );
+      // Count non-null, non-empty fields INSIDE the data jsonb column
+      const jsonData = (layerData.data ?? {}) as Record<string, unknown>;
+      const fieldCount = Object.keys(jsonData).filter((k) => {
+        const val = jsonData[k];
+        return val !== null && val !== "" && val !== undefined &&
+          !(Array.isArray(val) && val.length === 0) &&
+          !(typeof val === "object" && !Array.isArray(val) && Object.keys(val as object).length === 0);
+      }).length;
 
       const totalFields = LAYER_FIELD_COUNTS[layerName] ?? 10;
 
@@ -455,15 +437,24 @@ export async function buildDataAvailabilityManifest(
         layer_name: layerName,
         confidence:
           layerData.confidence_score ??
-          Math.round((dataFields.length / totalFields) * 100),
-        has_data: dataFields.length > 0,
-        field_count: dataFields.length,
+          Math.round((fieldCount / totalFields) * 100),
+        has_data: fieldCount > 0,
+        field_count: fieldCount,
         total_fields: totalFields,
         last_updated: layerData.updated_at ?? null,
         source: (layerData.source as CortexLayerCoverage["source"]) ?? "mixed",
       };
     })
   );
+
+  // Compute overall confidence as average of layer confidence_scores
+  const layersWithData = layerCoverages.filter((l) => l.has_data);
+  const overallConfidence = layerCoverages.length > 0
+    ? Math.round(layerCoverages.reduce((sum, l) => sum + l.confidence, 0) / layerCoverages.length)
+    : 0;
+
+  console.log("[MANIFEST] computed overall confidence:", overallConfidence);
+  console.log("[MANIFEST] layers with data:", layersWithData.map((l) => `${l.layer_name}: ${l.confidence}%`));
 
   // 3. Check Synapse connections
   const { data: synapses, error: synapsesError } = await supabase
@@ -738,8 +729,6 @@ function getLayerImportance(layerName: string): string {
       "Without market data, market sizing and opportunity assessment is speculation",
     brand:
       "Without brand data, visual and tonal consistency cannot be enforced",
-    content:
-      "Without content data, editorial strategy has no performance baseline",
   };
   return (
     importance[layerName] ??

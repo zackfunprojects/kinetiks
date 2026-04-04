@@ -27,9 +27,12 @@ export async function buildPreAnalysisBrief(
     recentMessages,
   );
 
+  console.log('[BRIEF] data density:', manifest.cortex_coverage.overall_confidence < 30 ? 'SPARSE' : 'SUFFICIENT');
+
   try {
     const result = await claudeHaiku(prompt);
     const responseText = result.content?.[0]?.text ?? '{}';
+    console.log('[BRIEF] raw Haiku response:', responseText.slice(0, 500));
     const brief: PreAnalysisBrief = JSON.parse(
       responseText.replace(/```json\s*|```/g, '').trim()
     );

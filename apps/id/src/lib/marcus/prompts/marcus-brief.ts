@@ -41,7 +41,23 @@ export function buildPreAnalysisPrompt(
     : intentType === 'implicit_intel' ? 3
     : 7; // strategic and default
 
+  const overallConfidence = manifest.cortex_coverage.overall_confidence;
+  const isDataSparse = overallConfidence < 30;
+
+  const densityContext = isDataSparse
+    ? `## DATA DENSITY: SPARSE (${overallConfidence}% overall confidence)
+This user has limited data in their system. Your brief should enable CONVERSATIONAL ENGAGEMENT, not a data dump refusal.
+- The "response_shape.lead_with" should direct the advisor to engage with what the user asked, using general industry knowledge
+- "must_not" MUST include: "List all empty Cortex layers", "Refuse to help until data is filled", "Tell user to complete their profile"
+- Include 1-2 question suggestions in "lead_with" that would help gather useful context from the user
+- Use whatever Cortex data IS available, even if sparse
+- General strategic knowledge (industry benchmarks, common GTM approaches) IS allowed when flagged as general knowledge`
+    : `## DATA DENSITY: SUFFICIENT (${overallConfidence}% overall confidence)
+Good data density. The brief should enable specific, evidence-cited recommendations.`;
+
   return `You are building a response brief for a stoic GTM advisor. Your job is to PRE-COMPUTE what the advisor can and cannot say, so the advisor's response is correct on the first try.
+
+${densityContext}
 
 ## User's message:
 "${userMessage}"

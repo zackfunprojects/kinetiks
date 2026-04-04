@@ -75,6 +75,8 @@ export async function POST(request: Request) {
           }
 
           // After stream completes, execute generated actions (persist to DB)
+          // The engine already streams the action footer as text events.
+          // We only execute actions here (persist proposals/briefs/follow-ups) - no duplicate disclosure.
           try {
             const actionResult = await actionsPromise;
             if (actionResult && actionResult.actions.length > 0) {
@@ -111,20 +113,14 @@ export async function POST(request: Request) {
                 .filter(Boolean) as any[];
 
               if (extractedActions.length > 0) {
-                const disclosure = await executeActions(
+                // Execute actions in DB (persist proposals, briefs, follow-ups)
+                // Don't send disclosure - engine already streamed the action footer
+                await executeActions(
                   admin,
                   accountId,
                   extractedActions,
                   threadId
                 );
-
-                if (disclosure) {
-                  controller.enqueue(
-                    encoder.encode(
-                      `data: ${JSON.stringify({ type: "extraction", disclosure, actions: actionResult.actions })}\n\n`
-                    )
-                  );
-                }
               }
             }
           } catch {
