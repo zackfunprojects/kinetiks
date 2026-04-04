@@ -1,7 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { streamMarcusMessage } from "@/lib/marcus/engine";
-import { extractActions, executeActions } from "@/lib/marcus/action-extractor";
+import { executeActions } from "@/lib/marcus/action-extractor";
 import { assembleContext } from "@/lib/marcus/context-assembly";
 import { getThreadMessages } from "@/lib/marcus/thread-manager";
 import type { MarcusChannel } from "@kinetiks/types";
@@ -12,13 +12,15 @@ import { apiError } from "@/lib/utils/api-response";
  *
  * Primary Marcus conversation endpoint. Streams SSE responses.
  *
+ * V2 pipeline: pre-analysis brief -> Sonnet (persona only) -> action generation + memory (parallel)
+ *
  * Body: { message: string, thread_id?: string, channel?: MarcusChannel }
  *
  * SSE events:
  * - { type: "thread_id", thread_id: string } - sent first for new threads
- * - { type: "text", text: string } - streaming text deltas
+ * - { type: "text", text: string } - streaming text deltas (includes action footer)
  * - { type: "done" } - response complete
- * - { type: "extraction", disclosure: string, actions: ExtractedAction[] } - post-response
+ * - { type: "extraction", disclosure: string, actions: GeneratedAction[] } - post-response action execution
  * - { type: "error", error: string } - on failure
  */
 export async function POST(request: Request) {
@@ -49,8 +51,8 @@ export async function POST(request: Request) {
   const accountId = auth.account_id;
 
   try {
-    // Stream the Marcus response
-    const { stream, threadId, manifest } = await streamMarcusMessage(
+    // Stream the Marcus response (v2 pipeline handles pre-analysis, generation, actions, memory)
+    const { stream, threadId, manifest, actionsPromise } = await streamMarcusMessage(
       admin,
       accountId,
       message.trim(),
@@ -58,9 +60,8 @@ export async function POST(request: Request) {
       channel ?? "web"
     );
 
-    // Wrap the stream to append extraction after completion
+    // Wrap the stream to append action execution results after completion
     const encoder = new TextEncoder();
-    let streamDone = false;
 
     const wrappedStream = new ReadableStream({
       async start(controller) {
@@ -69,51 +70,61 @@ export async function POST(request: Request) {
         try {
           while (true) {
             const { done, value } = await reader.read();
-            if (done) {
-              streamDone = true;
-              break;
-            }
+            if (done) break;
             controller.enqueue(value);
           }
 
-          // After stream completes, run extraction
+          // After stream completes, execute generated actions (persist to DB)
           try {
-            const messages = await getThreadMessages(admin, threadId, 4);
-            const userMsg = [...messages]
-              .reverse()
-              .find((m) => m.role === "user");
-            const marcusMsg = [...messages]
-              .reverse()
-              .find((m) => m.role === "marcus");
+            const actionResult = await actionsPromise;
+            if (actionResult && actionResult.actions.length > 0) {
+              // Convert GeneratedAction[] to ExtractedAction[] format for executeActions
+              const extractedActions = actionResult.actions
+                .filter((a) => a.type !== "connection_needed")
+                .map((a) => {
+                  if (a.type === "proposal") {
+                    return {
+                      type: "proposal" as const,
+                      target_layer: a.payload.target_layer ?? "org",
+                      action: a.payload.action ?? "add",
+                      confidence: a.payload.confidence ?? "inferred",
+                      payload: a.payload,
+                      evidence_summary: a.description,
+                    };
+                  }
+                  if (a.type === "brief" && a.target_app) {
+                    return {
+                      type: "brief" as const,
+                      target_app: a.target_app,
+                      content: a.description,
+                    };
+                  }
+                  if (a.type === "follow_up") {
+                    return {
+                      type: "follow_up" as const,
+                      message: a.description,
+                      delay_hours: a.payload.delay_hours ?? 24,
+                    };
+                  }
+                  return null;
+                })
+                .filter(Boolean) as any[];
 
-            if (userMsg && marcusMsg) {
-              const contextSummary = await assembleContext(
-                admin,
-                accountId,
-                "implicit_intel",
-                threadId
-              );
-
-              const actions = await extractActions(
-                userMsg.content,
-                marcusMsg.content,
-                contextSummary,
-                manifest
-              );
-
-              if (actions.length > 0) {
+              if (extractedActions.length > 0) {
                 const disclosure = await executeActions(
                   admin,
                   accountId,
-                  actions,
+                  extractedActions,
                   threadId
                 );
 
-                controller.enqueue(
-                  encoder.encode(
-                    `data: ${JSON.stringify({ type: "extraction", disclosure, actions })}\n\n`
-                  )
-                );
+                if (disclosure) {
+                  controller.enqueue(
+                    encoder.encode(
+                      `data: ${JSON.stringify({ type: "extraction", disclosure, actions: actionResult.actions })}\n\n`
+                    )
+                  );
+                }
               }
             }
           } catch {
@@ -122,15 +133,13 @@ export async function POST(request: Request) {
 
           controller.close();
         } catch (err) {
-          if (!streamDone) {
-            const errorMsg =
-              err instanceof Error ? err.message : "Stream error";
-            controller.enqueue(
-              encoder.encode(
-                `data: ${JSON.stringify({ type: "error", error: errorMsg })}\n\n`
-              )
-            );
-          }
+          const errorMsg =
+            err instanceof Error ? err.message : "Stream error";
+          controller.enqueue(
+            encoder.encode(
+              `data: ${JSON.stringify({ type: "error", error: errorMsg })}\n\n`
+            )
+          );
           controller.close();
         }
       },

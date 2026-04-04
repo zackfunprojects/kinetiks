@@ -2,9 +2,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { MarcusChannel, MarcusChatResponse } from "@kinetiks/types";
 import type { ConversationMessage } from "@kinetiks/ai";
 import { askClaudeMultiTurn, askClaude, streamClaude } from "@kinetiks/ai";
-import { buildMarcusSystemPrompt } from "@/lib/ai/prompts/marcus-core";
-import { buildMarcusSystemPromptV2 } from "./prompts/marcus-system";
-import { MAX_RESPONSE_SENTENCES } from "./prompts/marcus-system";
 import { classifyIntent } from "./intent";
 import { assembleContext, buildDataAvailabilityManifest } from "./context-assembly";
 import {
@@ -13,33 +10,44 @@ import {
   getRecentThreadMessages,
   autoTitleThread,
 } from "./thread-manager";
-import { validateResponse } from "./validators/response-validator";
-import {
-  buildRewritePrompt,
-  buildFallbackResponse,
-} from "./prompts/marcus-validation";
-import type { DataAvailabilityManifest } from "./types";
+import { loadThreadMemories, extractAndPersistMemories } from "./memory";
+import { buildPreAnalysisBrief } from "./pre-analysis";
+import { buildPersonaPrompt } from "./prompts/marcus-persona";
+import { generateActions } from "./action-generator";
+import { assembleResponse } from "./response-assembler";
+import type { DataAvailabilityManifest, ActionGenerationResult } from "./types";
 
 /**
- * Process a Marcus conversation message through the full pipeline.
+ * Wrap askClaude for Haiku calls so it returns the format our modules expect:
+ * { content: [{ text: string }] }
+ */
+function makeHaikuCaller() {
+  return async (prompt: string) => {
+    const text = await askClaude(prompt, {
+      model: "claude-haiku-4-5-20251001",
+      maxTokens: 1024,
+    });
+    return { content: [{ text }] };
+  };
+}
+
+/**
+ * Process a Marcus conversation message through the v2 pipeline.
  *
- * Pipeline:
+ * V2 Pipeline:
  * 1. Get or create thread (validates ownership)
- * 2. Fetch prior history (before saving new message to avoid duplication)
+ * 2. Fetch prior history
  * 3. Classify intent
  * 4. Save user message
- * 5. Assemble context (token-budgeted per intent)
- * 5b. Build data availability manifest
- * 6. Build system prompt (v2 with manifest + hard constraints)
- * 7. Build messages array from history + new user message
- * 8. Generate response
- * 8b. Validate response - rewrite if violations detected
- * 9. Save Marcus response
- * 9b. Log validation results to Learning Ledger
- * 10. Auto-title thread if first exchange
- * 11. Return response
- *
- * Action extraction happens separately after response delivery (see action-extractor.ts).
+ * 5. Build data availability manifest
+ * 6. Load thread memories
+ * 7. Pre-analysis brief (Haiku) - THE KEY CHANGE
+ * 8. Response generation (Sonnet) with short persona prompt + brief adjacent to question
+ * 9. Action generation + memory update (parallel, Haiku)
+ * 10. Assemble response + action footer
+ * 11. Save Marcus response
+ * 12. Log to ledger, auto-title
+ * 13. Return
  */
 export async function processMarcusMessage(
   admin: SupabaseClient,
@@ -48,6 +56,8 @@ export async function processMarcusMessage(
   threadId?: string,
   channel: MarcusChannel = "web"
 ): Promise<MarcusChatResponse & { _validation?: ValidationMetadata; manifest?: DataAvailabilityManifest }> {
+  const claudeHaiku = makeHaikuCaller();
+
   // 1. Get or create thread (validates ownership before any reads)
   const thread = await getOrCreateThread(admin, accountId, threadId, channel);
 
@@ -61,139 +71,104 @@ export async function processMarcusMessage(
   // 4. Save user message (after history fetch to prevent it appearing in history)
   await addMessage(admin, thread.id, "user", message, channel);
 
-  // 5. Assemble context
-  const contextSummary = await assembleContext(
-    admin,
-    accountId,
-    intent,
-    thread.id,
-    message
-  );
-
-  // 5b. Build data availability manifest
+  // 5. Build data availability manifest
   const manifest = await buildDataAvailabilityManifest(accountId, admin);
 
-  // 6. Build system prompt (v2 with manifest, evidence rules, anti-sycophancy)
-  // Fall back to v1 prompt with context summary appended
-  const systemName = "Marcus"; // Could be customized per account in the future
-  const systemPrompt = buildMarcusSystemPromptV2(
-    systemName,
-    manifest,
-    [], // activeGoals - TODO: load from account settings
-    null // productStack - already in context summary
-  ) + `\n\n---\n\n## Assembled Context\n\n${contextSummary}`;
+  // 6. Load thread memories
+  const memories = await loadThreadMemories(accountId, thread.id, admin);
 
-  // 7. Build messages array: prior history + new user message
+  // Format recent messages for context (last 3 turns)
+  const recentMessages = history
+    .slice(-6) // 3 turns = 6 messages (user + assistant pairs)
+    .map((m) => `${m.role === "user" ? "USER" : "ASSISTANT"}: ${m.content}`)
+    .join("\n");
+
+  // 7. Pre-analysis brief (Haiku)
+  const { brief, formatted: briefText } = await buildPreAnalysisBrief(
+    message,
+    manifest,
+    memories,
+    intent,
+    recentMessages,
+    claudeHaiku,
+  );
+
+  // 8. Response generation (Sonnet) - short persona prompt + brief adjacent to question
+  const systemPrompt = buildPersonaPrompt("Marcus");
+
   const conversationMessages: ConversationMessage[] = [
     ...history.map((m) => ({
       role: m.role === "user" ? "user" as const : "assistant" as const,
       content: m.content,
     })),
-    { role: "user" as const, content: message },
+    {
+      role: "user" as const,
+      content: `${briefText}\n\n[USER MESSAGE]\n${message}`,
+    },
   ];
 
-  // 8. Generate response
   const responseText = await askClaudeMultiTurn(conversationMessages, {
     system: systemPrompt,
     model: "claude-sonnet-4-20250514",
     maxTokens: 2048,
   });
 
-  // 8b. Validate response before delivery
-  const validation = validateResponse(responseText, manifest, intent, message);
+  // 9. Action generation + memory update (parallel, Haiku)
+  const conversationSummary = recentMessages;
 
-  let finalResponse = responseText;
-
-  if (validation.needs_rewrite && validation.rewrite_instructions) {
-    // Request a rewrite from Haiku
-    const rewritePrompt = buildRewritePrompt(
+  const [actionResult, _memoryResult] = await Promise.all([
+    generateActions(message, responseText, manifest, conversationSummary, claudeHaiku),
+    extractAndPersistMemories(
+      accountId,
+      thread.id,
+      message,
       responseText,
-      validation.rewrite_instructions,
-      intent,
-      MAX_RESPONSE_SENTENCES[intent] ?? 8
-    );
+      memories,
+      history.length,
+      claudeHaiku,
+      admin,
+    ),
+  ]);
 
-    try {
-      const rewrittenText = await askClaude(rewritePrompt, {
-        model: "claude-haiku-4-5-20251001",
-        maxTokens: 1024,
-      });
+  // 10. Assemble response + action footer
+  const finalResponse = assembleResponse(responseText, actionResult);
 
-      // Validate the rewrite
-      const revalidation = validateResponse(rewrittenText, manifest, intent, message);
-
-      if (
-        revalidation.passed ||
-        revalidation.evidence.violations.filter((v) => v.severity === "hard").length === 0
-      ) {
-        finalResponse = rewrittenText;
-      } else {
-        // Rewrite also failed - use fallback
-        console.warn("Marcus rewrite also failed validation", {
-          original_violations: validation.evidence.violations,
-          rewrite_violations: revalidation.evidence.violations,
-        });
-        finalResponse = buildFallbackResponse(
-          intent,
-          manifest.known_gaps.map((g) => g.what_is_missing)
-        );
-      }
-    } catch (error) {
-      console.error("Marcus rewrite failed", error);
-      // Keep original response if rewrite call fails - better than nothing
-      finalResponse = responseText;
-    }
-  }
-
-  // 9. Save Marcus response
+  // 11. Save Marcus response
   await addMessage(admin, thread.id, "marcus", finalResponse, channel);
 
-  // 9b. Log validation results to Learning Ledger (non-blocking, fire-and-forget)
+  // 12. Log to Learning Ledger (non-blocking)
   admin.from("kinetiks_learning_ledger").insert({
     account_id: accountId,
-    event_type: "marcus_response_validation",
+    event_type: "marcus_response_v2",
     source: "marcus",
     data: {
       thread_id: thread.id,
       intent_type: intent,
-      validation_passed: validation.passed,
-      was_rewritten: finalResponse !== responseText,
-      violation_count: validation.evidence.violations.length,
-      violation_types: validation.evidence.violations.map((v) => v.type),
-      sentence_count: validation.verbosity.sentence_count,
-      max_allowed: validation.verbosity.max_allowed,
-      manifest_summary: {
-        cortex_confidence: manifest.cortex_coverage.overall_confidence,
-        connected_apps: manifest.connections
-          .filter((c) => c.connected)
-          .map((c) => c.app_name),
-        disconnected_apps: manifest.connections
-          .filter((c) => !c.connected)
-          .map((c) => c.app_name),
-        gap_count: manifest.known_gaps.length,
-      },
+      brief_evidence_count: brief.available_evidence.length,
+      brief_gap_count: brief.not_available.length,
+      memory_count: memories.length,
+      action_count: actionResult.actions.length,
+      response_length: responseText.length,
     },
   }).then(({ error }) => {
-    if (error) console.error("Failed to log validation to ledger", error);
+    if (error) console.error("Failed to log to ledger", error);
   });
 
-  // 10. Auto-title if this is the first exchange (no prior history)
+  // Auto-title if first exchange
   if (history.length === 0 && !thread.title) {
-    autoTitleThread(admin, thread.id).catch(() => {
-      // Non-critical - don't block response
-    });
+    autoTitleThread(admin, thread.id).catch(() => {});
   }
 
-  // 11. Return
+  // 13. Return
   return {
     thread_id: thread.id,
     message: finalResponse,
     manifest,
     _validation: {
-      original_passed: validation.passed,
-      was_rewritten: finalResponse !== responseText,
-      violations_caught: validation.evidence.violations.length,
-      sentence_count: validation.verbosity.sentence_count,
+      original_passed: true, // v2 doesn't use post-validation
+      was_rewritten: false,
+      violations_caught: 0,
+      sentence_count: responseText.split(/[.!?]+/).filter((s) => s.trim()).length,
       intent_type: intent,
     },
   };
@@ -208,15 +183,14 @@ interface ValidationMetadata {
 }
 
 /**
- * Stream a Marcus conversation message.
+ * Stream a Marcus conversation message through the v2 pipeline.
  * Returns a ReadableStream that emits SSE-formatted text deltas.
  *
- * Note: Streaming bypasses the validation loop since we can't rewrite
- * mid-stream. The validation runs post-stream and logs results for
- * quality monitoring. Future improvement: buffer the full response
- * before streaming to enable validation.
- *
- * After the stream completes, the caller should trigger action extraction.
+ * V2 streaming pipeline:
+ * - Pre-stream: intent, manifest, memory, pre-analysis brief
+ * - Stream: Sonnet with persona prompt + brief adjacent to question
+ * - Post-stream: action generation + memory update (parallel)
+ * - Stream action footer after response completes
  */
 export async function streamMarcusMessage(
   admin: SupabaseClient,
@@ -224,51 +198,59 @@ export async function streamMarcusMessage(
   message: string,
   threadId?: string,
   channel: MarcusChannel = "web"
-): Promise<{ stream: ReadableStream; threadId: string; manifest: DataAvailabilityManifest }> {
-  // 1. Get or create thread (validates ownership before any reads)
+): Promise<{ stream: ReadableStream; threadId: string; manifest: DataAvailabilityManifest; actionsPromise?: Promise<ActionGenerationResult> }> {
+  const claudeHaiku = makeHaikuCaller();
+
+  // 1. Get or create thread
   const thread = await getOrCreateThread(admin, accountId, threadId, channel);
 
-  // 2. Fetch prior history BEFORE saving user message to avoid duplication
+  // 2. Fetch prior history
   const history = await getRecentThreadMessages(admin, thread.id, 20);
 
-  // 3. Classify intent using recent history
+  // 3. Classify intent
   const recentContent = history.slice(-5).map((m) => m.content);
   const intent = await classifyIntent(message, recentContent.length > 0 ? recentContent : undefined);
 
-  // 4. Save user message (after history fetch)
+  // 4. Save user message
   await addMessage(admin, thread.id, "user", message, channel);
 
-  // 5. Assemble context
-  const contextSummary = await assembleContext(
-    admin,
-    accountId,
-    intent,
-    thread.id,
-    message
-  );
-
-  // 5b. Build data availability manifest
+  // 5. Build data availability manifest
   const manifest = await buildDataAvailabilityManifest(accountId, admin);
 
-  // 6. Build system prompt (v2 with manifest + hard constraints)
-  const systemName = "Marcus";
-  const systemPrompt = buildMarcusSystemPromptV2(
-    systemName,
-    manifest,
-    [],
-    null
-  ) + `\n\n---\n\n## Assembled Context\n\n${contextSummary}`;
+  // 6. Load thread memories
+  const memories = await loadThreadMemories(accountId, thread.id, admin);
 
-  // 7. Build messages array: prior history + new user message
+  // Format recent messages
+  const recentMessages = history
+    .slice(-6)
+    .map((m) => `${m.role === "user" ? "USER" : "ASSISTANT"}: ${m.content}`)
+    .join("\n");
+
+  // 7. Pre-analysis brief (Haiku)
+  const { brief, formatted: briefText } = await buildPreAnalysisBrief(
+    message,
+    manifest,
+    memories,
+    intent,
+    recentMessages,
+    claudeHaiku,
+  );
+
+  // 8. Build messages with brief adjacent to question
+  const systemPrompt = buildPersonaPrompt("Marcus");
+
   const conversationMessages: ConversationMessage[] = [
     ...history.map((m) => ({
       role: m.role === "user" ? "user" as const : "assistant" as const,
       content: m.content,
     })),
-    { role: "user" as const, content: message },
+    {
+      role: "user" as const,
+      content: `${briefText}\n\n[USER MESSAGE]\n${message}`,
+    },
   ];
 
-  // 8. Create streaming response
+  // 9. Create streaming response
   const claudeStream = streamClaude(conversationMessages, {
     system: systemPrompt,
     model: "claude-sonnet-4-20250514",
@@ -277,6 +259,12 @@ export async function streamMarcusMessage(
 
   let fullResponse = "";
   const isFirstExchange = history.length === 0 && !thread.title;
+
+  // Promise that resolves with action generation result (for API route to execute)
+  let resolveActions: (value: ActionGenerationResult) => void;
+  const actionsPromise = new Promise<ActionGenerationResult>((resolve) => {
+    resolveActions = resolve;
+  });
 
   const readableStream = new ReadableStream({
     async start(controller) {
@@ -302,38 +290,70 @@ export async function streamMarcusMessage(
           }
         }
 
-        // Save complete response
+        // Save complete response (before action footer)
         await addMessage(admin, thread.id, "marcus", fullResponse, channel);
 
-        // Post-stream validation logging (non-blocking, fire-and-forget)
-        const validation = validateResponse(fullResponse, manifest, intent, message);
+        // Post-stream: action generation + memory update (parallel)
+        const conversationSummary = recentMessages;
+        const [actionResult] = await Promise.all([
+          generateActions(message, fullResponse, manifest, conversationSummary, claudeHaiku),
+          extractAndPersistMemories(
+            accountId,
+            thread.id,
+            message,
+            fullResponse,
+            memories,
+            history.length,
+            claudeHaiku,
+            admin,
+          ),
+        ]);
+
+        // Resolve actions promise for API route to execute
+        resolveActions!(actionResult);
+
+        // Stream action footer if there are actions
+        if (actionResult.footer_text) {
+          controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify({ type: "text", text: actionResult.footer_text })}\n\n`)
+          );
+
+          // Update saved message with action footer
+          const fullWithFooter = assembleResponse(fullResponse, actionResult);
+          const { data: latestMsg } = await admin
+            .from("kinetiks_marcus_messages")
+            .select("id")
+            .eq("thread_id", thread.id)
+            .eq("role", "marcus")
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .single();
+
+          if (latestMsg) {
+            await admin
+              .from("kinetiks_marcus_messages")
+              .update({ content: fullWithFooter })
+              .eq("id", latestMsg.id);
+          }
+        }
+
+        // Log to Learning Ledger (non-blocking)
         admin.from("kinetiks_learning_ledger").insert({
           account_id: accountId,
-          event_type: "marcus_response_validation",
+          event_type: "marcus_response_v2",
           source: "marcus",
           data: {
             thread_id: thread.id,
             intent_type: intent,
-            validation_passed: validation.passed,
-            was_rewritten: false, // Streaming can't rewrite
-            violation_count: validation.evidence.violations.length,
-            violation_types: validation.evidence.violations.map((v) => v.type),
-            sentence_count: validation.verbosity.sentence_count,
-            max_allowed: validation.verbosity.max_allowed,
+            brief_evidence_count: brief.available_evidence.length,
+            brief_gap_count: brief.not_available.length,
+            memory_count: memories.length,
+            action_count: actionResult.actions.length,
+            response_length: fullResponse.length,
             streaming: true,
-            manifest_summary: {
-              cortex_confidence: manifest.cortex_coverage.overall_confidence,
-              connected_apps: manifest.connections
-                .filter((c) => c.connected)
-                .map((c) => c.app_name),
-              disconnected_apps: manifest.connections
-                .filter((c) => !c.connected)
-                .map((c) => c.app_name),
-              gap_count: manifest.known_gaps.length,
-            },
           },
         }).then(({ error: ledgerError }) => {
-          if (ledgerError) console.error("Failed to log validation to ledger", ledgerError);
+          if (ledgerError) console.error("Failed to log to ledger", ledgerError);
         });
 
         // Auto-title if first exchange
@@ -347,6 +367,7 @@ export async function streamMarcusMessage(
         );
         controller.close();
       } catch (err) {
+        resolveActions!({ actions: [], footer_text: "" });
         const errorMsg = err instanceof Error ? err.message : "Unknown error";
         controller.enqueue(
           encoder.encode(`data: ${JSON.stringify({ type: "error", error: errorMsg })}\n\n`)
@@ -356,5 +377,5 @@ export async function streamMarcusMessage(
     },
   });
 
-  return { stream: readableStream, threadId: thread.id, manifest };
+  return { stream: readableStream, threadId: thread.id, manifest, actionsPromise };
 }
