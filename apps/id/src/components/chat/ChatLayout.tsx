@@ -36,8 +36,8 @@ export function ChatLayout({
     try {
       const res = await fetch(`/api/marcus/threads/${threadId}/messages`);
       if (res.ok) {
-        const data = await res.json();
-        setMessages(data.messages ?? []);
+        const json = await res.json();
+        setMessages(json.data?.messages ?? []);
       }
     } catch {
       // Fall through
@@ -70,8 +70,8 @@ export function ChatLayout({
     try {
       const res = await fetch("/api/marcus/threads");
       if (res.ok) {
-        const data = await res.json();
-        setThreads(data.threads ?? []);
+        const json = await res.json();
+        setThreads(json.data?.threads ?? []);
       }
     } catch {
       // Non-critical
@@ -94,8 +94,8 @@ export function ChatLayout({
       try {
         const res = await fetch(url, { signal: controller.signal });
         if (res.ok && searchSeqRef.current === seq) {
-          const data = await res.json();
-          setThreads(data.threads ?? []);
+          const json = await res.json();
+          setThreads(json.data?.threads ?? []);
         }
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") return;
