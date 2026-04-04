@@ -14,7 +14,8 @@ export async function GET(request: NextRequest) {
   if (error) return error;
 
   const key = request.nextUrl.searchParams.get("key");
-  const days = parseInt(request.nextUrl.searchParams.get("days") ?? "30", 10);
+  const daysRaw = parseInt(request.nextUrl.searchParams.get("days") ?? "30", 10);
+  const days = Number.isFinite(daysRaw) && daysRaw > 0 ? Math.min(daysRaw, 365) : 30;
   const app = request.nextUrl.searchParams.get("app");
 
   const admin = createAdminClient();
@@ -32,7 +33,7 @@ export async function GET(request: NextRequest) {
 
   const { data: metrics, error: queryError } = await query;
 
-  if (queryError) return apiError("Failed to fetch metrics", 500);
+  if (queryError) return apiError(`Failed to fetch metrics: ${queryError.message}`, 500);
 
   return apiSuccess({ metrics: metrics ?? [] });
 }
@@ -56,10 +57,17 @@ export async function POST(request: Request) {
     return apiError("No metrics provided", 400);
   }
 
-  // Validate metric keys
+  // Validate metric keys and source_app consistency
   for (const m of body.metrics) {
-    if (!getMetricDefinition(m.metric_key)) {
+    const def = getMetricDefinition(m.metric_key);
+    if (!def) {
       return apiError(`Unknown metric key: ${m.metric_key}`, 400);
+    }
+    if (def.source_app !== m.source_app) {
+      return apiError(
+        `Metric ${m.metric_key} belongs to ${def.source_app}, not ${m.source_app}`,
+        400
+      );
     }
   }
 
@@ -79,7 +87,7 @@ export async function POST(request: Request) {
     .from("kinetiks_analytics_metrics")
     .insert(rows);
 
-  if (insertError) return apiError("Failed to store metrics", 500);
+  if (insertError) return apiError(`Failed to store metrics: ${insertError.message}`, 500);
 
   return apiSuccess({ stored: rows.length });
 }

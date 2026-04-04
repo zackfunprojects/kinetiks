@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
     .order("created_at", { ascending: false })
     .limit(limit);
 
-  if (queryError) return apiError("Failed to fetch insights", 500);
+  if (queryError) return apiError(`Failed to fetch insights: ${queryError.message}`, 500);
 
   return apiSuccess({ insights: insights ?? [] });
 }
@@ -45,11 +45,15 @@ export async function PATCH(request: Request) {
 
   if (!body.id) return apiError("Insight ID required", 400);
 
-  const admin = createAdminClient();
   const updates: Record<string, unknown> = {};
-
   if (body.dismissed !== undefined) updates.dismissed = body.dismissed;
   if (body.acted_on !== undefined) updates.acted_on = body.acted_on;
+
+  if (Object.keys(updates).length === 0) {
+    return apiError("No valid fields to update", 400);
+  }
+
+  const admin = createAdminClient();
 
   const { error: updateError } = await admin
     .from("kinetiks_oracle_insights")
@@ -57,7 +61,7 @@ export async function PATCH(request: Request) {
     .eq("id", body.id)
     .eq("account_id", auth.account_id);
 
-  if (updateError) return apiError("Failed to update insight", 500);
+  if (updateError) return apiError(`Failed to update insight: ${updateError.message}`, 500);
 
   return apiSuccess({ updated: true });
 }

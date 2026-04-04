@@ -45,20 +45,32 @@ export function modelScenario(
   }
 
   // Scale projection proportionally
-  const scaleFactor = currentValue > 0 ? modifiedCurrent / currentValue : 1;
-  const modifiedProjection = originalProjection * scaleFactor;
+  // When currentValue is 0, use additive offset instead of multiplicative scaling
+  let modifiedProjection: number;
+  if (currentValue > 0) {
+    const scaleFactor = modifiedCurrent / currentValue;
+    modifiedProjection = originalProjection * scaleFactor;
+  } else {
+    const delta = modifiedCurrent - currentValue;
+    modifiedProjection = originalProjection + delta;
+  }
 
   const impactPercentage =
     originalProjection > 0
       ? ((modifiedProjection - originalProjection) / originalProjection) * 100
       : 0;
 
-  // Find affected goals
+  // Find affected goals - any goal where the scenario changes distance to target
+  const ratio = currentValue > 0 ? modifiedCurrent / currentValue : 1;
+  const delta = modifiedCurrent - currentValue;
   const affectedGoals = goalTargets
     .filter((g) => {
       const originalDistance = Math.abs(g.target_value - g.current_value);
-      const modifiedDistance = Math.abs(g.target_value - (g.current_value * scaleFactor));
-      return modifiedDistance !== originalDistance;
+      const modifiedValue = currentValue > 0
+        ? g.current_value * ratio
+        : g.current_value + delta;
+      const modifiedDistance = Math.abs(g.target_value - modifiedValue);
+      return Math.abs(modifiedDistance - originalDistance) > 0.01;
     })
     .map((g) => g.goal_id);
 

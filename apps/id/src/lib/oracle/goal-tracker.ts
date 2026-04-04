@@ -16,6 +16,7 @@ export interface GoalProgress {
 
 /**
  * Calculate goal progress with pace and status determination.
+ * Accounts for goal.direction: "above" (higher is better), "below" (lower is better), "exact".
  */
 export function calculateGoalProgress(
   goal: Goal,
@@ -23,7 +24,25 @@ export function calculateGoalProgress(
 ): GoalProgress {
   const targetValue = goal.target_value ?? 0;
   const currentValue = goal.current_value;
-  const completion = targetValue > 0 ? (currentValue / targetValue) * 100 : 0;
+  const direction = goal.direction ?? "above";
+
+  // Completion depends on direction
+  let completion: number;
+  if (targetValue === 0) {
+    completion = 0;
+  } else if (direction === "below") {
+    // Lower is better: 100% when current <= target, proportional above
+    completion = currentValue <= targetValue
+      ? 100
+      : Math.max(0, (1 - (currentValue - targetValue) / targetValue) * 100);
+  } else if (direction === "exact") {
+    // Exact: closer to target = higher completion
+    const distance = Math.abs(currentValue - targetValue);
+    completion = Math.max(0, (1 - distance / targetValue) * 100);
+  } else {
+    // Above (default): higher is better
+    completion = (currentValue / targetValue) * 100;
+  }
 
   const now = new Date();
   const periodStart = goal.period_start ? new Date(goal.period_start) : now;
@@ -37,8 +56,15 @@ export function calculateGoalProgress(
   // Expected value based on linear pace
   const expectedValue = targetValue * timeProgress;
 
-  // Determine pace
-  const paceRatio = expectedValue > 0 ? currentValue / expectedValue : 1;
+  // Determine pace (direction-aware)
+  let paceRatio: number;
+  if (direction === "below") {
+    // For "below" goals, being under expected is good
+    paceRatio = expectedValue > 0 ? expectedValue / Math.max(currentValue, 0.01) : 1;
+  } else {
+    paceRatio = expectedValue > 0 ? currentValue / expectedValue : 1;
+  }
+
   let pace: GoalProgress["pace"];
   if (paceRatio >= 1.1) pace = "ahead";
   else if (paceRatio >= 0.85) pace = "on_pace";
@@ -46,14 +72,15 @@ export function calculateGoalProgress(
   else pace = "far_behind";
 
   // Determine trend from recent values
-  const trend = determineTrend(recentValues);
+  const trend = determineTrend(recentValues, direction);
 
-  // Forecast
+  // Forecast: convert sample-based regression to day-based projection
+  // Assume each sample represents ~1 day of data
+  const samplesAhead = Math.max(1, Math.round(daysRemaining));
   const forecastValue = recentValues.length >= 3
-    ? simpleLinearForecast(recentValues, daysRemaining)
+    ? simpleLinearForecast(recentValues, samplesAhead)
     : null;
 
-  // Determine status
   const status = determineStatus(completion, pace, daysRemaining, trend);
 
   return {
@@ -71,7 +98,7 @@ export function calculateGoalProgress(
   };
 }
 
-function determineTrend(values: number[]): GoalProgress["trend"] {
+function determineTrend(values: number[], direction: string): GoalProgress["trend"] {
   if (values.length < 2) return "stable";
 
   const recent = values.slice(-3);
@@ -81,6 +108,13 @@ function determineTrend(values: number[]): GoalProgress["trend"] {
   }
 
   const avgDiff = diffs.reduce((a, b) => a + b, 0) / diffs.length;
+
+  // For "below" direction, decreasing values are improving
+  if (direction === "below") {
+    if (avgDiff < 0) return "improving";
+    if (avgDiff > 0) return "declining";
+    return "stable";
+  }
 
   if (avgDiff > 0) return "improving";
   if (avgDiff < 0) return "declining";
@@ -93,12 +127,11 @@ function determineStatus(
   daysRemaining: number,
   trend: GoalProgress["trend"]
 ): GoalProgressStatus {
-  if (completion >= 100) return "on_track"; // Completed
+  if (completion >= 100) return "on_track";
 
   if (pace === "ahead") return "ahead";
   if (pace === "on_pace") return "on_track";
 
-  // Behind - severity depends on time remaining and trend
   if (pace === "far_behind" || (pace === "behind" && daysRemaining < 7 && trend === "declining")) {
     return "critical";
   }
@@ -108,10 +141,9 @@ function determineStatus(
   return "behind";
 }
 
-function simpleLinearForecast(values: number[], daysAhead: number): number {
+function simpleLinearForecast(values: number[], stepsAhead: number): number {
   if (values.length < 2) return values[values.length - 1] ?? 0;
 
-  // Simple linear regression
   const n = values.length;
   let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
 
@@ -122,9 +154,11 @@ function simpleLinearForecast(values: number[], daysAhead: number): number {
     sumX2 += i * i;
   }
 
-  const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+  const denom = n * sumX2 - sumX * sumX;
+  if (denom === 0) return values[n - 1];
+
+  const slope = (n * sumXY - sumX * sumY) / denom;
   const intercept = (sumY - slope * sumX) / n;
 
-  // Project forward
-  return intercept + slope * (n - 1 + daysAhead);
+  return intercept + slope * (n - 1 + stepsAhead);
 }

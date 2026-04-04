@@ -19,6 +19,9 @@ export interface Trend {
 
 /**
  * Detect anomalies using z-score against a 30-day adaptive baseline.
+ * Note: operates on array position, not actual timestamps. Callers must
+ * provide data sorted by timestamp with roughly uniform spacing (e.g. from CRON).
+ * Irregular gaps may reduce accuracy.
  */
 export function detectAnomalies(
   values: { value: number; timestamp: string }[],
@@ -58,7 +61,8 @@ export function detectAnomalies(
 }
 
 /**
- * Detect trends using linear regression on a 14-day window.
+ * Detect trends using linear regression on a window of recent values.
+ * Same position-based caveat as detectAnomalies applies here.
  */
 export function detectTrends(
   values: { value: number; timestamp: string }[],

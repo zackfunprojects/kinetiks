@@ -1,6 +1,7 @@
 /**
  * Position-based attribution model: 40/20/40
  * First touch: 40%, Middle touches: 20% (split evenly), Last touch: 40%
+ * Special case: 2 touchpoints split 50/50 (first and last are the same journey).
  */
 
 export interface TouchpointData {
@@ -36,6 +37,9 @@ export function calculateAttribution(
     let credit: number;
     if (sorted.length === 1) {
       credit = 1.0;
+    } else if (sorted.length === 2) {
+      // Two touchpoints: 50/50 split (first + last = full journey)
+      credit = 0.5;
     } else if (i === 0) {
       credit = 0.4; // First touch
     } else if (i === sorted.length - 1) {

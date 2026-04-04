@@ -26,7 +26,7 @@ export async function createInsight(
 
   // Dedup check - don't create duplicate insights within 24 hours
   const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-  const { data: existing } = await admin
+  const { data: existing, error: dedupError } = await admin
     .from("kinetiks_oracle_insights")
     .select("id")
     .eq("account_id", accountId)
@@ -35,7 +35,8 @@ export async function createInsight(
     .gte("created_at", dayAgo)
     .limit(1);
 
-  if (existing && existing.length > 0) {
+  // If dedupe check fails, proceed with insert (tolerate duplicate over lost insight)
+  if (!dedupError && existing && existing.length > 0) {
     return existing[0].id;
   }
 

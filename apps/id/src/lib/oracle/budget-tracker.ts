@@ -28,7 +28,7 @@ export interface AllocationPacing {
 export async function calculateBudgetPacing(accountId: string): Promise<BudgetPacing | null> {
   const admin = createAdminClient();
 
-  const { data: budget } = await admin
+  const { data: budget, error: budgetError } = await admin
     .from("kinetiks_budgets")
     .select("*, kinetiks_budget_allocations(*)")
     .eq("account_id", accountId)
@@ -37,7 +37,8 @@ export async function calculateBudgetPacing(accountId: string): Promise<BudgetPa
     .limit(1)
     .single();
 
-  if (!budget) return null;
+  // No active budget or query error - both return null (no pacing to show)
+  if (budgetError || !budget) return null;
 
   const b = budget as Budget & { kinetiks_budget_allocations: BudgetAllocation[] };
   const allocations = b.kinetiks_budget_allocations ?? [];
@@ -45,10 +46,14 @@ export async function calculateBudgetPacing(accountId: string): Promise<BudgetPa
   const now = new Date();
   const start = new Date(b.period_start);
   const end = new Date(b.period_end);
+
+  // Guard against invalid budget windows
+  if (end.getTime() <= start.getTime()) return null;
+
   const totalDays = (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24);
-  const daysElapsed = (now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24);
+  const daysElapsed = Math.max(0, (now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
   const daysRemaining = Math.max(0, totalDays - daysElapsed);
-  const pacingPercentage = Math.min((daysElapsed / totalDays) * 100, 100);
+  const pacingPercentage = totalDays > 0 ? Math.min((daysElapsed / totalDays) * 100, 100) : 0;
 
   const totalSpent = allocations.reduce((sum, a) => sum + (a.spent_amount ?? 0), 0);
   const spendPercentage = b.total_budget > 0 ? (totalSpent / b.total_budget) * 100 : 0;

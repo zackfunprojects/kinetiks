@@ -14,17 +14,29 @@ const STATUS_COLORS: Record<string, string> = {
 export function GoalOverview() {
   const [goals, setGoals] = useState<GoalProgress[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/oracle/goals")
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) throw new Error(`Failed to load goals (${res.status})`);
+        return res.json();
+      })
       .then((data) => setGoals(data.data?.goals ?? []))
-      .catch(() => {})
+      .catch((err) => setFetchError(err instanceof Error ? err.message : "Failed to load goals"))
       .finally(() => setLoading(false));
   }, []);
 
   if (loading) {
     return <div style={{ padding: 16, color: "var(--text-tertiary)", fontSize: 13 }}>Loading goals...</div>;
+  }
+
+  if (fetchError) {
+    return (
+      <div style={{ padding: 24, borderRadius: 8, border: "1px dashed var(--error-muted)", background: "var(--bg-surface)", textAlign: "center" }}>
+        <p style={{ fontSize: 13, color: "var(--error)", margin: 0 }}>{fetchError}</p>
+      </div>
+    );
   }
 
   if (goals.length === 0) {
