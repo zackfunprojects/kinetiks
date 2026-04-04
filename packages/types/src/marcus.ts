@@ -71,6 +71,7 @@ export interface MarcusFollowUp {
 export type MarcusChannel = "web" | "slack" | "pill";
 
 export type MarcusIntent =
+  | "command"
   | "strategic"
   | "tactical"
   | "support"
@@ -148,6 +149,14 @@ export interface ContextBudget {
 }
 
 export const CONTEXT_BUDGETS: Record<MarcusIntent, ContextBudget> = {
+  command: {
+    layers: 1500,
+    confidence: 300,
+    proposals: 0,
+    routing: 500,
+    history: 1000,
+    docs: 0,
+  },
   strategic: {
     layers: 3000,
     confidence: 500,
