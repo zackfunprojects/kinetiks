@@ -68,20 +68,23 @@ export async function POST(request: Request) {
 
     // Log to Ledger
     const admin = createAdminClient();
-    await admin.from("kinetiks_ledger").insert({
+    const { error: ledgerError } = await admin.from("kinetiks_ledger").insert({
       account_id: auth.account_id,
       event_type: "command_executed",
       source_app: "marcus",
+      source_operator: "command-router",
       target_layer: null,
-      data: {
+      detail: {
         message: body.message,
         intent: parsedIntent,
         commands_dispatched: commands.length,
         successes: responses.filter((r) => r.status === "success").length,
         errors: responses.filter((r) => r.status !== "success").length,
       },
-      attribution: "marcus/command-router",
     });
+    if (ledgerError) {
+      console.error("Failed to write command ledger entry:", ledgerError.message);
+    }
 
     return apiSuccess({
       type: "command_result",
@@ -108,13 +111,14 @@ async function parseCommandIntent(message: string): Promise<ParsedCommandIntent>
     );
 
     const parsed = JSON.parse(result);
+    const validTypes = ["query", "action", "config"];
     return {
-      type: parsed.type ?? "query",
-      subject: parsed.subject ?? null,
-      keywords: parsed.keywords ?? [],
-      parameters: parsed.parameters ?? {},
+      type: validTypes.includes(parsed.type) ? parsed.type : "query",
+      subject: typeof parsed.subject === "string" ? parsed.subject : null,
+      keywords: Array.isArray(parsed.keywords) ? parsed.keywords.filter((k: unknown) => typeof k === "string") : [],
+      parameters: typeof parsed.parameters === "object" && parsed.parameters !== null ? parsed.parameters : {},
       raw_text: message,
-      confidence: parsed.confidence ?? 0.5,
+      confidence: typeof parsed.confidence === "number" && parsed.confidence >= 0 && parsed.confidence <= 1 ? parsed.confidence : 0.5,
     };
   } catch {
     return {

@@ -11,11 +11,16 @@ export async function findMatchingCapabilities(
 ): Promise<CapabilityMatch[]> {
   const admin = createAdminClient();
 
-  const { data: synapses } = await admin
+  const { data: synapses, error: queryError } = await admin
     .from("kinetiks_synapses")
     .select("app_name, capabilities")
     .eq("account_id", accountId)
     .not("capabilities", "is", null);
+
+  if (queryError) {
+    console.error("Failed to fetch synapse capabilities:", queryError.message);
+    return [];
+  }
 
   if (!synapses?.length) return [];
 

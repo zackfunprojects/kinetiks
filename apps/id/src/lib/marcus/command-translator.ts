@@ -40,22 +40,26 @@ export async function translateCommand(
 
     const plan = JSON.parse(result) as { app: string; capability: string; parameters: Record<string, unknown>; parallel: boolean }[];
 
-    return plan.map((step) => {
-      const match = matches.find((m) => m.app_name === step.app && m.capability.name === step.capability);
-      const timeout = match?.capability.timeout_ms ?? 30000;
-
-      return {
-        id: crypto.randomUUID(),
-        source: "marcus" as const,
-        target_app: step.app,
-        capability: step.capability,
-        type: match?.capability.type ?? intent.type,
-        parameters: step.parameters,
-        context,
-        timeout_ms: timeout,
-        created_at: new Date().toISOString(),
-      };
-    });
+    return plan
+      .filter((step) => {
+        // Only include steps that map to a real matched capability
+        const match = matches.find((m) => m.app_name === step.app && m.capability.name === step.capability);
+        return match !== undefined;
+      })
+      .map((step) => {
+        const match = matches.find((m) => m.app_name === step.app && m.capability.name === step.capability)!;
+        return {
+          id: crypto.randomUUID(),
+          source: "marcus" as const,
+          target_app: step.app,
+          capability: step.capability,
+          type: match.capability.type,
+          parameters: step.parameters,
+          context,
+          timeout_ms: match.capability.timeout_ms || 30000,
+          created_at: new Date().toISOString(),
+        };
+      });
   } catch {
     // Fallback to top match
     return [buildCommand(matches[0], intent, context)];

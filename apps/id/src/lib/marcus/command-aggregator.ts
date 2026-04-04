@@ -5,8 +5,12 @@ import type { CommandResponse } from "@kinetiks/synapse";
  */
 export function aggregateResponses(
   responses: CommandResponse[],
-  userMessage: string
+  _userMessage?: string
 ): AggregatedResult {
+  if (responses.length === 0) {
+    return { text: "No commands were dispatched.", has_errors: false, approval_ids: [], data: {} };
+  }
+
   const successes = responses.filter((r) => r.status === "success");
   const errors = responses.filter((r) => r.status === "error");
   const timeouts = responses.filter((r) => r.status === "timeout");

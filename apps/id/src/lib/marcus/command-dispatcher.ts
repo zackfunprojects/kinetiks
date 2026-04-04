@@ -75,11 +75,14 @@ async function dispatchSingle(
       };
     }
 
-    // Retry with exponential backoff
+    // Retry with exponential backoff - only if timeout budget allows
     if (attempt < MAX_RETRIES) {
       const backoff = BACKOFF_BASE_MS * Math.pow(2, attempt - 1);
-      await new Promise((resolve) => setTimeout(resolve, backoff));
-      return dispatchSingle(command, attempt + 1);
+      const elapsed = Date.now() - startTime;
+      if (elapsed + backoff < command.timeout_ms) {
+        await new Promise((resolve) => setTimeout(resolve, backoff));
+        return dispatchSingle(command, attempt + 1);
+      }
     }
 
     return {

@@ -19,7 +19,7 @@ export async function GET(request: Request) {
     .not("capabilities", "is", null);
 
   if (queryError) {
-    return apiError("Failed to fetch capabilities", 500);
+    return apiError(`Failed to fetch capabilities: ${queryError.message}`, 500);
   }
 
   const allCapabilities = (synapses ?? []).map((s) => ({
