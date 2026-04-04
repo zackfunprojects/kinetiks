@@ -1,11 +1,15 @@
-import { Tray, Menu, app, BrowserWindow } from "electron";
+import { Tray, Menu, nativeImage, app, BrowserWindow } from "electron";
+import path from "path";
 
 let tray: Tray | null = null;
 
 export function createTray(mainWindow: BrowserWindow) {
-  // Use a template image on macOS for proper menu bar integration
-  // For now, use a placeholder - replace with actual icon path later
-  tray = new Tray(getTrayIconPath());
+  const iconPath = getTrayIconPath();
+  // Use nativeImage to handle missing icon gracefully
+  const icon = iconPath
+    ? nativeImage.createFromPath(iconPath)
+    : nativeImage.createEmpty();
+  tray = new Tray(icon.isEmpty() ? nativeImage.createFromDataURL("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAABHNCSVQICAgIfAhkiAAAADRJREFUOI1jYBhowMjAwPCfgYGBgZGBgeE/AwMDA8P/////MzIw/GdgYPjPwMDAwIBLPQMAJ0YGCPXjsSwAAAAASUVORK5CYII=") : icon);
 
   const contextMenu = Menu.buildFromTemplate([
     {
@@ -25,7 +29,6 @@ export function createTray(mainWindow: BrowserWindow) {
     {
       label: "Quit",
       click: () => {
-        (app as { isQuitting?: boolean }).isQuitting = true;
         app.quit();
       },
     },
@@ -45,8 +48,21 @@ export function createTray(mainWindow: BrowserWindow) {
 }
 
 function getTrayIconPath(): string {
-  // Placeholder - will be replaced with actual icon asset
-  // On macOS, use a 16x16 or 22x22 Template image
-  // For now, return empty string which will show default
+  // Look for icon assets in the expected locations
+  const candidates = [
+    path.join(__dirname, "../../assets/trayTemplate.png"),
+    path.join(__dirname, "../../assets/tray.png"),
+    path.join(__dirname, "../../assets/icon.png"),
+  ];
+
+  for (const candidate of candidates) {
+    try {
+      require("fs").accessSync(candidate);
+      return candidate;
+    } catch {
+      // File doesn't exist, try next
+    }
+  }
+
   return "";
 }

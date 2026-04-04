@@ -7,6 +7,7 @@ const isDev = !app.isPackaged;
 const APP_URL = isDev ? "http://localhost:3000" : "https://kinetiks.ai";
 
 let mainWindow: BrowserWindow | null = null;
+let isQuitting = false;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -41,7 +42,7 @@ function createWindow() {
 
   // Hide to tray instead of quitting
   mainWindow.on("close", (event) => {
-    if (!app.isQuitting) {
+    if (!isQuitting) {
       event.preventDefault();
       mainWindow?.hide();
     }
@@ -74,5 +75,5 @@ app.on("window-all-closed", () => {
 
 // Allow app.quit() to actually quit (used by tray)
 app.on("before-quit", () => {
-  (app as { isQuitting?: boolean }).isQuitting = true;
+  isQuitting = true;
 });
