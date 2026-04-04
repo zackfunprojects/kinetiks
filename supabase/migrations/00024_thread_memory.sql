@@ -42,6 +42,9 @@ create policy "Users can update own thread memories"
   on kinetiks_thread_memory for update
   using (auth.uid() = account_id);
 
+-- No DELETE policy for users - memories are soft-deleted via active=false/superseded_by.
+-- This preserves audit history and prevents accidental data loss.
+
 -- Service role bypass for Marcus engine (Edge Functions)
 create policy "Service role full access to thread memories"
   on kinetiks_thread_memory for all

@@ -44,6 +44,9 @@ describe('generateActions', () => {
     expect(result.actions[0].type).toBe('connection_needed');
     expect(result.actions[0].requires_connection).toBe(true);
     expect(result.footer_text).toContain('Needs connection');
+    // Footer should NOT promise ID updates when all actions need connections
+    expect(result.footer_text).toContain('Connect the app first');
+    expect(result.footer_text).not.toContain('These will update your Kinetiks ID');
   });
 
   it('allows brief actions when app is connected', async () => {

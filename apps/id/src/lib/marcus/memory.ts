@@ -58,10 +58,12 @@ export async function extractAndPersistMemories(
     const supersededIndices: number[] = parsed.supersedes_indices ?? [];
 
     // Deactivate superseded memories
+    // Prompt uses 1-based numbering, so subtract 1 for 0-based array access
     const supersededIds: string[] = [];
     for (const idx of supersededIndices) {
-      if (idx >= 0 && idx < existingMemories.length) {
-        supersededIds.push(existingMemories[idx].id);
+      const adjustedIdx = idx - 1;
+      if (adjustedIdx >= 0 && adjustedIdx < existingMemories.length) {
+        supersededIds.push(existingMemories[adjustedIdx].id);
       }
     }
 

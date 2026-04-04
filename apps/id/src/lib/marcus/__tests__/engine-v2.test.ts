@@ -104,6 +104,8 @@ describe('Pipeline V2 - Bug Report Scenarios', () => {
     // Footer should say "Needs connection" not "Queued to harvest"
     expect(result.footer_text).toContain('Needs connection');
     expect(result.footer_text).not.toContain('Queued to harvest');
+    // Mixed actions: executable proposal + connection_needed, so mixed closing copy
+    expect(result.footer_text).toContain('the rest need an app connection');
   });
 
   it('assembled response keeps advice and actions separate', () => {

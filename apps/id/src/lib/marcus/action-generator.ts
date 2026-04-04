@@ -59,6 +59,8 @@ export async function generateActions(
 function formatActionFooter(actions: GeneratedAction[]): string {
   if (actions.length === 0) return '';
 
+  const executableCount = actions.filter((a) => a.type !== 'connection_needed').length;
+
   const actionLines = actions.map((a) => {
     switch (a.type) {
       case 'proposal':
@@ -74,5 +76,12 @@ function formatActionFooter(actions: GeneratedAction[]): string {
     }
   });
 
-  return `\n---\nI noted ${actions.length} thing${actions.length === 1 ? '' : 's'} from that:\n${actionLines.join('\n')}\nThese will update your Kinetiks ID. Anything I got wrong?`;
+  const closing =
+    executableCount === 0
+      ? 'Connect the app first and I can apply this.'
+      : executableCount === actions.length
+        ? 'These will update your Kinetiks ID.'
+        : 'Connected items will update your Kinetiks ID; the rest need an app connection.';
+
+  return `\n---\nI noted ${actions.length} thing${actions.length === 1 ? '' : 's'} from that:\n${actionLines.join('\n')}\n${closing} Anything I got wrong?`;
 }

@@ -3,23 +3,13 @@ import { loadThreadMemories, formatMemoriesForContext } from '../memory';
 import type { ThreadMemory } from '../types';
 
 describe('loadThreadMemories', () => {
-  it('returns active memories for a thread', async () => {
+  it('returns active memories for a thread in ascending order', async () => {
     const mockSupabase = {
       from: vi.fn().mockReturnThis(),
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
       order: vi.fn().mockResolvedValue({
         data: [
-          {
-            id: 'mem-1',
-            thread_id: 'thread-1',
-            memory_type: 'correction',
-            content: 'User targets seed stage, NOT Series A/B',
-            source_message_index: 4,
-            confidence: 0.9,
-            active: true,
-            created_at: '2026-04-01T10:00:00Z',
-          },
           {
             id: 'mem-2',
             thread_id: 'thread-1',
@@ -30,6 +20,16 @@ describe('loadThreadMemories', () => {
             active: true,
             created_at: '2026-04-01T09:00:00Z',
           },
+          {
+            id: 'mem-1',
+            thread_id: 'thread-1',
+            memory_type: 'correction',
+            content: 'User targets seed stage, NOT Series A/B',
+            source_message_index: 4,
+            confidence: 0.9,
+            active: true,
+            created_at: '2026-04-01T10:00:00Z',
+          },
         ],
         error: null,
       }),
@@ -37,7 +37,11 @@ describe('loadThreadMemories', () => {
 
     const memories = await loadThreadMemories('acct-1', 'thread-1', mockSupabase);
     expect(memories).toHaveLength(2);
-    expect(memories[0].content).toBe('User targets seed stage, NOT Series A/B');
+    // Older memory first (ascending order)
+    expect(memories[0].content).toBe('User pricing is $15k per engagement');
+    expect(memories[1].content).toBe('User targets seed stage, NOT Series A/B');
+    // Verify ordering clause
+    expect(mockSupabase.order).toHaveBeenCalledWith('created_at', { ascending: true });
   });
 
   it('returns empty array on error', async () => {

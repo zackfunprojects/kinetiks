@@ -113,30 +113,29 @@ export async function processMarcusMessage(
     maxTokens: 2048,
   });
 
-  // 9. Action generation + memory update (parallel, Haiku)
+  // 9. Action generation (Haiku) - runs before memory update so we can assemble and save first
   const conversationSummary = recentMessages;
-
-  const [actionResult, _memoryResult] = await Promise.all([
-    generateActions(message, responseText, manifest, conversationSummary, claudeHaiku),
-    extractAndPersistMemories(
-      accountId,
-      thread.id,
-      message,
-      responseText,
-      memories,
-      history.length,
-      claudeHaiku,
-      admin,
-    ),
-  ]);
+  const actionResult = await generateActions(message, responseText, manifest, conversationSummary, claudeHaiku);
 
   // 10. Assemble response + action footer
   const finalResponse = assembleResponse(responseText, actionResult);
 
-  // 11. Save Marcus response
+  // 11. Save Marcus response BEFORE mutating thread memory
   await addMessage(admin, thread.id, "marcus", finalResponse, channel);
 
-  // 12. Log to Learning Ledger (non-blocking)
+  // 12. Memory update (Haiku) - non-blocking, after response is persisted
+  extractAndPersistMemories(
+    accountId,
+    thread.id,
+    message,
+    responseText,
+    memories,
+    history.length,
+    claudeHaiku,
+    admin,
+  ).catch((err) => console.error("Memory extraction failed", err));
+
+  // 13. Log to Learning Ledger (non-blocking)
   admin.from("kinetiks_learning_ledger").insert({
     account_id: accountId,
     event_type: "marcus_response_v2",
@@ -159,7 +158,7 @@ export async function processMarcusMessage(
     autoTitleThread(admin, thread.id).catch(() => {});
   }
 
-  // 13. Return
+  // 14. Return
   return {
     thread_id: thread.id,
     message: finalResponse,
@@ -291,23 +290,11 @@ export async function streamMarcusMessage(
         }
 
         // Save complete response (before action footer)
-        await addMessage(admin, thread.id, "marcus", fullResponse, channel);
+        const savedMessage = await addMessage(admin, thread.id, "marcus", fullResponse, channel);
 
-        // Post-stream: action generation + memory update (parallel)
+        // Post-stream: action generation (Haiku)
         const conversationSummary = recentMessages;
-        const [actionResult] = await Promise.all([
-          generateActions(message, fullResponse, manifest, conversationSummary, claudeHaiku),
-          extractAndPersistMemories(
-            accountId,
-            thread.id,
-            message,
-            fullResponse,
-            memories,
-            history.length,
-            claudeHaiku,
-            admin,
-          ),
-        ]);
+        const actionResult = await generateActions(message, fullResponse, manifest, conversationSummary, claudeHaiku);
 
         // Resolve actions promise for API route to execute
         resolveActions!(actionResult);
@@ -318,24 +305,25 @@ export async function streamMarcusMessage(
             encoder.encode(`data: ${JSON.stringify({ type: "text", text: actionResult.footer_text })}\n\n`)
           );
 
-          // Update saved message with action footer
+          // Update saved message with action footer using captured ID
           const fullWithFooter = assembleResponse(fullResponse, actionResult);
-          const { data: latestMsg } = await admin
+          await admin
             .from("kinetiks_marcus_messages")
-            .select("id")
-            .eq("thread_id", thread.id)
-            .eq("role", "marcus")
-            .order("created_at", { ascending: false })
-            .limit(1)
-            .single();
-
-          if (latestMsg) {
-            await admin
-              .from("kinetiks_marcus_messages")
-              .update({ content: fullWithFooter })
-              .eq("id", latestMsg.id);
-          }
+            .update({ content: fullWithFooter })
+            .eq("id", savedMessage.id);
         }
+
+        // Memory update (non-blocking, after response is persisted)
+        extractAndPersistMemories(
+          accountId,
+          thread.id,
+          message,
+          fullResponse,
+          memories,
+          history.length,
+          claudeHaiku,
+          admin,
+        ).catch((err) => console.error("Memory extraction failed", err));
 
         // Log to Learning Ledger (non-blocking)
         admin.from("kinetiks_learning_ledger").insert({
