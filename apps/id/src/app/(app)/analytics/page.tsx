@@ -1,5 +1,5 @@
-import { AnalyticsPlaceholder } from "@/components/analytics/AnalyticsPlaceholder";
+import { AnalyticsDashboard } from "@/components/analytics/AnalyticsDashboard";
 
 export default function AnalyticsPage() {
-  return <AnalyticsPlaceholder />;
+  return <AnalyticsDashboard />;
 }
