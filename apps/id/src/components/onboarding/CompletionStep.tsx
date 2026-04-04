@@ -38,7 +38,7 @@ const APP_URLS: Record<string, string> = {
 };
 
 function getRedirectTarget(fromApp: string | null): string {
-  return fromApp && APP_URLS[fromApp] ? APP_URLS[fromApp] : "/";
+  return fromApp && APP_URLS[fromApp] ? APP_URLS[fromApp] : "/chat";
 }
 
 function redirect(target: string): void {
@@ -110,7 +110,7 @@ export function CompletionStep({
   const displayName = fromApp ? APP_DISPLAY_NAMES[fromApp] : null;
   const continueLabel = displayName
     ? `Go to ${displayName}`
-    : "Go to dashboard";
+    : "Continue";
 
   return (
     <StepWrapper
