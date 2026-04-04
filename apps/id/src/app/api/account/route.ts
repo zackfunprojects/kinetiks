@@ -4,32 +4,47 @@ import { apiSuccess, apiError } from "@/lib/utils/api-response";
 
 /**
  * PATCH /api/account
- * Update account display_name
- * Body: { display_name: string }
+ * Update account fields
+ * Body: { display_name?: string, system_name?: string, kinetiks_connected?: boolean }
  */
 export async function PATCH(request: Request) {
   const { auth, error } = await requireAuth(request, { permissions: "read-write" });
   if (error) return error;
 
   const body = await request.json();
-  const { display_name } = body as { display_name: string };
+  const { display_name, system_name, kinetiks_connected } = body as {
+    display_name?: string;
+    system_name?: string;
+    kinetiks_connected?: boolean;
+  };
 
-  if (typeof display_name !== "string") {
-    return apiError("Invalid display_name", 400);
+  const updates: Record<string, unknown> = {
+    updated_at: new Date().toISOString(),
+  };
+
+  if (typeof display_name === "string") {
+    updates.display_name = display_name.trim() || null;
+  }
+  if (typeof system_name === "string") {
+    updates.system_name = system_name.trim() || null;
+  }
+  if (typeof kinetiks_connected === "boolean") {
+    updates.kinetiks_connected = kinetiks_connected;
+  }
+
+  if (Object.keys(updates).length <= 1) {
+    return apiError("No valid fields to update", 400);
   }
 
   const admin = createAdminClient();
 
   const { error: updateError } = await admin
     .from("kinetiks_accounts")
-    .update({
-      display_name: display_name.trim() || null,
-      updated_at: new Date().toISOString(),
-    })
+    .update(updates)
     .eq("id", auth.account_id);
 
   if (updateError) {
-    return apiError("Failed to update account", 500);
+    return apiError(`Failed to update account: ${updateError.message}`, 500);
   }
 
   return apiSuccess({ updated: true });
