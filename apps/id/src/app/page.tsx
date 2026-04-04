@@ -21,7 +21,7 @@ export default async function RootPage() {
       .single();
 
     if (account?.onboarding_complete) {
-      redirect("/home");
+      redirect("/chat");
     }
     if (account) {
       redirect("/onboarding");

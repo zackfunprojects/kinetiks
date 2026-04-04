@@ -1,0 +1,177 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kinetiks.ai/schemas/ecosystem-campaign.schema.json",
+  "title": "Ecosystem Campaign",
+  "description": "Structured metadata for a cross-brand Kinetiks campaign that spans multiple products. Created by /ecosystem-campaigns, consumed by per-brand execution skills.",
+  "type": "object",
+  "required": [
+    "campaign_name",
+    "brands_involved",
+    "brand_roles",
+    "goal",
+    "created_date",
+    "status"
+  ],
+  "properties": {
+    "campaign_name": {
+      "type": "string",
+      "description": "Human-readable campaign name, e.g. 'Q1 Content-to-Pipeline Funnel'.",
+      "minLength": 1
+    },
+    "slug": {
+      "type": "string",
+      "description": "Kebab-case directory name for this campaign.",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+    },
+    "goal": {
+      "type": "string",
+      "description": "What success looks like for the ecosystem campaign as a whole.",
+      "minLength": 1
+    },
+    "created_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["planning", "active", "complete"]
+    },
+    "brands_involved": {
+      "type": "array",
+      "description": "Which Kinetiks brands participate in this campaign.",
+      "items": {
+        "type": "string",
+        "enum": ["kinetiks-id", "dark-madder", "harvest", "hypothesis", "litmus", "fortune-farms"]
+      },
+      "minItems": 2,
+      "uniqueItems": true
+    },
+    "brand_roles": {
+      "type": "object",
+      "description": "What role each brand plays in the campaign funnel.",
+      "propertyNames": {
+        "type": "string",
+        "enum": ["kinetiks-id", "dark-madder", "harvest", "hypothesis", "litmus", "fortune-farms"]
+      },
+      "additionalProperties": {
+        "type": "object",
+        "required": ["role", "assets_needed"],
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": ["awareness", "conversion", "capture", "amplification", "intelligence", "outreach"],
+            "description": "The brand's role in the campaign funnel."
+          },
+          "description": {
+            "type": "string",
+            "description": "What this brand specifically does in this campaign."
+          },
+          "assets_needed": {
+            "type": "array",
+            "description": "List of assets this brand needs to produce for the campaign.",
+            "items": {
+              "type": "object",
+              "required": ["type", "description"],
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "blog-post", "email-sequence", "landing-page", "social-post",
+                    "social-carousel", "ad-creative", "ad-copy", "lead-magnet",
+                    "press-release", "case-study", "image", "video", "outreach-sequence",
+                    "other"
+                  ]
+                },
+                "description": {
+                  "type": "string"
+                },
+                "skill": {
+                  "type": "string",
+                  "description": "Which skill produces this asset, e.g. '/seo-content', '/email-sequences'."
+                },
+                "status": {
+                  "type": "string",
+                  "enum": ["planned", "in-progress", "complete"]
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "handoff_points": {
+      "type": "array",
+      "description": "Where users move between brands in the campaign funnel.",
+      "items": {
+        "type": "object",
+        "required": ["from_brand", "to_brand", "trigger"],
+        "properties": {
+          "from_brand": {
+            "type": "string",
+            "enum": ["kinetiks-id", "dark-madder", "harvest", "hypothesis", "litmus", "fortune-farms"]
+          },
+          "to_brand": {
+            "type": "string",
+            "enum": ["kinetiks-id", "dark-madder", "harvest", "hypothesis", "litmus", "fortune-farms"]
+          },
+          "trigger": {
+            "type": "string",
+            "description": "What triggers the handoff, e.g. 'CTA click on blog post', 'Lead form submission', 'Engagement score threshold'."
+          },
+          "mechanism": {
+            "type": "string",
+            "description": "How the handoff works technically, e.g. 'UTM link to landing page', 'Lead enters Harvest pipeline via webhook'."
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "timeline": {
+      "type": "object",
+      "properties": {
+        "start_date": { "type": "string", "format": "date" },
+        "end_date": { "type": "string", "format": "date" }
+      },
+      "additionalProperties": false
+    },
+    "results": {
+      "type": "object",
+      "properties": {
+        "summary": { "type": "string" },
+        "per_brand_metrics": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "enum": ["kinetiks-id", "dark-madder", "harvest", "hypothesis", "litmus", "fortune-farms"]
+          },
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["metric", "value"],
+              "properties": {
+                "metric": { "type": "string" },
+                "value": { "type": "string" },
+                "target": { "type": "string" }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "learnings": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "recorded_date": { "type": "string", "format": "date" }
+      },
+      "additionalProperties": false
+    },
+    "created_by": {
+      "type": "string",
+      "description": "The skill that created this brief, typically '/ecosystem-campaigns'."
+    }
+  },
+  "additionalProperties": false
+}

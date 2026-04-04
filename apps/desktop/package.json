@@ -1,0 +1,23 @@
+{
+  "name": "@kinetiks/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Kinetiks AI Desktop App",
+  "main": "dist/main/index.js",
+  "scripts": {
+    "dev": "tsc && electron dist/main/index.js",
+    "build": "tsc",
+    "package": "electron-builder",
+    "package:mac": "electron-builder --mac",
+    "package:win": "electron-builder --win",
+    "package:linux": "electron-builder --linux"
+  },
+  "dependencies": {
+    "electron-updater": "^6.1.7"
+  },
+  "devDependencies": {
+    "electron": "^28.1.0",
+    "electron-builder": "^24.9.1",
+    "typescript": "^5.3.3"
+  }
+}

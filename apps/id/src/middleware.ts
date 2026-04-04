@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 // Routes that don't require authentication
-const PUBLIC_ROUTES = ["/login", "/signup", "/callback", "/onboarding", "/developers"];
+const PUBLIC_ROUTES = ["/login", "/signup", "/callback", "/onboarding", "/developers", "/setup"];
 // Auth pages that authenticated users should be redirected away from
 const AUTH_PAGES = ["/login", "/signup"];
 
@@ -70,10 +70,10 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // Authenticated and on login/signup - redirect to dashboard
+  // Authenticated and on login/signup - redirect to chat
   const isAuthPage = AUTH_PAGES.some((route) => pathname.startsWith(route));
   if (user && isAuthPage) {
-    return NextResponse.redirect(new URL("/", request.url));
+    return NextResponse.redirect(new URL("/chat", request.url));
   }
 
   return response;
