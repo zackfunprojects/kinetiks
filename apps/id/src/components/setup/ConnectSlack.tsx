@@ -4,11 +4,10 @@ import { useState } from "react";
 
 interface ConnectSlackProps {
   systemName: string;
-  onComplete: () => void;
   onSkip: () => void;
 }
 
-export function ConnectSlack({ systemName, onComplete, onSkip }: ConnectSlackProps) {
+export function ConnectSlack({ systemName, onSkip }: ConnectSlackProps) {
   const [connecting, setConnecting] = useState(false);
 
   const handleConnect = () => {

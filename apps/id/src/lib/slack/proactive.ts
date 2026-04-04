@@ -27,7 +27,7 @@ export async function sendProactiveMessage(
 
   if (!identity?.slack_bot_user_id) return false;
 
-  // Get bot token from connections
+  // Get Slack connection with bot token and user's Slack ID
   const { data: connection } = await admin
     .from("kinetiks_connections")
     .select("metadata")
@@ -36,27 +36,20 @@ export async function sendProactiveMessage(
     .eq("status", "active")
     .single();
 
-  const botToken = (connection?.metadata as Record<string, unknown>)?.bot_token as string | undefined;
-  if (!botToken) return false;
-
-  // Get user's Slack DM channel
-  const { data: account } = await admin
-    .from("kinetiks_accounts")
-    .select("user_id")
-    .eq("id", accountId)
-    .single();
-
-  if (!account) return false;
+  const metadata = connection?.metadata as Record<string, unknown> | undefined;
+  const botToken = metadata?.bot_token as string | undefined;
+  const userSlackId = metadata?.authed_user_id as string | undefined;
+  if (!botToken || !userSlackId) return false;
 
   try {
-    // Open DM with the user (Slack will return existing conversation if one exists)
+    // Open DM with the USER (not the bot) - pass the user's Slack ID
     const dmRes = await fetch("https://slack.com/api/conversations.open", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${botToken}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ users: identity.slack_bot_user_id }),
+      body: JSON.stringify({ users: userSlackId }),
     });
     const dm = await dmRes.json();
 

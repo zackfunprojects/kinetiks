@@ -19,7 +19,6 @@ export async function getSlackBotName(accountId: string): Promise<string> {
  * Update the Slack bot display name when system name changes.
  */
 export async function updateSlackBotName(
-  accountId: string,
   botToken: string,
   newName: string
 ): Promise<boolean> {

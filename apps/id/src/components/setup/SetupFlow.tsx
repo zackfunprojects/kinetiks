@@ -41,14 +41,12 @@ export function SetupFlow({ accountId, existingName }: SetupFlowProps) {
         )}
         {step === "email" && (
           <ConnectEmail
-            onComplete={() => setStep("slack")}
             onSkip={() => setStep("slack")}
           />
         )}
         {step === "slack" && (
           <ConnectSlack
             systemName={systemName}
-            onComplete={() => setStep("complete")}
             onSkip={() => setStep("complete")}
           />
         )}

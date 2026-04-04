@@ -3,11 +3,10 @@
 import { useState } from "react";
 
 interface ConnectEmailProps {
-  onComplete: () => void;
   onSkip: () => void;
 }
 
-export function ConnectEmail({ onComplete, onSkip }: ConnectEmailProps) {
+export function ConnectEmail({ onSkip }: ConnectEmailProps) {
   const [connecting, setConnecting] = useState(false);
 
   const handleConnect = async (provider: "google" | "microsoft") => {
