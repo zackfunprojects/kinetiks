@@ -50,7 +50,7 @@ export async function POST(request: Request) {
 
   try {
     // Stream the Marcus response
-    const { stream, threadId } = await streamMarcusMessage(
+    const { stream, threadId, manifest } = await streamMarcusMessage(
       admin,
       accountId,
       message.trim(),
@@ -97,7 +97,8 @@ export async function POST(request: Request) {
               const actions = await extractActions(
                 userMsg.content,
                 marcusMsg.content,
-                contextSummary
+                contextSummary,
+                manifest
               );
 
               if (actions.length > 0) {
