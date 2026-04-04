@@ -46,10 +46,13 @@ export async function processApproval(
   const approvalType = classifyApproval(submission, categoryHistory, cortexConfidence);
 
   // Step 5: Calculate confidence
+  // action_specificity is derived from content characteristics, not agent confidence
+  // Higher specificity for follow-ups in existing threads, lower for novel outreach
+  const actionSpecificity = deriveActionSpecificity(submission);
   const confidenceResult = calculateConfidence({
     cortex_confidence: cortexConfidence,
     category_history: categoryHistory,
-    action_specificity: submission.agent_confidence, // Use agent confidence as specificity proxy
+    action_specificity: actionSpecificity,
     agent_confidence: submission.agent_confidence,
   });
 
@@ -92,13 +95,13 @@ export async function processApproval(
     throw new Error(`Failed to create approval: ${insertError?.message}`);
   }
 
-  // Step 8: Log to Ledger
-  await admin.from("kinetiks_ledger").insert({
+  // Step 8: Log to Ledger (non-blocking - don't fail the approval if ledger write fails)
+  const { error: ledgerError } = await admin.from("kinetiks_ledger").insert({
     account_id: accountId,
     event_type: autoApprove ? "approval_auto_approved" : "approval_created",
     source_app: submission.source_app,
     target_layer: null,
-    data: {
+    detail: {
       approval_id: approval.id,
       approval_type: approvalType,
       confidence_score: confidenceResult.score,
@@ -106,8 +109,11 @@ export async function processApproval(
       brand_gate_passed: brandResult.passed,
       quality_gate_passed: qualityResult.passed,
     },
-    attribution: `${submission.source_app}/${submission.source_operator}`,
+    source_operator: submission.source_operator,
   });
+  if (ledgerError) {
+    console.error("Failed to write approval ledger entry:", ledgerError.message);
+  }
 
   // Step 9: Emit event
   await emitApprovalEvent(
@@ -129,6 +135,22 @@ export async function processApproval(
     brand_gate: brandResult,
     quality_gate: qualityResult,
   };
+}
+
+function deriveActionSpecificity(submission: ApprovalSubmission): number {
+  let specificity = 50; // Baseline
+
+  // Follow-ups and replies are more specific than cold outreach
+  if (submission.action_category.includes("followup")) specificity += 20;
+  if (submission.action_category.includes("cold")) specificity -= 15;
+
+  // Short content is typically more specific
+  if (submission.content_length < 200) specificity += 10;
+
+  // Content with deep_link implies known context
+  if (submission.deep_link) specificity += 10;
+
+  return Math.max(0, Math.min(100, specificity));
 }
 
 async function getCortexConfidence(

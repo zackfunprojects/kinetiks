@@ -13,12 +13,12 @@ CREATE TABLE kinetiks_approvals (
   description text,
   preview jsonb NOT NULL DEFAULT '{}',
   deep_link text,
-  status text DEFAULT 'pending' CHECK (status IN (
+  status text NOT NULL DEFAULT 'pending' CHECK (status IN (
     'pending', 'approved', 'rejected', 'expired', 'auto_approved', 'flagged'
   )),
   confidence_score numeric(5,2),
   confidence_breakdown jsonb,
-  auto_approved boolean DEFAULT false,
+  auto_approved boolean NOT NULL DEFAULT false,
   user_edits jsonb,
   rejection_reason text,
   rejection_classification text,
@@ -31,10 +31,11 @@ CREATE TABLE kinetiks_approvals (
 );
 
 ALTER TABLE kinetiks_approvals ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Users see own approvals" ON kinetiks_approvals
-  FOR ALL USING (account_id IN (
+CREATE POLICY "Users read own approvals" ON kinetiks_approvals
+  FOR SELECT USING (account_id IN (
     SELECT id FROM kinetiks_accounts WHERE user_id = auth.uid()
   ));
+-- Insert/update/delete handled by service role (API routes use admin client)
 
 CREATE INDEX idx_approvals_account_status ON kinetiks_approvals(account_id, status);
 CREATE INDEX idx_approvals_account_category ON kinetiks_approvals(account_id, action_category);
@@ -61,8 +62,8 @@ CREATE TABLE kinetiks_approval_thresholds (
 );
 
 ALTER TABLE kinetiks_approval_thresholds ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Users see own thresholds" ON kinetiks_approval_thresholds
-  FOR ALL USING (account_id IN (
+CREATE POLICY "Users read own thresholds" ON kinetiks_approval_thresholds
+  FOR SELECT USING (account_id IN (
     SELECT id FROM kinetiks_accounts WHERE user_id = auth.uid()
   ));
 

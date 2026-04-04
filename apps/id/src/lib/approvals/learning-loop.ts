@@ -45,10 +45,14 @@ export async function processApprovalDecision(
       }
     }
 
-    await admin
+    const { error: updateError } = await admin
       .from("kinetiks_approvals")
       .update(updates)
       .eq("id", approval.id);
+
+    if (updateError) {
+      throw new Error(`Failed to update approval: ${updateError.message}`);
+    }
 
     // Calibrate threshold
     const calibrationEvent = hasEdits ? "approved_with_edits" : "approved_clean";
@@ -64,13 +68,13 @@ export async function processApprovalDecision(
       event_type: hasEdits ? "approval_approved_with_edits" : "approval_approved",
       source_app: approval.source_app,
       target_layer: null,
-      data: {
+      detail: {
         approval_id: approval.id,
         approval_type: approval.approval_type,
         edits: action.edits,
         edit_classification: editClassifications,
       },
-      attribution: "user",
+      source_operator: "approval_system",
     });
 
     // Emit event
@@ -105,12 +109,12 @@ export async function processApprovalDecision(
       event_type: "approval_rejected",
       source_app: approval.source_app,
       target_layer: null,
-      data: {
+      detail: {
         approval_id: approval.id,
         approval_type: approval.approval_type,
         rejection_reason: action.rejection_reason,
       },
-      attribution: "user",
+      source_operator: "approval_system",
     });
 
     // Emit event
@@ -204,18 +208,20 @@ async function generateProposals(
     await admin.from("kinetiks_proposals").insert({
       account_id: approval.account_id,
       source_app: approval.source_app,
+      source_operator: "edit_analyzer",
       action: "update",
       target_layer: targetLayer,
-      proposed_data: {
+      payload: {
         source: "edit_analysis",
         edit_type: edit.edit_type,
         description: edit.description,
         field_path: edit.field_path,
         from_approval: approval.id,
+        reasoning: `User consistently makes ${edit.edit_type} edits in ${approval.action_category} actions. This suggests the ${targetLayer} layer needs updating.`,
       },
-      confidence: 0.6,
-      reasoning: `User consistently makes ${edit.edit_type} edits in ${approval.action_category} actions. This suggests the ${targetLayer} layer needs updating.`,
-      status: "pending",
+      confidence: "inferred",
+      evidence: [{ type: "edit_pattern", approval_id: approval.id }],
+      status: "submitted",
     });
   }
 }

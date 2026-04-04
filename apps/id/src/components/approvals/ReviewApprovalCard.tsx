@@ -82,8 +82,8 @@ export function ReviewApprovalCard({ approval, onApprove, onReject }: ReviewAppr
         {formatPreview(approval.preview.content)}
       </div>
 
-      {/* Deep link */}
-      {approval.deep_link && (
+      {/* Deep link - only render safe URLs */}
+      {approval.deep_link && /^https?:\/\//.test(approval.deep_link) && (
         <a
           href={approval.deep_link}
           target="_blank"
