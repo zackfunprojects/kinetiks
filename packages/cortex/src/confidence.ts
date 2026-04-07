@@ -1,6 +1,6 @@
 import type { ContextLayer } from "@kinetiks/types";
 import { SupabaseClient } from "@supabase/supabase-js";
-import { dispatchEvent } from "@/lib/webhooks/deliver";
+import { dispatchCortexEvent } from "./dispatcher";
 
 /**
  * Per-layer weights for the aggregate confidence score.
@@ -142,7 +142,7 @@ export async function recalculateConfidence(
     }, { onConflict: "account_id" });
 
   try {
-    await dispatchEvent(accountId, "confidence.changed", {
+    await dispatchCortexEvent(accountId, "confidence.changed", {
       aggregate: scores.aggregate,
       org: scores.org,
       products: scores.products,

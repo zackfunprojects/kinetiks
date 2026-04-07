@@ -1,6 +1,6 @@
 import { requireAuth } from "@/lib/auth/require-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { resolveProposal } from "@/lib/cortex/resolve-proposal";
+import { resolveProposal } from "@/lib/cortex";
 import { apiSuccess, apiError, apiPaginated } from "@/lib/utils/api-response";
 import { NextRequest } from "next/server";
 

@@ -1,7 +1,7 @@
 import { requireAuth } from "@/lib/auth/require-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { recalculateConfidence } from "@/lib/cortex/confidence";
-import { validateLayerData } from "@/lib/utils/context-validator";
+import { recalculateConfidence } from "@/lib/cortex";
+import { validateLayerData } from "@/lib/cortex";
 import { deepMerge } from "@/lib/utils/deep-merge";
 import { apiSuccess, apiError } from "@/lib/utils/api-response";
 import { dispatchEvent } from "@/lib/webhooks/deliver";

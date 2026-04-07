@@ -1,8 +1,8 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAuth } from "@/lib/auth/require-auth";
-import { evaluateProposal } from "@/lib/cortex/evaluate";
-import { recalculateConfidence } from "@/lib/cortex/confidence";
-import { resolveProposal } from "@/lib/cortex/resolve-proposal";
+import { evaluateProposal } from "@/lib/cortex";
+import { recalculateConfidence } from "@/lib/cortex";
+import { resolveProposal } from "@/lib/cortex";
 import { apiSuccess, apiError } from "@/lib/utils/api-response";
 import type { Proposal } from "@kinetiks/types";
 

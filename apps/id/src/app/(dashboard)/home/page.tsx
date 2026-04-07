@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { redirect } from "next/navigation";
-import { getConfidence } from "@/lib/cortex/confidence";
+import { getConfidence } from "@/lib/cortex";
 import { detectGaps } from "@/lib/archivist/gap-detect";
 import { DashboardHome } from "@/components/dashboard/DashboardHome";
 import type { Proposal, LedgerEntry, AppActivation, ConnectionPublic } from "@kinetiks/types";

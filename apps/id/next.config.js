@@ -6,6 +6,7 @@ const nextConfig = {
     "@kinetiks/supabase",
     "@kinetiks/synapse",
     "@kinetiks/ai",
+    "@kinetiks/cortex",
   ],
   experimental: {
     serverComponentsExternalPackages: ["@mendable/firecrawl-js"],

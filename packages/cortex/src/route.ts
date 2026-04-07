@@ -1,6 +1,6 @@
 import type { ContextLayer } from "@kinetiks/types";
 import { SupabaseClient } from "@supabase/supabase-js";
-import { dispatchEvent } from "@/lib/webhooks/deliver";
+import { dispatchCortexEvent } from "./dispatcher";
 
 /**
  * Recency throttle: don't route the same layer to the same app more than once
@@ -216,14 +216,9 @@ export async function executeRoutes(
 
   await Promise.all(
     routingEvents.map((event) =>
-      dispatchEvent(accountId, "routing.sent", {
+      dispatchCortexEvent(accountId, "routing.sent", {
         target_app: event.target_app,
         source_proposal_id: proposalId,
-      }).catch((err) => {
-        console.error(
-          `Failed to dispatch routing.sent for ${event.target_app}:`,
-          err
-        );
       })
     )
   );

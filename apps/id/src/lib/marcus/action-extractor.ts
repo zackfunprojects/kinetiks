@@ -11,7 +11,7 @@ import {
   MARCUS_EXTRACTION_PROMPT,
   buildExtractionPrompt,
 } from "@/lib/ai/prompts/marcus-extract";
-import { evaluateProposal } from "@/lib/cortex/evaluate";
+import { evaluateProposal } from "@/lib/cortex";
 import type { DataAvailabilityManifest } from "./types";
 
 const VALID_LAYERS: ContextLayer[] = [

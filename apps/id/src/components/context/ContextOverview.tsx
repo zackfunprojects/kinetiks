@@ -1,7 +1,7 @@
 "use client";
 
 import type { ContextLayer } from "@kinetiks/types";
-import type { ConfidenceScores } from "@/lib/cortex/confidence";
+import type { ConfidenceScores } from "@/lib/cortex";
 import { ConfidenceRing } from "@/components/ui/ConfidenceRing";
 import { LayerCard } from "./LayerCard";
 

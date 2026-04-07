@@ -4,7 +4,7 @@ import { deduplicateAllLayers } from "@/lib/archivist/dedup";
 import { normalizeAllLayers } from "@/lib/archivist/normalize";
 import { detectGaps } from "@/lib/archivist/gap-detect";
 import { scoreAllQuality } from "@/lib/archivist/quality-score";
-import { recalculateConfidence } from "@/lib/cortex/confidence";
+import { recalculateConfidence } from "@/lib/cortex";
 import { apiSuccess, apiError } from "@/lib/utils/api-response";
 import type { CleanPassResult } from "@/lib/archivist/types";
 

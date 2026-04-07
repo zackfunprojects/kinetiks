@@ -1,6 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAuth } from "@/lib/auth/require-auth";
-import { executeRoutes } from "@/lib/cortex/route";
+import { executeRoutes } from "@/lib/cortex";
 import { apiSuccess, apiError } from "@/lib/utils/api-response";
 import type { ContextLayer } from "@kinetiks/types";
 

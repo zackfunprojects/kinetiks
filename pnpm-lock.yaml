@@ -112,6 +112,9 @@ importers:
       '@kinetiks/ai':
         specifier: workspace:*
         version: link:../../packages/ai
+      '@kinetiks/cortex':
+        specifier: workspace:*
+        version: link:../../packages/cortex
       '@kinetiks/sentinel':
         specifier: workspace:*
         version: link:../../packages/sentinel
@@ -192,6 +195,19 @@ importers:
       '@types/node':
         specifier: ^20.0.0
         version: 20.19.37
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
+
+  packages/cortex:
+    dependencies:
+      '@kinetiks/types':
+        specifier: workspace:*
+        version: link:../types
+      '@supabase/supabase-js':
+        specifier: ^2.49.0
+        version: 2.99.3
+    devDependencies:
       typescript:
         specifier: ^5.7.0
         version: 5.9.3
