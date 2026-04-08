@@ -1,24 +1,28 @@
 /**
  * POST /api/reply/draft — create or update a draft reply.
  *
- * Phase 2 stub gate: every draft passes through PASS_THROUGH_GATE_RESULT.
- * Phase 3 wires the real Lens engine here, including the advisory-only
- * mode for the first 30 days per user.
+ * Phase 3: every draft is run through the Lens quality gate. The
+ * resulting `GateResult` is stored on the row and returned to the
+ * editor so it can render the gate panel inline. During the user's
+ * first 30 days the gate is advisory-only and never blocks; after
+ * that, blocking is enabled incrementally per Final Supplement §6.3.
  *
  * The route accepts a monotonic `revision` from the editor. Out-of-order
  * autosaves are rejected with 409 + the current revision so the client
  * can decide whether to bump and retry. Frozen rows (already posted, or
  * mid-handoff for Quora) are rejected with 409 + status so the editor
  * surface can transition to a read-only state.
+ *
+ * The draft route NEVER returns 422 on a blocked gate result — the
+ * editor still needs to save the user's text. The post route is what
+ * enforces hard blocks (build-plan §3.6).
  */
 import { NextResponse } from "next/server";
 import { requireDeskOfSession } from "@/lib/auth/session";
 import { createDeskOfServerClient } from "@/lib/supabase/server";
 import { getActionableOpportunityById } from "@/lib/opportunities/queue";
-import {
-  upsertDraftReply,
-  PASS_THROUGH_GATE_RESULT,
-} from "@/lib/reply/service";
+import { upsertDraftReply } from "@/lib/reply/service";
+import { runLensForRequest } from "@/lib/lens/run";
 
 export const dynamic = "force-dynamic";
 
@@ -86,6 +90,19 @@ export async function POST(request: Request) {
     );
   }
 
+  // Run the Lens quality gate. NEVER throws — the orchestrator
+  // collapses any DB / LLM failure into a clear-with-skipped result
+  // so the autosave still completes.
+  const gateResult = await runLensForRequest(supabase, {
+    user_id: auth.session.user_id,
+    user_tier: auth.session.tier,
+    opportunity_id: opportunityId,
+    platform: opportunity.thread.platform,
+    community: opportunity.thread.community ?? null,
+    thread_question: opportunity.thread.title,
+    content,
+  });
+
   try {
     const result = await upsertDraftReply(supabase, {
       user_id: auth.session.user_id,
@@ -93,7 +110,7 @@ export async function POST(request: Request) {
       platform: opportunity.thread.platform,
       thread_url: opportunity.thread.url,
       content,
-      gate_result: PASS_THROUGH_GATE_RESULT,
+      gate_result: gateResult,
       gate_overrides: [],
       revision,
     });

@@ -54,7 +54,13 @@ export type UpsertDraftResult =
   | { kind: "stale"; current_revision: number }
   | { kind: "frozen"; status: ReplyStatus };
 
-/** Phase 2 stub gate result — Phase 3 replaces this with real Lens output. */
+/**
+ * @deprecated Phase 3: production callers MUST use `runLensForRequest`
+ * from `@/lib/lens/run` instead. This constant remains exported only
+ * so unit tests that mock the gate can keep working without pulling
+ * the orchestrator + Supabase + Operator Profile graph into their
+ * fixtures. Importing it from a route or component will fail review.
+ */
 export const PASS_THROUGH_GATE_RESULT: GateResult = {
   status: "clear",
   checks: [],

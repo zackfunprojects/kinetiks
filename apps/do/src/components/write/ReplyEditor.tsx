@@ -2,13 +2,18 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { Opportunity } from "@kinetiks/deskof";
+import type {
+  GateCheckType,
+  GateResult,
+  Opportunity,
+} from "@kinetiks/deskof";
 import { track } from "@/lib/analytics";
 import {
   loadLocalDraft,
   saveLocalDraft,
   deleteLocalDraft,
 } from "@/lib/drafts/local-store";
+import { GatePanel } from "./GatePanel";
 
 interface Props {
   opportunity: Opportunity;
@@ -47,6 +52,10 @@ export function ReplyEditor({ opportunity }: Props) {
   const [draftSaved, setDraftSaved] = useState(false);
   const [posting, setPosting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [gateResult, setGateResult] = useState<GateResult | null>(null);
+  const [overrides, setOverrides] = useState<Set<GateCheckType>>(
+    () => new Set()
+  );
   const editorOpenedAtRef = useRef<number>(Date.now());
   const draftStartedAtRef = useRef<number>(Date.now());
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -111,6 +120,25 @@ export function ReplyEditor({ opportunity }: Props) {
           revisionAtSchedule === draftRevisionRef.current
         ) {
           setDraftSaved(true);
+          const json = (await res.json().catch(() => null)) as {
+            gate_result?: GateResult;
+          } | null;
+          if (json?.gate_result) {
+            setGateResult(json.gate_result);
+            const counts = countChecks(json.gate_result);
+            track({
+              name: "gate_check_completed",
+              props: {
+                opportunity_id: opportunity.id,
+                status: json.gate_result.status,
+                advisory_only: json.gate_result.advisory_only,
+                blocked_count: counts.blocked,
+                advisory_count: counts.advisory,
+                info_count: counts.info,
+                llm_skipped: counts.skipped,
+              },
+            });
+          }
           track({
             name: "reply_draft_saved",
             props: {
@@ -132,6 +160,24 @@ export function ReplyEditor({ opportunity }: Props) {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
   }, [content, opportunity.id]);
+
+  function handleOverride(type: GateCheckType) {
+    setOverrides((prev) => {
+      if (prev.has(type)) return prev;
+      const next = new Set(prev);
+      next.add(type);
+      return next;
+    });
+    track({
+      name: "gate_advisory_overridden",
+      props: { opportunity_id: opportunity.id, check_type: type },
+    });
+  }
+
+  // Hard-block: only when the gate explicitly returned status=blocked
+  // AND advisory_only is false. Skipped LLM rows never block.
+  const hardBlocked =
+    gateResult?.status === "blocked" && !gateResult.advisory_only;
 
   function handleEditorChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
     draftRevisionRef.current += 1;
@@ -204,9 +250,15 @@ export function ReplyEditor({ opportunity }: Props) {
         kind?: "browser_handoff" | "posted";
         handoff_url?: string;
         clipboard_text?: string;
+        gate_result?: GateResult;
       };
 
       if (!postJson.success) {
+        // Server-side gate hard block (422). Surface the latest gate
+        // result so the panel shows the offending check.
+        if (postRes.status === 422 && postJson.gate_result) {
+          setGateResult(postJson.gate_result);
+        }
         throw new Error(postJson.error ?? "Post failed");
       }
 
@@ -333,6 +385,23 @@ export function ReplyEditor({ opportunity }: Props) {
         </div>
       )}
 
+      <div className="hidden md:block">
+        <GatePanel
+          result={gateResult}
+          overrides={overrides}
+          onOverride={handleOverride}
+          variant="desktop"
+        />
+      </div>
+      <div className="md:hidden">
+        <GatePanel
+          result={gateResult}
+          overrides={overrides}
+          onOverride={handleOverride}
+          variant="mobile"
+        />
+      </div>
+
       <footer
         className="flex shrink-0 items-center justify-between gap-3 px-5 py-3"
         style={{ borderTop: "1px solid var(--border)" }}
@@ -346,7 +415,12 @@ export function ReplyEditor({ opportunity }: Props) {
         <button
           type="button"
           onClick={handlePost}
-          disabled={posting || redditDisabled || content.trim().length < MIN_REPLY_LENGTH}
+          disabled={
+            posting ||
+            redditDisabled ||
+            content.trim().length < MIN_REPLY_LENGTH ||
+            hardBlocked
+          }
           className="rounded-full px-5 py-2.5 text-sm font-semibold disabled:opacity-50"
           style={{
             background: "var(--accent)",
@@ -367,4 +441,23 @@ export function ReplyEditor({ opportunity }: Props) {
       </footer>
     </main>
   );
+}
+
+function countChecks(result: GateResult): {
+  blocked: number;
+  advisory: number;
+  info: number;
+  skipped: number;
+} {
+  let blocked = 0;
+  let advisory = 0;
+  let info = 0;
+  let skipped = 0;
+  for (const c of result.checks) {
+    if (c.message.startsWith("Skipped")) skipped += 1;
+    else if (c.severity === "blocking") blocked += 1;
+    else if (c.severity === "warning") advisory += 1;
+    else info += 1;
+  }
+  return { blocked, advisory, info, skipped };
 }

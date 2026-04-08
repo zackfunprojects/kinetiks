@@ -109,6 +109,26 @@ export type AnalyticsEvent =
         error_type: string;
       };
     }
+  // Phase 3 — quality gate (Lens)
+  | {
+      name: "gate_check_completed";
+      props: {
+        opportunity_id: string;
+        status: "clear" | "advisory" | "blocked";
+        advisory_only: boolean;
+        blocked_count: number;
+        advisory_count: number;
+        info_count: number;
+        llm_skipped: number;
+      };
+    }
+  | {
+      name: "gate_advisory_overridden";
+      props: {
+        opportunity_id: string;
+        check_type: string;
+      };
+    }
   // Conversion events (Final Supplement §5.5)
   | {
       name: "upgrade_prompt_shown";
