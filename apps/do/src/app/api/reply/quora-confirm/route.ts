@@ -57,10 +57,13 @@ export async function POST(request: Request) {
   // markQuoraHandoffPending writes the human_confirmed_at timestamp
   // and the quora_match_status='pending' marker. The reply must
   // already exist (the editor's draft autosave creates it before the
-  // user can post).
+  // user can post). The function returns a discriminated result so
+  // we can map missing / wrong-platform / already-confirmed cases to
+  // 404 / 409 instead of unconditionally returning 200.
   const admin = createDeskOfAdminClient();
+  let result;
   try {
-    await markQuoraHandoffPending(admin, {
+    result = await markQuoraHandoffPending(admin, {
       user_id: auth.session.user_id,
       opportunity_id: opportunityId,
       confirmed_at: new Date().toISOString(),
@@ -73,5 +76,29 @@ export async function POST(request: Request) {
     );
   }
 
-  return NextResponse.json({ success: true });
+  switch (result.kind) {
+    case "marked":
+      return NextResponse.json({ success: true, status: "marked" });
+    case "already_confirmed":
+      // Treat as success — the caller's intent (mark this confirmed)
+      // is satisfied — but distinguish in the response so the UI can
+      // skip the "starting tracking..." spinner.
+      return NextResponse.json(
+        { success: true, status: "already_confirmed" },
+        { status: 200 }
+      );
+    case "wrong_platform":
+      return NextResponse.json(
+        {
+          success: false,
+          error: `quora-confirm called for a non-Quora platform (${result.platform})`,
+        },
+        { status: 409 }
+      );
+    case "not_found":
+      return NextResponse.json(
+        { success: false, error: "Reply not found for this opportunity" },
+        { status: 404 }
+      );
+  }
 }

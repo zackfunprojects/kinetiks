@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import {
   initAnalytics,
   attachUnloadFlush,
@@ -10,67 +10,107 @@ import { hashUserId } from "@/lib/analytics/hash";
 const APP_VERSION =
   process.env.NEXT_PUBLIC_APP_VERSION ?? "0.0.0-dev";
 
+interface SessionShape {
+  user_id_hash: string | null;
+  user_tier: "free" | "standard" | "hero" | null;
+  user_track: "minimal" | "standard" | "hero" | null;
+}
+
 /**
- * Client-side bootstrap that wires `initAnalytics` once per session
- * with the current user context. Without this component every event
- * fires with the `pendingContext()` placeholder (session_id="pending",
- * tier=null, track=null) and the analytics pipeline is unusable for
- * aggregation.
+ * Client-side bootstrap that wires `initAnalytics` with the current
+ * Kinetiks ID session context.
  *
- * Mounted from the root layout so it runs on every page.
+ * Phase 2.5 hardening (per CodeRabbit on PR #42):
+ *
+ *   1. Re-runs whenever the tab regains focus or visibility, so a tab
+ *      that started anonymous picks up the authenticated context after
+ *      sign-in without requiring a hard refresh.
+ *
+ *   2. Reads `track` from /api/account/me (the route now returns it)
+ *      so user_track stops being null on the first authenticated pass.
+ *
+ *   3. Skips the network round-trip when nothing has changed since
+ *      the last successful resolution, avoiding a request storm on
+ *      tabs that flip focus rapidly.
  */
 export function AnalyticsBootstrap() {
+  // Track the last context we sent to initAnalytics so we can no-op
+  // when the resolution hasn't changed. Comparing on a serialized
+  // shape is fine for this small payload.
+  const lastSerializedRef = useRef<string | null>(null);
+
   useEffect(() => {
     let cancelled = false;
+    const sessionId = ensureSessionId();
+    const platform = detectPlatform();
 
-    async function bootstrap() {
-      const sessionId = ensureSessionId();
-
-      // Try to read the current Kinetiks ID session shape. Anonymous
-      // events still get a real session_id; tier/track stay null until
-      // the user is signed in (and the next page nav re-runs this).
-      let userIdHash: string | null = null;
-      let userTier: "free" | "standard" | "hero" | null = null;
-      let userTrack: "minimal" | "standard" | "hero" | null = null;
-
+    async function resolve(): Promise<SessionShape | null> {
       try {
         const res = await fetch("/api/account/me", {
           credentials: "include",
         });
-        if (res.ok) {
-          const json = (await res.json()) as {
-            user_id?: string;
-            tier?: "free" | "standard" | "hero";
-            track?: "minimal" | "standard" | "hero";
-          };
-          if (json.user_id) {
-            userIdHash = await hashUserId(json.user_id);
-          }
-          userTier = json.tier ?? null;
-          userTrack = json.track ?? null;
+        if (!res.ok) {
+          // Anonymous (401) or transient failure — return a placeholder
+          // so analytics still has session_id + platform context.
+          return null;
         }
+        const json = (await res.json()) as {
+          user_id?: string;
+          tier?: "free" | "standard" | "hero";
+          track?: "minimal" | "standard" | "hero" | null;
+        };
+        const userIdHash = json.user_id ? await hashUserId(json.user_id) : null;
+        return {
+          user_id_hash: userIdHash,
+          user_tier: json.tier ?? null,
+          user_track: json.track ?? null,
+        };
       } catch {
-        // Anonymous session — that's fine.
+        return null;
       }
+    }
 
+    async function bootstrap() {
+      const session = (await resolve()) ?? {
+        user_id_hash: null,
+        user_tier: null,
+        user_track: null,
+      };
       if (cancelled) return;
 
+      const serialized = JSON.stringify(session);
+      if (lastSerializedRef.current === serialized) {
+        // Nothing changed since last resolve. Skip the re-init to
+        // avoid clobbering already-stamped events.
+        return;
+      }
+      lastSerializedRef.current = serialized;
+
       initAnalytics({
-        user_id_hash: userIdHash,
+        ...session,
         session_id: sessionId,
-        user_tier: userTier,
-        user_track: userTrack,
-        platform: detectPlatform(),
+        platform,
         app_version: APP_VERSION,
       });
-
-      attachUnloadFlush();
     }
 
     void bootstrap();
+    attachUnloadFlush();
+
+    // Re-resolve on focus + visibilitychange so a tab that picked up
+    // the auth cookie via id.kinetiks.ai sign-in (typically in another
+    // tab) finds out about it without a hard refresh.
+    const onFocus = () => void bootstrap();
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") void bootstrap();
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibility);
 
     return () => {
       cancelled = true;
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
     };
   }, []);
 

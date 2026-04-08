@@ -24,6 +24,9 @@ export default function QuoraConnectPage() {
   function isLikelyQuoraProfile(value: string): boolean {
     try {
       const u = new URL(value);
+      // Require https — server-side route also enforces this and fails
+      // closed on http or other protocols. Better to fail fast in the UI.
+      if (u.protocol !== "https:") return false;
       if (u.hostname !== "quora.com" && u.hostname !== "www.quora.com") {
         return false;
       }
@@ -71,8 +74,47 @@ export default function QuoraConnectPage() {
     }
   }
 
-  function handleSkip() {
-    router.push("/onboarding/content");
+  async function handleSkip() {
+    // Persist the connect-step skip via the server route so the
+    // onboarding state machine advances. Without this call the user
+    // can navigate to /onboarding/content but the persisted
+    // current_step stays at "connect", and any later navigation will
+    // bounce them back here.
+    setSubmitting(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/onboarding/connect/skip", {
+        method: "POST",
+      });
+
+      if (res.status === 401) {
+        window.location.href =
+          "https://id.kinetiks.ai/login?return_to=/onboarding";
+        return;
+      }
+
+      if (res.status === 409) {
+        // Server-side state machine says we're not on the connect step.
+        // Pull the current step from the response and route to it.
+        const json = (await res.json().catch(() => ({}))) as {
+          current_step?: string;
+        };
+        if (json.current_step) {
+          router.push(`/onboarding/${json.current_step}`);
+          return;
+        }
+      }
+
+      if (!res.ok) {
+        throw new Error(`Skip failed (${res.status})`);
+      }
+
+      router.push("/onboarding/content");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (

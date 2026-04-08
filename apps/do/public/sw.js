@@ -16,7 +16,8 @@
  * tiny fallback shell when offline.
  */
 
-const CACHE_VERSION = "deskof-v1";
+const CACHE_PREFIX = "deskof-";
+const CACHE_VERSION = `${CACHE_PREFIX}v1`;
 const FALLBACK_URL = "/offline.html";
 const PRECACHE = [FALLBACK_URL, "/manifest.webmanifest"];
 
@@ -34,8 +35,13 @@ self.addEventListener("activate", (event) => {
     caches
       .keys()
       .then((keys) =>
+        // Only evict DeskOf-owned caches. Without the prefix filter we'd
+        // wipe runtime caches owned by other apps on the same origin
+        // (or future runtime caches we add ourselves) on every upgrade.
         Promise.all(
-          keys.filter((k) => k !== CACHE_VERSION).map((k) => caches.delete(k))
+          keys
+            .filter((k) => k.startsWith(CACHE_PREFIX) && k !== CACHE_VERSION)
+            .map((k) => caches.delete(k))
         )
       )
       .then(() => self.clients.claim())

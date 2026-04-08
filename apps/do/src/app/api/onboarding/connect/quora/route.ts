@@ -102,11 +102,32 @@ export async function POST(request: Request) {
   // state row. We do NOT auto-advance current_step because the user may
   // still need to handle the Reddit half — that ships when the OAuth
   // client lands. The connect-skip route is what advances current_step.
+  //
+  // We require the row to exist (the onboarding state machine creates
+  // it on first contact in /api/onboarding/privacy or via
+  // getOrCreateOnboardingState). If the update returns no row OR an
+  // error, the platform-account upsert above succeeded but our local
+  // onboarding state would be out of sync — fail loudly so the client
+  // can retry rather than leave the connect step looking unconnected.
   const supabase = createDeskOfServerClient();
-  await supabase
+  const { data: onboardingRow, error: onboardingError } = await supabase
     .from("deskof_onboarding_state")
     .update({ quora_connected_at: new Date().toISOString() })
-    .eq("user_id", auth.session.user_id);
+    .eq("user_id", auth.session.user_id)
+    .select("user_id")
+    .maybeSingle();
+
+  if (onboardingError || !onboardingRow) {
+    return NextResponse.json(
+      {
+        success: false,
+        error:
+          onboardingError?.message ??
+          "Failed to update onboarding state — Quora link saved but progress not advanced",
+      },
+      { status: 500 }
+    );
+  }
 
   return NextResponse.json({
     success: true,

@@ -60,9 +60,16 @@ export function computeCppiScore(
 }
 
 export function classifyCppi(score: number): CPPILevel {
+  // Per CLAUDE.md and Quality Addendum #4:
+  //   low      < 0.40
+  //   moderate 0.40 - 0.60
+  //   high     0.60 - 0.80
+  //   critical > 0.80
+  //
+  // The "critical > 0.80" wording means 0.80 itself is still high.
   if (score < 0.4) return "low";
   if (score < 0.6) return "moderate";
-  if (score < 0.8) return "high";
+  if (score <= 0.8) return "high";
   return "critical";
 }
 

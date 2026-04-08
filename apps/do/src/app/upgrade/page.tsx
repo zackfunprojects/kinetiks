@@ -45,6 +45,12 @@ export default async function UpgradePage({ searchParams }: Props) {
   if ("error" in auth) redirect("/onboarding");
   const session = auth.session;
 
+  // Hero users have nothing to upgrade to. Bounce them back to Write
+  // rather than render a confusing zero-benefit page.
+  if (session.tier === "hero") {
+    redirect("/write");
+  }
+
   const target = parseTarget(searchParams.target, session.tier);
   const triggerFeature = isFeature(searchParams.feature)
     ? searchParams.feature
@@ -144,7 +150,18 @@ function parseTarget(
   raw: string | undefined,
   current: BillingTier
 ): BillingTier {
-  if (raw === "standard" || raw === "hero") return raw;
+  // The upgrade page should NEVER render an upgrade flow that points
+  // at the user's current tier — it would be a zero-benefit page with
+  // a billing link to the same plan they're already on. Resolve as:
+  //
+  //   - hero  → "hero"  (no upgrade target above hero)
+  //   - standard → if raw === "hero" honor it, else escalate to "hero"
+  //   - free  → if raw === "hero" honor it, else default to "standard"
+  if (current === "hero") return "hero";
+  if (raw === "hero") return "hero";
+  if (raw === "standard" && current === "free") return "standard";
+  // Standard user requested standard, or no/unknown raw target on a
+  // standard user → bump them to hero. Same for free with no raw.
   return current === "free" ? "standard" : "hero";
 }
 

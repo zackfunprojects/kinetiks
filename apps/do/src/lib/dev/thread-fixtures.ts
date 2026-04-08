@@ -183,7 +183,11 @@ export async function seedFixturesForUser(
   // unique constraint on (user_id, thread_id) — that's intentional in
   // production (re-surfacing a thread is allowed) but for the seed we
   // delete-and-reinsert any prior fixture opportunities first.
-  await admin
+  //
+  // Fail fast if the cleanup errors — otherwise the insert below would
+  // create duplicate fixture rows for the same (user_id, thread_id)
+  // pair on every reseed and break the idempotency guarantee.
+  const { error: deleteError } = await admin
     .from("deskof_opportunities")
     .delete()
     .eq("user_id", userId)
@@ -191,6 +195,11 @@ export async function seedFixturesForUser(
       "thread_id",
       (insertedThreads ?? []).map((r) => r.id)
     );
+  if (deleteError) {
+    throw new Error(
+      `seed opportunity cleanup failed: ${deleteError.message}`
+    );
+  }
 
   const { error: oppError } = await admin
     .from("deskof_opportunities")

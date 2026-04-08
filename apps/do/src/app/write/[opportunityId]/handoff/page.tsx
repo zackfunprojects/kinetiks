@@ -38,6 +38,12 @@ export default async function HandoffPage({ params }: Props) {
   );
   if (!opportunity) notFound();
 
+  // The handoff confirmation flow is Quora-specific. A direct
+  // navigation to /write/[id]/handoff for a Reddit row would render
+  // copy + a clipboard-and-open-Quora link that makes no sense for
+  // Reddit. Bounce to 404.
+  if (opportunity.thread.platform !== "quora") notFound();
+
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6 py-16">
       <HandoffConfirmation

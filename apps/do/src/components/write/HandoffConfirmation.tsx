@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { track } from "@/lib/analytics";
+import { deleteLocalDraft } from "@/lib/drafts/local-store";
 
 interface Props {
   opportunityId: string;
@@ -46,15 +46,19 @@ export function HandoffConfirmation({
       if (!res.ok || !json.success) {
         throw new Error(json.error ?? `Failed (${res.status})`);
       }
-      track({
-        name: "reply_posted",
-        props: {
-          opportunity_id: opportunityId,
-          platform: "quora",
-          character_count: 0,
-          time_to_post_seconds: 0,
-        },
-      });
+      // Note: we deliberately do NOT fire `reply_posted` here.
+      // ReplyEditor.handlePost() already emitted that event with real
+      // character_count and time_to_post_seconds when the user clicked
+      // Post in the editor. Firing it again would double-count
+      // conversions and overwrite the metrics with zeros.
+      // The "I posted this" tap is its own product moment — track it
+      // through the dedicated reply_handoff_confirmed event in Phase 5
+      // when Pulse starts the 3-layer match flow off the back of it.
+
+      // Now we can safely clear the local rescue draft. The server-side
+      // row is in pending-confirm state and Pulse will own it from here.
+      void deleteLocalDraft(opportunityId);
+
       router.push("/write");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");

@@ -105,8 +105,11 @@ export async function POST(request: Request) {
     );
   }
 
+  // Don't write the raw user_id to logs — this endpoint is retry-driven
+  // so the same identifier could land in long-lived logs over and over.
+  // Correlate via the audit_request_id instead.
   console.warn(
-    `deletion-webhook: received account.deleted for ${userId} (audit row ${auditId ?? "n/a"}). ` +
+    `deletion-webhook: received account.deleted (audit row ${auditId ?? "n/a"}). ` +
       "The deletion cascade processor lands in Phase 8 — returning 503 so the caller retries."
   );
 
@@ -114,9 +117,9 @@ export async function POST(request: Request) {
     {
       success: false,
       error:
-        "DeskOf deletion processor is not yet operational. " +
-        "This webhook receiver records the request for audit but does not perform the deletion. " +
-        "Returning 503 so the caller will retry once the Phase 8 processor lands.",
+        auditId === null
+          ? "DeskOf deletion processor is not yet operational AND the audit row could not be recorded. Returning 503 so the caller retries — please re-deliver this webhook."
+          : "DeskOf deletion processor is not yet operational. This webhook receiver recorded the request for audit but did not perform the deletion. Returning 503 so the caller retries once the Phase 8 processor lands.",
       audit_request_id: auditId,
     },
     {

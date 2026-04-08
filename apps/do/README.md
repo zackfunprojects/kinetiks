@@ -73,14 +73,22 @@ pnpm --filter @kinetiks/do dev
 
 App boots at `http://localhost:3005`. You'll need a `.env.local` (see `.env.example`) with at minimum the Supabase URL + anon key + service role key, and the Kinetiks webhook secret if you want to test the inbound webhook routes.
 
-**To exercise the Write loop end to end** before the real Reddit/Quora discovery paths exist:
+**To exercise the Write loop end-to-end** before the real Reddit/Quora discovery paths exist:
 
-```bash
-# Sign in via id.kinetiks.ai (the cookie auto-shares to localhost:3005)
-# Then POST to the dev seed route:
-curl -X POST http://localhost:3005/api/dev/seed-fixtures
-# Now reload /write — you'll see five fixture opportunities
+```js
+// 1. Sign in via id.kinetiks.ai (the cookie auto-shares to localhost:3005)
+// 2. Open localhost:3005, then in the browser devtools console run:
+await fetch("/api/dev/seed-fixtures", {
+  method: "POST",
+  credentials: "include",
+});
+// 3. Reload /write — you'll see five fixture opportunities
 ```
+
+The browser session cookie isn't accessible to `curl` without exporting
+a cookie jar (`--cookie-jar`/`--cookie`), so the in-browser `fetch`
+form is the simplest path. If you do prefer `curl`, save the cookie
+jar from a logged-in browser session first.
 
 The seed route is gated to `NODE_ENV !== "production"` OR `DESKOF_ALLOW_DEV_SEED=true`. Fixtures are clearly labeled `[Fixture]` in their titles.
 

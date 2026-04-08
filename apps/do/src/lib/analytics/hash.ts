@@ -12,9 +12,18 @@
 
 const SALT_PREFIX = "deskof:user:";
 
-export async function hashUserId(userId: string): Promise<string> {
+/**
+ * Returns the hashed user id, or `null` when crypto.subtle is not
+ * available (older browsers, certain WebView contexts).
+ *
+ * Returning an empty string was a footgun: every fallback user would
+ * have been merged into a single `user_id_hash: ""` bucket in the
+ * analytics warehouse. `null` lets callers omit the field entirely so
+ * those events stay genuinely anonymous instead of falsely correlated.
+ */
+export async function hashUserId(userId: string): Promise<string | null> {
   if (typeof crypto === "undefined" || !crypto.subtle) {
-    return "";
+    return null;
   }
   const salt =
     SALT_PREFIX + (process.env.NEXT_PUBLIC_APP_VERSION ?? "0.0.0-dev");

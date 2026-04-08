@@ -9,7 +9,9 @@ describe("@kinetiks/deskof/types/cppi", () => {
     expect(classifyCppi(0.59)).toBe("moderate");
     expect(classifyCppi(0.6)).toBe("high");
     expect(classifyCppi(0.79)).toBe("high");
-    expect(classifyCppi(0.8)).toBe("critical");
+    // Per the spec text "critical > 0.80", 0.80 is still high.
+    expect(classifyCppi(0.8)).toBe("high");
+    expect(classifyCppi(0.81)).toBe("critical");
     expect(classifyCppi(1)).toBe("critical");
   });
 

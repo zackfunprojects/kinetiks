@@ -64,10 +64,23 @@ export function ReplyEditor({ opportunity }: Props) {
   // starts typing. The IndexedDB store is the offline-safe rescue
   // layer; the canonical store is `deskof_replies`. If the local copy
   // is newer than what we'd otherwise show, prefer it.
+  //
+  // CRITICAL: loadLocalDraft is async and resolves after mount. If
+  // the user starts typing before it resolves, we MUST NOT overwrite
+  // their fresh input with the stale rescued draft. Guard with the
+  // current revision: if anything has been typed (revision > 0) the
+  // recovery is a no-op.
   useEffect(() => {
     let cancelled = false;
     void loadLocalDraft(opportunity.id).then((draft) => {
-      if (cancelled || !draft || !draft.content) return;
+      if (
+        cancelled ||
+        !draft ||
+        !draft.content ||
+        draftRevisionRef.current > 0
+      ) {
+        return;
+      }
       setContent(draft.content);
       draftRevisionRef.current = draft.revision;
     });
@@ -221,9 +234,12 @@ export function ReplyEditor({ opportunity }: Props) {
           popup.location.href = postJson.handoff_url;
         }
 
-        // Local rescue store can be cleared once the row is in the
-        // post-confirm state on the server.
-        void deleteLocalDraft(opportunity.id);
+        // IMPORTANT: do NOT delete the local rescue draft here. The
+        // user still has to paste manually on Quora, and the
+        // clipboard write above can fail (denied permission, the
+        // popup may be blocked). The local store is the only recovery
+        // surface until /api/reply/quora-confirm succeeds — that's
+        // where HandoffConfirmation deletes it.
 
         // Either way the user lands on the handoff confirmation page —
         // it offers a manual link if the popup was blocked.
@@ -232,7 +248,8 @@ export function ReplyEditor({ opportunity }: Props) {
       }
 
       // Reddit success path lands later. For now anything else routes
-      // back to the Write tab.
+      // back to the Write tab. Reddit posts are server-confirmed in
+      // one round-trip so we can clear the rescue draft here safely.
       if (popup && !popup.closed) popup.close();
       void deleteLocalDraft(opportunity.id);
       router.push("/write");
