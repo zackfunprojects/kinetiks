@@ -2,8 +2,10 @@ import { redirect } from "next/navigation";
 import { requireDeskOfSession } from "@/lib/auth/session";
 import { createDeskOfServerClient } from "@/lib/supabase/server";
 import { getPendingOpportunities } from "@/lib/opportunities/queue";
+import { countTodaysFilteredThreads } from "@/lib/opportunities/filtered";
 import { canAccess } from "@/lib/tier-config";
 import { WriteTabClient } from "./client";
+import { FilteredFeedTrigger } from "@/components/write/FilteredFeedTrigger";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +27,15 @@ export default async function WriteTabPage() {
   const { session } = result;
 
   const supabase = createDeskOfServerClient();
-  const opportunities = await getPendingOpportunities(supabase, session.user_id, 10);
+  // The filtered counter is best-effort: if the count query fails the
+  // Write tab still has to render. countTodaysFilteredThreads now
+  // throws on Supabase errors (CodeRabbit fix — silent zero hid RLS
+  // regressions), so we Promise.allSettled it independently.
+  const [opportunities, filteredCountResult] = await Promise.all([
+    getPendingOpportunities(supabase, session.user_id, 10),
+    countTodaysFilteredThreads(supabase, session.user_id).catch(() => 0),
+  ]);
+  const filteredCount = filteredCountResult;
 
   // Free tier never sees suggested angles — the angle teaser fires
   // the upgrade-to-Standard conversion trigger inside the card itself.
@@ -43,12 +53,15 @@ export default async function WriteTabPage() {
         >
           Write
         </h1>
-        <span
-          className="text-xs"
-          style={{ color: "var(--text-tertiary)" }}
-        >
-          {opportunities.length} ready
-        </span>
+        <div className="flex items-center gap-2">
+          <FilteredFeedTrigger initialCount={filteredCount} />
+          <span
+            className="text-xs"
+            style={{ color: "var(--text-tertiary)" }}
+          >
+            {opportunities.length} ready
+          </span>
+        </div>
       </header>
 
       <div className="flex-1 overflow-hidden">

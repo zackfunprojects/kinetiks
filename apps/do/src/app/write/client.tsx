@@ -26,6 +26,11 @@ export function WriteTabClient({
 }: Props) {
   const router = useRouter();
   const [skippedIds, setSkippedIds] = useState<Set<string>>(new Set());
+  const [refreshNotice, setRefreshNotice] = useState<
+    | { kind: "warning"; message: string }
+    | { kind: "error"; message: string }
+    | null
+  >(null);
 
   const opportunities = initialOpportunities.filter(
     (o) => !skippedIds.has(o.id)
@@ -66,16 +71,74 @@ export function WriteTabClient({
   }
 
   async function handleRefresh() {
+    // Phase 4 — kick the Scout v2 refresh route to compute new
+    // opportunities + filtered rows for the user. We care about the
+    // HTTP status and the body's { success, warning } payload so
+    // real failures surface to the user instead of silently looking
+    // like "nothing changed".
+    setRefreshNotice(null);
+    try {
+      const res = await fetch("/api/opportunities/refresh", {
+        method: "POST",
+      });
+      const json = (await res.json().catch(() => null)) as {
+        success?: boolean;
+        error?: string;
+        warning?: string;
+      } | null;
+      if (!res.ok || !json?.success) {
+        setRefreshNotice({
+          kind: "error",
+          message:
+            json?.error ?? `Refresh failed (${res.status}). Try again.`,
+        });
+      } else if (json.warning) {
+        setRefreshNotice({ kind: "warning", message: json.warning });
+      }
+    } catch (err) {
+      setRefreshNotice({
+        kind: "error",
+        message:
+          err instanceof Error
+            ? err.message
+            : "Refresh failed — check your connection.",
+      });
+    }
+    // Still pull fresh data regardless — on success the new rows
+    // appear, on failure the existing queue stays visible.
     router.refresh();
   }
 
   return (
-    <CardStack
-      opportunities={opportunities}
-      angleLocked={angleLocked}
-      onSkip={handleSkip}
-      onWrite={handleWrite}
-      onRefresh={handleRefresh}
-    />
+    <div className="relative flex h-full flex-col">
+      {refreshNotice && (
+        <div
+          role={refreshNotice.kind === "error" ? "alert" : "status"}
+          className="px-5 py-2 text-xs"
+          style={{
+            background:
+              refreshNotice.kind === "error"
+                ? "var(--danger-subtle)"
+                : "var(--warning-subtle)",
+            color:
+              refreshNotice.kind === "error"
+                ? "var(--danger)"
+                : "var(--warning)",
+            borderBottom: "1px solid var(--border-subtle)",
+          }}
+        >
+          {refreshNotice.message}
+        </div>
+      )}
+      <div className="flex-1 overflow-hidden">
+        <CardStack
+          opportunities={opportunities}
+          angleLocked={angleLocked}
+          onSkip={handleSkip}
+          onWrite={handleWrite}
+          onRefresh={handleRefresh}
+        />
+      </div>
+    </div>
   );
 }

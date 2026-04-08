@@ -1,6 +1,8 @@
 "use client";
 
+import { useEffect } from "react";
 import type { Opportunity } from "@kinetiks/deskof";
+import { track } from "@/lib/analytics";
 
 interface Props {
   opportunity: Opportunity;
@@ -74,7 +76,12 @@ export function OpportunityCard({ opportunity, angleLocked }: Props) {
         </p>
       )}
 
-      <SuggestedAngle angle={suggested_angle} locked={angleLocked} />
+      <SuggestedAngle
+        angle={suggested_angle}
+        locked={angleLocked}
+        opportunityId={opportunity.id}
+        matchScore={match_score}
+      />
 
       <footer
         className="flex items-center gap-3 text-xs"
@@ -120,10 +127,29 @@ function MatchScoreBadge({ score }: { score: number }) {
 function SuggestedAngle({
   angle,
   locked,
+  opportunityId,
+  matchScore,
 }: {
   angle: string | null;
   locked: boolean;
+  opportunityId: string;
+  matchScore: number;
 }) {
+  // Phase 4 — fire angle_viewed when an unlocked angle renders.
+  // The effect re-runs per opportunity (id changes between cards)
+  // and only fires for non-null angles, so the locked teaser and
+  // empty-angle cases don't pollute the metric.
+  useEffect(() => {
+    if (locked || !angle) return;
+    track({
+      name: "angle_viewed",
+      props: {
+        opportunity_id: opportunityId,
+        match_score: matchScore,
+      },
+    });
+  }, [angle, locked, opportunityId, matchScore]);
+
   if (locked) {
     return (
       <div

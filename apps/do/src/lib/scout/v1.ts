@@ -1,39 +1,50 @@
 /**
- * Scout v1 — keyword-based discovery engine.
+ * Scout v2 — full discovery engine (build-plan §Phase 4).
  *
- * Phase 2's job is to deliver the core write loop (discover → write →
- * post). The full discovery engine (timing model, citation prediction,
- * answer gap detection, anti-signal filtering, suggested angles) lands
- * in Phase 4. Phase 2 ships a deliberately simple matcher so the loop
- * works end to end while we collect the data needed for Phase 4.
+ * Upgrades the Phase 2 keyword-only matcher to the spec'd composite
+ * model:
  *
- * Scout v1 only computes:
- *   - expertise_fit  — keyword overlap between thread topic and the
- *                       Operator Profile expertise tiers
- *   - timing_score   — thread freshness (newer threads score higher)
+ *   1. Expertise fit       — Operator Profile tier matching (kept from v1)
+ *   2. Timing score        — freshness + velocity blend (Phase 4 §4.1)
+ *   3. Citation probability — DEFERRED (Phase 0 model not built)
+ *   4. Answer gap score    — LLM analysis of thread vs operator (Phase 4 §4.3)
+ *   5. Anti-signal flags   — cold-entry, hostility, mature-thread, promo-tension,
+ *                            duplicate-coverage (Phase 4 §4.4)
+ *   6. Suggested angle     — one-line LLM hint, NEVER a draft (§4.6)
  *
- * The other dimensions of the composite score are zeroed out, and the
- * computeMatchScore math from @kinetiks/deskof handles the formula.
+ * Threads with at least one HARD anti-signal flag are filtered out
+ * of the queue and logged into `deskof_filtered_threads` so the
+ * filtered-feed UI can surface them with educational reasons (§4.7).
  *
- * Scout v1 operates on the platform-agnostic ThreadSnapshot, so it
- * doesn't know or care whether the thread came from Reddit or Quora.
+ * The actual scoring math lives in `@kinetiks/deskof` (pure). This
+ * module is the IO layer that hydrates inputs from Supabase + the
+ * Operator Profile and orchestrates the LLM enrichment pass for the
+ * top-N candidates.
+ *
+ * LLM behavior: answer-gap and suggested-angle calls run only for
+ * the top candidates (cost control), and silently degrade to "no
+ * signal" if the LLM client is unavailable. Same contract as Lens.
  */
 import "server-only";
 import {
-  computeMatchScore,
   buildBreakdown,
-  type Opportunity,
-  type ThreadSnapshot,
-  type SkipReason,
+  collectAntiSignals,
+  computeMatchScore,
+  computeTimingScore,
+  type AntiSignalContext,
+  type AntiSignalFlag,
   type ExpertiseTierLevel,
+  type FilterReason,
+  type Opportunity,
   type OpportunityType,
+  type SkipReason,
+  type ThreadSnapshot,
 } from "@kinetiks/deskof";
 import {
   findMatchingTier,
   type OperatorProfile,
 } from "@kinetiks/cortex";
-
-const FRESHNESS_HALF_LIFE_HOURS = 36; // ~1.5 days
+import { analyzeAnswerGap, generateSuggestedAngle } from "./llm";
 
 export interface ScoutOptions {
   /** Cap the number of opportunities returned */
@@ -42,94 +53,192 @@ export interface ScoutOptions {
   min_score?: number;
   /** How long the surfaced opportunity stays valid */
   expiration_hours?: number;
+  /** How many of the top candidates get LLM enrichment (cost control) */
+  llm_enrichment_top_n?: number;
+}
+
+export interface ScoutSurfaced {
+  thread: ThreadSnapshot;
+  opportunity: Omit<Opportunity, "id" | "user_id">;
+  /** Soft anti-signal flags that were attached but did not filter the thread */
+  anti_signal_flags: AntiSignalFlag[];
+}
+
+export interface ScoutFiltered {
+  thread: ThreadSnapshot;
+  reason: FilterReason;
+  detail: string;
+  /** What the match_score WOULD have been without the hard flag */
+  hypothetical_score: number;
 }
 
 export interface ScoutResult {
-  thread: ThreadSnapshot;
-  opportunity: Omit<Opportunity, "id" | "user_id">;
-  /** True if Scout filtered this thread instead of surfacing it */
-  filtered?: { reason: string };
+  surfaced: ScoutSurfaced[];
+  filtered: ScoutFiltered[];
+}
+
+export interface ScoutHydratedInput {
+  threads: ThreadSnapshot[];
+  profile: OperatorProfile;
+  /** Last-7-day reply count by community for duplicate-coverage detection */
+  recent_replies_by_community?: ReadonlyMap<string, number>;
 }
 
 /**
- * Score a batch of threads against an Operator Profile and return the
- * top-N as opportunities. Pure function — no IO.
+ * Score a batch of threads and return surfaced opportunities + a
+ * filtered list (for the Quality Addendum #7 filtered feed).
+ *
+ * Computational pass is synchronous; LLM enrichment runs as a
+ * Promise.allSettled batch on the top-N candidates. The composite
+ * score is RECOMPUTED for enriched candidates so a strong answer-gap
+ * score can lift a thread above its initial ranking.
  */
-export function scoreThreads(
-  threads: ThreadSnapshot[],
-  profile: OperatorProfile,
+export async function runScout(
+  input: ScoutHydratedInput,
   options: ScoutOptions = {}
-): ScoutResult[] {
+): Promise<ScoutResult> {
   const limit = options.limit ?? 50;
   const minScore = options.min_score ?? 30;
   const expirationHours = options.expiration_hours ?? 48;
+  const llmTopN = options.llm_enrichment_top_n ?? 5;
   const now = Date.now();
 
-  const results: ScoutResult[] = [];
+  const surfaced: ScoutSurfaced[] = [];
+  const filtered: ScoutFiltered[] = [];
 
-  for (const thread of threads) {
+  const activeCommunities = new Set(
+    input.profile.personal.communities.map((c) => c.name)
+  );
+  const productNames = input.profile.professional.products.map(
+    (p) => p.product_name
+  );
+  const recentByCommunity =
+    input.recent_replies_by_community ?? new Map<string, number>();
+
+  for (const thread of input.threads) {
     const topic = inferTopicFromThread(thread);
-    const match = findMatchingTier(topic, profile.professional.expertise_tiers);
+    const match = findMatchingTier(topic, input.profile.professional.expertise_tiers);
+    if (!match) continue;
 
-    if (!match) {
-      // No expertise match — but personal-interest pipeline (Phase 7)
-      // would still consider this. Phase 2 just drops it.
+    const expertise_fit = expertiseFitScore(match.level);
+    const timing_score = computeTimingScore(
+      {
+        created_at: thread.created_at,
+        upvotes_per_hour: thread.upvotes_per_hour,
+        comments_per_hour: thread.comments_per_hour,
+      },
+      now
+    );
+
+    const antiContext: AntiSignalContext = {
+      thread,
+      active_communities: activeCommunities,
+      recent_replies_by_community: recentByCommunity,
+      product_names: productNames,
+    };
+    const antiFlags = collectAntiSignals(antiContext);
+    const hardFlag = antiFlags.find((f) => f.hard) ?? null;
+
+    const scoringInput = {
+      expertise_fit,
+      timing_score,
+      citation_probability: 0,
+      answer_gap_score: 0,
+      anti_signal_count: antiFlags.length,
+    };
+    const provisionalScore = computeMatchScore(scoringInput);
+
+    if (hardFlag) {
+      filtered.push({
+        thread,
+        reason: hardFlag.reason,
+        detail: hardFlag.detail,
+        hypothetical_score: provisionalScore,
+      });
       continue;
     }
 
-    const expertise_fit = expertiseFitScore(match.level);
-    const timing_score = freshnessScore(thread.created_at, now);
+    if (provisionalScore < minScore) continue;
 
-    const matchScore = computeMatchScore({
-      expertise_fit,
-      timing_score,
-      citation_probability: 0,
-      answer_gap_score: 0,
-      anti_signal_count: 0,
-    });
-
-    if (matchScore < minScore) continue;
-
-    const breakdown = buildBreakdown({
-      expertise_fit,
-      timing_score,
-      citation_probability: 0,
-      answer_gap_score: 0,
-      anti_signal_count: 0,
-    });
-
+    const breakdown = buildBreakdown(
+      scoringInput,
+      antiFlags.map((f) => f.reason)
+    );
     const opportunityType: OpportunityType =
       match.level === "genuine_curiosity" ? "personal" : "professional";
 
-    results.push({
+    surfaced.push({
       thread,
       opportunity: {
         thread,
-        match_score: matchScore,
+        match_score: provisionalScore,
         match_breakdown: breakdown,
-        suggested_angle: null, // Phase 4 (gated, Standard+)
+        suggested_angle: null,
         expertise_tier_matched: match.level,
         opportunity_type: opportunityType,
         surfaced_at: new Date(now).toISOString(),
-        expires_at: new Date(
-          now + expirationHours * 60 * 60 * 1000
-        ).toISOString(),
+        expires_at: new Date(now + expirationHours * 60 * 60 * 1000).toISOString(),
         status: "pending",
       },
+      anti_signal_flags: antiFlags,
     });
   }
 
-  results.sort(
-    (a, b) => b.opportunity.match_score - a.opportunity.match_score
+  // Sort by provisional score so LLM enrichment hits the best candidates.
+  surfaced.sort((a, b) => b.opportunity.match_score - a.opportunity.match_score);
+
+  // LLM enrichment pass — top N only. Failures are silent.
+  const enrichTargets = surfaced.slice(0, llmTopN);
+  await Promise.all(
+    enrichTargets.map(async (entry) => {
+      const expertiseHit = {
+        topic: entry.thread.title.toLowerCase().slice(0, 80),
+        tier: entry.opportunity.expertise_tier_matched,
+      };
+      const gap = await analyzeAnswerGap(entry.thread, expertiseHit);
+      const angle = await generateSuggestedAngle(
+        entry.thread,
+        expertiseHit,
+        gap
+      );
+
+      // Re-score with the LLM-derived answer_gap_score (and the same
+      // computational dimensions). Suggested angle is metadata only,
+      // not part of the score.
+      const enrichedScoring = {
+        expertise_fit: entry.opportunity.match_breakdown.expertise_fit,
+        timing_score: entry.opportunity.match_breakdown.timing_score,
+        citation_probability: 0,
+        answer_gap_score: gap?.score ?? 0,
+        anti_signal_count: entry.anti_signal_flags.length,
+      };
+      const enrichedScore = computeMatchScore(enrichedScoring);
+      const enrichedBreakdown = buildBreakdown(
+        enrichedScoring,
+        entry.anti_signal_flags.map((f) => f.reason)
+      );
+
+      entry.opportunity.match_score = enrichedScore;
+      entry.opportunity.match_breakdown = enrichedBreakdown;
+      entry.opportunity.suggested_angle = angle;
+    })
   );
-  return results.slice(0, limit);
+
+  // Re-sort after enrichment so a strong answer-gap can lift an
+  // entry above its provisional ranking.
+  surfaced.sort((a, b) => b.opportunity.match_score - a.opportunity.match_score);
+
+  return {
+    surfaced: surfaced.slice(0, limit),
+    filtered,
+  };
 }
 
 /**
  * Phase 2 topic inference is intentionally naive — just normalize the
- * thread title and let findMatchingTier do substring overlap. Phase 4
- * replaces this with embedding similarity once Mirror is producing
- * topic vectors.
+ * thread title and let findMatchingTier do substring overlap. A full
+ * embedding-similarity implementation lands once Mirror is producing
+ * topic vectors at the operator level.
  */
 function inferTopicFromThread(thread: ThreadSnapshot): string {
   return thread.title.toLowerCase();
@@ -144,23 +253,6 @@ function expertiseFitScore(level: ExpertiseTierLevel): number {
     case "genuine_curiosity":
       return 0.4;
   }
-}
-
-/**
- * Exponential decay over thread age. A thread posted now scores 1.0;
- * after one half-life it scores 0.5; after two half-lives 0.25; etc.
- *
- * Bounded so brand-new threads don't dominate (we want some signal
- * accumulation before surfacing) and ancient threads don't disappear
- * entirely (they may still be the right place to chime in).
- */
-function freshnessScore(createdAt: string, nowMs: number): number {
-  const created = Date.parse(createdAt);
-  if (Number.isNaN(created)) return 0.3;
-  const ageHours = Math.max(0, (nowMs - created) / (60 * 60 * 1000));
-  const decay = Math.pow(0.5, ageHours / FRESHNESS_HALF_LIFE_HOURS);
-  // Bound to [0.05, 0.95] so freshness is one input among many
-  return Math.max(0.05, Math.min(0.95, decay));
 }
 
 // ----------------------------------------------------------------
