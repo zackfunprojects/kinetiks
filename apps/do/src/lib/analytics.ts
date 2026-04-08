@@ -325,9 +325,18 @@ export async function flush(): Promise<void> {
 /**
  * Force a flush before unload — keeps the last few events from being
  * lost when the user navigates away or closes the tab.
+ *
+ * Idempotent: a module-level flag prevents accumulating duplicate
+ * pagehide listeners across React StrictMode double-mounts and
+ * navigation that re-mounts AnalyticsBootstrap. Without the guard,
+ * each navigation would add another listener and the queue would be
+ * flushed N times on tab close.
  */
+let unloadFlushAttached = false;
+
 export function attachUnloadFlush(): void {
-  if (typeof window === "undefined") return;
+  if (typeof window === "undefined" || unloadFlushAttached) return;
+  unloadFlushAttached = true;
   window.addEventListener("pagehide", () => {
     void flush();
   });

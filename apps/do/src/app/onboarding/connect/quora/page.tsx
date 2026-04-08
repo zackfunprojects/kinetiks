@@ -180,7 +180,8 @@ export default function QuoraConnectPage() {
       <button
         type="button"
         onClick={handleSkip}
-        className="mt-3 text-xs"
+        disabled={submitting}
+        className="mt-3 text-xs disabled:opacity-50"
         style={{ color: "var(--text-tertiary)" }}
       >
         Skip — you can add this later from settings

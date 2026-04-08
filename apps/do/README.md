@@ -19,7 +19,7 @@ Any PR that opens a code path bypassing this constraint will be rejected.
 
 ## Where things live
 
-```
+```text
 apps/do/
   src/
     app/                # Next.js App Router
