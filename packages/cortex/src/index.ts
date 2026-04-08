@@ -36,3 +36,25 @@ export type { ValidationResult } from "./validate-layer";
 // App-level dependency injection
 export { configureCortex } from "./dispatcher";
 export type { CortexEventName, CortexEventDispatcher } from "./dispatcher";
+
+// Operator Profile primitive (introduced by DeskOf, consumed by future apps)
+export {
+  newOperatorProfile,
+  computeProfileConfidence,
+  findMatchingTier,
+  expertiseTierWeight,
+} from "./operator-profile";
+export type {
+  OperatorProfile,
+  ProfessionalProfile,
+  PersonalProfile,
+  ExpertiseTier,
+  ExpertiseTierLevel,
+  ProductAssociation,
+  VoiceFingerprint,
+  PlatformHistory,
+  Interest,
+  Community,
+  EngagementPrefs,
+  GateAdjustments,
+} from "./operator-profile";
