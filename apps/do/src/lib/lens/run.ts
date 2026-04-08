@@ -246,16 +246,6 @@ async function loadOrComputeCppi(
   return fresh;
 }
 
-function toCppi(row: CppiRow): CPPI {
-  return {
-    score: row.score,
-    volume: row.volume,
-    concentration: row.concentration,
-    clustering: row.clustering,
-    level: row.level,
-  };
-}
-
 function isStale(snapshotAt: string): boolean {
   const ageMs = Date.now() - new Date(snapshotAt).getTime();
   return ageMs > CPPI_STALE_HOURS * 60 * 60 * 1000;

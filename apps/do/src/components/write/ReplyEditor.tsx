@@ -467,7 +467,7 @@ function countChecks(result: GateResult): {
   let info = 0;
   let skipped = 0;
   for (const c of result.checks) {
-    if (c.message.startsWith("Skipped")) skipped += 1;
+    if (c.skipped) skipped += 1;
     else if (c.severity === "blocking") blocked += 1;
     else if (c.severity === "warning") advisory += 1;
     else info += 1;

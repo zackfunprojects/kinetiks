@@ -118,5 +118,6 @@ function skippedRow(type: GateCheckType): GateCheck {
     severity: "info",
     message: "Skipped — automated check unavailable.",
     recommendation: "",
+    skipped: true,
   };
 }

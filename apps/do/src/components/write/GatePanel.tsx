@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 /**
  * GatePanel — renders a `GateResult` from Lens inside ReplyEditor.
@@ -94,7 +94,7 @@ function CheckRow({
   overridden: boolean;
   onOverride: () => void;
 }) {
-  const isSkipped = check.message.startsWith("Skipped");
+  const isSkipped = check.skipped === true;
   const muted = isSkipped || check.passed;
   return (
     <li
@@ -158,8 +158,14 @@ function MobilePanel({
   onOverride: (type: GateCheckType) => void;
 }) {
   // Auto-open on advisory or blocked so the user is never one tap
-  // away from seeing the reason for a hard block.
+  // away from seeing the reason for a hard block. The useState
+  // initializer only runs once, so we ALSO sync via useEffect on
+  // every result.status change — otherwise a clear-then-blocked
+  // transition mid-edit would leave the panel collapsed.
   const [open, setOpen] = useState(result.status !== "clear");
+  useEffect(() => {
+    if (result.status !== "clear") setOpen(true);
+  }, [result.status]);
   return (
     <div
       style={{
@@ -221,7 +227,7 @@ function label(result: GateResult): string {
 }
 
 function iconFor(check: GateCheck): string {
-  if (check.message.startsWith("Skipped")) return "·";
+  if (check.skipped) return "·";
   if (check.passed) return "✓";
   if (check.severity === "blocking") return "✕";
   return "!";
