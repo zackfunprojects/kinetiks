@@ -108,9 +108,14 @@ export async function POST(request: Request) {
     // posted_at constraint is NOT satisfied here — Quora has no API and
     // we never set posted_at server-side until the user confirms via
     // /api/reply/quora-confirm (Phase 5).
+    //
+    // markQuoraHandoffPending guards against rewriting human_confirmed_at
+    // on a repeat call, so a double-tap of Post is idempotent rather than
+    // skewing Pulse's retry window anchor.
     const admin = createDeskOfAdminClient();
+    let result;
     try {
-      await markQuoraHandoffPending(admin, {
+      result = await markQuoraHandoffPending(admin, {
         user_id: auth.session.user_id,
         opportunity_id: body.opportunity_id,
         confirmed_at: new Date().toISOString(),
@@ -120,6 +125,31 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { success: false, error: message },
         { status: 500 }
+      );
+    }
+
+    // Map the result. "marked" and "already_confirmed" are both success
+    // (idempotent re-tap of Post). "not_found" means the draft autosave
+    // hasn't created the row yet — surface 404 so the editor can retry.
+    // "wrong_platform" should be impossible at this point because we
+    // checked platform above, but handle defensively.
+    if (result.kind === "not_found") {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "Draft has not been saved yet — wait for the next autosave and try again",
+        },
+        { status: 404 }
+      );
+    }
+    if (result.kind === "wrong_platform") {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Reply row is for platform ${result.platform}, not Quora`,
+        },
+        { status: 409 }
       );
     }
 

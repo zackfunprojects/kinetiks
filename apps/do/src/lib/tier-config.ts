@@ -13,6 +13,7 @@
  */
 
 import type { BillingTier } from "@kinetiks/deskof";
+import { TIER_CONTENT_URL_LIMITS } from "@kinetiks/deskof";
 
 /**
  * Every gated feature in DeskOf. The string literal type is exhaustive —
@@ -135,9 +136,12 @@ const FEATURE_MIN_TIER: Record<Feature, BillingTier> = {
 /**
  * Quantitative limits per tier (where the gate is a quota, not a binary).
  * Used by code paths like content URL ingestion that should hard-cap.
+ *
+ * The underlying numbers live in @kinetiks/deskof so server-side
+ * services and the UI gate matrix share one source of truth.
  */
 export const TIER_LIMITS = {
-  content_urls: { free: 0, standard: 10, hero: Number.POSITIVE_INFINITY },
+  content_urls: TIER_CONTENT_URL_LIMITS,
 } as const;
 
 /**

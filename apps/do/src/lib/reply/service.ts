@@ -191,6 +191,12 @@ export async function markReplyPosted(
   }
 }
 
+export type MarkQuoraHandoffResult =
+  | { kind: "marked"; was_already_confirmed: false }
+  | { kind: "already_confirmed"; was_already_confirmed: true }
+  | { kind: "not_found" }
+  | { kind: "wrong_platform"; platform: string };
+
 /**
  * Mark a Quora handoff confirmation pending — the user has been given
  * the clipboard text + URL but has not yet confirmed they posted on
@@ -199,6 +205,17 @@ export async function markReplyPosted(
  *
  * After this point, draft autosaves for the same row are frozen
  * (see FROZEN_STATUSES handling in upsertDraftReply).
+ *
+ * Returns a discriminated result so the calling route can map:
+ *   - marked              → 200
+ *   - already_confirmed   → 409 (idempotent: caller can treat as success)
+ *   - not_found           → 404
+ *   - wrong_platform      → 409 (the row exists but isn't a Quora handoff)
+ *
+ * The previous version of this function did a blind .update() that
+ * returned 200 even when nothing matched. CodeRabbit flagged that as
+ * letting bad IDs succeed silently and letting repeat taps overwrite
+ * human_confirmed_at, which would skew Pulse's retry window.
  */
 export async function markQuoraHandoffPending(
   supabase: SupabaseClient,
@@ -207,8 +224,32 @@ export async function markQuoraHandoffPending(
     opportunity_id: string;
     confirmed_at: string;
   }
-): Promise<void> {
-  const { error } = await supabase
+): Promise<MarkQuoraHandoffResult> {
+  // Read first so we can distinguish missing / wrong-platform / already-confirmed.
+  const { data: existing, error: readError } = await supabase
+    .from("deskof_replies")
+    .select("id, platform, human_confirmed_at, quora_match_status")
+    .eq("user_id", opts.user_id)
+    .eq("opportunity_id", opts.opportunity_id)
+    .maybeSingle();
+
+  if (readError) {
+    throw new Error(`markQuoraHandoffPending read failed: ${readError.message}`);
+  }
+  if (!existing) {
+    return { kind: "not_found" };
+  }
+  if (existing.platform !== "quora") {
+    return { kind: "wrong_platform", platform: existing.platform };
+  }
+  if (existing.human_confirmed_at !== null) {
+    // Idempotency: a repeat tap is a no-op. We do NOT rewrite
+    // human_confirmed_at because Pulse uses it as the retry window
+    // anchor and a fresh timestamp would skew the answer-match flow.
+    return { kind: "already_confirmed", was_already_confirmed: true };
+  }
+
+  const { error: updateError, data: updated } = await supabase
     .from("deskof_replies")
     .update({
       human_confirmed_at: opts.confirmed_at,
@@ -216,9 +257,19 @@ export async function markQuoraHandoffPending(
       quora_match_status: "pending",
     })
     .eq("user_id", opts.user_id)
-    .eq("opportunity_id", opts.opportunity_id);
+    .eq("opportunity_id", opts.opportunity_id)
+    // Guard against a TOCTOU race where another request confirms
+    // between our SELECT above and this UPDATE.
+    .is("human_confirmed_at", null)
+    .select("id");
 
-  if (error) {
-    throw new Error(`markQuoraHandoffPending failed: ${error.message}`);
+  if (updateError) {
+    throw new Error(`markQuoraHandoffPending failed: ${updateError.message}`);
   }
+  if (!updated || updated.length === 0) {
+    // Lost the race — another request confirmed in the gap.
+    return { kind: "already_confirmed", was_already_confirmed: true };
+  }
+
+  return { kind: "marked", was_already_confirmed: false };
 }

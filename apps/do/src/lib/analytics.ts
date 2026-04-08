@@ -108,6 +108,101 @@ export type AnalyticsEvent =
         platform: string;
         error_type: string;
       };
+    }
+  // Conversion events (Final Supplement §5.5)
+  | {
+      name: "upgrade_prompt_shown";
+      props: {
+        trigger_type:
+          | "angle_lock"
+          | "citation_teaser"
+          | "quora_teaser"
+          | "gate_preview"
+          | "first_week_prompt"
+          | "timed";
+        location: string;
+      };
+    }
+  | {
+      name: "upgrade_prompt_tapped";
+      props: {
+        trigger_type: string;
+        target_tier: "standard" | "hero";
+      };
+    }
+  | {
+      name: "upgrade_completed";
+      props: {
+        from_tier: "free" | "standard" | "hero";
+        to_tier: "free" | "standard" | "hero";
+        trigger_type_that_converted?: string;
+      };
+    }
+  | {
+      name: "trial_started";
+      props: { tier: "standard" | "hero" };
+    }
+  | {
+      name: "trial_converted";
+      props: {
+        tier: "standard" | "hero";
+        replies_during_trial: number;
+        authority_score_change?: number;
+      };
+    }
+  | {
+      name: "trial_expired";
+      props: {
+        tier: "standard" | "hero";
+        replies_during_trial: number;
+        last_active_day?: string;
+      };
+    }
+  | {
+      name: "downgrade_completed";
+      props: {
+        from_tier: "free" | "standard" | "hero";
+        to_tier: "free" | "standard" | "hero";
+        days_on_tier: number;
+        reason?: string;
+      };
+    }
+  // System events (Final Supplement §5.6)
+  | {
+      name: "session_started";
+      props: { platform: "web" | "pwa" };
+    }
+  | {
+      name: "session_ended";
+      props: {
+        duration_seconds: number;
+        tabs_visited: number;
+        replies_posted: number;
+      };
+    }
+  | {
+      name: "track_changed";
+      props: {
+        old_track: "minimal" | "standard" | "hero";
+        new_track: "minimal" | "standard" | "hero";
+      };
+    }
+  | {
+      name: "platform_error";
+      props: {
+        platform: "reddit" | "quora" | "llm" | "supabase" | "internal";
+        error_type: string;
+        error_code?: string;
+        feature_affected?: string;
+      };
+    }
+  | {
+      name: "degraded_mode_entered";
+      props: { failing_services: string[] };
+    }
+  | {
+      name: "degraded_mode_exited";
+      props: { duration_seconds: number };
     };
 
 export type EventName = AnalyticsEvent["name"];
@@ -230,9 +325,18 @@ export async function flush(): Promise<void> {
 /**
  * Force a flush before unload — keeps the last few events from being
  * lost when the user navigates away or closes the tab.
+ *
+ * Idempotent: a module-level flag prevents accumulating duplicate
+ * pagehide listeners across React StrictMode double-mounts and
+ * navigation that re-mounts AnalyticsBootstrap. Without the guard,
+ * each navigation would add another listener and the queue would be
+ * flushed N times on tab close.
  */
+let unloadFlushAttached = false;
+
 export function attachUnloadFlush(): void {
-  if (typeof window === "undefined") return;
+  if (typeof window === "undefined" || unloadFlushAttached) return;
+  unloadFlushAttached = true;
   window.addEventListener("pagehide", () => {
     void flush();
   });

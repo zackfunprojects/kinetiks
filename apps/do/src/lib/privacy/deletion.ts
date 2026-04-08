@@ -42,25 +42,51 @@ export interface DeletionRequest {
   error_message: string | null;
 }
 
-/**
- * Insert a fresh deletion request row. Idempotent: if the user already
- * has a pending request, returns the existing row.
- */
-export async function requestAccountDeletion(
+/** Postgres unique-violation SQLSTATE — caught from concurrent inserts. */
+const PG_UNIQUE_VIOLATION = "23505";
+
+async function readPendingRequest(
   admin: SupabaseClient,
   userId: string
-): Promise<DeletionRequest> {
-  // Check for existing in-flight request
-  const { data: existing } = await admin
+): Promise<DeletionRequest | null> {
+  const { data, error } = await admin
     .from("deskof_data_deletion_requests")
     .select("*")
     .eq("user_id", userId)
     .in("status", ["pending", "in_progress"])
     .maybeSingle();
-
-  if (existing) {
-    return existing as DeletionRequest;
+  if (error) {
+    throw new Error(
+      `requestAccountDeletion read failed: ${error.message}`
+    );
   }
+  return (data as DeletionRequest | null) ?? null;
+}
+
+/**
+ * Insert a fresh deletion request row. Atomically idempotent under
+ * concurrent webhook retries.
+ *
+ * Concurrency model:
+ *   1. Read for an existing pending/in_progress row
+ *   2. If none, insert a new one
+ *   3. If the insert hits the partial unique index
+ *      `deskof_data_deletion_requests_user_pending_unique` (23505),
+ *      another concurrent request landed first — re-read and return
+ *      that row instead of throwing
+ *
+ * The partial unique index lives in migration 00028 and only covers
+ * status IN ('pending', 'in_progress') so a user who deletes,
+ * re-onboards, and deletes again can still create a fresh request
+ * (the prior row's status would be 'complete' and is not under the
+ * uniqueness constraint).
+ */
+export async function requestAccountDeletion(
+  admin: SupabaseClient,
+  userId: string
+): Promise<DeletionRequest> {
+  const existing = await readPendingRequest(admin, userId);
+  if (existing) return existing;
 
   const { data, error } = await admin
     .from("deskof_data_deletion_requests")
@@ -68,13 +94,23 @@ export async function requestAccountDeletion(
     .select("*")
     .single();
 
-  if (error || !data) {
-    throw new Error(
-      `Failed to create deletion request: ${error?.message ?? "unknown"}`
-    );
+  if (data) return data as DeletionRequest;
+
+  // The insert may have lost a race. The Postgres unique-violation
+  // (23505) means another concurrent request created the row between
+  // our SELECT and our INSERT — recover by re-reading.
+  const isRace =
+    error?.code === PG_UNIQUE_VIOLATION ||
+    (error?.message ?? "").includes("duplicate key value");
+
+  if (isRace) {
+    const recovered = await readPendingRequest(admin, userId);
+    if (recovered) return recovered;
   }
 
-  return data as DeletionRequest;
+  throw new Error(
+    `Failed to create deletion request: ${error?.message ?? "unknown"}`
+  );
 }
 
 /**
