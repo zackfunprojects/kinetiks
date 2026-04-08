@@ -129,6 +129,20 @@ export type AnalyticsEvent =
         check_type: string;
       };
     }
+  // Phase 4 — discovery (Scout v2)
+  | {
+      name: "angle_viewed";
+      props: {
+        opportunity_id: string;
+        match_score: number;
+      };
+    }
+  | {
+      name: "filtered_feed_opened";
+      props: {
+        filtered_count: number;
+      };
+    }
   // Conversion events (Final Supplement §5.5)
   | {
       name: "upgrade_prompt_shown";

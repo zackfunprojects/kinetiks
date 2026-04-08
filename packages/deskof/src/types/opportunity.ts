@@ -19,6 +19,20 @@ export interface ThreadSnapshot {
   comment_count: number;
   created_at: string;
   fetched_at: string;
+  /**
+   * Phase 4 (Scout v2) — discovery enrichment fields. All optional so
+   * Scout v1 fixtures and pre-Phase-4 ingest paths keep working.
+   */
+  /** Upvotes per hour over the thread's lifetime (Reddit) or view-velocity (Quora). */
+  upvotes_per_hour?: number | null;
+  /** New comments per hour over the thread's lifetime. */
+  comments_per_hour?: number | null;
+  /** Total existing reply count when the snapshot was taken. */
+  existing_reply_count?: number | null;
+  /** True if the thread title or body contains an explicit question mark. */
+  contains_question?: boolean | null;
+  /** Mod-removed comment ratio in the thread (Reddit only). */
+  mod_removal_rate?: number | null;
 }
 
 export type ExpertiseTierLevel =

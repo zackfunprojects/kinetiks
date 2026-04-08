@@ -94,9 +94,77 @@ const FIXTURES: FixtureThread[] = [
   },
 ];
 
+/**
+ * Phase 4 — fixtures that the Scout v2 anti-signal pipeline filters
+ * out so the dev environment shows the filtered-feed UI populated
+ * with realistic reasons. These rows are inserted into
+ * `deskof_threads` AND `deskof_filtered_threads` directly, bypassing
+ * the live Scout pass (which would need an Operator Profile with
+ * specific community history to reproduce the filters reliably).
+ */
+interface FilteredFixture extends FixtureThread {
+  filter_reason:
+    | "no_posting_history"
+    | "already_well_answered"
+    | "community_hostility"
+    | "duplicate_coverage"
+    | "requires_self_promotion";
+  reason_detail: string;
+  hypothetical_score: number;
+}
+
+const FILTERED_FIXTURES: FilteredFixture[] = [
+  {
+    external_id: "fixture-filtered-mature",
+    url: "https://www.quora.com/Pricing-mature-thread-fixture",
+    community: "SaaS",
+    title: "[Fixture] What's the best pricing model for an early-stage SaaS?",
+    body: "60+ replies in 3 days, the discussion is mature.",
+    score: 2200,
+    comment_count: 64,
+    age_days: 3,
+    topic: "saas pricing",
+    filter_reason: "already_well_answered",
+    reason_detail:
+      "64 replies in 72h — the thread is mature and citation gain is small.",
+    hypothetical_score: 72,
+  },
+  {
+    external_id: "fixture-filtered-cold",
+    url: "https://www.reddit.com/r/devops/comments/cold-fixture",
+    community: "r/devops",
+    title: "[Fixture] How do you monitor Postgres replication lag?",
+    body: "Trying to find a sane setup for a small team.",
+    score: 84,
+    comment_count: 12,
+    age_days: 1,
+    topic: "postgres devops",
+    filter_reason: "no_posting_history",
+    reason_detail:
+      "You haven't posted in r/devops before — replies from cold accounts are removed more often.",
+    hypothetical_score: 58,
+  },
+  {
+    external_id: "fixture-filtered-hostile",
+    url: "https://www.reddit.com/r/marketing/comments/hostile-fixture",
+    community: "r/marketing",
+    title: "[Fixture] Anyone actually use cold email in 2026?",
+    body: "Half the replies on this thread already got removed by mods.",
+    score: 18,
+    comment_count: 41,
+    age_days: 1,
+    topic: "cold email",
+    filter_reason: "community_hostility",
+    reason_detail:
+      "45% of replies in this thread have been removed by mods — high removal risk.",
+    hypothetical_score: 65,
+  },
+];
+
 interface SeedResult {
   threads_inserted: number;
   opportunities_inserted: number;
+  filtered_threads_inserted: number;
 }
 
 /**
@@ -176,7 +244,11 @@ export async function seedFixturesForUser(
   });
 
   if (opportunityRows.length === 0) {
-    return { threads_inserted: 0, opportunities_inserted: 0 };
+    return {
+      threads_inserted: 0,
+      opportunities_inserted: 0,
+      filtered_threads_inserted: 0,
+    };
   }
 
   // We can't use ON CONFLICT here because deskof_opportunities has no
@@ -209,8 +281,69 @@ export async function seedFixturesForUser(
     throw new Error(`seed opportunity insert failed: ${oppError.message}`);
   }
 
+  // 3. Phase 4 — seed the filtered-feed surface with realistic
+  //    Scout v2 anti-signal hits. Each filtered fixture is upserted
+  //    into deskof_threads, then a deskof_filtered_threads row is
+  //    written with the prebaked reason + detail. The unique index
+  //    from migration 00029 makes the upsert idempotent on
+  //    (user_id, thread_id, filter_reason).
+  const filteredThreadRows = FILTERED_FIXTURES.map((f) => ({
+    platform: (f.community.startsWith("r/") ? "reddit" : "quora") as
+      | "reddit"
+      | "quora",
+    external_id: f.external_id,
+    url: f.url,
+    community: f.community,
+    title: f.title,
+    body: f.body,
+    score: f.score,
+    comment_count: f.comment_count,
+    thread_created_at: new Date(now - f.age_days * dayMs).toISOString(),
+    fetched_at: new Date(now).toISOString(),
+  }));
+
+  const { data: filteredInserted, error: filteredThreadError } = await admin
+    .from("deskof_threads")
+    .upsert(filteredThreadRows, { onConflict: "platform,external_id" })
+    .select("id, external_id");
+
+  if (filteredThreadError) {
+    throw new Error(
+      `seed filtered thread upsert failed: ${filteredThreadError.message}`
+    );
+  }
+
+  const filteredRows = (filteredInserted ?? []).map((row) => {
+    const fixture =
+      FILTERED_FIXTURES.find((f) => f.external_id === row.external_id) ??
+      FILTERED_FIXTURES[0];
+    return {
+      user_id: userId,
+      thread_id: row.id,
+      filter_reason: fixture.filter_reason,
+      reason_detail: fixture.reason_detail,
+      hypothetical_score: fixture.hypothetical_score,
+      filtered_at: new Date(now).toISOString(),
+    };
+  });
+
+  if (filteredRows.length > 0) {
+    const { error: filteredError } = await admin
+      .from("deskof_filtered_threads")
+      .upsert(filteredRows, {
+        onConflict: "user_id,thread_id,filter_reason",
+        ignoreDuplicates: false,
+      });
+    if (filteredError) {
+      throw new Error(
+        `seed filtered_threads insert failed: ${filteredError.message}`
+      );
+    }
+  }
+
   return {
-    threads_inserted: threadRows.length,
+    threads_inserted: threadRows.length + filteredThreadRows.length,
     opportunities_inserted: opportunityRows.length,
+    filtered_threads_inserted: filteredRows.length,
   };
 }

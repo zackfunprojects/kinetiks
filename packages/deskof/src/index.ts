@@ -66,6 +66,25 @@ export {
 } from "./fingerprint/quora";
 export type { FingerprintMatch } from "./fingerprint/quora";
 
+// Scout v2 — discovery primitives (Phase 4)
+export {
+  computeTimingScore,
+  freshnessComponent,
+  collectAntiSignals,
+  detectColdEntry,
+  detectAlreadyWellAnswered,
+  detectRequiresSelfPromo,
+  detectDuplicateCoverage,
+  detectCommunityHostility,
+  detectAstroturf,
+} from "./scout";
+export type {
+  TimingInput,
+  AntiSignalContext,
+  AntiSignalFlag,
+  FilterReason,
+} from "./scout";
+
 // Lens — quality gate engine (Phase 3)
 export {
   runLens,
