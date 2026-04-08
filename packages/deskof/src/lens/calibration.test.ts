@@ -53,9 +53,10 @@ describe("@kinetiks/deskof/lens/calibration", () => {
     expect(c.blocking_enabled.size).toBeGreaterThanOrEqual(4);
   });
 
-  it("day 91: all 7 checks enabled", () => {
+  it("day 91: all 6 blocking-eligible checks enabled (topic_spacing is soft-only)", () => {
     const c = configAtDay(91);
-    expect(c.blocking_enabled.size).toBe(7);
+    expect(c.blocking_enabled.size).toBe(6);
+    expect(c.blocking_enabled.has("topic_spacing")).toBe(false);
   });
 
   it("free tier disables all LLM-backed checks", () => {

@@ -59,7 +59,15 @@ export async function runLensForRequest(
   supabase: SupabaseClient,
   req: RunLensRequest
 ): Promise<GateResult> {
-  // 1. Operator profile (creates one if missing — onboarding contract).
+  // 1. Operator profile.
+  // CRITICAL: if profile hydration fails for an established user we
+  // must NOT fall back to "now" as the creation timestamp — that would
+  // re-enter advisory_only mode and let /api/reply/post accept content
+  // that should hard-block. Fail closed by anchoring to the unix
+  // epoch, which puts the user firmly into steady state. The only
+  // legitimate "no profile" case is a brand-new user, who is handled
+  // by ensureOperatorProfile during onboarding before they can even
+  // open the editor.
   let profile: OperatorProfile | null = null;
   try {
     profile = await getOperatorProfile(supabase, req.user_id);
@@ -67,7 +75,7 @@ export async function runLensForRequest(
     profile = null;
   }
   const operatorView: LensOperatorView = {
-    created_at: profile?.created_at ?? new Date().toISOString(),
+    created_at: profile?.created_at ?? "1970-01-01T00:00:00.000Z",
     per_check_sensitivity:
       profile?.gate_adjustments.per_check_sensitivity ?? {},
     product_names:
@@ -189,7 +197,12 @@ async function loadOrComputeCppi(
   }
 
   const total = rows.length;
-  if (total === 0) return latest ? toCppi(latest) : null;
+  if (total === 0) {
+    // No activity in the rolling window → CPPI must decay back to
+    // zero. Returning the stale snapshot here would trap a user
+    // forever at high/critical even after they stopped posting.
+    return computeCppiScore(0, 0, 0);
+  }
 
   let promotional = 0;
   const dayBuckets = new Map<string, number>();
@@ -252,27 +265,42 @@ async function loadRecentVectors(
   supabase: SupabaseClient,
   userId: string
 ): Promise<RecentReplyVector[]> {
+  // Join with deskof_replies so checkTopicSpacing's same-day-different-
+  // community branch sees the ACTUAL post timestamp, not the (possibly
+  // delayed) vectorization timestamp. CodeRabbit caught the original
+  // mapping using computed_at as a proxy for posted_at.
   const since = new Date(
     Date.now() - RECENT_VECTOR_DAYS * 24 * 60 * 60 * 1000
   ).toISOString();
   try {
     const { data } = await supabase
       .from("deskof_topic_vectors")
-      .select("reply_id, community, computed_at, vector")
+      .select("reply_id, community, computed_at, vector, deskof_replies!inner(posted_at)")
       .eq("user_id", userId)
       .gte("computed_at", since);
     if (!data) return [];
-    return (data as Array<{
+    // Supabase typings model a foreign-row join as an array of rows
+    // even when the relation is one-to-one, so we normalize to the
+    // first element. With !inner the array always has length 1.
+    return (data as unknown as Array<{
       reply_id: string;
       community: string | null;
       computed_at: string;
       vector: number[];
-    }>).map((row) => ({
-      reply_id: row.reply_id,
-      community: row.community,
-      posted_at: row.computed_at,
-      vector: row.vector,
-    }));
+      deskof_replies: Array<{ posted_at: string | null }> | { posted_at: string | null } | null;
+    }>).map((row) => {
+      const joined = Array.isArray(row.deskof_replies)
+        ? row.deskof_replies[0]
+        : row.deskof_replies;
+      return {
+        reply_id: row.reply_id,
+        community: row.community,
+        // Prefer the joined posted_at; fall back to computed_at if the
+        // join row is missing for any reason.
+        posted_at: joined?.posted_at ?? row.computed_at,
+        vector: row.vector,
+      };
+    });
   } catch {
     return [];
   }

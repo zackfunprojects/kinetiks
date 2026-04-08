@@ -1,4 +1,5 @@
 "use client";
+import { useState } from "react";
 
 /**
  * GatePanel — renders a `GateResult` from Lens inside ReplyEditor.
@@ -36,23 +37,12 @@ export function GatePanel({
 
   if (variant === "mobile") {
     return (
-      <div
-        className="flex items-center gap-2 px-5 py-2 text-xs"
-        style={{
-          background: "var(--surface)",
-          borderTop: "1px solid var(--border-subtle)",
-        }}
-      >
-        <span
-          className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider"
-          style={pillStyle}
-        >
-          {label(result)}
-        </span>
-        <span style={{ color: "var(--text-tertiary)" }}>
-          {result.checks.length} checks
-        </span>
-      </div>
+      <MobilePanel
+        result={result}
+        pillStyle={pillStyle}
+        overrides={overrides}
+        onOverride={onOverride}
+      />
     );
   }
 
@@ -143,6 +133,74 @@ function CheckRow({
         </button>
       )}
     </li>
+  );
+}
+
+/**
+ * Mobile gate panel: tappable disclosure that opens an inline sheet
+ * showing every failing row, recommendation, and override action.
+ *
+ * Hard-blocked posts MUST be actionable on phones — the spec
+ * (Quality Addendum #3) requires that the user can see the failing
+ * checks and tap an override on advisories from the mobile UI, not
+ * just see a status pill. CodeRabbit's review correctly flagged the
+ * earlier summary-only strip as breaking that contract.
+ */
+function MobilePanel({
+  result,
+  pillStyle,
+  overrides,
+  onOverride,
+}: {
+  result: GateResult;
+  pillStyle: React.CSSProperties;
+  overrides: Set<GateCheckType>;
+  onOverride: (type: GateCheckType) => void;
+}) {
+  // Auto-open on advisory or blocked so the user is never one tap
+  // away from seeing the reason for a hard block.
+  const [open, setOpen] = useState(result.status !== "clear");
+  return (
+    <div
+      style={{
+        background: "var(--surface)",
+        borderTop: "1px solid var(--border-subtle)",
+      }}
+    >
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between gap-2 px-5 py-2 text-left text-xs"
+        aria-expanded={open}
+      >
+        <span className="flex items-center gap-2">
+          <span
+            className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider"
+            style={pillStyle}
+          >
+            {label(result)}
+          </span>
+          <span style={{ color: "var(--text-tertiary)" }}>
+            {result.checks.length} checks
+          </span>
+        </span>
+        <span aria-hidden style={{ color: "var(--text-tertiary)" }}>
+          {open ? "▾" : "▸"}
+        </span>
+      </button>
+      {open && (
+        <ul className="flex max-h-60 flex-col gap-1.5 overflow-y-auto px-5 pb-3">
+          {result.checks.map((check) => (
+            <CheckRow
+              key={check.type}
+              check={check}
+              overridden={overrides.has(check.type)}
+              onOverride={() => onOverride(check.type)}
+            />
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 

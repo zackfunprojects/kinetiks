@@ -33,13 +33,18 @@ import type {
 
 const DAYS = 24 * 60 * 60 * 1000;
 
+// topic_spacing intentionally NOT in this list — checkTopicSpacing
+// only ever emits info / warning severities (the spec calls it
+// "soft" guidance), so listing it as blocking-eligible would be a
+// no-op at best and a misleading config contract at worst. The
+// rollout schedule below stops at question_responsiveness and the
+// Day 91+ steady state set is "all 5 entries" + self_promo_ratio.
 const INCREMENTAL_ORDER: GateCheckType[] = [
   "cppi",
   "link_presence",
   "tone_mismatch",
   "redundancy",
   "question_responsiveness",
-  "topic_spacing",
 ];
 
 /** LLM-backed checks. Free tier never sees these. */

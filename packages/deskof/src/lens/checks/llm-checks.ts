@@ -53,10 +53,13 @@ async function runLlmCheck(
     return null;
   }
 
+  // Convention: higher sensitivity → MORE strict (lower thresholds).
+  // Divide so a 1.5x sensitivity tightens the bar by ~33%. This
+  // matches self-promo-ratio.ts and link-presence.ts.
   const sensitivity = config.sensitivity[type] ?? 1.0;
   const thresholds = config.thresholds[type] ?? CHECK_DEFAULTS[type];
-  const advisory = thresholds.advisory * sensitivity;
-  const blocking = thresholds.blocking * sensitivity;
+  const advisory = thresholds.advisory / sensitivity;
+  const blocking = thresholds.blocking / sensitivity;
   const reason = (parsed.reason ?? "").slice(0, 200);
 
   if (parsed.score >= blocking) {
@@ -107,16 +110,21 @@ export function checkToneMismatch(
   input: LensInput,
   config: LensConfig
 ): Promise<GateCheck | null> {
+  // Until LensInput carries an operator voice baseline (Phase 6 / Mirror
+  // expansion), this check evaluates general tone appropriateness for a
+  // helpful community reply rather than voice-matching against samples.
+  // CodeRabbit flagged the original "matches the operator's writing voice"
+  // wording as misleading because no baseline was being passed in.
   return runLlmCheck(
     "tone_mismatch",
-    `You evaluate whether a draft reply matches the operator's writing voice.
+    `You evaluate whether a draft community reply has an appropriate tone for a helpful, substantive answer (not promotional, not hostile, not unhinged hype).
 Return ONLY a JSON object: {"score": number 0-1, "reason": "short phrase"}.
-0 = identical voice. 1 = wildly off-tone (formal vs casual, hype vs measured, etc.).`,
+0 = appropriate, helpful tone. 1 = wildly off-tone (overt sales pitch, hostile, frantic hype, etc.).`,
     `DRAFT:\n${truncate(input.content, 1500)}`,
-    "Tone matches your usual writing voice.",
-    (r) => `Tone is drifting from your usual voice${r ? ` (${r})` : ""}.`,
-    (r) => `Tone is far off your usual voice${r ? ` (${r})` : ""}.`,
-    "Re-read the draft out loud — does it sound like you?",
+    "Tone reads as helpful and appropriate.",
+    (r) => `Tone is drifting toward something less helpful${r ? ` (${r})` : ""}.`,
+    (r) => `Tone is inappropriate for a community reply${r ? ` (${r})` : ""}.`,
+    "Re-read the draft out loud — does it sound like a helpful answer or a pitch?",
     input,
     config
   );
@@ -126,16 +134,21 @@ export function checkRedundancy(
   input: LensInput,
   config: LensConfig
 ): Promise<GateCheck | null> {
+  // Until LensInput carries the existing thread replies (Phase 4 / Scout
+  // expansion), this check evaluates whether the draft itself is internally
+  // padded / repetitive rather than checking against thread context.
+  // CodeRabbit flagged the original prompt as referencing data the engine
+  // never received.
   return runLlmCheck(
     "redundancy",
-    `You evaluate whether a draft reply repeats points already made elsewhere on the same thread.
+    `You evaluate whether a draft reply is internally redundant — repeating the same point in different words, padding, or restating itself.
 Return ONLY a JSON object: {"score": number 0-1, "reason": "short phrase"}.
-0 = entirely novel. 1 = restates existing top reply almost verbatim.`,
+0 = tight, every sentence pulls weight. 1 = heavily padded / repetitive.`,
     `DRAFT:\n${truncate(input.content, 1500)}`,
-    "Your reply adds something new to the thread.",
-    (r) => `Some of your reply overlaps existing answers${r ? ` (${r})` : ""}.`,
-    (r) => `Most of your reply duplicates existing answers${r ? ` (${r})` : ""}.`,
-    "Cut anything that's already in the top replies and lead with what only you can say.",
+    "Your reply is tight — every sentence pulls weight.",
+    (r) => `Parts of your reply repeat themselves${r ? ` (${r})` : ""}.`,
+    (r) => `Most of your reply repeats the same point${r ? ` (${r})` : ""}.`,
+    "Cut anything that restates an earlier sentence in different words.",
     input,
     config
   );

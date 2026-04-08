@@ -255,9 +255,22 @@ export function ReplyEditor({ opportunity }: Props) {
 
       if (!postJson.success) {
         // Server-side gate hard block (422). Surface the latest gate
-        // result so the panel shows the offending check.
+        // result into the panel and skip the generic error banner —
+        // the panel itself carries the explanation, the failing
+        // check, and the recommendation. Throwing a raw "gate_blocked"
+        // string above the panel would be redundant noise.
         if (postRes.status === 422 && postJson.gate_result) {
           setGateResult(postJson.gate_result);
+          track({
+            name: "reply_post_failed",
+            props: {
+              opportunity_id: opportunity.id,
+              platform,
+              error_type: "gate_blocked",
+            },
+          });
+          if (popup && !popup.closed) popup.close();
+          return;
         }
         throw new Error(postJson.error ?? "Post failed");
       }

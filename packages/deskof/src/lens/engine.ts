@@ -33,11 +33,11 @@ import {
 } from "./checks/llm-checks";
 import type { LensConfig, LensInput } from "./types";
 
-const ALL_LLM_CHECK_TYPES: GateCheckType[] = [
+const ALL_LLM_CHECK_TYPES = [
   "tone_mismatch",
   "redundancy",
   "question_responsiveness",
-];
+] as const satisfies readonly GateCheckType[];
 
 export async function runLens(
   input: LensInput,
@@ -50,36 +50,35 @@ export async function runLens(
     checkTopicSpacing(input),
   ];
 
-  // LLM checks run in parallel; failures collapse to null which we
-  // turn into a "skipped" row below.
-  const llmResults = await Promise.allSettled([
-    checkToneMismatch(input, config),
-    checkRedundancy(input, config),
-    checkQuestionResponsiveness(input, config),
-  ]);
+  // LLM checks run in parallel — but ONLY for the types the current
+  // config has entitled. A direct runLens() caller cannot surface a
+  // paid-only check just by passing a non-null input.llm.
+  //
+  // Failures collapse to a "skipped" row so the editor still sees
+  // the entitlement and the Post button stays enabled.
+  type LlmCheckType = (typeof ALL_LLM_CHECK_TYPES)[number];
+  const llmRunners: Record<LlmCheckType, () => Promise<GateCheck | null>> = {
+    tone_mismatch: () => checkToneMismatch(input, config),
+    redundancy: () => checkRedundancy(input, config),
+    question_responsiveness: () => checkQuestionResponsiveness(input, config),
+  };
+
+  const llmResults = await Promise.allSettled(
+    ALL_LLM_CHECK_TYPES.map((type) =>
+      config.llm_checks_enabled.has(type) && input.llm !== null
+        ? llmRunners[type]()
+        : Promise.resolve<GateCheck | null>(null)
+    )
+  );
 
   const llmChecks: Array<GateCheck | null> = llmResults.map((r, i) => {
-    if (r.status === "fulfilled") return r.value;
-    // Rejected: synthesize a skipped row only if the user is entitled.
     const type = ALL_LLM_CHECK_TYPES[i];
-    if (!config.llm_checks_enabled.has(type)) return null;
-    return skippedRow(type);
-  });
-
-  // Convert null fulfilled values from entitled LLM checks into skipped rows.
-  for (let i = 0; i < llmChecks.length; i++) {
-    if (llmChecks[i] !== null) continue;
-    const r = llmResults[i];
-    const type = ALL_LLM_CHECK_TYPES[i];
-    if (
-      r.status === "fulfilled" &&
-      r.value === null &&
-      config.llm_checks_enabled.has(type) &&
-      input.llm !== null
-    ) {
-      llmChecks[i] = skippedRow(type);
+    if (!config.llm_checks_enabled.has(type) || input.llm === null) {
+      return null;
     }
-  }
+    if (r.status === "rejected") return skippedRow(type);
+    return r.value ?? skippedRow(type);
+  });
 
   const checks: GateCheck[] = [...computational, ...llmChecks].filter(
     (c): c is GateCheck => c !== null

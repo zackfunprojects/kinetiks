@@ -52,6 +52,10 @@ export function checkLinkPresence(
     };
   }
 
+  // Convention: higher sensitivity → MORE strict. Multiplying the
+  // score works for this check because the thresholds are fixed
+  // (0.34/0.67) — bumping the score up makes them easier to trip,
+  // matching the divide-thresholds approach used elsewhere.
   const sensitivity = config.sensitivity.link_presence ?? 1.0;
   const score = Math.min(1, promotional.length / 3) * sensitivity;
 
@@ -85,12 +89,13 @@ export function checkLinkPresence(
 }
 
 function matchesProduct(host: string, productHosts: Set<string>): boolean {
+  // Conservative: exact host match or strict subdomain match only.
+  // Substring matching ("app" matches "apple.com") was too loose and
+  // CodeRabbit flagged the false-positive risk on short product names.
   if (productHosts.size === 0) return false;
   for (const product of productHosts) {
-    if (!product) continue;
-    if (host === product || host.endsWith(`.${product}`) || host.includes(product)) {
-      return true;
-    }
+    if (!product || product.length < 3) continue;
+    if (host === product || host.endsWith(`.${product}`)) return true;
   }
   return false;
 }

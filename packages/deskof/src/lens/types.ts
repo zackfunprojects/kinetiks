@@ -59,8 +59,13 @@ export interface CommunityGateConfig {
 export interface LensOperatorView {
   /** ISO timestamp the operator profile was created (used to compute calibration phase) */
   created_at: string;
-  /** Per-check sensitivity multipliers from gate_adjustments */
-  per_check_sensitivity: Record<string, number>;
+  /**
+   * Per-check sensitivity multipliers from `gate_adjustments`. Higher
+   * value = MORE strict (lowers thresholds, easier to trip).
+   * Constrained to GateCheckType keys so misspellings fail the type
+   * check instead of being silently ignored at runtime.
+   */
+  per_check_sensitivity: Partial<Record<GateCheckType, number>>;
   /** Product names the operator is associated with — used by link_presence + cppi */
   product_names: string[];
 }
@@ -132,6 +137,11 @@ export interface LensConfig {
   llm_checks_enabled: ReadonlySet<GateCheckType>;
   /** Per-check threshold overrides (defaults live in checks/defaults.ts). */
   thresholds: Partial<Record<GateCheckType, { advisory: number; blocking: number }>>;
-  /** Per-check sensitivity multipliers (1.0 = default). */
-  sensitivity: Record<string, number>;
+  /**
+   * Per-check sensitivity multipliers (1.0 = default).
+   * Convention: HIGHER sensitivity → MORE strict. Checks divide their
+   * thresholds by this value so a 1.5x sensitivity makes the
+   * advisory/blocking thresholds 33% lower.
+   */
+  sensitivity: Partial<Record<GateCheckType, number>>;
 }

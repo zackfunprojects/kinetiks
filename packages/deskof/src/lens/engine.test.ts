@@ -209,6 +209,21 @@ describe("@kinetiks/deskof/lens/engine", () => {
       expect(skipped.length).toBeGreaterThan(0);
     });
 
+    it("does not run LLM checks when llm_checks_enabled is empty even if input.llm is non-null", async () => {
+      const llm: LensLLM = {
+        complete: async () => '{"score": 1.0, "reason": "extreme"}',
+      };
+      const { input, config } = steadyState({ llm });
+      const noLlm = { ...config, llm_checks_enabled: new Set<never>() };
+      const r = await runLens(input, noLlm);
+      expect(r.status).toBe("clear");
+      expect(r.checks.find((c) => c.type === "tone_mismatch")).toBeUndefined();
+      expect(r.checks.find((c) => c.type === "redundancy")).toBeUndefined();
+      expect(
+        r.checks.find((c) => c.type === "question_responsiveness")
+      ).toBeUndefined();
+    });
+
     it("blocked tone result triggers blocked status in steady state", async () => {
       const llm: LensLLM = {
         complete: async () => '{"score": 0.95, "reason": "way too formal"}',

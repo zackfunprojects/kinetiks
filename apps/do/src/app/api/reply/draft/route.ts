@@ -21,7 +21,7 @@ import { NextResponse } from "next/server";
 import { requireDeskOfSession } from "@/lib/auth/session";
 import { createDeskOfServerClient } from "@/lib/supabase/server";
 import { getActionableOpportunityById } from "@/lib/opportunities/queue";
-import { upsertDraftReply } from "@/lib/reply/service";
+import { upsertDraftReply, previewDraftState } from "@/lib/reply/service";
 import { runLensForRequest } from "@/lib/lens/run";
 
 export const dynamic = "force-dynamic";
@@ -87,6 +87,47 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { success: false, error: "Opportunity not found" },
       { status: 404 }
+    );
+  }
+
+  // Preflight: short-circuit stale or frozen autosaves BEFORE paying
+  // the Lens DB + LLM cost. The full upsertDraftReply below also
+  // re-checks because a concurrent autosave can race in between, but
+  // skipping the gate on a known-bad write saves wasted work and
+  // makes overlapping autosaves much less likely to let an older
+  // revision overtake a newer one.
+  try {
+    const preflight = await previewDraftState(supabase, {
+      user_id: auth.session.user_id,
+      opportunity_id: opportunityId,
+      platform: opportunity.thread.platform,
+      revision,
+    });
+    if (preflight.kind === "stale") {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Stale draft revision",
+          current_revision: preflight.current_revision,
+        },
+        { status: 409 }
+      );
+    }
+    if (preflight.kind === "frozen") {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Draft is frozen",
+          status: preflight.status,
+        },
+        { status: 409 }
+      );
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return NextResponse.json(
+      { success: false, error: message },
+      { status: 500 }
     );
   }
 

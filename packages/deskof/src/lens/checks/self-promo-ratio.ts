@@ -23,11 +23,13 @@ export function checkSelfPromoRatio(
     return null;
   }
 
+  // Convention: higher sensitivity → MORE strict (lower thresholds).
+  // Divide so a 1.5x sensitivity tightens the bar by ~33%.
   const sensitivity = config.sensitivity.self_promo_ratio ?? 1.0;
   const thresholds =
     config.thresholds.self_promo_ratio ?? CHECK_DEFAULTS.self_promo_ratio;
-  const advisory = thresholds.advisory * sensitivity;
-  const blocking = thresholds.blocking * sensitivity;
+  const advisory = thresholds.advisory / sensitivity;
+  const blocking = thresholds.blocking / sensitivity;
 
   const ratio = snapshot.self_promo_ratio;
 
