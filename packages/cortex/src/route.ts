@@ -214,7 +214,12 @@ export async function executeRoutes(
     );
   }
 
-  await Promise.all(
+  // Routing rows are already persisted at this point. dispatchCortexEvent
+  // catches its own errors internally, but use Promise.allSettled defensively
+  // so that one rejecting dispatcher cannot bubble up and turn a successful
+  // write into a partial-success exception (which would cause callers to
+  // retry the whole route + duplicate the routing rows).
+  const dispatchResults = await Promise.allSettled(
     routingEvents.map((event) =>
       dispatchCortexEvent(accountId, "routing.sent", {
         target_app: event.target_app,
@@ -222,6 +227,15 @@ export async function executeRoutes(
       })
     )
   );
+
+  const failedCount = dispatchResults.filter(
+    (r) => r.status === "rejected"
+  ).length;
+  if (failedCount > 0) {
+    console.error(
+      `dispatchCortexEvent("routing.sent") failed for ${failedCount}/${routingEvents.length} events on account ${accountId}`
+    );
+  }
 
   return toRoute.length;
 }
