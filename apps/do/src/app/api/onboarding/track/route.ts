@@ -13,17 +13,13 @@ const VALID_TRACKS: ReadonlySet<TrackLevel> = new Set<TrackLevel>([
   "hero",
 ]);
 
-interface Body {
-  track?: string;
-}
-
 export async function POST(request: Request) {
   const auth = await requireDeskOfSession();
   if ("error" in auth) return auth.error;
 
-  let body: Body;
+  let raw: unknown;
   try {
-    body = (await request.json()) as Body;
+    raw = await request.json();
   } catch {
     return NextResponse.json(
       { success: false, error: "Invalid JSON" },
@@ -31,7 +27,18 @@ export async function POST(request: Request) {
     );
   }
 
-  if (!body.track || !VALID_TRACKS.has(body.track as TrackLevel)) {
+  if (typeof raw !== "object" || raw === null) {
+    return NextResponse.json(
+      { success: false, error: "Invalid JSON body" },
+      { status: 400 }
+    );
+  }
+
+  const trackRaw = (raw as { track?: unknown }).track;
+  if (
+    typeof trackRaw !== "string" ||
+    !VALID_TRACKS.has(trackRaw as TrackLevel)
+  ) {
     return NextResponse.json(
       { success: false, error: "Invalid track level" },
       { status: 400 }
@@ -44,7 +51,7 @@ export async function POST(request: Request) {
       supabase,
       auth.session.user_id,
       auth.session.tier,
-      body.track as TrackLevel
+      trackRaw as TrackLevel
     );
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
@@ -54,10 +61,24 @@ export async function POST(request: Request) {
     );
   }
 
-  await advanceOnboardingStep(supabase, auth.session.user_id, {
+  const result = await advanceOnboardingStep(supabase, auth.session.user_id, {
     step_completed: "track",
     patch: { track_selected_at: new Date().toISOString() },
   });
 
-  return NextResponse.json({ success: true });
+  if (!result.ok) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Onboarding step out of order",
+        current_step: result.current_step,
+      },
+      { status: 409 }
+    );
+  }
+
+  return NextResponse.json({
+    success: true,
+    current_step: result.state.current_step,
+  });
 }

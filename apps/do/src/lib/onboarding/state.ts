@@ -16,6 +16,18 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+/**
+ * The canonical onboarding step order for Phase 2.
+ *
+ * NOTE on the calibration step: per Final Supplement #4 the full
+ * onboarding flow includes a 10-thread expertise calibration exercise.
+ * That step requires Scout to surface real candidate threads from the
+ * user's connected platforms, which depends on the Reddit API client
+ * follow-up + Phase 4 Scout intelligence work. Until that lands,
+ * `calibration` is intentionally NOT in the active STEP_ORDER. The
+ * type literal remains so the schema check constraint stays compatible
+ * for the future migration that re-introduces it.
+ */
 export type OnboardingStep =
   | "privacy"
   | "connect"
@@ -29,7 +41,6 @@ const STEP_ORDER: OnboardingStep[] = [
   "privacy",
   "connect",
   "content",
-  "calibration",
   "interests",
   "track",
   "complete",
@@ -50,6 +61,11 @@ export interface OnboardingState {
   abandoned_at: string | null;
 }
 
+/**
+ * Idempotent bootstrap: returns the existing onboarding state if any,
+ * otherwise creates a fresh one. Race-tolerant under concurrent first
+ * requests via upsert + onConflict on the user_id unique index.
+ */
 export async function getOrCreateOnboardingState(
   supabase: SupabaseClient,
   userId: string
@@ -67,11 +83,21 @@ export async function getOrCreateOnboardingState(
 
   const { data, error } = await supabase
     .from("deskof_onboarding_state")
-    .insert({ user_id: userId, current_step: "privacy" })
+    .upsert(
+      { user_id: userId, current_step: "privacy" },
+      { onConflict: "user_id" }
+    )
     .select("*")
     .single();
 
   if (error || !data) {
+    // Fall back to a fresh read in case the upsert lost a race.
+    const { data: recovered } = await supabase
+      .from("deskof_onboarding_state")
+      .select("*")
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (recovered) return recovered as OnboardingState;
     throw new Error(
       `onboarding state create failed: ${error?.message ?? "no data"}`
     );
@@ -85,22 +111,45 @@ interface AdvanceInput {
   patch?: Partial<OnboardingState>;
 }
 
+export type AdvanceResult =
+  | { ok: true; state: OnboardingState }
+  | {
+      ok: false;
+      reason:
+        | "wrong_step"
+        | "raced"
+        | "not_found";
+      current_step?: OnboardingStep;
+    };
+
 /**
  * Mark a step complete and advance to the next step in the canonical
- * order. Idempotent — re-completing a step is a no-op.
+ * order.
+ *
+ * Strict: the caller must claim the step they're currently on. A user
+ * sitting on `privacy` cannot claim `track` to jump ahead. The DB
+ * UPDATE is conditional on `current_step = step_completed` so that
+ * concurrent slower requests can't overwrite newer progress.
+ *
+ * Returns ok=false on contention so the caller can decide whether to
+ * surface a redirect, retry, or error.
  */
 export async function advanceOnboardingStep(
   supabase: SupabaseClient,
   userId: string,
   input: AdvanceInput
-): Promise<OnboardingState> {
+): Promise<AdvanceResult> {
   const current = await getOrCreateOnboardingState(supabase, userId);
-  const currentIdx = STEP_ORDER.indexOf(current.current_step);
-  const completedIdx = STEP_ORDER.indexOf(input.step_completed);
 
-  // Don't go backwards
-  const nextIdx = Math.max(currentIdx, completedIdx + 1);
-  const nextStep = STEP_ORDER[Math.min(nextIdx, STEP_ORDER.length - 1)];
+  if (current.current_step !== input.step_completed) {
+    return {
+      ok: false,
+      reason: "wrong_step",
+      current_step: current.current_step,
+    };
+  }
+
+  const nextStep = nextStepAfter(input.step_completed);
 
   const update: Partial<OnboardingState> = {
     ...input.patch,
@@ -115,15 +164,40 @@ export async function advanceOnboardingStep(
     .from("deskof_onboarding_state")
     .update(update)
     .eq("user_id", userId)
-    .select("*")
-    .single();
+    // Atomic guard: only advance if the row is still on the step the
+    // caller claimed. A slower earlier request that found `privacy`
+    // can't overwrite `content` after a faster request advanced past it.
+    .eq("current_step", input.step_completed)
+    .select("*");
 
-  if (error || !data) {
+  if (error) {
+    throw new Error(`onboarding advance failed: ${error.message}`);
+  }
+
+  if (!data || data.length === 0) {
+    return { ok: false, reason: "raced", current_step: current.current_step };
+  }
+
+  return { ok: true, state: data[0] as OnboardingState };
+}
+
+/**
+ * Convenience wrapper for callers that want the throwing behavior of
+ * the original API. Maps wrong_step / raced to a thrown error so
+ * existing call sites that don't yet branch on the result keep working.
+ */
+export async function advanceOnboardingStepOrThrow(
+  supabase: SupabaseClient,
+  userId: string,
+  input: AdvanceInput
+): Promise<OnboardingState> {
+  const result = await advanceOnboardingStep(supabase, userId, input);
+  if (!result.ok) {
     throw new Error(
-      `onboarding advance failed: ${error?.message ?? "no data"}`
+      `Cannot advance onboarding from ${result.current_step ?? "unknown"} via ${input.step_completed}: ${result.reason}`
     );
   }
-  return data as OnboardingState;
+  return result.state;
 }
 
 export function nextStepAfter(step: OnboardingStep): OnboardingStep {

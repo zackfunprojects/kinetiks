@@ -21,11 +21,16 @@ const MAX_REPLY_LENGTH = 10_000;
  * plain textarea — the user writes every word.
  *
  * Phase 2 ships:
- *   - Auto-saving draft every 1.5s of inactivity (POST /api/reply/draft)
+ *   - Auto-saving draft every 1.5s of inactivity, with monotonic
+ *     revision IDs so out-of-order responses can't mark stale content
+ *     as "Saved" or overwrite newer text in the UI.
  *   - Mobile-optimized layout: thread context collapses on focus, the
  *     character counter and Post button anchor above the keyboard
- *   - Quora browser handoff on Post: clipboard copy + open URL + Pulse
- *     match flow stays pending until the user confirms
+ *   - Quora browser handoff on Post: the popup window is opened
+ *     SYNCHRONOUSLY in the click handler (before any await) so it
+ *     inherits transient user activation; the URL is set after the
+ *     server confirms the post and the user is redirected to the
+ *     handoff confirmation page.
  *   - Reddit Post button is disabled with an explanation until the
  *     Reddit OAuth client follow-up lands
  *
@@ -41,6 +46,12 @@ export function ReplyEditor({ opportunity }: Props) {
   const draftStartedAtRef = useRef<number>(Date.now());
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Monotonic draft revision counter. Bumped on every keystroke and
+  // sent with each draft save. The draft save UI only marks "Saved"
+  // when the response's revision matches the current ref — older
+  // responses arriving after newer text will be ignored.
+  const draftRevisionRef = useRef(0);
+
   const platform = opportunity.thread.platform;
   const redditDisabled = platform === "reddit";
 
@@ -49,6 +60,7 @@ export function ReplyEditor({ opportunity }: Props) {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     if (content.trim().length === 0) return;
 
+    const revisionAtSchedule = draftRevisionRef.current;
     debounceRef.current = setTimeout(async () => {
       try {
         const res = await fetch("/api/reply/draft", {
@@ -57,9 +69,13 @@ export function ReplyEditor({ opportunity }: Props) {
           body: JSON.stringify({
             opportunity_id: opportunity.id,
             content,
+            revision: revisionAtSchedule,
           }),
         });
-        if (res.ok) {
+        if (
+          res.ok &&
+          revisionAtSchedule === draftRevisionRef.current
+        ) {
           setDraftSaved(true);
           track({
             name: "reply_draft_saved",
@@ -83,10 +99,27 @@ export function ReplyEditor({ opportunity }: Props) {
     };
   }, [content, opportunity.id]);
 
+  function handleEditorChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
+    draftRevisionRef.current += 1;
+    setDraftSaved(false);
+    setContent(e.target.value);
+  }
+
   async function handlePost() {
     if (content.trim().length < MIN_REPLY_LENGTH) {
       setError(`Reply must be at least ${MIN_REPLY_LENGTH} characters.`);
       return;
+    }
+
+    // For Quora handoff we MUST open the popup synchronously here,
+    // while we still hold transient user activation. After any await
+    // the activation expires and window.open is blocked. We open
+    // about:blank now and set the location once the server confirms.
+    let popup: Window | null = null;
+    if (platform === "quora") {
+      popup = window.open("about:blank", "_blank", "noopener,noreferrer");
+      // If the popup was blocked by the browser, fall back to the
+      // confirmation page which renders a manual "Open Quora" link.
     }
 
     setPosting(true);
@@ -146,24 +179,31 @@ export function ReplyEditor({ opportunity }: Props) {
       });
 
       if (postJson.kind === "browser_handoff" && postJson.handoff_url) {
-        // Copy to clipboard then open Quora in a new tab
         try {
           await navigator.clipboard.writeText(content);
         } catch {
           // Clipboard may be denied; the handoff confirmation screen
-          // will offer a manual copy fallback.
+          // offers a manual copy fallback.
         }
-        window.open(postJson.handoff_url, "_blank", "noopener,noreferrer");
+
+        if (popup && !popup.closed) {
+          popup.location.href = postJson.handoff_url;
+        }
+        // Either way the user lands on the handoff confirmation page —
+        // it offers a manual link if the popup was blocked.
         router.push(`/write/${opportunity.id}/handoff`);
         return;
       }
 
       // Reddit success path lands later. For now anything else routes
       // back to the Write tab.
+      if (popup && !popup.closed) popup.close();
       router.push("/write");
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown error";
       setError(message);
+      // Close the placeholder popup if we opened one but failed
+      if (popup && !popup.closed) popup.close();
       track({
         name: "reply_post_failed",
         props: {
@@ -219,7 +259,7 @@ export function ReplyEditor({ opportunity }: Props) {
 
       <textarea
         value={content}
-        onChange={(e) => setContent(e.target.value)}
+        onChange={handleEditorChange}
         placeholder="Write your reply here. The AI will never write this for you — it's all you."
         maxLength={MAX_REPLY_LENGTH}
         className="flex-1 resize-none px-5 py-4 text-base leading-relaxed focus:outline-none"

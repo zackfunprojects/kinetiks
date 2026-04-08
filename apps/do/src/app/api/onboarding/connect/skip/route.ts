@@ -15,9 +15,20 @@ export async function POST() {
   if ("error" in auth) return auth.error;
 
   const supabase = createDeskOfServerClient();
-  await advanceOnboardingStep(supabase, auth.session.user_id, {
+  const result = await advanceOnboardingStep(supabase, auth.session.user_id, {
     step_completed: "connect",
   });
 
-  return NextResponse.json({ success: true });
+  if (!result.ok) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Onboarding step out of order",
+        current_step: result.current_step,
+      },
+      { status: 409 }
+    );
+  }
+
+  return NextResponse.json({ success: true, current_step: result.state.current_step });
 }

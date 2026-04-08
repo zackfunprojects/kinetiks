@@ -3,6 +3,8 @@ import { requireDeskOfSession } from "@/lib/auth/session";
 import { createDeskOfServerClient } from "@/lib/supabase/server";
 import { getOrCreateOnboardingState } from "@/lib/onboarding/state";
 
+export const dynamic = "force-dynamic";
+
 /**
  * Onboarding entry — routes the user to the current incomplete step.
  *

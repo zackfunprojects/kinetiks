@@ -18,7 +18,7 @@
 import { NextResponse } from "next/server";
 import { requireDeskOfSession } from "@/lib/auth/session";
 import { createDeskOfServerClient } from "@/lib/supabase/server";
-import { getOpportunityById } from "@/lib/opportunities/queue";
+import { getActionableOpportunityById } from "@/lib/opportunities/queue";
 import { consumeConfirmationToken } from "@/lib/reply/confirmation-token";
 import { markQuoraHandoffPending } from "@/lib/reply/service";
 import { createDeskOfAdminClient } from "@/lib/supabase/admin";
@@ -77,7 +77,7 @@ export async function POST(request: Request) {
 
   // 2. Load the opportunity to determine the platform.
   const supabase = createDeskOfServerClient();
-  const opportunity = await getOpportunityById(
+  const opportunity = await getActionableOpportunityById(
     supabase,
     auth.session.user_id,
     body.opportunity_id

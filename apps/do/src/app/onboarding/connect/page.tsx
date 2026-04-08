@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 
 /**
  * Onboarding step 1 (connect half) — Reddit + Quora connection.
@@ -17,10 +18,47 @@ import { useRouter } from "next/navigation";
  */
 export default function ConnectStepPage() {
   const router = useRouter();
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleSkip() {
-    await fetch("/api/onboarding/connect/skip", { method: "POST" });
-    router.push("/onboarding/content");
+    setSubmitting(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/onboarding/connect/skip", {
+        method: "POST",
+      });
+
+      if (res.status === 401) {
+        // Auth expired — kick to Kinetiks ID and preserve return path
+        window.location.href =
+          "https://id.kinetiks.ai/login?return_to=/onboarding";
+        return;
+      }
+
+      const json = (await res.json().catch(() => ({}))) as {
+        success?: boolean;
+        current_step?: string;
+        error?: string;
+      };
+
+      if (res.status === 409 && json.current_step) {
+        // Server-side state machine says we're not on this step.
+        // Redirect to wherever the user actually is.
+        router.push(`/onboarding/${json.current_step}`);
+        return;
+      }
+
+      if (!res.ok || !json.success) {
+        throw new Error(json.error ?? `Skip failed (${res.status})`);
+      }
+
+      router.push("/onboarding/content");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -109,16 +147,27 @@ export default function ConnectStepPage() {
         </button>
       </div>
 
+      {error && (
+        <p
+          className="mb-3 text-center text-xs"
+          style={{ color: "var(--danger)" }}
+          role="alert"
+        >
+          {error}
+        </p>
+      )}
+
       <button
         type="button"
         onClick={handleSkip}
-        className="rounded-full px-5 py-3 text-sm font-medium"
+        disabled={submitting}
+        className="rounded-full px-5 py-3 text-sm font-medium disabled:opacity-50"
         style={{
           background: "var(--accent)",
           color: "#ffffff",
         }}
       >
-        Continue
+        {submitting ? "Saving..." : "Continue"}
       </button>
       <p
         className="mt-3 text-center text-xs"

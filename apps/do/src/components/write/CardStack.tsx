@@ -10,8 +10,12 @@ interface Props {
   opportunities: Opportunity[];
   /** Free tier shows the locked angle teaser instead of the angle itself */
   angleLocked: boolean;
-  /** Server action to record a skip with its reason */
-  onSkip: (opportunityId: string, reason: SkipReason) => Promise<void>;
+  /**
+   * Server action to record a skip with its reason. Returns
+   * { ok } so the stack can recover from a failed skip without
+   * desyncing from the parent's optimistic state.
+   */
+  onSkip: (opportunityId: string, reason: SkipReason) => Promise<{ ok: boolean }>;
   /** Server action to open the reply editor for an opportunity */
   onWrite: (opportunityId: string) => void;
   /** Empty state CTA — pull to refresh */
@@ -29,6 +33,12 @@ const SWIPE_THRESHOLD_PX = 80;
  *   - Swipe right or tap "Write reply" to open the editor
  *   - All actions are also available as buttons for accessibility
  *
+ * The visible "current" card is always `opportunities[0]` — the parent
+ * (WriteTabClient) owns the skipped-id set and the queue is derived,
+ * so the stack never needs its own index. This avoids the desync that
+ * happens if the stack increments an index on a skip that subsequently
+ * fails on the server.
+ *
  * Card view duration is tracked: a card that gets at least 3 seconds
  * of attention fires `opportunity_viewed`.
  */
@@ -39,15 +49,14 @@ export function CardStack({
   onWrite,
   onRefresh,
 }: Props) {
-  const [index, setIndex] = useState(0);
   const [drag, setDrag] = useState(0);
   const [skipping, setSkipping] = useState(false);
   const dragOriginRef = useRef<number | null>(null);
   const surfacedAtRef = useRef<number>(Date.now());
 
-  const current = opportunities[index];
+  const current = opportunities[0];
 
-  // Fire opportunity_viewed once per card after 3s
+  // Fire opportunity_viewed once per surfaced card after 3s
   useEffect(() => {
     if (!current) return;
     surfacedAtRef.current = Date.now();
@@ -107,8 +116,10 @@ export function CardStack({
         match_score: current.match_score,
       },
     });
+    // Parent owns the optimistic state. We don't increment an index
+    // here — `current` updates automatically when `opportunities`
+    // changes (parent removes the id from its set).
     await onSkip(current.id, reason);
-    setIndex((i) => i + 1);
   }
 
   if (!current) {

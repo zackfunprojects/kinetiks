@@ -9,17 +9,13 @@ export const dynamic = "force-dynamic";
 const MAX_TOPICS = 25;
 const MAX_TOPIC_LENGTH = 80;
 
-interface Body {
-  topics?: string[];
-}
-
 export async function POST(request: Request) {
   const auth = await requireDeskOfSession();
   if ("error" in auth) return auth.error;
 
-  let body: Body;
+  let raw: unknown;
   try {
-    body = (await request.json()) as Body;
+    raw = await request.json();
   } catch {
     return NextResponse.json(
       { success: false, error: "Invalid JSON" },
@@ -27,8 +23,23 @@ export async function POST(request: Request) {
     );
   }
 
-  const topics = (body.topics ?? [])
-    .filter((t) => typeof t === "string")
+  if (typeof raw !== "object" || raw === null) {
+    return NextResponse.json(
+      { success: false, error: "Invalid JSON body" },
+      { status: 400 }
+    );
+  }
+
+  const rawTopics = (raw as { topics?: unknown }).topics;
+  if (rawTopics !== undefined && !Array.isArray(rawTopics)) {
+    return NextResponse.json(
+      { success: false, error: "topics must be an array" },
+      { status: 400 }
+    );
+  }
+
+  const topics = ((rawTopics ?? []) as unknown[])
+    .filter((t): t is string => typeof t === "string")
     .map((t) => t.trim())
     .filter((t) => t.length > 0 && t.length <= MAX_TOPIC_LENGTH)
     .slice(0, MAX_TOPICS);
@@ -38,17 +49,29 @@ export async function POST(request: Request) {
     await submitPersonalInterests(supabase, auth.session.user_id, topics);
   }
 
-  // Calibration step is optional in Phase 2 — we mark it complete here
-  // alongside interests so the flow can proceed to track selection.
-  // Phase 2b will surface the 10 calibration threads inline.
-  await advanceOnboardingStep(supabase, auth.session.user_id, {
-    step_completed: "calibration",
-    patch: { calibration_completed_at: new Date().toISOString() },
-  });
-  await advanceOnboardingStep(supabase, auth.session.user_id, {
+  // Note: the calibration step is intentionally NOT advanced here.
+  // It's been removed from the active STEP_ORDER until the dedicated
+  // 10-thread calibration UI lands in Phase 2b. Stamping it from this
+  // route would have made the calibration flow unreachable.
+  const result = await advanceOnboardingStep(supabase, auth.session.user_id, {
     step_completed: "interests",
     patch: { interests_submitted_at: new Date().toISOString() },
   });
 
-  return NextResponse.json({ success: true, topic_count: topics.length });
+  if (!result.ok) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Onboarding step out of order",
+        current_step: result.current_step,
+      },
+      { status: 409 }
+    );
+  }
+
+  return NextResponse.json({
+    success: true,
+    topic_count: topics.length,
+    current_step: result.state.current_step,
+  });
 }

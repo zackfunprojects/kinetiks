@@ -9,9 +9,9 @@ export async function POST(request: Request) {
   const auth = await requireDeskOfSession();
   if ("error" in auth) return auth.error;
 
-  let body: { version?: string };
+  let raw: unknown;
   try {
-    body = (await request.json()) as { version?: string };
+    raw = await request.json();
   } catch {
     return NextResponse.json(
       { success: false, error: "Invalid JSON" },
@@ -19,7 +19,18 @@ export async function POST(request: Request) {
     );
   }
 
-  if (!body.version) {
+  if (typeof raw !== "object" || raw === null) {
+    return NextResponse.json(
+      { success: false, error: "Invalid JSON body" },
+      { status: 400 }
+    );
+  }
+
+  const versionRaw = (raw as { version?: unknown }).version;
+  const version =
+    typeof versionRaw === "string" ? versionRaw.trim() : "";
+
+  if (!version) {
     return NextResponse.json(
       { success: false, error: "Missing privacy disclosure version" },
       { status: 400 }
@@ -27,13 +38,24 @@ export async function POST(request: Request) {
   }
 
   const supabase = createDeskOfServerClient();
-  await advanceOnboardingStep(supabase, auth.session.user_id, {
+  const result = await advanceOnboardingStep(supabase, auth.session.user_id, {
     step_completed: "privacy",
     patch: {
       privacy_acknowledged_at: new Date().toISOString(),
-      privacy_disclosure_version: body.version,
+      privacy_disclosure_version: version,
     },
   });
 
-  return NextResponse.json({ success: true });
+  if (!result.ok) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Onboarding step out of order",
+        current_step: result.current_step,
+      },
+      { status: 409 }
+    );
+  }
+
+  return NextResponse.json({ success: true, current_step: result.state.current_step });
 }

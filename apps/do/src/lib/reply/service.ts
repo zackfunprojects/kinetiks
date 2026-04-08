@@ -6,15 +6,21 @@
  * PlatformInterface (or browser handoff for Quora).
  *
  * Phase 2 ships:
- *   - Draft create / update
+ *   - Draft create / update with monotonic revision enforcement
  *   - Stub gate result (clear) — Phase 3 wires the real Lens engine
  *   - Quora browser handoff (no Reddit posting yet — that lands when
  *     the Reddit API client follow-up merges)
+ *   - Frozen draft semantics: once a row enters posted / removed /
+ *     ready+pending Quora handoff state, draft autosaves no longer
+ *     mutate the content / fingerprint / status. The fingerprint is
+ *     what Pulse matches against the Quora answer page in the 3-layer
+ *     match flow, so we MUST NOT let a late autosave change it after
+ *     the user has handed off.
  *
  * The DB-level constraint reply_requires_human_confirmation is the
- * second line of defense: even if the API layer is bypassed, posted_at
- * cannot be set without human_confirmed_at being set within the prior
- * 5 minutes.
+ * second line of defense: even if the API layer is bypassed,
+ * posted_at cannot be set without human_confirmed_at being set within
+ * the prior 5 minutes.
  */
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -35,7 +41,18 @@ interface UpsertDraftInput {
   content: string;
   gate_result: GateResult;
   gate_overrides: string[];
+  /**
+   * Monotonic revision counter from the editor. The server rejects
+   * upserts whose revision is older than the persisted value (out-of-
+   * order autosave defense).
+   */
+  revision: number;
 }
+
+export type UpsertDraftResult =
+  | { kind: "saved"; reply: Reply }
+  | { kind: "stale"; current_revision: number }
+  | { kind: "frozen"; status: ReplyStatus };
 
 /** Phase 2 stub gate result — Phase 3 replaces this with real Lens output. */
 export const PASS_THROUGH_GATE_RESULT: GateResult = {
@@ -44,19 +61,68 @@ export const PASS_THROUGH_GATE_RESULT: GateResult = {
   advisory_only: true,
 };
 
+/** Statuses where draft autosaves are no longer allowed to mutate the row. */
+const FROZEN_STATUSES: ReadonlySet<ReplyStatus> = new Set<ReplyStatus>([
+  "posted",
+  "removed",
+  "untracked",
+]);
+
 function fingerprint(content: string): string {
   const normalized = normalizeForFingerprint(content);
   return createHash("sha256").update(normalized, "utf8").digest("hex");
 }
 
+interface ExistingDraftRow {
+  id: string;
+  status: ReplyStatus;
+  draft_revision: number;
+  human_confirmed_at: string | null;
+  quora_match_status: string | null;
+}
+
 /**
- * Create or update a draft reply for an opportunity. The DB upsert is
- * keyed by (user_id, opportunity_id) so the user can keep editing.
+ * Create or update a draft reply for an opportunity.
+ *
+ * Concurrency model:
+ *   1. Read the existing row (if any) for status + revision + handoff state
+ *   2. If status is in FROZEN_STATUSES → refuse to mutate (returns "frozen")
+ *   3. If a Quora handoff is already pending (human_confirmed_at set)
+ *      → also refuse, since Pulse is matching against the existing
+ *        fingerprint
+ *   4. If incoming revision < persisted revision → out-of-order, return "stale"
+ *   5. Otherwise upsert with the new revision
  */
 export async function upsertDraftReply(
   supabase: SupabaseClient,
   input: UpsertDraftInput
-): Promise<Reply> {
+): Promise<UpsertDraftResult> {
+  const { data: existing, error: readError } = await supabase
+    .from("deskof_replies")
+    .select("id, status, draft_revision, human_confirmed_at, quora_match_status")
+    .eq("user_id", input.user_id)
+    .eq("opportunity_id", input.opportunity_id)
+    .maybeSingle();
+
+  if (readError) {
+    throw new Error(`upsertDraftReply read failed: ${readError.message}`);
+  }
+
+  if (existing) {
+    const row = existing as ExistingDraftRow;
+    if (FROZEN_STATUSES.has(row.status)) {
+      return { kind: "frozen", status: row.status };
+    }
+    // Quora handoff has begun — Pulse is matching against the current
+    // fingerprint. Don't let a late autosave change content underneath it.
+    if (row.human_confirmed_at !== null && input.platform === "quora") {
+      return { kind: "frozen", status: row.status };
+    }
+    if (input.revision <= row.draft_revision) {
+      return { kind: "stale", current_revision: row.draft_revision };
+    }
+  }
+
   const { data, error } = await supabase
     .from("deskof_replies")
     .upsert(
@@ -70,6 +136,7 @@ export async function upsertDraftReply(
         gate_result: input.gate_result,
         gate_overrides: input.gate_overrides,
         status: "ready" satisfies ReplyStatus,
+        draft_revision: input.revision,
       },
       { onConflict: "user_id,opportunity_id" }
     )
@@ -82,7 +149,7 @@ export async function upsertDraftReply(
     );
   }
 
-  return data as Reply;
+  return { kind: "saved", reply: data as Reply };
 }
 
 /**
@@ -129,6 +196,9 @@ export async function markReplyPosted(
  * the clipboard text + URL but has not yet confirmed they posted on
  * Quora. Pulse will pick up confirmation via the 3-layer match flow
  * once the user taps "I posted this" in the UI.
+ *
+ * After this point, draft autosaves for the same row are frozen
+ * (see FROZEN_STATUSES handling in upsertDraftReply).
  */
 export async function markQuoraHandoffPending(
   supabase: SupabaseClient,

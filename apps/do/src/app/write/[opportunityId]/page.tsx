@@ -3,9 +3,11 @@ import { requireDeskOfSession } from "@/lib/auth/session";
 import { createDeskOfServerClient } from "@/lib/supabase/server";
 import {
   acceptOpportunity,
-  getOpportunityById,
+  getActionableOpportunityById,
 } from "@/lib/opportunities/queue";
 import { ReplyEditor } from "@/components/write/ReplyEditor";
+
+export const dynamic = "force-dynamic";
 
 interface Props {
   params: { opportunityId: string };
@@ -16,7 +18,7 @@ export default async function ReplyEditorPage({ params }: Props) {
   if ("error" in auth) redirect("/onboarding");
 
   const supabase = createDeskOfServerClient();
-  const opportunity = await getOpportunityById(
+  const opportunity = await getActionableOpportunityById(
     supabase,
     auth.session.user_id,
     params.opportunityId

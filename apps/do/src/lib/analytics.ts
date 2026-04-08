@@ -143,7 +143,13 @@ interface QueuedEvent {
   name: EventName;
   properties: Record<string, unknown>;
   occurred_at: string;
-  context: ImplicitContext;
+  /**
+   * Null when the event was tracked before initAnalytics ran. The
+   * flush path stamps the latest known context onto null entries
+   * before sending so events from the cold-start window get a real
+   * session_id / tier / track instead of "pending" placeholders.
+   */
+  context: ImplicitContext | null;
 }
 
 const queue: QueuedEvent[] = [];
@@ -153,23 +159,10 @@ let flushTimer: ReturnType<typeof setTimeout> | null = null;
 
 /**
  * Track an event. Non-blocking. Safe to call before initAnalytics —
- * the event is queued with a partial context and stamped on flush.
+ * the event is queued with a null context and stamped on flush.
  */
 export function track<E extends AnalyticsEvent>(event: E): void {
   if (typeof window === "undefined") return; // server-side: skip
-
-  if (!context) {
-    // Context not set yet. Defer with a placeholder; the first
-    // initAnalytics call after this will retroactively re-stamp.
-    queue.push({
-      name: event.name,
-      properties: event.props as unknown as Record<string, unknown>,
-      occurred_at: new Date().toISOString(),
-      context: pendingContext(),
-    });
-    scheduleFlush();
-    return;
-  }
 
   queue.push({
     name: event.name,
@@ -207,10 +200,18 @@ function scheduleFlush(): void {
 /**
  * Flush queued events to the API. Errors are swallowed — analytics
  * failures must never surface to the UI.
+ *
+ * Each event is stamped with the freshest known context at flush time:
+ *   1. The event's own context if set (the common path)
+ *   2. The current module-level `context` if initAnalytics has run
+ *   3. A pendingContext() placeholder as a last resort
  */
 export async function flush(): Promise<void> {
   if (queue.length === 0) return;
-  const batch = queue.splice(0, queue.length);
+  const batch = queue.splice(0, queue.length).map((event) => ({
+    ...event,
+    context: event.context ?? context ?? pendingContext(),
+  }));
 
   try {
     await fetch("/api/analytics/batch", {

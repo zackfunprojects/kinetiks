@@ -5,6 +5,8 @@ import { getPendingOpportunities } from "@/lib/opportunities/queue";
 import { canAccess } from "@/lib/tier-config";
 import { WriteTabClient } from "./client";
 
+export const dynamic = "force-dynamic";
+
 /**
  * Write tab — the core DeskOf product surface.
  *

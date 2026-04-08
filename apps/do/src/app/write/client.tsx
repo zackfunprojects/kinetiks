@@ -14,17 +14,33 @@ interface Props {
  * Client wrapper for the Write tab. Owns the optimistic queue state,
  * forwards skip + write events to the API routes, and routes the user
  * to the reply editor on accept.
+ *
+ * Optimistic skip semantics: we maintain a Set of locally-skipped
+ * IDs and derive the visible queue from `initialOpportunities` minus
+ * that set. On API failure we remove the failed ID from the set, so
+ * earlier-successful skips stay skipped.
  */
 export function WriteTabClient({
   initialOpportunities,
   angleLocked,
 }: Props) {
   const router = useRouter();
-  const [opportunities, setOpportunities] = useState(initialOpportunities);
+  const [skippedIds, setSkippedIds] = useState<Set<string>>(new Set());
 
-  async function handleSkip(opportunityId: string, reason: SkipReason) {
+  const opportunities = initialOpportunities.filter(
+    (o) => !skippedIds.has(o.id)
+  );
+
+  async function handleSkip(
+    opportunityId: string,
+    reason: SkipReason
+  ): Promise<{ ok: boolean }> {
     // Optimistic removal
-    setOpportunities((prev) => prev.filter((o) => o.id !== opportunityId));
+    setSkippedIds((prev) => {
+      const next = new Set(prev);
+      next.add(opportunityId);
+      return next;
+    });
 
     try {
       const res = await fetch("/api/opportunities/skip", {
@@ -33,9 +49,15 @@ export function WriteTabClient({
         body: JSON.stringify({ opportunity_id: opportunityId, reason }),
       });
       if (!res.ok) throw new Error(`skip failed: ${res.status}`);
+      return { ok: true };
     } catch {
-      // Revert optimistic removal on failure
-      setOpportunities(initialOpportunities);
+      // Revert ONLY the failing ID — earlier successful skips stay skipped.
+      setSkippedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(opportunityId);
+        return next;
+      });
+      return { ok: false };
     }
   }
 

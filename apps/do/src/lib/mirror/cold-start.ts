@@ -74,7 +74,13 @@ export async function submitContentUrls(
     .map((u) => ({ ...u, url: u.url.trim() }))
     .filter((u) => isValidUrl(u.url));
 
-  const limited = cleaned.slice(0, limit);
+  // Deduplicate by URL within this batch. PostgreSQL upsert raises
+  // "ON CONFLICT DO UPDATE command cannot affect row a second time"
+  // if the same conflict target appears twice in the same statement.
+  const deduped = Array.from(
+    new Map(cleaned.map((u) => [u.url, u])).values()
+  );
+  const limited = deduped.slice(0, limit);
 
   if (limited.length === 0) {
     return { accepted: 0, rejected: urls.length, reason: "No valid URLs" };
@@ -183,8 +189,11 @@ export async function applyCalibrationResponses(
   userId: string,
   responses: CalibrationResponse[]
 ): Promise<void> {
-  // Persist the raw responses for the Phase 7 behavioral learning loop
-  await supabase
+  // Persist the raw responses for the Phase 7 behavioral learning loop.
+  // Fail fast — if this write fails we must NOT proceed to mutate the
+  // Operator Profile, or the evidence table and the derived tiers will
+  // diverge.
+  const { error: persistError } = await supabase
     .from("deskof_calibration_responses")
     .upsert(
       responses.map((r) => ({
@@ -194,6 +203,12 @@ export async function applyCalibrationResponses(
       })),
       { onConflict: "user_id,thread_id" }
     );
+
+  if (persistError) {
+    throw new Error(
+      `applyCalibrationResponses: persist failed: ${persistError.message}`
+    );
+  }
 
   // Group by topic and infer tiers
   const tierByTopic = new Map<string, ExpertiseTier>();

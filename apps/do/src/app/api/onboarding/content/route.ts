@@ -7,10 +7,6 @@ import type { ContentUrlInput } from "@/lib/mirror/cold-start";
 
 export const dynamic = "force-dynamic";
 
-interface Body {
-  urls?: ContentUrlInput[];
-}
-
 const ALLOWED_SOURCES = new Set([
   "blog",
   "newsletter",
@@ -23,9 +19,9 @@ export async function POST(request: Request) {
   const auth = await requireDeskOfSession();
   if ("error" in auth) return auth.error;
 
-  let body: Body;
+  let raw: unknown;
   try {
-    body = (await request.json()) as Body;
+    raw = await request.json();
   } catch {
     return NextResponse.json(
       { success: false, error: "Invalid JSON" },
@@ -33,11 +29,28 @@ export async function POST(request: Request) {
     );
   }
 
-  const urls = (body.urls ?? []).filter(
-    (u) =>
-      typeof u?.url === "string" &&
-      typeof u?.source === "string" &&
-      ALLOWED_SOURCES.has(u.source)
+  if (typeof raw !== "object" || raw === null) {
+    return NextResponse.json(
+      { success: false, error: "Invalid JSON body" },
+      { status: 400 }
+    );
+  }
+
+  const rawUrls = (raw as { urls?: unknown }).urls;
+  if (rawUrls !== undefined && !Array.isArray(rawUrls)) {
+    return NextResponse.json(
+      { success: false, error: "urls must be an array" },
+      { status: 400 }
+    );
+  }
+
+  const urls: ContentUrlInput[] = ((rawUrls ?? []) as unknown[]).filter(
+    (u): u is ContentUrlInput =>
+      typeof u === "object" &&
+      u !== null &&
+      typeof (u as { url?: unknown }).url === "string" &&
+      typeof (u as { source?: unknown }).source === "string" &&
+      ALLOWED_SOURCES.has((u as { source: string }).source)
   );
 
   const supabase = createDeskOfServerClient();
@@ -52,10 +65,25 @@ export async function POST(request: Request) {
     accepted = result.accepted;
   }
 
-  await advanceOnboardingStep(supabase, auth.session.user_id, {
+  const advance = await advanceOnboardingStep(supabase, auth.session.user_id, {
     step_completed: "content",
     patch: { content_urls_submitted_at: new Date().toISOString() },
   });
 
-  return NextResponse.json({ success: true, accepted });
+  if (!advance.ok) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Onboarding step out of order",
+        current_step: advance.current_step,
+      },
+      { status: 409 }
+    );
+  }
+
+  return NextResponse.json({
+    success: true,
+    accepted,
+    current_step: advance.state.current_step,
+  });
 }
