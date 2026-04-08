@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { useEffect } from "react";
 import { canAccess, requiredTier, type Feature } from "@/lib/tier-config";
 import type { BillingTier } from "@kinetiks/deskof";
+import { track } from "@/lib/analytics";
 
 interface UpgradeGateProps {
   feature: Feature;
@@ -22,6 +24,21 @@ interface UpgradeGateProps {
    * If false, the locked state replaces children entirely.
    */
   teaser?: boolean;
+  /**
+   * Trigger type for the conversion analytics event. Helps us
+   * attribute upgrades back to the specific UI surface that motivated
+   * them. Defaults to "timed" but callers should override for the
+   * specific named triggers from Quality Addendum #10.5.
+   */
+  triggerType?:
+    | "angle_lock"
+    | "citation_teaser"
+    | "quora_teaser"
+    | "gate_preview"
+    | "first_week_prompt"
+    | "timed";
+  /** Where in the app this gate lives, for analytics attribution */
+  location?: string;
 }
 
 const TIER_LABEL: Record<BillingTier, string> = {
@@ -42,8 +59,26 @@ export function UpgradeGate({
   children,
   fallback,
   teaser = false,
+  triggerType = "timed",
+  location = "unknown",
 }: UpgradeGateProps) {
-  if (canAccess(feature, tier)) {
+  const allowed = canAccess(feature, tier);
+
+  // Fire upgrade_prompt_shown the first time a locked gate appears
+  // for this user's session. The bootstrap analytics wrapper handles
+  // dedup at the batch level; we just need to call track().
+  useEffect(() => {
+    if (allowed) return;
+    track({
+      name: "upgrade_prompt_shown",
+      props: {
+        trigger_type: triggerType,
+        location,
+      },
+    });
+  }, [allowed, triggerType, location]);
+
+  if (allowed) {
     return <>{children}</>;
   }
 
@@ -78,6 +113,15 @@ export function UpgradeGate({
       </p>
       <Link
         href={`/upgrade?feature=${feature}&target=${target}`}
+        onClick={() =>
+          track({
+            name: "upgrade_prompt_tapped",
+            props: {
+              trigger_type: triggerType,
+              target_tier: target === "free" ? "standard" : target,
+            },
+          })
+        }
         className="inline-flex items-center gap-1 text-sm font-medium"
         style={{ color: "var(--accent)" }}
       >

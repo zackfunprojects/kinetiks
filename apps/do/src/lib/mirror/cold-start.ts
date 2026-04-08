@@ -28,6 +28,7 @@ import type {
   ExpertiseTierLevel,
   Interest,
 } from "@kinetiks/cortex";
+import { TIER_CONTENT_URL_LIMITS } from "@kinetiks/deskof";
 import {
   addExpertiseTiers,
   addPersonalInterests,
@@ -42,12 +43,6 @@ export interface ContentUrlInput {
   source: "blog" | "newsletter" | "linkedin" | "twitter" | "other";
 }
 
-const CONTENT_URL_LIMITS = {
-  free: 0,
-  standard: 10,
-  hero: Number.POSITIVE_INFINITY,
-} as const;
-
 /**
  * Submit content URLs from onboarding step 2. Stores them in
  * deskof_content_urls; the actual ingestion job (scrape, NLP extract,
@@ -61,7 +56,7 @@ export async function submitContentUrls(
   tier: "free" | "standard" | "hero",
   urls: ContentUrlInput[]
 ): Promise<{ accepted: number; rejected: number; reason?: string }> {
-  const limit = CONTENT_URL_LIMITS[tier];
+  const limit = TIER_CONTENT_URL_LIMITS[tier];
   if (limit === 0) {
     return {
       accepted: 0,

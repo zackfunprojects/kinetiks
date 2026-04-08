@@ -46,6 +46,22 @@ export const TIER_MAX_TRACK: Record<BillingTier, TrackLevel> = {
 };
 
 /**
+ * Per-tier quotas for features that have a quantitative cap rather
+ * than a binary yes/no gate. Single source of truth — used by Mirror
+ * cold start, the tier-config matrix, and any future billing-meter UI.
+ *
+ * Quality Addendum #10.4 quotas:
+ *   Free      → 0 content URL submissions
+ *   Standard  → 10
+ *   Hero      → unlimited
+ */
+export const TIER_CONTENT_URL_LIMITS: Record<BillingTier, number> = {
+  free: 0,
+  standard: 10,
+  hero: Number.POSITIVE_INFINITY,
+};
+
+/**
  * Returns true if the given track level is permitted for the billing tier.
  * Used by track-selector enforcement and the tier-gate middleware.
  */

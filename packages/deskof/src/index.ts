@@ -12,6 +12,7 @@ export type { Platform } from "./types/platform";
 export {
   TRACK_CONFIGS,
   TIER_MAX_TRACK,
+  TIER_CONTENT_URL_LIMITS,
   canSelectTrack,
 } from "./types/track";
 export type {
