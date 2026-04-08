@@ -54,7 +54,13 @@ export type UpsertDraftResult =
   | { kind: "stale"; current_revision: number }
   | { kind: "frozen"; status: ReplyStatus };
 
-/** Phase 2 stub gate result — Phase 3 replaces this with real Lens output. */
+/**
+ * @deprecated Phase 3: production callers MUST use `runLensForRequest`
+ * from `@/lib/lens/run` instead. This constant remains exported only
+ * so unit tests that mock the gate can keep working without pulling
+ * the orchestrator + Supabase + Operator Profile graph into their
+ * fixtures. Importing it from a route or component will fail review.
+ */
 export const PASS_THROUGH_GATE_RESULT: GateResult = {
   status: "clear",
   checks: [],
@@ -67,6 +73,53 @@ const FROZEN_STATUSES: ReadonlySet<ReplyStatus> = new Set<ReplyStatus>([
   "removed",
   "untracked",
 ]);
+
+/**
+ * Read-only preflight: returns the same discriminated state that
+ * `upsertDraftReply` would return WITHOUT writing. The draft route
+ * uses this to short-circuit stale/frozen autosaves before paying
+ * the Lens (DB + LLM) cost. The full upsert still re-checks because
+ * concurrent autosaves can race between this preflight and the
+ * subsequent write.
+ */
+export type PreviewDraftStateResult =
+  | { kind: "writeable" }
+  | { kind: "stale"; current_revision: number }
+  | { kind: "frozen"; status: ReplyStatus };
+
+export async function previewDraftState(
+  supabase: SupabaseClient,
+  opts: {
+    user_id: string;
+    opportunity_id: string;
+    platform: Platform;
+    revision: number;
+  }
+): Promise<PreviewDraftStateResult> {
+  const { data: existing, error } = await supabase
+    .from("deskof_replies")
+    .select("id, status, draft_revision, human_confirmed_at, quora_match_status")
+    .eq("user_id", opts.user_id)
+    .eq("opportunity_id", opts.opportunity_id)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`previewDraftState read failed: ${error.message}`);
+  }
+  if (!existing) return { kind: "writeable" };
+
+  const row = existing as ExistingDraftRow;
+  if (FROZEN_STATUSES.has(row.status)) {
+    return { kind: "frozen", status: row.status };
+  }
+  if (row.human_confirmed_at !== null && opts.platform === "quora") {
+    return { kind: "frozen", status: row.status };
+  }
+  if (opts.revision <= row.draft_revision) {
+    return { kind: "stale", current_revision: row.draft_revision };
+  }
+  return { kind: "writeable" };
+}
 
 function fingerprint(content: string): string {
   const normalized = normalizeForFingerprint(content);

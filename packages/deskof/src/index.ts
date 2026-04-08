@@ -66,6 +66,28 @@ export {
 } from "./fingerprint/quora";
 export type { FingerprintMatch } from "./fingerprint/quora";
 
+// Lens — quality gate engine (Phase 3)
+export {
+  runLens,
+  computeLensConfig,
+  ADVISORY_ONLY_DAYS,
+  vectorize,
+  cosineSimilarity,
+  CHECK_DEFAULTS,
+} from "./lens";
+export type {
+  LensInput,
+  LensConfig,
+  LensLLM,
+  LensOperatorView,
+  PlatformHealthSnapshot,
+  RecentReplyVector,
+  CommunityGateConfig,
+  EnabledChecks,
+  CalibrationInput,
+  VectorizedReply,
+} from "./lens";
+
 // Platform abstraction (Phase 1.6)
 export { platformRegistry } from "./platform/interface";
 export type {

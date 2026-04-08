@@ -29,6 +29,14 @@ export interface GateCheck {
   severity: GateCheckSeverity;
   message: string;
   recommendation: string;
+  /**
+   * True when an LLM-backed check could not be evaluated this run
+   * (missing API key, timeout, parse error). Skipped checks always
+   * carry severity: "info" and passed: true so they never block,
+   * but the UI renders them muted as "Skipped" rows. Use this flag
+   * instead of inspecting `message` text — the wording can change.
+   */
+  skipped?: boolean;
 }
 
 export interface GateResult {

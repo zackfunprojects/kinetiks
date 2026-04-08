@@ -22,6 +22,7 @@ import { getActionableOpportunityById } from "@/lib/opportunities/queue";
 import { consumeConfirmationToken } from "@/lib/reply/confirmation-token";
 import { markQuoraHandoffPending } from "@/lib/reply/service";
 import { createDeskOfAdminClient } from "@/lib/supabase/admin";
+import { runLensForRequest } from "@/lib/lens/run";
 
 export const dynamic = "force-dynamic";
 
@@ -90,6 +91,32 @@ export async function POST(request: Request) {
   }
 
   const platform = opportunity.thread.platform;
+
+  // 2b. Server-side gate re-validation (build-plan §3.6).
+  // Re-runs Lens against the just-confirmed content. If the gate is
+  // past advisory phase AND returns "blocked", we refuse to consume
+  // the confirmation token so the client cannot bypass an in-editor
+  // override. The token validation above intentionally does NOT mark
+  // the token consumed yet — only the Quora handoff path commits.
+  const serverGate = await runLensForRequest(supabase, {
+    user_id: auth.session.user_id,
+    user_tier: auth.session.tier,
+    opportunity_id: body.opportunity_id,
+    platform,
+    community: opportunity.thread.community ?? null,
+    thread_question: opportunity.thread.title,
+    content: body.content,
+  });
+  if (serverGate.status === "blocked" && !serverGate.advisory_only) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "gate_blocked",
+        gate_result: serverGate,
+      },
+      { status: 422 }
+    );
+  }
 
   // 3. Phase 2 dispatch — Quora handoff or Reddit-not-yet-available.
   if (platform === "reddit") {
