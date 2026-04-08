@@ -6,7 +6,7 @@ import { classifyApproval } from "./classify";
 import { calculateConfidence } from "./confidence";
 import { getThreshold, shouldAutoApprove } from "./threshold";
 import { emitApprovalEvent } from "./events";
-import { getConfidence } from "@/lib/cortex/confidence";
+import { getConfidence } from "@/lib/cortex";
 
 /**
  * Process an approval submission through the full pipeline:

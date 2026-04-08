@@ -1,8 +1,8 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAuth } from "@/lib/auth/require-auth";
 import type { ContextLayer, Proposal } from "@kinetiks/types";
-import { evaluateProposal } from "@/lib/cortex/evaluate";
-import type { EvaluationResult } from "@/lib/cortex/evaluate";
+import { evaluateProposal } from "@/lib/cortex";
+import type { EvaluationResult } from "@/lib/cortex";
 import { extractBrand } from "@/lib/cartographer/extract-brand";
 import { extractOrg } from "@/lib/cartographer/extract-org";
 import { extractVoice } from "@/lib/cartographer/extract-voice";

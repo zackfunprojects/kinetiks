@@ -1,8 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ContextLayer, Proposal } from "@kinetiks/types";
 import { recalculateConfidence } from "./confidence";
-import { validateLayerData } from "@/lib/utils/context-validator";
-import { dispatchEvent } from "@/lib/webhooks/deliver";
+import { validateLayerData } from "./validate-layer";
+import { dispatchCortexEvent } from "./dispatcher";
 
 export interface ResolveResult {
   proposal_id: string;
@@ -154,26 +154,18 @@ export async function resolveProposal(
   }
 
   if (decision === "accept") {
-    try {
-      await dispatchEvent(accountId, "proposal.accepted", {
-        proposal_id: proposalId,
-        target_layer: proposal.target_layer,
-        source_app: proposal.source_app,
-      });
-    } catch (err) {
-      console.error(`Failed to dispatch proposal.accepted for ${proposalId}:`, err);
-    }
+    await dispatchCortexEvent(accountId, "proposal.accepted", {
+      proposal_id: proposalId,
+      target_layer: proposal.target_layer,
+      source_app: proposal.source_app,
+    });
   } else {
-    try {
-      await dispatchEvent(accountId, "proposal.declined", {
-        proposal_id: proposalId,
-        target_layer: proposal.target_layer,
-        source_app: proposal.source_app,
-        reason: declineReason ?? "user_dismissed",
-      });
-    } catch (err) {
-      console.error(`Failed to dispatch proposal.declined for ${proposalId}:`, err);
-    }
+    await dispatchCortexEvent(accountId, "proposal.declined", {
+      proposal_id: proposalId,
+      target_layer: proposal.target_layer,
+      source_app: proposal.source_app,
+      reason: declineReason ?? "user_dismissed",
+    });
   }
 
   return { proposal_id: proposalId, status: newStatus, mergeSuccess };

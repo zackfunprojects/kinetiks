@@ -11,7 +11,7 @@ import type {
   CompetitiveData,
   MarketData,
 } from "@kinetiks/types";
-import type { EvaluationResult } from "@/lib/cortex/evaluate";
+import type { EvaluationResult } from "@/lib/cortex";
 
 /**
  * Result from a single extraction pass.

@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { redirect } from "next/navigation";
-import { getConfidence } from "@/lib/cortex/confidence";
+import { getConfidence } from "@/lib/cortex";
 import { ContextOverview } from "@/components/context/ContextOverview";
 import type { ContextLayer } from "@kinetiks/types";
 

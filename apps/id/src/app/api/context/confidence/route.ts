@@ -1,6 +1,6 @@
 import { requireAuth } from "@/lib/auth/require-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { recalculateConfidence } from "@/lib/cortex/confidence";
+import { recalculateConfidence } from "@/lib/cortex";
 import { apiSuccess, apiError } from "@/lib/utils/api-response";
 
 /**

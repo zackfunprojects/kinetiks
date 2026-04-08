@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { Proposal, LedgerEntry, AppActivation, ConnectionPublic } from "@kinetiks/types";
-import type { ConfidenceScores } from "@/lib/cortex/confidence";
+import type { ConfidenceScores } from "@/lib/cortex";
 import type { GapFinding } from "@/lib/archivist/types";
 import { ConfidenceRing } from "@/components/ui/ConfidenceRing";
 import { Card } from "@/components/ui/Card";

@@ -5,8 +5,8 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ContextLayer, Proposal } from "@kinetiks/types";
-import { evaluateProposal } from "@/lib/cortex/evaluate";
-import type { EvaluationResult } from "@/lib/cortex/evaluate";
+import { evaluateProposal } from "@/lib/cortex";
+import type { EvaluationResult } from "@/lib/cortex";
 import type { ProposalInsert } from "./types";
 
 const VALID_LAYERS: ContextLayer[] = [

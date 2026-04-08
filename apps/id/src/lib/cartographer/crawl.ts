@@ -1,7 +1,7 @@
 import Firecrawl from "@mendable/firecrawl-js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ContextLayer } from "@kinetiks/types";
-import type { EvaluationResult } from "@/lib/cortex/evaluate";
+import type { EvaluationResult } from "@/lib/cortex";
 import { extractBrand } from "./extract-brand";
 import { extractOrg } from "./extract-org";
 import { extractVoice } from "./extract-voice";
