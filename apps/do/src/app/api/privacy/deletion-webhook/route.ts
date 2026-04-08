@@ -7,12 +7,16 @@
  * processor (Phase 8) runs the actual cascade across the 1h / 24h / 7d
  * windows.
  *
- * Phase 1 verifies the webhook signature, persists the request row,
- * and acks. The cascade processor and Cortex purge job land in Phase 8.
+ * Security:
+ *   - The HMAC signature is verified BEFORE the body is parsed
+ *   - Verification fails closed if KINETIKS_WEBHOOK_SECRET is unset
+ *   - Timestamp window prevents replay attacks
+ *   - Verification logic mirrors apps/id/src/lib/webhooks/sign.ts
  */
 import { NextResponse } from "next/server";
 import { createDeskOfAdminClient } from "@/lib/supabase/admin";
 import { requestAccountDeletion } from "@/lib/privacy/deletion";
+import { verifyWebhook } from "@/lib/webhooks/verify";
 
 export const dynamic = "force-dynamic";
 
@@ -25,13 +29,38 @@ interface WebhookPayload {
 }
 
 export async function POST(request: Request) {
-  // TODO Phase 8: verify X-Kinetiks-Signature using shared webhook secret
-  // matching apps/id/src/lib/webhooks/sign.ts. Phase 1 ships the row
-  // creation only.
+  // 1. Read the raw body string FIRST. Never call request.json() before
+  //    signature verification — JSON.parse can canonicalize whitespace
+  //    and break the HMAC comparison.
+  let rawBody: string;
+  try {
+    rawBody = await request.text();
+  } catch {
+    return NextResponse.json(
+      { success: false, error: "Failed to read request body" },
+      { status: 400 }
+    );
+  }
 
+  // 2. Verify the webhook signature against the raw body. Fails closed
+  //    if the shared secret is missing.
+  const verification = verifyWebhook({
+    rawBody,
+    signatureHeader: request.headers.get("x-kinetiks-signature"),
+    timestampHeader: request.headers.get("x-kinetiks-timestamp"),
+    secret: process.env.KINETIKS_WEBHOOK_SECRET,
+  });
+  if (!verification.ok) {
+    return NextResponse.json(
+      { success: false, error: verification.error },
+      { status: verification.status }
+    );
+  }
+
+  // 3. Only now parse the body.
   let payload: WebhookPayload;
   try {
-    payload = (await request.json()) as WebhookPayload;
+    payload = JSON.parse(rawBody) as WebhookPayload;
   } catch {
     return NextResponse.json(
       { success: false, error: "Invalid JSON" },

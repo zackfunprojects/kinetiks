@@ -19,38 +19,54 @@ import type {
   GateAdjustments,
 } from "./types";
 
-const EMPTY_PROFESSIONAL: ProfessionalProfile = {
-  expertise_tiers: [],
-  products: [],
-  writing_voice: {
-    avg_sentence_length: null,
-    vocabulary_level: null,
-    tone_descriptors: [],
-    signature_phrases: [],
-  },
-  platform_history: [],
-};
+// Factory functions — each call returns a fresh instance with no shared
+// references. We deliberately do NOT use module-level constants here
+// because shallow spreading those would alias every nested array and
+// object across every profile, letting one user's mutation bleed into
+// another user's profile.
 
-const EMPTY_PERSONAL: PersonalProfile = {
-  interests: [],
-  communities: [],
-  engagement_style: {
-    active_hours_local: [],
-    reply_length_range: { min: 50, max: 300 },
-    enable_personal_surfacing: true,
-  },
-};
+function freshProfessional(): ProfessionalProfile {
+  return {
+    expertise_tiers: [],
+    products: [],
+    writing_voice: {
+      avg_sentence_length: null,
+      vocabulary_level: null,
+      tone_descriptors: [],
+      signature_phrases: [],
+    },
+    platform_history: [],
+  };
+}
 
-const FRESH_GATE_ADJUSTMENTS: GateAdjustments = {
-  per_check_sensitivity: {},
-  override_accuracy: 0.5,
-  personal_removal_rate: 0,
-  last_calibrated_at: new Date(0).toISOString(),
-};
+function freshPersonal(): PersonalProfile {
+  return {
+    interests: [],
+    communities: [],
+    engagement_style: {
+      active_hours_local: [],
+      reply_length_range: { min: 50, max: 300 },
+      enable_personal_surfacing: true,
+    },
+  };
+}
+
+function freshGateAdjustments(): GateAdjustments {
+  return {
+    per_check_sensitivity: {},
+    override_accuracy: 0.5,
+    personal_removal_rate: 0,
+    last_calibrated_at: new Date(0).toISOString(),
+  };
+}
 
 /**
  * Build a fresh, empty Operator Profile. Mirror calls this on first
  * connection, then incrementally fills it in via import jobs.
+ *
+ * Every nested object/array is its own instance — mutating one profile
+ * never affects another, even when many profiles are created in a single
+ * process (background jobs, tests, server cold starts).
  */
 export function newOperatorProfile(
   id: string,
@@ -60,9 +76,9 @@ export function newOperatorProfile(
   return {
     id,
     user_id: userId,
-    professional: { ...EMPTY_PROFESSIONAL },
-    personal: { ...EMPTY_PERSONAL },
-    gate_adjustments: { ...FRESH_GATE_ADJUSTMENTS },
+    professional: freshProfessional(),
+    personal: freshPersonal(),
+    gate_adjustments: freshGateAdjustments(),
     confidence: 0,
     created_at: now,
     last_updated: now,

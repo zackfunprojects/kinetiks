@@ -152,13 +152,38 @@ create policy "Users can insert own replies"
   on deskof_replies for insert
   with check (user_id = auth.uid());
 
--- Replies may only be updated while still in draft / gate / ready states.
--- Once posted_at is set, the row is immutable from the user side. Only
--- the service role (Pulse tracking jobs) updates the tracking column.
+-- Replies may only be updated while still in draft state. Once posted_at
+-- is set, the row is immutable from the user side. Only the service role
+-- (Pulse tracking jobs) updates the tracking column or sets posted_at.
+--
+-- The WITH CHECK clause MUST mirror the USING predicate's posted_at
+-- restriction. If we only restricted the SELECT-side (USING) and let
+-- WITH CHECK pass, a client could UPDATE a draft row to set
+-- human_confirmed_at + posted_at + status simultaneously. The
+-- reply_requires_human_confirmation table constraint would accept that
+-- (it only enforces logical consistency, not authority), and the user
+-- would have effectively self-published, bypassing the in-memory
+-- token + service-side gate check.
+--
+-- Defense-in-depth: column REVOKE on the publish-related columns is
+-- applied below so even a future buggy policy cannot expose them.
 create policy "Users can update own draft replies"
   on deskof_replies for update
   using (user_id = auth.uid() and posted_at is null)
-  with check (user_id = auth.uid());
+  with check (
+    user_id = auth.uid()
+    and posted_at is null
+    and human_confirmed_at is null
+    and platform_reply_id is null
+    and status in ('draft', 'gate_pending', 'ready')
+  );
+
+-- Column-level UPDATE revokes for the publish-side fields. Even if a
+-- future migration loosens the policy, the authenticated role still
+-- cannot write these columns directly. Service role bypasses these
+-- grants and remains the only writer for the publish flow.
+revoke update (human_confirmed_at, posted_at, platform_reply_id, tracking)
+  on deskof_replies from authenticated;
 
 -- ----------------------------------------------------------------
 -- Reply tracking (per time horizon)
@@ -210,14 +235,43 @@ create table deskof_platform_accounts (
 
 alter table deskof_platform_accounts enable row level security;
 
--- The user can see WHICH platforms they have connected, but not the
--- token columns. For that we expose a view in a follow-up migration.
-create policy "Users can read own platform connections (no tokens)"
-  on deskof_platform_accounts for select
-  using (user_id = auth.uid());
+-- IMPORTANT: row level security filters ROWS, not COLUMNS. A SELECT
+-- policy on the base table would still expose encrypted_access_token
+-- and encrypted_refresh_token to authenticated users, because the row
+-- they own contains those fields. To prevent token exposure we:
+--
+--   1. Do NOT create a SELECT policy on the base table for the
+--      authenticated role.
+--   2. Revoke SELECT from authenticated on the base table entirely.
+--   3. Expose a view (deskof_platform_accounts_safe) that selects only
+--      the non-secret columns. The view runs with the invoker's RLS
+--      context (security_invoker), so each user only sees their own row.
+--   4. Grant SELECT on the view to authenticated.
+--
+-- The service role bypasses RLS and grants — it still reads the base
+-- table directly from Edge Functions for OAuth refresh.
+
+revoke select on deskof_platform_accounts from authenticated;
+
+create view deskof_platform_accounts_safe
+  with (security_invoker = true)
+  as
+  select
+    id,
+    user_id,
+    platform,
+    account_handle,
+    token_expires_at,
+    scopes,
+    connected_at,
+    last_refreshed_at
+  from deskof_platform_accounts
+  where user_id = auth.uid();
+
+grant select on deskof_platform_accounts_safe to authenticated;
 
 -- Inserts/updates only via service role (Edge Functions handling OAuth).
--- No user-facing insert/update policy.
+-- No user-facing insert/update policy on the base table.
 
 -- ----------------------------------------------------------------
 -- Platform health (rolling daily snapshots)

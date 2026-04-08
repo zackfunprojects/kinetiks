@@ -33,6 +33,52 @@ import {
 } from "@kinetiks/deskof";
 import { QuoraScraper } from "./scraper";
 
+/**
+ * Allow-list of hostnames the Quora client is permitted to interact with.
+ * This is the SSRF + open-redirect defense — without it, a caller could
+ * pass any URL into fetchThreadDetail and either point our server-side
+ * Playwright browser at arbitrary internal hosts, or bounce a malicious
+ * URL back to the user via the browser_handoff response.
+ */
+const ALLOWED_QUORA_HOSTS: ReadonlySet<string> = new Set([
+  "quora.com",
+  "www.quora.com",
+]);
+
+/**
+ * Canonicalize and validate a Quora URL or question slug. Throws on
+ * anything that doesn't parse to an https://quora.com question.
+ *
+ * Used at every boundary where externally-supplied URLs enter the
+ * client — fetchThreadDetail input AND postReply input.thread.url.
+ */
+function toQuoraUrl(value: string): string {
+  if (!value) {
+    throw new Error("QuoraClient: empty URL");
+  }
+  let url: URL;
+  try {
+    url = value.startsWith("http")
+      ? new URL(value)
+      : new URL(`https://www.quora.com/${value.replace(/^\/+/, "")}`);
+  } catch {
+    throw new Error(`QuoraClient: invalid URL: ${value}`);
+  }
+
+  if (!ALLOWED_QUORA_HOSTS.has(url.hostname)) {
+    throw new Error(
+      `QuoraClient: only quora.com URLs are allowed (got ${url.hostname})`
+    );
+  }
+
+  // Force https; strip any auth, fragment, and tracking params we don't need.
+  url.protocol = "https:";
+  url.username = "";
+  url.password = "";
+  url.hash = "";
+  return url.toString();
+}
+
 export class QuoraClient implements PlatformClient {
   readonly platform = "quora" as const;
   private scraper: QuoraScraper;
@@ -50,9 +96,7 @@ export class QuoraClient implements PlatformClient {
   }
 
   async fetchThreadDetail(threadIdOrUrl: string): Promise<ThreadSnapshot> {
-    const url = threadIdOrUrl.startsWith("http")
-      ? threadIdOrUrl
-      : `https://www.quora.com/${threadIdOrUrl}`;
+    const url = toQuoraUrl(threadIdOrUrl);
     const scraped = await this.scraper.scrapeQuestion(url);
     const snapshot = this.scraper.toThreadSnapshot(scraped, "unknown");
     return { id: "", ...snapshot };
@@ -64,11 +108,15 @@ export class QuoraClient implements PlatformClient {
         "QuoraClient.postReply: missing human_confirmation_token"
       );
     }
+    // Validate the handoff URL before reflecting it back to the UI —
+    // this prevents an open-redirect / phishing pivot through DeskOf.
+    const safeHandoffUrl = toQuoraUrl(input.thread.url);
+
     // Quora has no posting API. We never submit on the user's behalf.
     // Return a browser_handoff so the UI can copy + open the question.
     return {
       kind: "browser_handoff",
-      handoff_url: input.thread.url,
+      handoff_url: safeHandoffUrl,
       clipboard_text: input.content,
       pending_confirmation: true,
     };

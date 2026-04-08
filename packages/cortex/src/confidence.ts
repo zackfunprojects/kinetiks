@@ -141,24 +141,19 @@ export async function recalculateConfidence(
       updated_at: new Date().toISOString(),
     }, { onConflict: "account_id" });
 
-  try {
-    await dispatchCortexEvent(accountId, "confidence.changed", {
-      aggregate: scores.aggregate,
-      org: scores.org,
-      products: scores.products,
-      voice: scores.voice,
-      customers: scores.customers,
-      narrative: scores.narrative,
-      competitive: scores.competitive,
-      market: scores.market,
-      brand: scores.brand,
-    });
-  } catch (dispatchErr) {
-    console.error(
-      `Failed to dispatch confidence.changed for account ${accountId}:`,
-      dispatchErr
-    );
-  }
+  // dispatchCortexEvent never throws — it catches internally and logs.
+  // Match the call style used in route.ts and resolve-proposal.ts.
+  await dispatchCortexEvent(accountId, "confidence.changed", {
+    aggregate: scores.aggregate,
+    org: scores.org,
+    products: scores.products,
+    voice: scores.voice,
+    customers: scores.customers,
+    narrative: scores.narrative,
+    competitive: scores.competitive,
+    market: scores.market,
+    brand: scores.brand,
+  });
 
   return scores;
 }
