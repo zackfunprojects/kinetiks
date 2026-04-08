@@ -66,15 +66,24 @@ function velocityComponent(
   upsPerHour: number | null,
   commentsPerHour: number | null
 ): number | null {
-  if (upsPerHour == null && commentsPerHour == null) return null;
+  // Sanitize NaN / Infinity FIRST. An upstream rate computation that
+  // divides by zero would otherwise poison the score down to 0 and
+  // bury otherwise-valid fresh threads. Treat invalid as missing.
+  const ups =
+    upsPerHour == null || !Number.isFinite(upsPerHour) ? null : upsPerHour;
+  const comments =
+    commentsPerHour == null || !Number.isFinite(commentsPerHour)
+      ? null
+      : commentsPerHour;
+  if (ups == null && comments == null) return null;
   const upsScore =
-    upsPerHour == null
+    ups == null
       ? 0
-      : Math.min(1, Math.max(0, upsPerHour) / PEAK_UPVOTES_PER_HOUR);
+      : Math.min(1, Math.max(0, ups) / PEAK_UPVOTES_PER_HOUR);
   const commentsScore =
-    commentsPerHour == null
+    comments == null
       ? 0
-      : Math.min(1, Math.max(0, commentsPerHour) / PEAK_COMMENTS_PER_HOUR);
+      : Math.min(1, Math.max(0, comments) / PEAK_COMMENTS_PER_HOUR);
   // 60/40 weighting — comments are a stronger engagement signal than
   // upvotes (a comment commits more attention) but they trail upvotes
   // in early-thread velocity.

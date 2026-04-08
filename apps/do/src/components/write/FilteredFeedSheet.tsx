@@ -39,12 +39,20 @@ export function FilteredFeedSheet({ open, onClose }: Props) {
   const [loading, setLoading] = useState(false);
   const [threads, setThreads] = useState<FilteredThread[]>([]);
   const [error, setError] = useState<string | null>(null);
+  // gated=true means the user is below the entitlement tier for the
+  // full filtered feed. The API still returns a count so the badge
+  // works, but the sheet renders an upgrade message instead of rows.
+  const [gated, setGated] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
     setLoading(true);
     setError(null);
+    setGated(false);
+    // Clear stale rows immediately so a re-open after a failed fetch
+    // doesn't render yesterday's threads under a fresh error banner.
+    setThreads([]);
     void fetch("/api/opportunities/filtered")
       .then((r) => r.json())
       .then((json) => {
@@ -53,7 +61,12 @@ export function FilteredFeedSheet({ open, onClose }: Props) {
           setError(json.error ?? "Failed to load filtered threads");
           return;
         }
-        setThreads(json.threads ?? []);
+        if (json.gated) {
+          setGated(true);
+          setThreads([]);
+        } else {
+          setThreads(json.threads ?? []);
+        }
         track({
           name: "filtered_feed_opened",
           props: { filtered_count: json.count ?? 0 },
@@ -124,7 +137,7 @@ export function FilteredFeedSheet({ open, onClose }: Props) {
               Loading…
             </p>
           )}
-          {error && (
+          {!loading && error && (
             <p
               className="py-8 text-center text-sm"
               style={{ color: "var(--danger)" }}
@@ -132,7 +145,25 @@ export function FilteredFeedSheet({ open, onClose }: Props) {
               {error}
             </p>
           )}
-          {!loading && !error && threads.length === 0 && (
+          {!loading && !error && gated && (
+            <div
+              className="rounded-lg p-4 text-sm"
+              style={{
+                background: "var(--accent-subtle)",
+                color: "var(--text-primary)",
+                border: "1px solid var(--border)",
+              }}
+            >
+              <p className="font-semibold">Filtered feed is a Standard feature.</p>
+              <p
+                className="mt-1 text-xs"
+                style={{ color: "var(--text-secondary)" }}
+              >
+                Upgrade to see why Scout dropped these threads — cold-entry warnings, hostile communities, mature discussions, and more.
+              </p>
+            </div>
+          )}
+          {!loading && !error && !gated && threads.length === 0 && (
             <p
               className="py-8 text-center text-sm"
               style={{ color: "var(--text-tertiary)" }}
@@ -140,11 +171,13 @@ export function FilteredFeedSheet({ open, onClose }: Props) {
               Nothing filtered today — Scout surfaced everything.
             </p>
           )}
-          <ul className="flex flex-col gap-3">
-            {threads.map((row) => (
-              <FilteredRow key={row.id} row={row} />
-            ))}
-          </ul>
+          {!loading && !error && !gated && threads.length > 0 && (
+            <ul className="flex flex-col gap-3">
+              {threads.map((row) => (
+                <FilteredRow key={row.id} row={row} />
+              ))}
+            </ul>
+          )}
         </div>
       </div>
     </div>

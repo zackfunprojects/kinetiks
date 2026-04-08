@@ -27,10 +27,15 @@ export default async function WriteTabPage() {
   const { session } = result;
 
   const supabase = createDeskOfServerClient();
-  const [opportunities, filteredCount] = await Promise.all([
+  // The filtered counter is best-effort: if the count query fails the
+  // Write tab still has to render. countTodaysFilteredThreads now
+  // throws on Supabase errors (CodeRabbit fix — silent zero hid RLS
+  // regressions), so we Promise.allSettled it independently.
+  const [opportunities, filteredCountResult] = await Promise.all([
     getPendingOpportunities(supabase, session.user_id, 10),
-    countTodaysFilteredThreads(supabase, session.user_id),
+    countTodaysFilteredThreads(supabase, session.user_id).catch(() => 0),
   ]);
+  const filteredCount = filteredCountResult;
 
   // Free tier never sees suggested angles — the angle teaser fires
   // the upgrade-to-Standard conversion trigger inside the card itself.

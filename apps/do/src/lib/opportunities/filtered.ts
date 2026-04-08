@@ -74,17 +74,32 @@ function rowToFiltered(row: FilteredRow): FilteredThread | null {
 }
 
 /**
+ * Compute the start of "today" in UTC. The Quality Addendum #7
+ * daily-reset contract is anchored to UTC, not the server timezone,
+ * so a Sydney user and a New York user see the same row set as long
+ * as the wall clock crosses 00:00 UTC. Callers can override
+ * `now` for tests; production callers leave it unset.
+ */
+function startOfDayUtc(now: Date = new Date()): string {
+  const d = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0)
+  );
+  return d.toISOString();
+}
+
+/**
  * Read today's filtered threads for a user. "Today" is defined as
- * the calendar day of the user's request — Quality Addendum #7
- * specifies a daily reset for the review surface.
+ * the calendar day in UTC — Quality Addendum #7 specifies a daily
+ * reset for the review surface, anchored to a stable timezone so
+ * users in different regions see consistent rollover behavior.
  */
 export async function getTodaysFilteredThreads(
   supabase: SupabaseClient,
   userId: string,
-  limit = 50
+  options: { limit?: number; now?: Date } = {}
 ): Promise<FilteredThread[]> {
-  const startOfDay = new Date();
-  startOfDay.setHours(0, 0, 0, 0);
+  const limit = options.limit ?? 50;
+  const start = startOfDayUtc(options.now);
 
   const { data, error } = await supabase
     .from("deskof_filtered_threads")
@@ -92,7 +107,7 @@ export async function getTodaysFilteredThreads(
       "id, thread_id, filter_reason, reason_detail, hypothetical_score, filtered_at, thread:deskof_threads!inner(id, platform, external_id, url, community, title, body, score, comment_count, thread_created_at, fetched_at)"
     )
     .eq("user_id", userId)
-    .gte("filtered_at", startOfDay.toISOString())
+    .gte("filtered_at", start)
     .order("filtered_at", { ascending: false })
     .limit(limit);
 
@@ -108,21 +123,28 @@ export async function getTodaysFilteredThreads(
 /**
  * Count today's filtered threads — used by the Write tab header
  * counter ("Filtered: 6 today") without paying the join cost.
+ *
+ * Throws on Supabase errors. Earlier versions swallowed the error
+ * and returned 0, which made RLS regressions and free-tier outages
+ * look identical to "nothing filtered today" — a silent failure.
+ * Callers must wrap in try/catch (the API route already does).
  */
 export async function countTodaysFilteredThreads(
   supabase: SupabaseClient,
-  userId: string
+  userId: string,
+  options: { now?: Date } = {}
 ): Promise<number> {
-  const startOfDay = new Date();
-  startOfDay.setHours(0, 0, 0, 0);
+  const start = startOfDayUtc(options.now);
 
   const { count, error } = await supabase
     .from("deskof_filtered_threads")
     .select("*", { count: "exact", head: true })
     .eq("user_id", userId)
-    .gte("filtered_at", startOfDay.toISOString());
+    .gte("filtered_at", start);
 
-  if (error) return 0;
+  if (error) {
+    throw new Error(`countTodaysFilteredThreads failed: ${error.message}`);
+  }
   return count ?? 0;
 }
 

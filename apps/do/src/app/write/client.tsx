@@ -66,6 +66,15 @@ export function WriteTabClient({
   }
 
   async function handleRefresh() {
+    // Phase 4 — kick the Scout v2 refresh route to compute new
+    // opportunities + filtered rows for the user, then re-render
+    // the page so the queue and filtered-feed badge pick them up.
+    try {
+      await fetch("/api/opportunities/refresh", { method: "POST" });
+    } catch {
+      // Network failure is fine — router.refresh below still picks
+      // up whatever is in the database.
+    }
     router.refresh();
   }
 
