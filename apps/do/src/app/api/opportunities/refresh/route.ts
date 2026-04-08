@@ -47,6 +47,12 @@ interface ThreadRow {
   comment_count: number;
   thread_created_at: string;
   fetched_at: string;
+  // Phase 4 velocity + enrichment columns (migration 00030).
+  upvotes_per_hour: number | null;
+  comments_per_hour: number | null;
+  existing_reply_count: number | null;
+  contains_question: boolean | null;
+  mod_removal_rate: number | null;
 }
 
 function rowToSnapshot(row: ThreadRow): ThreadSnapshot {
@@ -62,6 +68,11 @@ function rowToSnapshot(row: ThreadRow): ThreadSnapshot {
     comment_count: row.comment_count,
     created_at: row.thread_created_at,
     fetched_at: row.fetched_at,
+    upvotes_per_hour: row.upvotes_per_hour,
+    comments_per_hour: row.comments_per_hour,
+    existing_reply_count: row.existing_reply_count,
+    contains_question: row.contains_question,
+    mod_removal_rate: row.mod_removal_rate,
   };
 }
 
@@ -88,7 +99,7 @@ export async function POST() {
   const { data: threadRows, error: threadErr } = await supabase
     .from("deskof_threads")
     .select(
-      "id, platform, external_id, url, community, title, body, score, comment_count, thread_created_at, fetched_at"
+      "id, platform, external_id, url, community, title, body, score, comment_count, thread_created_at, fetched_at, upvotes_per_hour, comments_per_hour, existing_reply_count, contains_question, mod_removal_rate"
     )
     .gte("thread_created_at", since)
     .order("thread_created_at", { ascending: false })
@@ -102,15 +113,22 @@ export async function POST() {
   const threads = (threadRows ?? []).map((r) => rowToSnapshot(r as ThreadRow));
 
   // 2. Last-7-day reply cadence per community for the duplicate-
-  //    coverage anti-signal.
+  //    coverage anti-signal. Errors propagate — a silent empty map
+  //    would mis-score the queue and hide DB / RLS regressions.
   const replySince = new Date(
     Date.now() - RECENT_REPLY_DAYS * 24 * 60 * 60 * 1000
   ).toISOString();
-  const { data: replyRows } = await supabase
+  const { data: replyRows, error: replyErr } = await supabase
     .from("deskof_replies")
     .select("opportunity_id, posted_at")
     .eq("user_id", auth.session.user_id)
     .gte("posted_at", replySince);
+  if (replyErr) {
+    return NextResponse.json(
+      { success: false, error: `reply cadence fetch failed: ${replyErr.message}` },
+      { status: 500 }
+    );
+  }
   const recentByCommunity = new Map<string, number>();
   if (replyRows && replyRows.length > 0) {
     // Resolve community via join: cheaper to do a separate read
@@ -118,10 +136,19 @@ export async function POST() {
     const oppIds = (replyRows as Array<{ opportunity_id: string }>).map(
       (r) => r.opportunity_id
     );
-    const { data: oppRows } = await supabase
+    const { data: oppRows, error: oppErr } = await supabase
       .from("deskof_opportunities")
       .select("id, thread:deskof_threads!inner(community)")
       .in("id", oppIds);
+    if (oppErr) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `opportunity lookup failed: ${oppErr.message}`,
+        },
+        { status: 500 }
+      );
+    }
     for (const row of (oppRows ?? []) as Array<{
       thread: { community: string } | { community: string }[] | null;
     }>) {
@@ -144,10 +171,20 @@ export async function POST() {
     { limit: 20, llm_enrichment_top_n: 5 }
   );
 
-  // 4. Insert new opportunity rows. We don't dedupe against existing
-  //    pending rows here — re-surfacing is allowed in production
-  //    (the spec calls this "re-rank on refresh"). The Write tab
-  //    queue query orders by score so duplicates get hidden anyway.
+  // 4. Persist surfaced opportunities idempotently.
+  //
+  // deskof_opportunities intentionally has NO unique constraint on
+  // (user_id, thread_id) because re-surfacing an already-skipped or
+  // expired thread is a first-class operation in the spec (the
+  // "re-rank on refresh" story). That means a plain .insert() here
+  // would duplicate pending rows on every refresh press.
+  //
+  // The idempotency rule we DO want: a refresh with the same thread
+  // set should leave at most one pending row per (user, thread).
+  // Delete any existing PENDING rows for the thread IDs we're about
+  // to surface, then insert fresh. Skipped/expired rows stay as
+  // historical records, which is what "re-surfacing is allowed"
+  // preserves.
   if (result.surfaced.length > 0) {
     const oppRows = result.surfaced.map((entry) => ({
       user_id: auth.session.user_id,
@@ -161,6 +198,22 @@ export async function POST() {
       surfaced_at: entry.opportunity.surfaced_at,
       expires_at: entry.opportunity.expires_at,
     }));
+    const threadIds = result.surfaced.map((entry) => entry.thread.id);
+    const { error: cleanupError } = await admin
+      .from("deskof_opportunities")
+      .delete()
+      .eq("user_id", auth.session.user_id)
+      .eq("status", "pending")
+      .in("thread_id", threadIds);
+    if (cleanupError) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `opportunity cleanup failed: ${cleanupError.message}`,
+        },
+        { status: 500 }
+      );
+    }
     const { error: insertError } = await admin
       .from("deskof_opportunities")
       .insert(oppRows);

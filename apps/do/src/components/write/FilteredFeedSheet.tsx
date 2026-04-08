@@ -17,7 +17,7 @@
  * Free-tier users never see this sheet — the parent component
  * gates it behind `<UpgradeGate feature="filtered_feed_full">`.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { track } from "@/lib/analytics";
 import type { ThreadSnapshot } from "@kinetiks/deskof";
 
@@ -43,6 +43,28 @@ export function FilteredFeedSheet({ open, onClose }: Props) {
   // full filtered feed. The API still returns a count so the badge
   // works, but the sheet renders an upgrade message instead of rows.
   const [gated, setGated] = useState(false);
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
+
+  // Accessibility: move focus into the dialog on open, restore on
+  // close, and close on Escape. Matches the WAI-ARIA dialog pattern
+  // so screen readers announce the sheet as a modal.
+  useEffect(() => {
+    if (!open) return;
+    previousFocusRef.current = document.activeElement as HTMLElement | null;
+    closeButtonRef.current?.focus();
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        onClose();
+      }
+    }
+    window.addEventListener("keydown", handleKey);
+    return () => {
+      window.removeEventListener("keydown", handleKey);
+      previousFocusRef.current?.focus?.();
+    };
+  }, [open, onClose]);
 
   useEffect(() => {
     if (!open) return;
@@ -93,6 +115,10 @@ export function FilteredFeedSheet({ open, onClose }: Props) {
       onClick={onClose}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="filtered-feed-title"
+        aria-describedby="filtered-feed-description"
         onClick={(e) => e.stopPropagation()}
         className="flex max-h-[85vh] w-full flex-col rounded-t-2xl md:max-w-lg md:rounded-2xl"
         style={{
@@ -103,12 +129,14 @@ export function FilteredFeedSheet({ open, onClose }: Props) {
         <header className="flex items-center justify-between px-5 py-4">
           <div>
             <h2
+              id="filtered-feed-title"
               className="text-base font-semibold"
               style={{ color: "var(--text-primary)" }}
             >
               Filtered today
             </h2>
             <p
+              id="filtered-feed-description"
               className="text-xs"
               style={{ color: "var(--text-tertiary)" }}
             >
@@ -116,6 +144,7 @@ export function FilteredFeedSheet({ open, onClose }: Props) {
             </p>
           </div>
           <button
+            ref={closeButtonRef}
             type="button"
             onClick={onClose}
             className="rounded-full px-3 py-1 text-xs"
