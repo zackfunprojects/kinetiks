@@ -75,9 +75,18 @@ kinetiks/
     seed.sql
     functions/                   # Supabase Edge Functions
   docs/
-    platform-contract.md         # How apps/integrations/agents plug in [THE REFERENCE]
-    kinetiks-product-spec-v3.md  # Full product vision
-    specs/                       # System specs (approval, command router, analytics, comms)
+    README.md                    # Map of the docs folder
+    kinetiks-product-spec-v3.md  # CANONICAL product spec
+    kinetiks-roadmap.md          # CANONICAL roadmap
+    platform-contract.md         # CANONICAL integration contract
+    kinetiks-core-architecture-v2.md  # CANONICAL technical architecture
+    collaborative-workspace-spec.md   # CANONICAL desktop interaction model
+    specs/                       # Subsystem specs (approval, command router, analytics, comms, marcus, programs, autopilot)
+    archive/                     # Superseded but preserved (Plan 1 marcus, prior CLAUDE.md)
+    legacy/                      # v1/v2 specs, retired directions (Terminal, DeskOf)
+    build-phases/
+      built/                     # Phase 1-6 implementation plans (complete)
+      upcoming/                  # New phase plans authored here as scoped
   turbo.json
   pnpm-workspace.yaml
   CLAUDE.md                      # THIS FILE
@@ -423,13 +432,17 @@ Priority order (see `docs/kinetiks-roadmap.md` for full detail):
 
 ## Related Documents
 
+- **docs/README.md** - Map of the docs folder. Read first if unfamiliar.
 - **docs/platform-contract.md** - How apps, integrations, and agents plug into Kinetiks. THE reference for building anything that connects to the core.
 - **docs/kinetiks-core-architecture-v2.md** - The 2026 agent-native architecture. Tool layer, agent runtime, insight store, approval membrane.
 - **docs/kinetiks-roadmap.md** - Strategic roadmap with timeline.
 - **docs/kinetiks-product-spec-v3.md** - Full product vision.
+- **docs/collaborative-workspace-spec.md** - Desktop app interaction model (split-panel collaboration, presence, task drawer).
 - **docs/specs/approval-system-spec.md** - Approval system architecture.
 - **docs/specs/cross-app-command-router-spec.md** - Command routing.
 - **docs/specs/analytics-goals-engine-spec.md** - Oracle architecture, goals.
 - **docs/specs/agent-communication-layer-spec.md** - Email, Slack, calendar.
-- **docs/specs/marcus-engine-v2-plan.md** - Marcus conversation engine.
-- **docs/specs/marcus-conversation-quality-plan.md** - Marcus quality enforcement.
+- **docs/specs/marcus-engine-v2-plan.md** - Marcus conversation engine (current).
+- **docs/specs/programs-spec.md** - Programs / Workflows / Tasks hierarchy (formerly "Platform Addendum").
+- **docs/specs/autopilot-spec.md** - GTM Autopilot specification.
+- **docs/archive/marcus-conversation-quality-plan.md** - Plan 1 for the Marcus engine, superseded by `marcus-engine-v2-plan.md`. Historical reference only.

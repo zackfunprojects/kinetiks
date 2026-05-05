@@ -9,7 +9,7 @@
 **Tech Stack:** Next.js 14 (App Router), TypeScript, Tailwind CSS 4, Electron, Supabase
 
 **Spec References:**
-- `docs/specs/kinetiks-product-spec-v3.md` — Sections 4 (Desktop App), 5 (Chat Tab), 7 (Analytics Tab), 8 (Cortex Tab), 9 (Settings Modal)
+- `docs/kinetiks-product-spec-v3.md` — Sections 4 (Desktop App), 5 (Chat Tab), 7 (Analytics Tab), 8 (Cortex Tab), 9 (Settings Modal)
 - `CLAUDE.md` — Navigation & Application Architecture, apps/id/ Directory Structure, Design System
 
 **Architectural Principles (apply to every task):**

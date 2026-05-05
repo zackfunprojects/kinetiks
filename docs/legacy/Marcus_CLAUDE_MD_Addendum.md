@@ -1,6 +1,6 @@
 # Marcus Operator - CLAUDE.md Addendum
 
-> **HISTORICAL REFERENCE — DO NOT BUILD FROM THIS FILE.** This addendum was an instruction set asking Claude Code to integrate Marcus into the live root `CLAUDE.md`. The integration was completed; the addendum is now historical. Marcus's current architecture is documented in `specs/marcus-engine-v2-plan.md` and the root `CLAUDE.md`.
+> **HISTORICAL REFERENCE — DO NOT BUILD FROM THIS FILE.** This addendum was an instruction set asking Claude Code to integrate Marcus into the live root `CLAUDE.md`. The integration was completed; the addendum is now historical. Marcus's current architecture is documented in `../specs/marcus-engine-v2-plan.md` and the root `CLAUDE.md`.
 
 > **Instructions for Claude Code:** Read this addendum and update the live CLAUDE.md accordingly.
 > This document defines Marcus, the third Cortex Operator. Integrate these additions into the

@@ -1,8 +1,10 @@
-# Kinetiks Platform Addendum: Programs, Policies, and Operational Integrity
+# Programs, Workflows, and Tasks: Operational Integrity Spec
 
-> **This addendum introduces six architectural upgrades to the Kinetiks platform.**
+> Formerly titled "Kinetiks Platform Addendum: Programs, Policies, and Operational Integrity." Renamed during the docs reorganization to match the `*-spec.md` convention. Content unchanged below.
+
+> **This spec introduces six architectural upgrades to the Kinetiks platform.**
 > These are not new products or features. They are structural improvements to how the system plans, governs, executes, verifies, and traces GTM work. They make the difference between a system that generates work and a system that compounds intelligence over time.
-> This document depends on and extends: the GTM Autopilot Spec, the Approval System Spec, the Analytics & Goals Engine Spec, the Cross-App Command Router Spec, and the Platform Contract.
+> This document depends on and extends: `autopilot-spec.md`, `approval-system-spec.md`, `analytics-goals-engine-spec.md`, `cross-app-command-router-spec.md`, and `../platform-contract.md`.
 
 ---
 

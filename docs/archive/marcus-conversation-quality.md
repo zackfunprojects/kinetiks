@@ -1,6 +1,6 @@
 # Marcus Conversation Quality System
 
-> **HISTORICAL REFERENCE — DO NOT BUILD FROM THIS FILE.** This summarized the Plan 1 enforcement architecture (manifest → system prompt → post-generation validator → rewrite). Plan 1 was superseded by `specs/marcus-engine-v2-plan.md`. Kept for context.
+> **HISTORICAL REFERENCE — DO NOT BUILD FROM THIS FILE.** This summarized the Plan 1 enforcement architecture (manifest → system prompt → post-generation validator → rewrite). Plan 1 was superseded by `../specs/marcus-engine-v2-plan.md`. Kept for context.
 
 ## Problem
 

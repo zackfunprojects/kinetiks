@@ -2,7 +2,7 @@
 
 > **The split-panel, shared-surface interaction model for Kinetiks desktop and web.**
 > This spec defines how users and their named system work together on app surfaces in real time - not as a handoff relay, but as co-participants on a shared workspace.
-> Depends on: cross-app-command-router-spec.md, approval-system-spec.md, CLAUDE-v2.md (Phase 1 shell, Phase 4 routing)
+> Depends on: `specs/cross-app-command-router-spec.md`, `specs/approval-system-spec.md`, the root `CLAUDE.md` (Phase 1 shell and Phase 4 routing — see `build-phases/built/phase-1-core-shell.md` and `build-phases/built/phase-4-command-router.md`)
 > Phase: 4+ (after cross-app command routing is solid)
 
 ---

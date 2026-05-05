@@ -1770,11 +1770,11 @@ git commit -m "test(marcus): add v2 pipeline integration tests reproducing bug r
 Not a code task. This is a testing guide for verifying the pipeline works end-to-end in the running application.
 
 **Files:**
-- Create: `docs/marcus-v2-testing-playbook.md`
+- Create: `docs/specs/marcus-v2-testing-playbook.md`
 
 - [ ] **Step 1: Write the playbook**
 
-Create `docs/marcus-v2-testing-playbook.md`:
+Create `docs/specs/marcus-v2-testing-playbook.md`:
 
 ```markdown
 # Marcus V2 Manual Testing Playbook
@@ -1871,7 +1871,7 @@ FAIL if:
 - [ ] **Step 2: Commit**
 
 ```bash
-git add docs/marcus-v2-testing-playbook.md
+git add docs/specs/marcus-v2-testing-playbook.md
 git commit -m "docs: add Marcus v2 manual testing playbook"
 ```
 

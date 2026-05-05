@@ -9,7 +9,7 @@
 **Tech Stack:** Next.js 14, TypeScript, Supabase, Tailwind CSS 4
 
 **Spec References:**
-- `docs/specs/kinetiks-product-spec-v3.md` — Sections 2 (System Identity), 8 (Cortex Tab)
+- `docs/kinetiks-product-spec-v3.md` — Sections 2 (System Identity), 8 (Cortex Tab)
 - `docs/specs/analytics-goals-engine-spec.md` — Section 2 (Goal System), Section 10 (Budget System)
 
 ---

@@ -1,6 +1,6 @@
 # Marcus - Core System Prompt
 
-> **HISTORICAL REFERENCE — DO NOT BUILD FROM THIS FILE.** Superseded by `specs/marcus-engine-v2-plan.md`, which moves Marcus to a "pre-compute then generate" architecture and shrinks the system prompt from ~3000 tokens of rules to ~300 tokens of persona. Kept for context on the original prompt design.
+> **HISTORICAL REFERENCE — DO NOT BUILD FROM THIS FILE.** Superseded by `../specs/marcus-engine-v2-plan.md`, which moves Marcus to a "pre-compute then generate" architecture and shrinks the system prompt from ~3000 tokens of rules to ~300 tokens of persona. Kept for context on the original prompt design.
 
 > This file defines the persona, rules, and behavior of Marcus, the third Cortex Operator.
 > It is assembled dynamically at runtime with the user's Context Structure and current state injected.
