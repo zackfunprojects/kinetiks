@@ -1,5 +1,7 @@
 # Marketing Knowledge Integration Guide
 
+> **HISTORICAL REFERENCE — preserved for context.** This guide describes how operators wire into `@kinetiks/ai`'s marketing knowledge layer. The mechanics may still be operationally accurate, but the canonical architecture lives in `kinetiks-product-spec-v3.md` and `platform-contract.md`. Verify against current code (`packages/ai/src/knowledge/`) before relying on any specific path or interface here.
+
 > **For Claude Code:** Read this document before building any new operator or app.
 > It describes the marketing knowledge system in `@kinetiks/ai` and how every operator should wire into it.
 

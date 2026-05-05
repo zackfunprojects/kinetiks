@@ -1,5 +1,7 @@
 # Kinetiks Terminal
 
+> **HISTORICAL REFERENCE — DO NOT BUILD FROM THIS FILE.** The Terminal product direction has been retired. The current canonical product spec is `../../kinetiks-product-spec-v3.md`. Kept for context on the earlier product vision.
+
 **Product Spec v2.0**
 **The command center for growth.**
 

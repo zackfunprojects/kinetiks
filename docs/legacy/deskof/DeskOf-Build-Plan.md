@@ -1,5 +1,7 @@
 # DeskOf - Comprehensive Build Plan
 
+> **HISTORICAL REFERENCE — DO NOT BUILD FROM THIS FILE.** DeskOf is being spun out of the Kinetiks monorepo per `../../kinetiks-roadmap.md`. This document is preserved here until the DeskOf spinoff repo is created.
+
 > **Source docs:** `DeskOf-CLAUDE.md`, `DeskOf-Product-Brief.docx`, `DeskOf-Build-Companion.docx`, `DeskOf-Integration-Architecture.docx`, `DeskOf-Quality-Addendum.docx`, `DeskOf-Final-Supplement.docx`, `DeskOf-Research-Spike.docx`
 >
 > **Goal:** Production-ready, scalable. Cuts no corners from spec scope. All 10 Quality Addendum findings + all 6 Final Supplement gaps integrated into the right phases.

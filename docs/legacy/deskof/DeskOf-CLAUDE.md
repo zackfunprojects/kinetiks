@@ -1,5 +1,7 @@
 # DeskOf - CLAUDE.md
 
+> **HISTORICAL REFERENCE — DO NOT BUILD FROM THIS FILE.** DeskOf is being spun out of the Kinetiks monorepo per `../../kinetiks-roadmap.md`. This is preserved here until the spinoff repo is created.
+
 > AI-powered discovery, human-only publishing.
 
 DeskOf is the expert routing and authority-building app in the Kinetiks AI ecosystem. It surfaces conversations across Reddit and Quora where a specific human's expertise is the right answer, helps them show up effectively, and tracks the compounding value of their contributions.

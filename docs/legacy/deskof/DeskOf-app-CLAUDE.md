@@ -1,4 +1,6 @@
-# DeskOf - CLAUDE.md
+# DeskOf - CLAUDE.md (app-side)
+
+> **HISTORICAL REFERENCE — DO NOT BUILD FROM THIS FILE.** This was the `apps/do/CLAUDE.md` companion. DeskOf is being spun out per `../../kinetiks-roadmap.md`. Source code still lives at `apps/do/` for the moment.
 
 > AI-powered discovery, human-only publishing.
 

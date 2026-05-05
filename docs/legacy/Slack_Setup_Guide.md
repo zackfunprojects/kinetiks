@@ -1,5 +1,7 @@
 # Marcus Slack Bot - Setup Guide
 
+> **HISTORICAL REFERENCE — verify before relying on these steps.** The canonical spec for Slack/email/calendar behavior is `specs/agent-communication-layer-spec.md`. The setup steps below may still be accurate as a runbook for connecting the named system to Slack, but they have not been re-verified against current Slack APIs or Kinetiks code paths. Treat as a starting point, not a source of truth.
+
 This guide walks through creating the Slack app, configuring it, and connecting it to Kinetiks so Marcus can communicate via Slack.
 
 ---

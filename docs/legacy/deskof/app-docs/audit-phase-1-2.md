@@ -1,5 +1,7 @@
 # DeskOf Phase 1 + 2 Audit
 
+> **HISTORICAL REFERENCE — DO NOT BUILD FROM THIS FILE.** DeskOf is being spun out per `../../../kinetiks-roadmap.md`. Preserved here until the spinoff repo is created.
+
 **Date:** 2026-04-07
 **Scope:** Everything on `main` as of commit `faaba91` (Phase 1 merged). Phase 2 work that has landed in `main` under `apps/do/src/**`, `packages/cortex/src/operator-profile/**`, `packages/deskof/src/**`, and migrations `00025`-`00027`.
 **Posture:** Brutal. The user asked where we cut corners; this document names them.

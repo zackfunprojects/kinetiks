@@ -1,5 +1,7 @@
 # CLAUDE.md - Kinetiks AI Monorepo
 
+> **HISTORICAL REFERENCE — DO NOT BUILD FROM THIS FILE.** This is the v2 root `CLAUDE.md`. It was superseded by the current root `CLAUDE.md` (one level up from this file). Kept for context on prior architecture.
+
 > **This is the single source of truth for the entire Kinetiks AI codebase.**
 > Read this file completely before every task. It contains the monorepo structure, shared architecture, data model, agent system, conventions, and rules that govern all apps.
 > This file lives at the ROOT of the monorepo. Each app (apps/id, apps/dm, etc.) may have its own supplementary CLAUDE.md for app-specific context, but THIS file is the authority.

@@ -1,4 +1,6 @@
-# DeskOf
+# DeskOf (app-side README)
+
+> **HISTORICAL REFERENCE — DO NOT BUILD FROM THIS FILE.** This was the `apps/do/README.md`. DeskOf is being spun out per `../../kinetiks-roadmap.md`.
 
 > AI-powered discovery, human-only publishing.
 
