@@ -1,5 +1,7 @@
 # Marcus Conversation Quality Overhaul - Implementation Plan
 
+> **HISTORICAL REFERENCE — DO NOT BUILD FROM THIS FILE.** This was Plan 1 for the Marcus conversation engine. It was superseded by `specs/marcus-engine-v2-plan.md`, which replaces "generate then validate" with "pre-compute then generate." Kept here for context on why the v2 architecture exists.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Fix six critical failures in Marcus's conversation engine so responses are evidence-grounded, concise, honest about data gaps, and match the stoic voice spec instead of behaving like a generic chatbot wrapper.
