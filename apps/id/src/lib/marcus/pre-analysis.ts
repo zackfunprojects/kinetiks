@@ -41,6 +41,7 @@ export async function buildPreAnalysisBrief(
   claudeHaiku: (prompt: string) => Promise<any>,
   toolInventory?: string,
   recentInsights?: import('./types').InsightForBrief[],
+  recentPatterns?: import('./types').PatternForBrief[],
 ): Promise<{ brief: PreAnalysisBrief; formatted: string }> {
   const memoryFacts = formatMemoriesForContext(memories);
 
@@ -77,6 +78,9 @@ export async function buildPreAnalysisBrief(
     if (!brief.action_availability) brief.action_availability = [];
     if (recentInsights && recentInsights.length > 0) {
       brief.recent_insights = recentInsights;
+    }
+    if (recentPatterns && recentPatterns.length > 0) {
+      brief.recent_patterns = recentPatterns;
     }
 
     const formatted = formatBriefForSonnet(brief, toolInventory);
@@ -166,6 +170,21 @@ export function formatBriefForSonnet(
           .join('\n')}`
       : '';
 
+  // L1a (2027 addendum §1.12) — high-confidence patterns the system has
+  // observed about this customer's business. EVIDENCE, not statistics:
+  // weave the implication into the response. The response body never
+  // dumps raw pattern fingerprints, dimension blobs, or metric tables.
+  // Cite by pattern_id when referencing.
+  const patternsBlock =
+    brief.recent_patterns && brief.recent_patterns.length > 0
+      ? `\n\n[RELEVANT PATTERNS - empirically validated signatures observed for THIS account; treat as evidence to weave into the recommendation's implication, NOT as statistics to recite. Do not paste raw dimension blobs or metric tables in your response. Cite by pattern_id when relevant.]\n${brief.recent_patterns
+          .map(
+            (p) =>
+              `- [pattern_id=${p.pattern_id}] [${p.status}] [emitted_by=${p.emitting_app}] ${p.summary}`,
+          )
+          .join('\n')}`
+      : '';
+
   return `[EVIDENCE BRIEF - use ONLY this evidence in your response]
 Available data you CAN cite:
 ${evidence}
@@ -174,7 +193,7 @@ Data you DO NOT have (do not fabricate):
 ${notAvailable}
 
 [CONVERSATION MEMORY - these are decisions/corrections from this thread, honor them]
-${memory}${platformBlock}${observationsBlock}${insightsBlock}
+${memory}${platformBlock}${observationsBlock}${insightsBlock}${patternsBlock}
 
 [RESPONSE CONSTRAINTS]
 - Maximum ${brief.response_shape.max_sentences} sentences

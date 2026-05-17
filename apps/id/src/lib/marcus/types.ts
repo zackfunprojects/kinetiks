@@ -86,6 +86,13 @@ export interface PreAnalysisBrief {
    * response and stamps delivered=true only on cited ids.
    */
   recent_insights?: InsightForBrief[];
+  /**
+   * L1a (2027 addendum §1.12) — top-N high-confidence patterns for
+   * this account. Pre-fetched passively (NOT a tool result); Marcus
+   * weaves the implication into the response. The response body never
+   * dumps raw statistics.
+   */
+  recent_patterns?: PatternForBrief[];
 }
 
 export interface InsightForBrief {
@@ -93,6 +100,23 @@ export interface InsightForBrief {
   type: string;
   severity: "info" | "notable" | "urgent";
   source_app: string;
+  summary: string;
+}
+
+/**
+ * Pattern projection injected into the brief. Same shape as the
+ * helper in patterns-for-brief.ts; declared here so types.ts stays
+ * the canonical brief contract.
+ */
+export interface PatternForBrief {
+  pattern_id: string;
+  pattern_type: string;
+  emitting_app: string;
+  status: "emerging" | "validated" | "declining";
+  applies_to_icp: string | null;
+  confidence_score: number;
+  observation_count: number;
+  primary_metric: { name: string; value: number; unit: string } | null;
   summary: string;
 }
 

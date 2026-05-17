@@ -15,6 +15,7 @@ import {
 import { loadThreadMemories, extractAndPersistMemories } from "./memory";
 import { buildPreAnalysisBrief, formatBriefForSonnet } from "./pre-analysis";
 import { loadInsightsForBrief } from "@/lib/oracle/insights/reader";
+import { loadPatternsForBrief } from "./patterns-for-brief";
 import { stampDeliveredFromResponse } from "@/lib/oracle/insights/delivery";
 import { buildPersonaPrompt } from "./prompts/marcus-persona";
 import { generateActions } from "./action-generator";
@@ -125,6 +126,11 @@ export async function processMarcusMessage(
     source_app: p.source_app,
     summary: p.summary,
   }));
+  // L1a — passive Pattern Library pre-fetch per addendum §1.12.
+  const briefPatterns = await loadPatternsForBrief({
+    admin,
+    account_id: accountId,
+  });
   const { brief, formatted: briefText } = await buildPreAnalysisBrief(
     message,
     manifest,
@@ -134,6 +140,7 @@ export async function processMarcusMessage(
     haikuFor("marcus.pre_analysis"),
     toolInventory,
     briefInsights,
+    briefPatterns,
   );
   console.log("[ENGINE] brief evidence count:", brief.available_evidence.length);
   console.log("[ENGINE] brief must_not:", brief.response_shape.must_not);
@@ -334,6 +341,11 @@ export async function streamMarcusMessage(
     source_app: p.source_app,
     summary: p.summary,
   }));
+  // L1a — passive Pattern Library pre-fetch per addendum §1.12.
+  const briefPatterns = await loadPatternsForBrief({
+    admin,
+    account_id: accountId,
+  });
   const { brief, formatted: briefText } = await buildPreAnalysisBrief(
     message,
     manifest,
@@ -343,6 +355,7 @@ export async function streamMarcusMessage(
     haikuFor("marcus.pre_analysis"),
     toolInventory,
     briefInsights,
+    briefPatterns,
   );
 
   // 7.5. Tool decision + invocation (D1). See processMarcusMessage for
