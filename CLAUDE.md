@@ -682,6 +682,18 @@ Marcus saying "I've queued briefs to Harvest" without an actual approved action 
 
 These cannot be filtered out post-hoc. They show up as patterns the model is rewarded for and have to be unlearned at the prompt level. **Rule:** the Marcus persona prompt carries explicit anti-sycophancy and anti-verbosity rules with examples. Style filters in the rewrite loop did not help.
 
+### 5. Cache TTL belongs on the row, not on a generated column
+
+D1's first sketch of `kinetiks_metric_cache` derived `expires_at` from `refreshed_at + stale_after_seconds` via a Postgres generated column. Two states (fresh / stale) instead of three (fresh / stale-usable / hard-miss) and policy-coupled-to-data forever. **Rule:** `kinetiks_metric_cache.expires_at` is a real column set on each write. Marcus needs to hedge on stale answers, so the tool surfaces `cache_status: 'fresh' | 'stale_revalidating' | 'fresh_from_extractor'` in its output. Future per-metric-class TTL changes touch the cache helper, not the schema.
+
+### 6. Marcus tool calls are pre-decided, not multi-turn
+
+D1's step 7.5 (a Haiku that ranks the user message against registered tools, picks zero or one, and either invokes via the Runtime or skips) was deliberately not implemented as a Claude multi-turn `tool_use` loop. **Rule:** one Haiku decides, one Sonnet writes. Bounded token budget, no risk of Sonnet hallucinating a tool name post-generation, and the trace shape stays consistent with v2's "pre-analysis dictates downstream" architecture. Revisit only when a phase needs to compose tool results from multiple sources (D3, GSC + Stripe).
+
+### 7. Cron + Node API split for Deno-incompatible SDKs
+
+Edge Functions run under Deno; `@google-analytics/data` is Node-only. D1's `metric-cache-cron` (Deno) therefore POSTs to `/api/internal/metric-cache/refresh` in apps/id (Node) for every due cache row. **Rule:** any cron that needs a Node-only SDK calls back into apps/id via `INTERNAL_SERVICE_SECRET`-authenticated route. Same pattern as `gmail-sync-cron` → Harvest API. Document the boundary in the cron's code comments and README so future contributors do not waste a day trying to import a Node SDK in Deno.
+
 (Add entries below as new scars accumulate.)
 
 ---
