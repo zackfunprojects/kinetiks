@@ -13,10 +13,11 @@ import {
   autoTitleThread,
 } from "./thread-manager";
 import { loadThreadMemories, extractAndPersistMemories } from "./memory";
-import { buildPreAnalysisBrief } from "./pre-analysis";
+import { buildPreAnalysisBrief, formatBriefForSonnet } from "./pre-analysis";
 import { buildPersonaPrompt } from "./prompts/marcus-persona";
 import { generateActions } from "./action-generator";
 import { assembleResponse } from "./response-assembler";
+import { decideAndInvokeTool } from "./tool-decision";
 import type { DataAvailabilityManifest, ActionGenerationResult } from "./types";
 
 /**
@@ -120,6 +121,22 @@ export async function processMarcusMessage(
   console.log("[ENGINE] brief evidence count:", brief.available_evidence.length);
   console.log("[ENGINE] brief must_not:", brief.response_shape.must_not);
 
+  // 7.5. Tool decision + invocation (D1). A Haiku picks whether any
+  // single registered tool would directly answer the question; if yes,
+  // the Runtime invokes it and we re-render the brief with a
+  // [TOOL OBSERVATIONS] section adjacent to the user's question.
+  const { observation } = await decideAndInvokeTool({
+    userMessage: message,
+    intent,
+    brief,
+    accountId,
+    agentRun: run,
+    haikuCaller: haikuFor("marcus.tool_decision"),
+  });
+  const augmentedBriefText = observation
+    ? formatBriefForSonnet(brief, toolInventory, observation)
+    : briefText;
+
   // 8. Response generation (Sonnet) - short persona prompt + brief adjacent to question
   const systemPrompt = buildPersonaPrompt("Marcus");
 
@@ -130,7 +147,7 @@ export async function processMarcusMessage(
     })),
     {
       role: "user" as const,
-      content: `${briefText}\n\n[USER MESSAGE]\n${message}`,
+      content: `${augmentedBriefText}\n\n[USER MESSAGE]\n${message}`,
     },
   ];
 
@@ -283,6 +300,21 @@ export async function streamMarcusMessage(
     toolInventory,
   );
 
+  // 7.5. Tool decision + invocation (D1). See processMarcusMessage for
+  // the rationale; same pre-decided pattern, then the brief is
+  // re-rendered with a [TOOL OBSERVATIONS] section for Sonnet.
+  const { observation } = await decideAndInvokeTool({
+    userMessage: message,
+    intent,
+    brief,
+    accountId,
+    agentRun: run,
+    haikuCaller: haikuFor("marcus.tool_decision"),
+  });
+  const augmentedBriefText = observation
+    ? formatBriefForSonnet(brief, toolInventory, observation)
+    : briefText;
+
   // 8. Build messages with brief adjacent to question
   const systemPrompt = buildPersonaPrompt("Marcus");
 
@@ -293,7 +325,7 @@ export async function streamMarcusMessage(
     })),
     {
       role: "user" as const,
-      content: `${briefText}\n\n[USER MESSAGE]\n${message}`,
+      content: `${augmentedBriefText}\n\n[USER MESSAGE]\n${message}`,
     },
   ];
 
