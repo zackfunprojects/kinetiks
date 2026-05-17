@@ -12,7 +12,17 @@ const nextConfig = {
     "@kinetiks/runtime",
   ],
   experimental: {
-    serverComponentsExternalPackages: ["@mendable/firecrawl-js"],
+    // Packages that webpack should leave alone for the server runtime
+    // (Node-style require, no bundling). These libs use Node-only APIs
+    // (gRPC, fs, stream) and break the Edge bundle when transitively
+    // reached from instrumentation.ts.
+    serverComponentsExternalPackages: [
+      "@mendable/firecrawl-js",
+      "@google-analytics/data",
+      "google-auth-library",
+      "googleapis",
+      "@grpc/grpc-js",
+    ],
     instrumentationHook: true,
   },
   async redirects() {

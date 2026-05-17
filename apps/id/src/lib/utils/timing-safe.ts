@@ -1,4 +1,4 @@
-import { timingSafeEqual } from "crypto";
+import { timingSafeEqual } from "node:crypto";
 
 /**
  * Timing-safe string comparison to prevent timing attacks on secret values.

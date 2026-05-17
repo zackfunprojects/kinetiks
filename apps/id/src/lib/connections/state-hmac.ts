@@ -6,7 +6,7 @@
  * HMAC secret.
  */
 
-import { createHmac, timingSafeEqual } from "crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 
 function getHmacKey(): string {
   const key = process.env.KINETIKS_ENCRYPTION_KEY;

@@ -5,7 +5,7 @@
  * and token refresh. Provider-specific endpoints are configured here.
  */
 
-import { randomBytes, createHash } from "crypto";
+import { randomBytes, createHash } from "node:crypto";
 import type { ConnectionProvider, OAuthTokens } from "@kinetiks/types";
 import type { OAuthEndpoints } from "./types";
 

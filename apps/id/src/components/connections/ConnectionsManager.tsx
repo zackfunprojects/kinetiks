@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import type { ConnectionPublic, ProviderDefinition } from "@kinetiks/types";
 import { ConnectionCard } from "./ConnectionCard";
 import { ApiKeyModal } from "./ApiKeyModal";
+import { Ga4PropertyPicker } from "./Ga4PropertyPicker";
 
 interface ConnectionsManagerProps {
   initialConnections: ConnectionPublic[];
@@ -41,6 +42,7 @@ export function ConnectionsManager({
     message: string;
     type: "success" | "error";
   } | null>(null);
+  const [ga4PickerOpen, setGa4PickerOpen] = useState(false);
 
   const searchParams = useSearchParams();
 
@@ -48,6 +50,7 @@ export function ConnectionsManager({
   useEffect(() => {
     const success = searchParams.get("success");
     const error = searchParams.get("error");
+    const ga4Pick = searchParams.get("ga4_pick");
 
     if (success) {
       setToast({ message: `Connected to ${success}`, type: "success" });
@@ -59,6 +62,11 @@ export function ConnectionsManager({
         message: `Connection failed: ${detail}`,
         type: "error",
       });
+    }
+
+    // GA4 OAuth completes with ?ga4_pick=1; surface the property picker.
+    if (ga4Pick === "1") {
+      setGa4PickerOpen(true);
     }
   }, [searchParams]);
 
@@ -307,6 +315,20 @@ export function ConnectionsManager({
           </div>
         );
       })}
+
+      {/* GA4 property picker — opens after OAuth callback (?ga4_pick=1)
+          or when the user reconnects/changes property */}
+      <Ga4PropertyPicker
+        open={ga4PickerOpen}
+        onClose={() => setGa4PickerOpen(false)}
+        onPicked={() => {
+          setToast({
+            message: "GA4 property selected",
+            type: "success",
+          });
+          void refreshConnections();
+        }}
+      />
 
       {/* API Key Modal */}
       {apiKeyModal && (

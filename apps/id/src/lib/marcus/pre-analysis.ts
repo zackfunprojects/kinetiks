@@ -3,6 +3,29 @@ import { buildPreAnalysisPrompt } from './prompts/marcus-brief';
 import { formatMemoriesForContext } from './memory';
 
 /**
+ * Result of step 7.5's tool invocation, to be rendered into the brief
+ * adjacent to the user's question. The renderer truncates and structures
+ * the payload so Sonnet can cite values verbatim without seeing raw API
+ * shapes.
+ */
+export interface ToolObservation {
+  tool_name: string;
+  /** The reason the tool was selected (from the tool-decision Haiku). */
+  reason: string;
+  /** The structured tool output. Stringified for the prompt; never PII. */
+  output: unknown;
+}
+
+function formatToolObservations(obs: ToolObservation): string {
+  const json = JSON.stringify(obs.output, null, 2);
+  // Cap injected size so a runaway tool output cannot blow the context.
+  const TRUNCATE = 1800;
+  const truncated =
+    json.length > TRUNCATE ? `${json.slice(0, TRUNCATE)}\n... [output truncated]` : json;
+  return `Reason for selecting this tool: ${obs.reason}\n\n${truncated}`;
+}
+
+/**
  * Run Haiku pre-analysis to produce a structured brief.
  * This brief constrains what Sonnet can say in its response.
  *
@@ -90,8 +113,15 @@ export async function buildPreAnalysisBrief(
 /**
  * Format the brief as a string to inject into the Sonnet user message.
  * This sits DIRECTLY ADJACENT to the user's question in the prompt.
+ *
+ * Exported so engine.ts can re-render the brief AFTER the tool-decision
+ * pass (step 7.5), injecting [TOOL OBSERVATIONS] when a tool was invoked.
  */
-function formatBriefForSonnet(brief: PreAnalysisBrief, toolInventory?: string): string {
+export function formatBriefForSonnet(
+  brief: PreAnalysisBrief,
+  toolInventory?: string,
+  toolObservations?: ToolObservation | null,
+): string {
   const evidence = brief.available_evidence.length > 0
     ? brief.available_evidence.map((e) => `- ${e.citation}`).join('\n')
     : '- No specific data points available. Flag this in your response.';
@@ -116,6 +146,10 @@ function formatBriefForSonnet(brief: PreAnalysisBrief, toolInventory?: string): 
     ? `\n\n[PLATFORM CAPABILITIES - the canonical inventory; reference these by name, do not invent tools that are not listed]\n${toolInventory}`
     : '';
 
+  const observationsBlock = toolObservations
+    ? `\n\n[TOOL OBSERVATIONS - returned by ${toolObservations.tool_name}; cite ONLY the values below verbatim; do not extrapolate]\n${formatToolObservations(toolObservations)}`
+    : '';
+
   return `[EVIDENCE BRIEF - use ONLY this evidence in your response]
 Available data you CAN cite:
 ${evidence}
@@ -124,7 +158,7 @@ Data you DO NOT have (do not fabricate):
 ${notAvailable}
 
 [CONVERSATION MEMORY - these are decisions/corrections from this thread, honor them]
-${memory}${platformBlock}
+${memory}${platformBlock}${observationsBlock}
 
 [RESPONSE CONSTRAINTS]
 - Maximum ${brief.response_shape.max_sentences} sentences

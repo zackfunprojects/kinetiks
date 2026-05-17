@@ -153,6 +153,11 @@ export async function GET(request: Request) {
 
     const redirectUrl = new URL(connectionsUrl);
     redirectUrl.searchParams.set("success", provider);
+    // GA4 connections do not become useful until the user picks a property;
+    // the connections page renders the property picker when ?ga4_pick=1.
+    if (provider === "ga4") {
+      redirectUrl.searchParams.set("ga4_pick", "1");
+    }
     return NextResponse.redirect(redirectUrl.toString());
   } catch (err) {
     console.error(`OAuth callback error for ${provider}:`, err);

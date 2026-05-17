@@ -655,6 +655,9 @@ A task is not done until all of the following are true:
 - Commit history is clean (squash WIP if needed).
 - PR opened with full description. Screenshots or Loom for any UI change. Self-reviewed before requesting review.
 - Compared against the relevant spec section, the platform contract, and the 2027 addendum (where applicable) before marking complete.
+- **Edge Functions deployed and schedule-set.** If the phase added or modified anything under `supabase/functions/`, run `pnpm functions:check` until it reports OK, run `pnpm functions:deploy` if not, and verify every cron schedule exists in `supabase/migrations/*_edge_function_schedules.sql` with the cadence declared in the function's header comment. Code in the repo is not code in production.
+- **Environment variables set + inventoried.** Every new env var consumed by a function or route is (a) set in BOTH Supabase (Edge Function env) and Vercel (Node env) where applicable, and (b) added to `docs/operational/env-vars.md` in the same PR. A function that silently falls back on `||` defaults is masking a missed step; verify by reading the function's logs for one real run.
+- **Production deploys green.** The latest Production deploy on Vercel must be Ready. `pnpm health` runs every check this section names in one command and fails on the first red signal. If any deploy is failing, fixing it is the next task — not the next phase.
 
 If any of these are skipped, the task is not done, it is in progress.
 
@@ -681,6 +684,34 @@ Marcus saying "I've queued briefs to Harvest" without an actual approved action 
 ### 4. Sycophancy and verbosity are behavioral, not stylistic
 
 These cannot be filtered out post-hoc. They show up as patterns the model is rewarded for and have to be unlearned at the prompt level. **Rule:** the Marcus persona prompt carries explicit anti-sycophancy and anti-verbosity rules with examples. Style filters in the rewrite loop did not help.
+
+### 5. Cache TTL belongs on the row, not on a generated column
+
+D1's first sketch of `kinetiks_metric_cache` derived `expires_at` from `refreshed_at + stale_after_seconds` via a Postgres generated column. Two states (fresh / stale) instead of three (fresh / stale-usable / hard-miss) and policy-coupled-to-data forever. **Rule:** `kinetiks_metric_cache.expires_at` is a real column set on each write. Marcus needs to hedge on stale answers, so the tool surfaces `cache_status: 'fresh' | 'stale_revalidating' | 'fresh_from_extractor'` in its output. Future per-metric-class TTL changes touch the cache helper, not the schema.
+
+### 6. Marcus tool calls are pre-decided, not multi-turn
+
+D1's step 7.5 (a Haiku that ranks the user message against registered tools, picks zero or one, and either invokes via the Runtime or skips) was deliberately not implemented as a Claude multi-turn `tool_use` loop. **Rule:** one Haiku decides, one Sonnet writes. Bounded token budget, no risk of Sonnet hallucinating a tool name post-generation, and the trace shape stays consistent with v2's "pre-analysis dictates downstream" architecture. Revisit only when a phase needs to compose tool results from multiple sources (D3, GSC + Stripe).
+
+### 7. Cron + Node API split for Deno-incompatible SDKs
+
+Edge Functions run under Deno; `@google-analytics/data` is Node-only. D1's `metric-cache-cron` (Deno) therefore POSTs to `/api/internal/metric-cache/refresh` in apps/id (Node) for every due cache row. **Rule:** any cron that needs a Node-only SDK calls back into apps/id via `INTERNAL_SERVICE_SECRET`-authenticated route. Same pattern as `gmail-sync-cron` → Harvest API. Document the boundary in the cron's code comments and README so future contributors do not waste a day trying to import a Node SDK in Deno.
+
+### 8. "Code in the repo" is not "code in production"
+
+D1 shipped with twelve Edge Functions under `supabase/functions/*` — zero of which had ever been deployed to Supabase. The repo had been treated as the source of truth for what was running, but Edge Functions require an explicit `supabase functions deploy` step. The same gap exists in spirit for any infrastructure that lives outside the Vercel git-push pipeline: Supabase cron schedules, dashboard env vars, Google OAuth consent screens. **Rule:** the Definition of Done for any phase that adds Edge Functions, env-var requirements, or cron schedules MUST include verification that the deployed state matches the repo. Drift is silent and load-bearing: `gmail-sync-cron` not being deployed meant no Gmail replies were being polled in production while the code asserted they were.
+
+**How to check:** `pnpm functions:check` compares the repo's `supabase/functions/*` against the deployed list and exits non-zero on drift. Wire it into CI alongside `pnpm lint` / `pnpm type-check`.
+
+**How to fix:** `pnpm functions:deploy [name ...]` deploys every function in the repo (or only the ones named), using the project ref pinned in the script. Re-runs are idempotent.
+
+**How to extend:** adding a new Edge Function means three steps, all version-controlled: (1) drop it under `supabase/functions/<name>/index.ts`; (2) add a `_kt_schedule_edge_function('<name>', '<cron>', '<name>')` line to the latest `*_edge_function_schedules.sql` migration (or a new follow-up migration); (3) run `pnpm functions:deploy` and `supabase db push --linked`. The deploy script and the cron migration together are the source of truth — `pnpm functions:check` will fail until both sides match the repo.
+
+**Why schedules live in a migration, not the dashboard:** Supabase's Edge Function dashboard does not have a Schedules tab; cron is set up via `pg_cron` + `pg_net` extensions in SQL. Keeping that SQL in a versioned migration means schedules survive environment rebuilds, can be code-reviewed, and the drift script can verify them.
+
+### 9. instrumentation.ts is bundled for both runtimes; structure accordingly
+
+`apps/id/src/instrumentation.ts` runs at server boot in BOTH the Node and Edge runtimes. Anything statically reachable from it is bundled for both — and the Edge bundler cannot handle `node:crypto`, `node:fs`, native gRPC, or anything else Node-only. D1's first push to the D1 branch broke production preview deploys because the new extractor barrel made `instrumentation.ts` transitively reach `webhooks/sign.ts` (bare `crypto` import) and `@google-analytics/data` (gRPC). **Rule:** `instrumentation.ts` is a tiny shim with no Node-only imports. All platform wiring lives in `instrumentation-node.ts`, loaded only inside `if (process.env.NEXT_RUNTIME === "nodejs") { await import("./instrumentation-node"); }`. Note the if-statement form — early-return doesn't tree-shake correctly in Next 14. Two corollaries: every Node-only import in the workspace uses `node:crypto` / `node:fs` / etc (never bare `"crypto"`); and any lazily-loaded native SDK (`@google-analytics/data`, `googleapis`, `google-auth-library`) gets `/* webpackIgnore: true */` on its dynamic import so webpack doesn't try to create an Edge chunk for it.
 
 (Add entries below as new scars accumulate.)
 

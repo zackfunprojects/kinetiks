@@ -50,6 +50,14 @@ export function registerKinetiksPromptTasks(): void {
     version: "v2-2026-05",
     defaultModel: "claude-haiku-4-5-20251001",
   });
+  // Tool decision — D1's step 7.5. Picks which (single) tool best
+  // answers the user question, then the Runtime invokes it before Sonnet
+  // generates the response.
+  registerPromptTask({
+    task: "marcus.tool_decision",
+    version: "v2-2026-05",
+    defaultModel: "claude-haiku-4-5-20251001",
+  });
   // Action generation (v2 — separate Haiku pass, output schema is constrained).
   registerPromptTask({
     task: "marcus.action_generate",

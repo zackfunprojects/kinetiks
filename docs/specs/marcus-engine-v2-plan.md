@@ -30,9 +30,27 @@ Plan 1 tried to fix bad outputs by catching them after generation. Three fundame
 Current (broken):
   Intent → Context Assembly → BIG system prompt → Sonnet → Regex Validate → Haiku Rewrite → Extract Actions → Deliver
 
-New:
-  Intent → Context Assembly → Memory Load → Haiku PRE-ANALYSIS → Sonnet (short prompt + brief) → Haiku ACTIONS → Haiku MEMORY UPDATE → Assemble → Deliver
+New (as of D1):
+  Intent → Context Assembly → Memory Load → Haiku PRE-ANALYSIS → Haiku TOOL DECISION (+ AgentRun.invokeTool if selected) → Sonnet (short prompt + brief w/ [TOOL OBSERVATIONS]) → Haiku ACTIONS → Haiku MEMORY UPDATE → Assemble → Deliver
 ```
+
+**Step 7.5 — Tool decision + invocation (D1).** A Haiku call ranks the
+user message against the available registered tools (with full
+descriptions, not the compact one-line inventory injected in the brief)
+and decides whether any single tool would directly answer the question.
+If yes, the tool runs through the Runtime's `invokeTool` (writes a
+`tool_calls` row, handles authority resolution + retry), and the result
+is rendered into the brief as a `[TOOL OBSERVATIONS]` section adjacent
+to the user's question. Sonnet then sees the brief + observation when
+generating the response. We chose this pre-decided pattern over a
+multi-turn Claude tool_use loop for three reasons:
+
+1. One Haiku decides + one Sonnet writes — bounded token budget.
+2. No risk of Sonnet hallucinating a tool name post-generation.
+3. Consistent with v2's architecture: pre-analysis dictates downstream.
+
+D3 will revisit when GSC + Stripe need to be composed into a single
+answer. See `apps/id/src/lib/marcus/tool-decision.ts`.
 
 Detailed flow:
 

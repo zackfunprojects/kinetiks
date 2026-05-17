@@ -88,6 +88,13 @@ export const kinetiksServerEnvSchema = z.object({
   // App-level
   NEXT_PUBLIC_APP_URL: envFragments.optionalUrl,
   KINETIKS_ENCRYPTION_KEY: envFragments.nonEmpty,
+
+  // Internal service-to-service auth (Edge Functions → Node API routes).
+  // Optional locally; required in production for the metric-cache-cron and
+  // any future cron that needs to call into apps/id.
+  INTERNAL_SERVICE_SECRET: z.string().optional(),
+  // Where Edge Functions reach the Node API. Defaults at the call site.
+  IDENTITY_API_URL: envFragments.optionalUrl,
 });
 
 export type KinetiksServerEnv = z.infer<typeof kinetiksServerEnvSchema>;
