@@ -96,7 +96,23 @@ export type {
   LLMJudgmentModel,
   LLMJudgmentFallback,
   LLMJudgmentBudget,
+  PatternTypeDescriptor,
+  PatternOutcomeMetricDescriptor,
+  PatternDecayBounds,
+  PatternConfidenceThresholds,
 } from "./descriptors";
+export type {
+  Pattern,
+  PatternLifecycleStatus,
+  PatternOutcomeMetric,
+  PatternEvidenceSummary,
+  PatternEmissionPayload,
+  PatternEmissionResult,
+  PatternExportSchemaVersion,
+  PatternExportEntry,
+  PatternExportPayload,
+  PatternImportResult,
+} from "./patterns";
 export type {
   SentinelVerdict,
   ReviewResolution,
