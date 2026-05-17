@@ -17,7 +17,7 @@ export const APP_REGISTRY: Record<string, AppRegistryEntry> = {
     description:
       "AI content engine. Creates articles, social posts, and long-form content that sounds like you.",
     url: "https://dm.kinetiks.ai",
-    color: "#E74C3C",
+    color: "var(--kt-app-darkmadder)",
     defaultReadLayers: ["org", "products", "voice", "customers", "narrative", "brand"],
     defaultWriteLayers: ["voice", "customers", "narrative"],
   },
@@ -27,7 +27,7 @@ export const APP_REGISTRY: Record<string, AppRegistryEntry> = {
     description:
       "Outbound engine. Prospect research, personalized outreach, and pipeline management.",
     url: "https://hv.kinetiks.ai",
-    color: "#27AE60",
+    color: "var(--kt-app-harvest)",
     defaultReadLayers: ["org", "products", "voice", "customers", "competitive"],
     defaultWriteLayers: ["customers", "competitive"],
   },
@@ -37,7 +37,7 @@ export const APP_REGISTRY: Record<string, AppRegistryEntry> = {
     description:
       "Landing page engine. AI-generated pages optimized for conversion with A/B testing.",
     url: "https://ht.kinetiks.ai",
-    color: "#F39C12",
+    color: "var(--kt-app-hypothesis)",
     defaultReadLayers: ["org", "products", "voice", "customers", "brand"],
     defaultWriteLayers: ["customers"],
   },
@@ -47,7 +47,7 @@ export const APP_REGISTRY: Record<string, AppRegistryEntry> = {
     description:
       "PR engine. Media monitoring, journalist matching, pitch generation, and press outreach.",
     url: "https://lt.kinetiks.ai",
-    color: "#3498DB",
+    color: "var(--kt-app-litmus)",
     defaultReadLayers: ["org", "products", "voice", "narrative", "competitive", "market"],
     defaultWriteLayers: ["narrative", "competitive", "market"],
   },
