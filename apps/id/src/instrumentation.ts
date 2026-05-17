@@ -27,4 +27,9 @@ export async function register(): Promise<void> {
 
   const { bootToolRegistry } = await import("./lib/tools/registry-boot");
   bootToolRegistry();
+
+  // Side-effect import: each module under connections/extractors calls
+  // registerExtractor() at load. The barrel is the single place we add
+  // a new provider's extractor file as it ships.
+  await import("./lib/connections/extractors");
 }
