@@ -655,6 +655,8 @@ A task is not done until all of the following are true:
 - Commit history is clean (squash WIP if needed).
 - PR opened with full description. Screenshots or Loom for any UI change. Self-reviewed before requesting review.
 - Compared against the relevant spec section, the platform contract, and the 2027 addendum (where applicable) before marking complete.
+- **Edge Functions deployed and schedule-set.** If the phase added or modified anything under `supabase/functions/`, run `pnpm functions:check` until it reports OK, run `pnpm functions:deploy` if not, and verify every cron schedule exists in the Supabase dashboard with the cadence declared in the function's header comment. Code in the repo is not code in production.
+- **Environment variables set.** Every new env var consumed by a function or route is set in BOTH Supabase (Edge Function env) and Vercel (Node env) where applicable. A function that silently falls back on `||` defaults is masking a missed step; verify by reading the function's logs for one real run.
 
 If any of these are skipped, the task is not done, it is in progress.
 
@@ -693,6 +695,16 @@ D1's step 7.5 (a Haiku that ranks the user message against registered tools, pic
 ### 7. Cron + Node API split for Deno-incompatible SDKs
 
 Edge Functions run under Deno; `@google-analytics/data` is Node-only. D1's `metric-cache-cron` (Deno) therefore POSTs to `/api/internal/metric-cache/refresh` in apps/id (Node) for every due cache row. **Rule:** any cron that needs a Node-only SDK calls back into apps/id via `INTERNAL_SERVICE_SECRET`-authenticated route. Same pattern as `gmail-sync-cron` → Harvest API. Document the boundary in the cron's code comments and README so future contributors do not waste a day trying to import a Node SDK in Deno.
+
+### 8. "Code in the repo" is not "code in production"
+
+D1 shipped with twelve Edge Functions under `supabase/functions/*` — zero of which had ever been deployed to Supabase. The repo had been treated as the source of truth for what was running, but Edge Functions require an explicit `supabase functions deploy` step. The same gap exists in spirit for any infrastructure that lives outside the Vercel git-push pipeline: Supabase cron schedules, dashboard env vars, Google OAuth consent screens. **Rule:** the Definition of Done for any phase that adds Edge Functions, env-var requirements, or cron schedules MUST include verification that the deployed state matches the repo. Drift is silent and load-bearing: `gmail-sync-cron` not being deployed meant no Gmail replies were being polled in production while the code asserted they were.
+
+**How to check:** `pnpm functions:check` compares the repo's `supabase/functions/*` against the deployed list and exits non-zero on drift. Wire it into CI alongside `pnpm lint` / `pnpm type-check`.
+
+**How to fix:** `pnpm functions:deploy [name ...]` deploys every function in the repo (or only the ones named), using the project ref pinned in the script. Re-runs are idempotent.
+
+**How to extend:** adding a new Edge Function means dropping it under `supabase/functions/<name>/index.ts`. The deploy + drift-check scripts auto-discover it on next run.
 
 (Add entries below as new scars accumulate.)
 
