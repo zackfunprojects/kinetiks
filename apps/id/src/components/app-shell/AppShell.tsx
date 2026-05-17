@@ -27,7 +27,7 @@ export function AppShell({ account, userEmail, children }: AppShellProps) {
         display: "flex",
         flexDirection: "column",
         height: "100vh",
-        background: "var(--bg-base)",
+        background: "var(--kt-bg-base)",
       }}
     >
       <TabBar

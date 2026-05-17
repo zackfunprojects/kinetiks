@@ -126,8 +126,8 @@ export function CompletionStep({
         <div
           className="mb-4 inline-block rounded px-4 py-1.5 text-sm font-semibold"
           style={{
-            background: "var(--accent-muted)",
-            color: "var(--accent)",
+            background: "var(--kt-accent-soft)",
+            color: "var(--kt-accent)",
             fontFamily: "var(--font-mono), monospace",
           }}
         >
@@ -138,11 +138,11 @@ export function CompletionStep({
         <div className="flex items-center justify-center gap-2">
           <span
             className="text-3xl font-bold"
-            style={{ color: "var(--accent)", fontFamily: "var(--font-mono), monospace" }}
+            style={{ color: "var(--kt-accent)", fontFamily: "var(--font-mono), monospace" }}
           >
             {aggregate}%
           </span>
-          <span className="text-sm" style={{ color: "var(--text-tertiary)", fontFamily: "var(--font-mono), monospace" }}>
+          <span className="text-sm" style={{ color: "var(--kt-fg-3)", fontFamily: "var(--font-mono), monospace" }}>
             confidence
           </span>
         </div>
@@ -154,24 +154,24 @@ export function CompletionStep({
           <div key={key} className="flex items-center gap-3">
             <span
               className="w-24 text-xs"
-              style={{ color: "var(--text-secondary)", fontFamily: "var(--font-mono), monospace" }}
+              style={{ color: "var(--kt-fg-2)", fontFamily: "var(--font-mono), monospace" }}
             >
               {LAYER_LABELS[key] ?? key}
             </span>
             <div className="flex-1">
               <div
                 className="h-1.5 overflow-hidden rounded-full"
-                style={{ background: "var(--border-default)" }}
+                style={{ background: "var(--kt-border-1)" }}
               >
                 <div
                   className="h-full rounded-full transition-all"
-                  style={{ width: `${val.percentage}%`, background: "var(--accent)" }}
+                  style={{ width: `${val.percentage}%`, background: "var(--kt-accent)" }}
                 />
               </div>
             </div>
             <span
               className="w-8 text-right text-xs"
-              style={{ color: "var(--text-tertiary)", fontFamily: "var(--font-mono), monospace" }}
+              style={{ color: "var(--kt-fg-3)", fontFamily: "var(--font-mono), monospace" }}
             >
               {val.percentage}%
             </span>
@@ -180,14 +180,14 @@ export function CompletionStep({
       </div>
 
       {error && (
-        <p className="mt-4 text-center text-xs" style={{ color: "var(--error)" }}>{error}</p>
+        <p className="mt-4 text-center text-xs" style={{ color: "var(--kt-danger)" }}>{error}</p>
       )}
 
-      <p className="mt-4 text-center text-xs" style={{ color: "var(--text-tertiary)" }}>
+      <p className="mt-4 text-center text-xs" style={{ color: "var(--kt-fg-3)" }}>
         To improve your ID further, connect GA4, upload brand assets, or chat with Marcus.
       </p>
 
-      <p className="mt-2 text-center text-xs" style={{ color: "var(--text-tertiary)", fontFamily: "var(--font-mono), monospace" }}>
+      <p className="mt-2 text-center text-xs" style={{ color: "var(--kt-fg-3)", fontFamily: "var(--font-mono), monospace" }}>
         {ready
           ? `Redirecting in ${countdown}s...`
           : "Finalizing your profile..."}

@@ -15,22 +15,22 @@ export function SparkleButton({ onFill, loading, disabled, label }: SparkleButto
       style={{
         background: "transparent",
         border: "none",
-        color: "var(--text-tertiary)",
+        color: "var(--kt-fg-3)",
         cursor: disabled || loading ? "default" : "pointer",
       }}
       onMouseEnter={(e) => {
         if (!disabled && !loading) {
-          e.currentTarget.style.color = "var(--accent)";
+          e.currentTarget.style.color = "var(--kt-accent)";
         }
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.color = "var(--text-tertiary)";
+        e.currentTarget.style.color = "var(--kt-fg-3)";
       }}
     >
       {loading ? (
         <div
           className="h-3.5 w-3.5 animate-spin rounded-full border border-t-transparent"
-          style={{ borderColor: "var(--accent)", borderTopColor: "transparent" }}
+          style={{ borderColor: "var(--kt-accent)", borderTopColor: "transparent" }}
         />
       ) : (
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

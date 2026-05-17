@@ -28,7 +28,7 @@ export function ApiKeyModal({ provider, onSubmit, onClose }: ApiKeyModalProps) {
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(0,0,0,0.4)",
+        background: "var(--kt-backdrop)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -38,19 +38,19 @@ export function ApiKeyModal({ provider, onSubmit, onClose }: ApiKeyModalProps) {
     >
       <div
         style={{
-          background: "var(--bg-surface)",
+          background: "var(--kt-bg-subtle)",
           borderRadius: 12,
           padding: 24,
           width: 420,
           maxWidth: "90vw",
-          boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
+          boxShadow: "var(--kt-shadow-md)",
         }}
         onClick={(e) => e.stopPropagation()}
       >
         <h2 style={{ margin: "0 0 4px", fontSize: 16, fontWeight: 600 }}>
           Connect {provider.displayName}
         </h2>
-        <p style={{ margin: "0 0 16px", fontSize: 13, color: "var(--text-secondary)" }}>
+        <p style={{ margin: "0 0 16px", fontSize: 13, color: "var(--kt-fg-2)" }}>
           Enter your API key to connect. Your key is encrypted before storage.
         </p>
 
@@ -60,7 +60,7 @@ export function ApiKeyModal({ provider, onSubmit, onClose }: ApiKeyModalProps) {
             display: "block",
             fontSize: 12,
             fontWeight: 500,
-            color: "var(--text-secondary)",
+            color: "var(--kt-fg-2)",
             marginBottom: 4,
           }}
         >
@@ -80,7 +80,7 @@ export function ApiKeyModal({ provider, onSubmit, onClose }: ApiKeyModalProps) {
             width: "100%",
             padding: "8px 12px",
             fontSize: 13,
-            border: "1px solid var(--border-default)",
+            border: "1px solid var(--kt-border-1)",
             borderRadius: 6,
             marginBottom: 16,
             boxSizing: "border-box",
@@ -89,13 +89,13 @@ export function ApiKeyModal({ provider, onSubmit, onClose }: ApiKeyModalProps) {
         />
 
         {provider.docsUrl && (
-          <p style={{ margin: "0 0 16px", fontSize: 11, color: "var(--text-tertiary)" }}>
+          <p style={{ margin: "0 0 16px", fontSize: 11, color: "var(--kt-fg-3)" }}>
             Find your API key in your{" "}
             <a
               href={provider.docsUrl}
               target="_blank"
               rel="noopener noreferrer"
-              style={{ color: "var(--accent)" }}
+              style={{ color: "var(--kt-accent)" }}
             >
               {provider.displayName} dashboard
             </a>
@@ -108,11 +108,11 @@ export function ApiKeyModal({ provider, onSubmit, onClose }: ApiKeyModalProps) {
             style={{
               padding: "8px 16px",
               fontSize: 13,
-              border: "1px solid var(--border-default)",
+              border: "1px solid var(--kt-border-1)",
               borderRadius: 6,
-              background: "var(--bg-surface)",
+              background: "var(--kt-bg-subtle)",
               cursor: "pointer",
-              color: "var(--text-secondary)",
+              color: "var(--kt-fg-2)",
             }}
           >
             Cancel
@@ -126,8 +126,8 @@ export function ApiKeyModal({ provider, onSubmit, onClose }: ApiKeyModalProps) {
               fontWeight: 500,
               border: "none",
               borderRadius: 6,
-              background: "var(--accent-emphasis)",
-              color: "var(--text-on-accent)",
+              background: "var(--kt-accent-hover)",
+              color: "var(--kt-fg-on-inverse)",
               cursor:
                 !apiKey.trim() || submitting ? "not-allowed" : "pointer",
               opacity: !apiKey.trim() || submitting ? 0.5 : 1,

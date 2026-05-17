@@ -18,8 +18,8 @@ export function DotProgress({ currentStep, totalSteps }: DotProgressProps) {
               width: isCurrent ? 24 : 8,
               height: 8,
               background: isCompleted || isCurrent
-                ? "var(--accent-emphasis)"
-                : "var(--border-default)",
+                ? "var(--kt-accent-hover)"
+                : "var(--kt-border-1)",
               opacity: isCompleted ? 0.5 : 1,
               borderRadius: 999,
             }}

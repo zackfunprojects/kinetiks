@@ -7,7 +7,7 @@ export function DangerZone() {
         style={{
           fontSize: 18,
           fontWeight: 600,
-          color: "var(--error)",
+          color: "var(--kt-danger)",
           margin: "0 0 24px",
         }}
       >
@@ -17,11 +17,11 @@ export function DangerZone() {
         style={{
           padding: 16,
           borderRadius: 8,
-          border: "1px solid var(--error-muted)",
-          background: "var(--bg-surface-raised)",
+          border: "1px solid var(--kt-danger-soft)",
+          background: "var(--kt-bg-muted)",
         }}
       >
-        <p style={{ fontSize: 14, color: "var(--text-secondary)", margin: "0 0 12px" }}>
+        <p style={{ fontSize: 14, color: "var(--kt-fg-2)", margin: "0 0 12px" }}>
           Permanently delete your account and all associated data. This action cannot be undone.
         </p>
         <button
@@ -29,9 +29,9 @@ export function DangerZone() {
           style={{
             padding: "8px 16px",
             borderRadius: 6,
-            border: "1px solid var(--error)",
+            border: "1px solid var(--kt-danger)",
             background: "transparent",
-            color: "var(--error)",
+            color: "var(--kt-danger)",
             fontSize: 13,
             cursor: "not-allowed",
             opacity: 0.5,

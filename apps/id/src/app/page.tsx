@@ -33,7 +33,7 @@ export default async function RootPage() {
     <main
       style={{
         minHeight: "100vh",
-        background: "var(--bg-base)",
+        background: "var(--kt-bg-base)",
         display: "flex",
         flexDirection: "column",
       }}
@@ -45,14 +45,14 @@ export default async function RootPage() {
           justifyContent: "space-between",
           alignItems: "center",
           padding: "20px 32px",
-          borderBottom: "1px solid var(--border-muted)",
+          borderBottom: "1px solid var(--kt-border-2)",
         }}
       >
         <span
           style={{
             fontSize: 20,
             fontWeight: 700,
-            color: "var(--logo-accent)",
+            color: "var(--kt-accent)",
             letterSpacing: "-0.02em",
           }}
         >
@@ -63,7 +63,7 @@ export default async function RootPage() {
             href="/developers"
             style={{
               fontSize: 14,
-              color: "var(--text-secondary)",
+              color: "var(--kt-fg-2)",
               textDecoration: "none",
             }}
           >
@@ -73,7 +73,7 @@ export default async function RootPage() {
             href="/login"
             style={{
               fontSize: 14,
-              color: "var(--text-secondary)",
+              color: "var(--kt-fg-2)",
               textDecoration: "none",
             }}
           >
@@ -85,8 +85,8 @@ export default async function RootPage() {
               fontSize: 14,
               padding: "8px 20px",
               borderRadius: 8,
-              background: "var(--accent)",
-              color: "var(--text-on-accent)",
+              background: "var(--kt-accent)",
+              color: "var(--kt-fg-on-inverse)",
               textDecoration: "none",
               fontWeight: 600,
             }}
@@ -113,7 +113,7 @@ export default async function RootPage() {
             fontSize: 56,
             fontWeight: 700,
             lineHeight: 1.08,
-            color: "var(--text-primary)",
+            color: "var(--kt-fg-1)",
             maxWidth: 720,
             margin: "0 0 20px",
             letterSpacing: "-0.03em",
@@ -121,13 +121,13 @@ export default async function RootPage() {
         >
           Build your business identity once.
           <br />
-          <span style={{ color: "var(--logo-accent)" }}>Power everything.</span>
+          <span style={{ color: "var(--kt-accent)" }}>Power everything.</span>
         </h1>
 
         <p
           style={{
             fontSize: 18,
-            color: "var(--text-secondary)",
+            color: "var(--kt-fg-2)",
             maxWidth: 540,
             margin: "0 0 40px",
             lineHeight: 1.6,
@@ -145,8 +145,8 @@ export default async function RootPage() {
               fontSize: 16,
               padding: "14px 32px",
               borderRadius: 10,
-              background: "var(--accent)",
-              color: "var(--text-on-accent)",
+              background: "var(--kt-accent)",
+              color: "var(--kt-fg-on-inverse)",
               textDecoration: "none",
               fontWeight: 600,
             }}
@@ -159,8 +159,8 @@ export default async function RootPage() {
               fontSize: 16,
               padding: "14px 32px",
               borderRadius: 10,
-              border: "1px solid var(--border-default)",
-              color: "var(--text-secondary)",
+              border: "1px solid var(--kt-border-1)",
+              color: "var(--kt-fg-2)",
               textDecoration: "none",
               fontWeight: 500,
               background: "transparent",
@@ -194,8 +194,8 @@ export default async function RootPage() {
             <div
               key={layer.name}
               style={{
-                background: "var(--bg-surface)",
-                border: "1px solid var(--border-muted)",
+                background: "var(--kt-bg-subtle)",
+                border: "1px solid var(--kt-border-2)",
                 borderRadius: 10,
                 padding: "16px 12px",
                 textAlign: "center",
@@ -205,7 +205,7 @@ export default async function RootPage() {
               <div
                 style={{
                   fontSize: 12,
-                  color: "var(--text-secondary)",
+                  color: "var(--kt-fg-2)",
                   fontWeight: 500,
                 }}
               >
@@ -219,7 +219,7 @@ export default async function RootPage() {
           style={{
             marginTop: 16,
             fontSize: 13,
-            color: "var(--text-tertiary)",
+            color: "var(--kt-fg-3)",
           }}
         >
           8 layers. One identity. Every app.
@@ -230,20 +230,20 @@ export default async function RootPage() {
       <footer
         style={{
           padding: "24px 32px",
-          borderTop: "1px solid var(--border-muted)",
+          borderTop: "1px solid var(--kt-border-2)",
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
           fontSize: 13,
-          color: "var(--text-tertiary)",
+          color: "var(--kt-fg-3)",
         }}
       >
         <span>Kinetiks AI</span>
         <div style={{ display: "flex", gap: 20 }}>
-          <Link href="/developers" style={{ color: "var(--text-tertiary)", textDecoration: "none" }}>
+          <Link href="/developers" style={{ color: "var(--kt-fg-3)", textDecoration: "none" }}>
             Developers
           </Link>
-          <Link href="/login" style={{ color: "var(--text-tertiary)", textDecoration: "none" }}>
+          <Link href="/login" style={{ color: "var(--kt-fg-3)", textDecoration: "none" }}>
             Log in
           </Link>
         </div>

@@ -159,9 +159,9 @@ export function ConversationStep({
   };
 
   const inputStyles = {
-    border: "1px solid var(--border-default)",
-    background: "var(--bg-inset)",
-    color: "var(--text-primary)",
+    border: "1px solid var(--kt-border-1)",
+    background: "var(--kt-bg-base)",
+    color: "var(--kt-fg-1)",
   };
 
   if (loading && questionCount === 0) {
@@ -179,9 +179,9 @@ export function ConversationStep({
         <div className="flex items-center gap-3 py-8">
           <div
             className="h-4 w-4 animate-spin rounded-full border-2 border-t-transparent"
-            style={{ borderColor: "var(--accent)", borderTopColor: "transparent" }}
+            style={{ borderColor: "var(--kt-accent)", borderTopColor: "transparent" }}
           />
-          <span className="text-sm" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-mono), monospace" }}>
+          <span className="text-sm" style={{ color: "var(--kt-fg-2)", fontFamily: "var(--font-mono), monospace" }}>
             Preparing your first question...
           </span>
         </div>
@@ -207,7 +207,7 @@ export function ConversationStep({
       <div className="mb-4">
         <span
           className="text-xs font-medium"
-          style={{ color: "var(--text-tertiary)", fontFamily: "var(--font-mono), monospace" }}
+          style={{ color: "var(--kt-fg-3)", fontFamily: "var(--font-mono), monospace" }}
         >
           Question {questionCount + 1} of ~6
         </span>
@@ -216,18 +216,18 @@ export function ConversationStep({
       {feedback ? (
         <div
           className="flex items-center gap-2 rounded-lg px-4 py-3"
-          style={{ background: "var(--accent-muted)" }}
+          style={{ background: "var(--kt-accent-soft)" }}
         >
           <svg
             className="h-4 w-4 flex-shrink-0"
             fill="none"
             viewBox="0 0 24 24"
-            stroke="var(--accent)"
+            stroke="var(--kt-accent)"
             strokeWidth={2}
           >
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
           </svg>
-          <span className="text-sm" style={{ color: "var(--accent)", fontFamily: "var(--font-mono), monospace" }}>
+          <span className="text-sm" style={{ color: "var(--kt-accent)", fontFamily: "var(--font-mono), monospace" }}>
             {feedback}
           </span>
         </div>
@@ -244,7 +244,7 @@ export function ConversationStep({
           {/* Input field with sparkle button */}
           <div>
             <div className="mb-1.5 flex items-center justify-between">
-              <span className="text-xs" style={{ color: "var(--text-tertiary)" }}>
+              <span className="text-xs" style={{ color: "var(--kt-fg-3)" }}>
                 Your answer
               </span>
               <SparkleButton

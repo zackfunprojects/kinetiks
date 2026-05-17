@@ -63,7 +63,7 @@ export default async function IntegrationsPage() {
         style={{
           fontSize: 24,
           fontWeight: 700,
-          color: "var(--text-primary)",
+          color: "var(--kt-fg-1)",
           margin: "0 0 8px",
         }}
       >
@@ -72,7 +72,7 @@ export default async function IntegrationsPage() {
       <p
         style={{
           fontSize: 14,
-          color: "var(--text-secondary)",
+          color: "var(--kt-fg-2)",
           margin: "0 0 32px",
         }}
       >
@@ -85,7 +85,7 @@ export default async function IntegrationsPage() {
           style={{
             fontSize: 16,
             fontWeight: 600,
-            color: "var(--text-primary)",
+            color: "var(--kt-fg-1)",
             margin: "0 0 16px",
             fontFamily: "var(--font-mono), monospace",
           }}
@@ -104,7 +104,7 @@ export default async function IntegrationsPage() {
           style={{
             fontSize: 16,
             fontWeight: 600,
-            color: "var(--text-primary)",
+            color: "var(--kt-fg-1)",
             margin: "0 0 16px",
             fontFamily: "var(--font-mono), monospace",
           }}
@@ -123,7 +123,7 @@ export default async function IntegrationsPage() {
           style={{
             fontSize: 16,
             fontWeight: 600,
-            color: "var(--text-primary)",
+            color: "var(--kt-fg-1)",
             margin: "0 0 16px",
             fontFamily: "var(--font-mono), monospace",
           }}
@@ -143,7 +143,7 @@ export default async function IntegrationsPage() {
           style={{
             fontSize: 16,
             fontWeight: 600,
-            color: "var(--text-primary)",
+            color: "var(--kt-fg-1)",
             margin: "0 0 16px",
             fontFamily: "var(--font-mono), monospace",
           }}
@@ -159,7 +159,7 @@ export default async function IntegrationsPage() {
           style={{
             fontSize: 16,
             fontWeight: 600,
-            color: "var(--text-primary)",
+            color: "var(--kt-fg-1)",
             margin: "0 0 16px",
             fontFamily: "var(--font-mono), monospace",
           }}

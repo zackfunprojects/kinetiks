@@ -28,8 +28,8 @@ export function TabBar({ systemName, onSettingsClick }: TabBarProps) {
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        borderBottom: "1px solid var(--border-muted)",
-        background: "var(--bg-surface)",
+        borderBottom: "1px solid var(--kt-border-2)",
+        background: "var(--kt-bg-subtle)",
         padding: "0 16px",
         flexShrink: 0,
       }}
@@ -41,7 +41,7 @@ export function TabBar({ systemName, onSettingsClick }: TabBarProps) {
             fontFamily: "var(--font-mono), monospace",
             fontWeight: 700,
             fontSize: 13,
-            color: "var(--logo-accent)",
+            color: "var(--kt-accent)",
             marginRight: 24,
             letterSpacing: -0.3,
           }}
@@ -60,10 +60,10 @@ export function TabBar({ systemName, onSettingsClick }: TabBarProps) {
                 padding: "12px 16px",
                 fontSize: 13,
                 fontWeight: active ? 500 : 400,
-                color: active ? "var(--text-primary)" : "var(--text-secondary)",
+                color: active ? "var(--kt-fg-1)" : "var(--kt-fg-2)",
                 textDecoration: "none",
                 borderBottom: active
-                  ? "2px solid var(--text-primary)"
+                  ? "2px solid var(--kt-fg-1)"
                   : "2px solid transparent",
                 marginBottom: -1,
                 transition: "color 0.15s, border-color 0.15s",
@@ -83,9 +83,9 @@ export function TabBar({ systemName, onSettingsClick }: TabBarProps) {
           width: 32,
           height: 32,
           borderRadius: "50%",
-          border: "1px solid var(--border-default)",
-          background: "var(--bg-surface-raised)",
-          color: "var(--text-secondary)",
+          border: "1px solid var(--kt-border-1)",
+          background: "var(--kt-bg-muted)",
+          color: "var(--kt-fg-2)",
           cursor: "pointer",
           display: "flex",
           alignItems: "center",

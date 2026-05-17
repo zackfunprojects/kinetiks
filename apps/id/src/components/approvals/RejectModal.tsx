@@ -26,7 +26,7 @@ export function RejectModal({ onReject, onCancel }: RejectModalProps) {
         style={{
           position: "absolute",
           inset: 0,
-          background: "rgba(0, 0, 0, 0.5)",
+          background: "var(--kt-backdrop)",
         }}
       />
       <div
@@ -36,13 +36,13 @@ export function RejectModal({ onReject, onCancel }: RejectModalProps) {
         style={{
           position: "relative",
           width: 400,
-          background: "var(--bg-surface)",
+          background: "var(--kt-bg-subtle)",
           borderRadius: 12,
-          border: "1px solid var(--border-default)",
+          border: "1px solid var(--kt-border-1)",
           padding: 24,
         }}
       >
-        <h3 id="reject-modal-title" style={{ fontSize: 16, fontWeight: 600, color: "var(--text-primary)", margin: "0 0 12px" }}>
+        <h3 id="reject-modal-title" style={{ fontSize: 16, fontWeight: 600, color: "var(--kt-fg-1)", margin: "0 0 12px" }}>
           Reject with reason
         </h3>
         <textarea
@@ -54,14 +54,14 @@ export function RejectModal({ onReject, onCancel }: RejectModalProps) {
           style={{
             width: "100%",
             padding: "10px 12px",
-            border: "1px solid var(--border-default)",
+            border: "1px solid var(--kt-border-1)",
             borderRadius: 8,
             fontSize: 13,
             outline: "none",
             resize: "none",
             boxSizing: "border-box",
-            backgroundColor: "var(--bg-inset)",
-            color: "var(--text-primary)",
+            backgroundColor: "var(--kt-bg-base)",
+            color: "var(--kt-fg-1)",
             fontFamily: "inherit",
             marginBottom: 16,
           }}
@@ -72,9 +72,9 @@ export function RejectModal({ onReject, onCancel }: RejectModalProps) {
             style={{
               padding: "8px 16px",
               borderRadius: 6,
-              border: "1px solid var(--border-default)",
+              border: "1px solid var(--kt-border-1)",
               background: "transparent",
-              color: "var(--text-secondary)",
+              color: "var(--kt-fg-2)",
               fontSize: 13,
               cursor: "pointer",
             }}
@@ -88,8 +88,8 @@ export function RejectModal({ onReject, onCancel }: RejectModalProps) {
               padding: "8px 16px",
               borderRadius: 6,
               border: "none",
-              background: reason.trim() ? "var(--error)" : "var(--border-default)",
-              color: reason.trim() ? "#fff" : "var(--text-tertiary)",
+              background: reason.trim() ? "var(--kt-danger)" : "var(--kt-border-1)",
+              color: reason.trim() ? "var(--kt-fg-on-inverse)" : "var(--kt-fg-3)",
               fontSize: 13,
               cursor: reason.trim() ? "pointer" : "not-allowed",
               fontWeight: 500,

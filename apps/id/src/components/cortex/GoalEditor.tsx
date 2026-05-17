@@ -42,12 +42,12 @@ export function GoalEditor({ goal, onSave, onCancel }: GoalEditorProps) {
       style={{
         padding: 20,
         borderRadius: 8,
-        border: "1px solid var(--border-default)",
-        background: "var(--bg-surface)",
+        border: "1px solid var(--kt-border-1)",
+        background: "var(--kt-bg-subtle)",
         marginBottom: 16,
       }}
     >
-      <h3 style={{ fontSize: 16, fontWeight: 600, color: "var(--text-primary)", margin: "0 0 16px" }}>
+      <h3 style={{ fontSize: 16, fontWeight: 600, color: "var(--kt-fg-1)", margin: "0 0 16px" }}>
         {goal ? "Edit Goal" : "New Goal"}
       </h3>
 
@@ -126,7 +126,7 @@ export function GoalEditor({ goal, onSave, onCancel }: GoalEditorProps) {
 function Field({ label, children, flex }: { label: string; children: React.ReactNode; flex?: boolean }) {
   return (
     <div style={flex ? { flex: 1 } : undefined}>
-      <label style={{ fontSize: 12, fontWeight: 500, color: "var(--text-tertiary)", marginBottom: 4, display: "block" }}>
+      <label style={{ fontSize: 12, fontWeight: 500, color: "var(--kt-fg-3)", marginBottom: 4, display: "block" }}>
         {label}
       </label>
       {children}
@@ -141,9 +141,9 @@ function TypeButton({ label, active, onClick }: { label: string; active: boolean
       style={{
         padding: "6px 14px",
         borderRadius: 6,
-        border: active ? "1px solid var(--text-primary)" : "1px solid var(--border-default)",
-        background: active ? "var(--accent-subtle)" : "transparent",
-        color: active ? "var(--text-primary)" : "var(--text-secondary)",
+        border: active ? "1px solid var(--kt-fg-1)" : "1px solid var(--kt-border-1)",
+        background: active ? "var(--kt-accent-soft)" : "transparent",
+        color: active ? "var(--kt-fg-1)" : "var(--kt-fg-2)",
         fontSize: 13,
         cursor: "pointer",
       }}
@@ -156,21 +156,21 @@ function TypeButton({ label, active, onClick }: { label: string; active: boolean
 const inputStyle: React.CSSProperties = {
   width: "100%",
   padding: "8px 12px",
-  border: "1px solid var(--border-default)",
+  border: "1px solid var(--kt-border-1)",
   borderRadius: 6,
   fontSize: 13,
   outline: "none",
   boxSizing: "border-box",
-  backgroundColor: "var(--bg-inset)",
-  color: "var(--text-primary)",
+  backgroundColor: "var(--kt-bg-base)",
+  color: "var(--kt-fg-1)",
 };
 
 const cancelBtnStyle: React.CSSProperties = {
   padding: "8px 16px",
   borderRadius: 6,
-  border: "1px solid var(--border-default)",
+  border: "1px solid var(--kt-border-1)",
   background: "transparent",
-  color: "var(--text-secondary)",
+  color: "var(--kt-fg-2)",
   fontSize: 13,
   cursor: "pointer",
 };
@@ -179,8 +179,8 @@ const saveBtnStyle = (disabled: boolean): React.CSSProperties => ({
   padding: "8px 16px",
   borderRadius: 6,
   border: "none",
-  background: disabled ? "var(--border-default)" : "var(--accent-emphasis)",
-  color: disabled ? "var(--text-tertiary)" : "var(--text-on-accent)",
+  background: disabled ? "var(--kt-border-1)" : "var(--kt-accent-hover)",
+  color: disabled ? "var(--kt-fg-3)" : "var(--kt-fg-on-inverse)",
   fontSize: 13,
   fontWeight: 500,
   cursor: disabled ? "not-allowed" : "pointer",

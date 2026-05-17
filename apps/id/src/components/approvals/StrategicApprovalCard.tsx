@@ -20,8 +20,8 @@ export function StrategicApprovalCard({
       style={{
         padding: 12,
         borderRadius: 8,
-        border: "1px solid var(--error-muted)",
-        background: "var(--bg-surface-raised)",
+        border: "1px solid var(--kt-danger-soft)",
+        background: "var(--kt-bg-muted)",
         marginBottom: 8,
       }}
     >
@@ -33,25 +33,25 @@ export function StrategicApprovalCard({
             fontWeight: 600,
             padding: "2px 6px",
             borderRadius: 4,
-            background: "var(--error-muted)",
-            color: "var(--error)",
+            background: "var(--kt-danger-soft)",
+            color: "var(--kt-danger)",
             textTransform: "uppercase",
           }}
         >
           Strategic
         </span>
-        <span style={{ fontSize: 11, color: "var(--text-tertiary)" }}>
+        <span style={{ fontSize: 11, color: "var(--kt-fg-3)" }}>
           {approval.source_app}
         </span>
         {approval.confidence_score !== null && (
-          <span style={{ fontSize: 11, color: "var(--text-tertiary)", marginLeft: "auto" }}>
+          <span style={{ fontSize: 11, color: "var(--kt-fg-3)", marginLeft: "auto" }}>
             {Math.round(approval.confidence_score)}% conf.
           </span>
         )}
       </div>
 
       {/* Title */}
-      <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text-primary)", marginBottom: 8 }}>
+      <div style={{ fontSize: 14, fontWeight: 600, color: "var(--kt-fg-1)", marginBottom: 8 }}>
         {approval.title}
       </div>
 
@@ -60,13 +60,13 @@ export function StrategicApprovalCard({
         <div
           style={{
             fontSize: 12,
-            color: "var(--text-secondary)",
+            color: "var(--kt-fg-2)",
             marginBottom: 10,
             lineHeight: 1.5,
             padding: 10,
             borderRadius: 6,
-            background: "var(--bg-inset)",
-            border: "1px solid var(--border-muted)",
+            background: "var(--kt-bg-base)",
+            border: "1px solid var(--kt-border-2)",
           }}
         >
           {approval.description}
@@ -78,7 +78,7 @@ export function StrategicApprovalCard({
         <div
           style={{
             fontSize: 11,
-            color: "var(--text-tertiary)",
+            color: "var(--kt-fg-3)",
             marginBottom: 10,
             fontFamily: "var(--font-mono), monospace",
           }}
@@ -92,7 +92,7 @@ export function StrategicApprovalCard({
         href="/chat"
         style={{
           fontSize: 12,
-          color: "var(--accent-secondary)",
+          color: "var(--kt-warm)",
           textDecoration: "none",
           display: "block",
           marginBottom: 10,
@@ -110,8 +110,8 @@ export function StrategicApprovalCard({
             padding: "8px 12px",
             borderRadius: 6,
             border: "none",
-            background: "var(--success-muted)",
-            color: "var(--success)",
+            background: "var(--kt-success-soft)",
+            color: "var(--kt-success)",
             fontSize: 12,
             fontWeight: 500,
             cursor: "pointer",
@@ -125,9 +125,9 @@ export function StrategicApprovalCard({
             flex: 1,
             padding: "8px 12px",
             borderRadius: 6,
-            border: "1px solid var(--error-muted)",
+            border: "1px solid var(--kt-danger-soft)",
             background: "transparent",
-            color: "var(--error)",
+            color: "var(--kt-danger)",
             fontSize: 12,
             fontWeight: 500,
             cursor: "pointer",

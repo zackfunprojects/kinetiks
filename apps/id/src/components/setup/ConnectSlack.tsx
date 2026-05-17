@@ -17,10 +17,10 @@ export function ConnectSlack({ systemName, onSkip }: ConnectSlackProps) {
 
   return (
     <div>
-      <h1 style={{ fontSize: 28, fontWeight: 700, color: "var(--text-primary)", margin: "0 0 8px", textAlign: "center" }}>
+      <h1 style={{ fontSize: 28, fontWeight: 700, color: "var(--kt-fg-1)", margin: "0 0 8px", textAlign: "center" }}>
         Connect Slack
       </h1>
-      <p style={{ fontSize: 14, color: "var(--text-secondary)", margin: "0 0 32px", textAlign: "center", lineHeight: 1.5 }}>
+      <p style={{ fontSize: 14, color: "var(--kt-fg-2)", margin: "0 0 32px", textAlign: "center", lineHeight: 1.5 }}>
         {systemName} will join your Slack workspace as a bot - delivering briefs, handling approvals, and monitoring channels for GTM intelligence.
       </p>
 
@@ -31,18 +31,18 @@ export function ConnectSlack({ systemName, onSkip }: ConnectSlackProps) {
           width: "100%",
           padding: "14px 16px",
           borderRadius: 8,
-          border: "1px solid var(--border-default)",
-          background: "var(--bg-surface)",
+          border: "1px solid var(--kt-border-1)",
+          background: "var(--kt-bg-subtle)",
           cursor: connecting ? "not-allowed" : "pointer",
           textAlign: "left",
           marginBottom: 24,
         }}
       >
-        <span style={{ fontSize: 14, fontWeight: 500, color: "var(--text-primary)" }}>
+        <span style={{ fontSize: 14, fontWeight: 500, color: "var(--kt-fg-1)" }}>
           {connecting ? "Connecting..." : "Add to Slack"}
         </span>
         <br />
-        <span style={{ fontSize: 12, color: "var(--text-tertiary)" }}>
+        <span style={{ fontSize: 12, color: "var(--kt-fg-3)" }}>
           {systemName} will appear as @{systemName.toLowerCase().replace(/\s+/g, "-")}
         </span>
       </button>
@@ -55,7 +55,7 @@ export function ConnectSlack({ systemName, onSkip }: ConnectSlackProps) {
           borderRadius: 8,
           border: "none",
           fontSize: 13,
-          color: "var(--text-tertiary)",
+          color: "var(--kt-fg-3)",
           background: "transparent",
           cursor: "pointer",
         }}

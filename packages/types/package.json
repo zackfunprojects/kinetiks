@@ -8,6 +8,9 @@
     "type-check": "tsc --noEmit",
     "clean": "rm -rf dist"
   },
+  "dependencies": {
+    "zod": "^3.23.0"
+  },
   "devDependencies": {
     "typescript": "^5.7.0"
   }

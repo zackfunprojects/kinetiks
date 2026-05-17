@@ -124,7 +124,7 @@ export function OnboardingFlow({ account, fromApp, bootstrapKey }: OnboardingFlo
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--bg-base)" }}>
+    <div style={{ minHeight: "100vh", background: "var(--kt-bg-base)" }}>
       <div style={{ display: "flex", justifyContent: "flex-end", padding: "16px 24px 0" }}>
         <button
           onClick={handleSignOut}
@@ -132,7 +132,7 @@ export function OnboardingFlow({ account, fromApp, bootstrapKey }: OnboardingFlo
           style={{
             background: "transparent",
             border: "none",
-            color: "var(--text-tertiary)",
+            color: "var(--kt-fg-3)",
             fontSize: 13,
             cursor: "pointer",
             padding: "4px 8px",

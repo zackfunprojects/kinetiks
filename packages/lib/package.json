@@ -1,0 +1,54 @@
+{
+  "name": "@kinetiks/lib",
+  "version": "0.0.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./env": {
+      "types": "./src/env.ts",
+      "default": "./src/env.ts"
+    },
+    "./pagination": {
+      "types": "./src/pagination.ts",
+      "default": "./src/pagination.ts"
+    },
+    "./state-machines": {
+      "types": "./src/state-machines.ts",
+      "default": "./src/state-machines.ts"
+    },
+    "./format": {
+      "types": "./src/format.ts",
+      "default": "./src/format.ts"
+    },
+    "./template-vars": {
+      "types": "./src/template-vars.ts",
+      "default": "./src/template-vars.ts"
+    },
+    "./result": {
+      "types": "./src/result.ts",
+      "default": "./src/result.ts"
+    },
+    "./pii": {
+      "types": "./src/pii.ts",
+      "default": "./src/pii.ts"
+    }
+  },
+  "scripts": {
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.0"
+  }
+}

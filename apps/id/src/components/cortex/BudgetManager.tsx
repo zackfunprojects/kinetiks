@@ -55,13 +55,13 @@ export function BudgetManager() {
   };
 
   if (loading) {
-    return <div style={{ padding: 16, color: "var(--text-tertiary)", fontSize: 13 }}>Loading budgets...</div>;
+    return <div style={{ padding: 16, color: "var(--kt-fg-3)", fontSize: 13 }}>Loading budgets...</div>;
   }
 
   if (error) {
     return (
-      <div style={{ padding: 24, borderRadius: 8, border: "1px dashed var(--error-muted)", background: "var(--bg-surface)", textAlign: "center" }}>
-        <p style={{ fontSize: 13, color: "var(--error)", margin: 0 }}>{error}</p>
+      <div style={{ padding: 24, borderRadius: 8, border: "1px dashed var(--kt-danger-soft)", background: "var(--kt-bg-subtle)", textAlign: "center" }}>
+        <p style={{ fontSize: 13, color: "var(--kt-danger)", margin: 0 }}>{error}</p>
       </div>
     );
   }
@@ -72,12 +72,12 @@ export function BudgetManager() {
         style={{
           padding: 24,
           borderRadius: 8,
-          border: "1px dashed var(--border-default)",
-          background: "var(--bg-surface)",
+          border: "1px dashed var(--kt-border-1)",
+          background: "var(--kt-bg-subtle)",
           textAlign: "center",
         }}
       >
-        <p style={{ fontSize: 13, color: "var(--text-tertiary)", margin: "0 0 12px" }}>
+        <p style={{ fontSize: 13, color: "var(--kt-fg-3)", margin: "0 0 12px" }}>
           No budgets configured. Set up a budget to track GTM spend.
         </p>
         <button
@@ -86,9 +86,9 @@ export function BudgetManager() {
           style={{
             padding: "6px 14px",
             borderRadius: 6,
-            border: "1px solid var(--border-default)",
+            border: "1px solid var(--kt-border-1)",
             background: "transparent",
-            color: "var(--text-secondary)",
+            color: "var(--kt-fg-2)",
             fontSize: 12,
             cursor: creating ? "not-allowed" : "pointer",
           }}
@@ -107,13 +107,13 @@ export function BudgetManager() {
           style={{
             padding: 16,
             borderRadius: 8,
-            border: "1px solid var(--border-muted)",
-            background: "var(--bg-surface-raised)",
+            border: "1px solid var(--kt-border-2)",
+            background: "var(--kt-bg-muted)",
             marginBottom: 8,
           }}
         >
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-            <span style={{ fontSize: 14, fontWeight: 500, color: "var(--text-primary)" }}>
+            <span style={{ fontSize: 14, fontWeight: 500, color: "var(--kt-fg-1)" }}>
               {budget.currency} {budget.total_budget.toLocaleString()}
             </span>
             <span
@@ -122,15 +122,15 @@ export function BudgetManager() {
                 fontWeight: 600,
                 padding: "2px 6px",
                 borderRadius: 4,
-                background: "var(--accent-subtle)",
-                color: "var(--text-secondary)",
+                background: "var(--kt-accent-soft)",
+                color: "var(--kt-fg-2)",
                 textTransform: "uppercase",
               }}
             >
               {budget.approval_status}
             </span>
           </div>
-          <div style={{ fontSize: 12, color: "var(--text-tertiary)" }}>
+          <div style={{ fontSize: 12, color: "var(--kt-fg-3)" }}>
             {budget.period} - {new Date(budget.period_start).toLocaleDateString()} to {new Date(budget.period_end).toLocaleDateString()}
           </div>
         </div>

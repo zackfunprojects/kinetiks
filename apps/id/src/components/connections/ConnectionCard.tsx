@@ -13,10 +13,10 @@ interface ConnectionCardProps {
 
 const STATUS_COLORS: Record<string, { bg: string; text: string; dot: string }> =
   {
-    active: { bg: "var(--success-muted)", text: "var(--success)", dot: "var(--success)" },
-    pending: { bg: "var(--warning-muted)", text: "var(--warning)", dot: "var(--warning)" },
-    error: { bg: "var(--error-muted)", text: "var(--error)", dot: "var(--error)" },
-    revoked: { bg: "var(--bg-surface-raised)", text: "var(--text-secondary)", dot: "var(--text-tertiary)" },
+    active: { bg: "var(--kt-success-soft)", text: "var(--kt-success)", dot: "var(--kt-success)" },
+    pending: { bg: "var(--kt-warning-soft)", text: "var(--kt-warning)", dot: "var(--kt-warning)" },
+    error: { bg: "var(--kt-danger-soft)", text: "var(--kt-danger)", dot: "var(--kt-danger)" },
+    revoked: { bg: "var(--kt-bg-muted)", text: "var(--kt-fg-2)", dot: "var(--kt-fg-3)" },
   };
 
 function formatLastSync(lastSyncAt: string | null): string {
@@ -50,10 +50,10 @@ export function ConnectionCard({
   return (
     <div
       style={{
-        border: "1px solid var(--border-default)",
+        border: "1px solid var(--kt-border-1)",
         borderRadius: 8,
         padding: 16,
-        background: "var(--bg-surface)",
+        background: "var(--kt-bg-subtle)",
       }}
     >
       <div
@@ -72,7 +72,7 @@ export function ConnectionCard({
             style={{
               margin: "4px 0 0",
               fontSize: 12,
-              color: "var(--text-secondary)",
+              color: "var(--kt-fg-2)",
               lineHeight: 1.4,
             }}
           >
@@ -90,8 +90,8 @@ export function ConnectionCard({
               fontSize: 10,
               padding: "2px 6px",
               borderRadius: 4,
-              background: "var(--bg-surface-raised)",
-              color: "var(--text-secondary)",
+              background: "var(--kt-bg-muted)",
+              color: "var(--kt-fg-2)",
               textTransform: "capitalize",
               fontFamily: "var(--font-mono), monospace",
             }}
@@ -135,7 +135,7 @@ export function ConnectionCard({
               />
               {connection.status}
             </span>
-            <span style={{ fontSize: 11, color: "var(--text-tertiary)", fontFamily: "var(--font-mono), monospace" }}>
+            <span style={{ fontSize: 11, color: "var(--kt-fg-3)", fontFamily: "var(--font-mono), monospace" }}>
               {formatLastSync(connection.last_sync_at)}
             </span>
           </div>
@@ -149,16 +149,16 @@ export function ConnectionCard({
                   padding: "6px 12px",
                   fontSize: 12,
                   fontWeight: 500,
-                  border: "1px solid var(--border-default)",
+                  border: "1px solid var(--kt-border-1)",
                   borderRadius: 6,
-                  background: "var(--bg-surface)",
+                  background: "var(--kt-bg-subtle)",
                   cursor:
                     isSyncing || connection.status === "error"
                       ? "not-allowed"
                       : "pointer",
                   opacity:
                     isSyncing || connection.status === "error" ? 0.5 : 1,
-                  color: "var(--text-secondary)",
+                  color: "var(--kt-fg-2)",
                 }}
               >
                 {isSyncing ? "Syncing..." : "Sync now"}
@@ -171,11 +171,11 @@ export function ConnectionCard({
                   padding: "6px 12px",
                   fontSize: 12,
                   fontWeight: 500,
-                  border: "1px solid #FECACA",
+                  border: "1px solid var(--kt-danger-soft)",
                   borderRadius: 6,
-                  background: "var(--bg-surface)",
+                  background: "var(--kt-bg-subtle)",
                   cursor: "pointer",
-                  color: "var(--error)",
+                  color: "var(--kt-danger)",
                 }}
               >
                 Disconnect
@@ -193,8 +193,8 @@ export function ConnectionCard({
             fontWeight: 500,
             border: "none",
             borderRadius: 6,
-            background: "var(--accent-emphasis)",
-            color: "var(--text-on-accent)",
+            background: "var(--kt-accent-hover)",
+            color: "var(--kt-fg-on-inverse)",
             cursor: "pointer",
           }}
         >

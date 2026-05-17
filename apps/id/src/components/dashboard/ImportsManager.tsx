@@ -48,8 +48,8 @@ export function ImportsManager({ initialImports }: ImportsManagerProps) {
           onClick={() => setShowUpload(true)}
           style={{
             padding: "8px 16px",
-            background: "var(--accent-emphasis)",
-            color: "var(--text-on-accent)",
+            background: "var(--kt-accent-hover)",
+            color: "var(--kt-fg-on-inverse)",
             border: "none",
             borderRadius: 8,
             fontSize: 14,
@@ -82,18 +82,18 @@ export function ImportsManager({ initialImports }: ImportsManagerProps) {
                     variant={STATUS_VARIANTS[imp.status] || "default"}
                   />
                   {imp.target_app && (
-                    <span style={{ fontSize: 12, color: "var(--text-tertiary)" }}>
+                    <span style={{ fontSize: 12, color: "var(--kt-fg-3)" }}>
                       for {imp.target_app.replace("_", " ")}
                     </span>
                   )}
                 </div>
-                <span style={{ fontSize: 11, color: "var(--text-tertiary)", fontFamily: "var(--font-mono), monospace" }}>
+                <span style={{ fontSize: 11, color: "var(--kt-fg-3)", fontFamily: "var(--font-mono), monospace" }}>
                   {new Date(imp.created_at).toLocaleDateString()}
                 </span>
               </div>
 
               {imp.file_path && (
-                <p style={{ margin: "8px 0 0", fontSize: 12, color: "var(--text-secondary)", fontFamily: "var(--font-mono), monospace" }}>
+                <p style={{ margin: "8px 0 0", fontSize: 12, color: "var(--kt-fg-2)", fontFamily: "var(--font-mono), monospace" }}>
                   {imp.file_path.split("/").pop()}
                 </p>
               )}
@@ -101,22 +101,22 @@ export function ImportsManager({ initialImports }: ImportsManagerProps) {
               {imp.stats && Object.keys(imp.stats).length > 0 && (
                 <div style={{ display: "flex", gap: 16, marginTop: 8 }}>
                   {imp.stats.total !== undefined && (
-                    <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>
+                    <span style={{ fontSize: 12, color: "var(--kt-fg-2)" }}>
                       Total: <strong>{imp.stats.total}</strong>
                     </span>
                   )}
                   {imp.stats.imported !== undefined && (
-                    <span style={{ fontSize: 12, color: "var(--success)" }}>
+                    <span style={{ fontSize: 12, color: "var(--kt-success)" }}>
                       Imported: <strong>{imp.stats.imported}</strong>
                     </span>
                   )}
                   {imp.stats.duplicates !== undefined && imp.stats.duplicates > 0 && (
-                    <span style={{ fontSize: 12, color: "var(--warning)" }}>
+                    <span style={{ fontSize: 12, color: "var(--kt-warning)" }}>
                       Duplicates: <strong>{imp.stats.duplicates}</strong>
                     </span>
                   )}
                   {imp.stats.errors !== undefined && imp.stats.errors > 0 && (
-                    <span style={{ fontSize: 12, color: "var(--error)" }}>
+                    <span style={{ fontSize: 12, color: "var(--kt-danger)" }}>
                       Errors: <strong>{imp.stats.errors}</strong>
                     </span>
                   )}

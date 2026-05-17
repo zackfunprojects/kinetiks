@@ -8,10 +8,10 @@ interface AppPerformanceProps {
 }
 
 const APPS = [
-  { key: "harvest", name: "Harvest", color: "var(--success)" },
-  { key: "dark_madder", name: "Dark Madder", color: "var(--accent-secondary)" },
-  { key: "litmus", name: "Litmus", color: "var(--warning)" },
-  { key: "hypothesis", name: "Hypothesis", color: "var(--info)" },
+  { key: "harvest", name: "Harvest", color: "var(--kt-success)" },
+  { key: "dark_madder", name: "Dark Madder", color: "var(--kt-warm)" },
+  { key: "litmus", name: "Litmus", color: "var(--kt-warning)" },
+  { key: "hypothesis", name: "Hypothesis", color: "var(--kt-accent)" },
 ];
 
 export function AppPerformance({ days }: AppPerformanceProps) {
@@ -35,7 +35,7 @@ export function AppPerformance({ days }: AppPerformanceProps) {
   }, [days]);
 
   if (loading) {
-    return <div style={{ padding: 16, color: "var(--text-tertiary)", fontSize: 13 }}>Loading...</div>;
+    return <div style={{ padding: 16, color: "var(--kt-fg-3)", fontSize: 13 }}>Loading...</div>;
   }
 
   return (
@@ -51,13 +51,13 @@ export function AppPerformance({ days }: AppPerformanceProps) {
             style={{
               padding: 16,
               borderRadius: 8,
-              border: "1px solid var(--border-muted)",
-              background: "var(--bg-surface-raised)",
+              border: "1px solid var(--kt-border-2)",
+              background: "var(--kt-bg-muted)",
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
               <div style={{ width: 8, height: 8, borderRadius: "50%", background: app.color }} />
-              <span style={{ fontSize: 14, fontWeight: 500, color: "var(--text-primary)" }}>
+              <span style={{ fontSize: 14, fontWeight: 500, color: "var(--kt-fg-1)" }}>
                 {app.name}
               </span>
             </div>
@@ -66,8 +66,8 @@ export function AppPerformance({ days }: AppPerformanceProps) {
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 {definitions.slice(0, 4).map((def) => (
                   <div key={def.key} style={{ display: "flex", justifyContent: "space-between" }}>
-                    <span style={{ fontSize: 12, color: "var(--text-tertiary)" }}>{def.name}</span>
-                    <span style={{ fontSize: 12, color: "var(--text-secondary)", fontFamily: "var(--font-mono), monospace" }}>
+                    <span style={{ fontSize: 12, color: "var(--kt-fg-3)" }}>{def.name}</span>
+                    <span style={{ fontSize: 12, color: "var(--kt-fg-2)", fontFamily: "var(--font-mono), monospace" }}>
                       {appMetrics[def.key]?.toLocaleString() ?? "-"}
                       {def.unit === "percentage" ? "%" : ""}
                     </span>
@@ -75,7 +75,7 @@ export function AppPerformance({ days }: AppPerformanceProps) {
                 ))}
               </div>
             ) : (
-              <div style={{ fontSize: 12, color: "var(--text-tertiary)" }}>
+              <div style={{ fontSize: 12, color: "var(--kt-fg-3)" }}>
                 No data yet. Connect and report metrics.
               </div>
             )}

@@ -124,11 +124,11 @@ export function ImportUploadModal({
   const selectStyle: React.CSSProperties = {
     width: "100%",
     padding: "8px 10px",
-    border: "1px solid var(--border-default)",
+    border: "1px solid var(--kt-border-1)",
     borderRadius: 6,
     fontSize: 13,
-    color: "var(--text-primary)",
-    background: "var(--bg-surface)",
+    color: "var(--kt-fg-1)",
+    background: "var(--kt-bg-subtle)",
     boxSizing: "border-box",
   };
 
@@ -137,7 +137,7 @@ export function ImportUploadModal({
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(0,0,0,0.5)",
+        background: "var(--kt-backdrop)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -154,7 +154,7 @@ export function ImportUploadModal({
         tabIndex={-1}
         onKeyDown={handleKeyDown}
         style={{
-          background: "var(--bg-surface)",
+          background: "var(--kt-bg-subtle)",
           borderRadius: 12,
           padding: 24,
           width: 440,
@@ -165,7 +165,7 @@ export function ImportUploadModal({
       >
         <h3
           id="import-modal-title"
-          style={{ margin: "0 0 16px", fontSize: 18, fontWeight: 600, color: "var(--text-primary)" }}
+          style={{ margin: "0 0 16px", fontSize: 18, fontWeight: 600, color: "var(--kt-fg-1)" }}
         >
           Upload Import
         </h3>
@@ -174,7 +174,7 @@ export function ImportUploadModal({
         <div style={{ marginBottom: 12 }}>
           <label
             htmlFor="import-type-select"
-            style={{ display: "block", fontSize: 12, fontWeight: 500, color: "var(--text-secondary)", marginBottom: 4 }}
+            style={{ display: "block", fontSize: 12, fontWeight: 500, color: "var(--kt-fg-2)", marginBottom: 4 }}
           >
             Import Type
           </label>
@@ -197,7 +197,7 @@ export function ImportUploadModal({
         <div style={{ marginBottom: 16 }}>
           <label
             htmlFor="target-app-select"
-            style={{ display: "block", fontSize: 12, fontWeight: 500, color: "var(--text-secondary)", marginBottom: 4 }}
+            style={{ display: "block", fontSize: 12, fontWeight: 500, color: "var(--kt-fg-2)", marginBottom: 4 }}
           >
             Target App (optional)
           </label>
@@ -227,12 +227,12 @@ export function ImportUploadModal({
           style={{
             display: "block",
             width: "100%",
-            border: `2px dashed ${dragOver ? "var(--accent)" : "var(--border-default)"}`,
+            border: `2px dashed ${dragOver ? "var(--kt-accent)" : "var(--kt-border-1)"}`,
             borderRadius: 8,
             padding: "24px 16px",
             textAlign: "center",
             cursor: "pointer",
-            background: dragOver ? "var(--accent-muted)" : "var(--bg-base)",
+            background: dragOver ? "var(--kt-accent-soft)" : "var(--kt-bg-base)",
             transition: "border-color 0.15s, background 0.15s",
             marginBottom: 16,
             font: "inherit",
@@ -249,19 +249,19 @@ export function ImportUploadModal({
           />
           {file ? (
             <div>
-              <p style={{ margin: 0, fontSize: 14, fontWeight: 500, color: "var(--text-primary)" }}>
+              <p style={{ margin: 0, fontSize: 14, fontWeight: 500, color: "var(--kt-fg-1)" }}>
                 {file.name}
               </p>
-              <p style={{ margin: "4px 0 0", fontSize: 12, color: "var(--text-tertiary)" }}>
+              <p style={{ margin: "4px 0 0", fontSize: 12, color: "var(--kt-fg-3)" }}>
                 {(file.size / 1024).toFixed(1)} KB
               </p>
             </div>
           ) : (
             <div>
-              <p style={{ margin: 0, fontSize: 14, color: "var(--text-secondary)" }}>
+              <p style={{ margin: 0, fontSize: 14, color: "var(--kt-fg-2)" }}>
                 Drop a file here or click to browse
               </p>
-              <p style={{ margin: "4px 0 0", fontSize: 12, color: "var(--text-tertiary)" }}>
+              <p style={{ margin: "4px 0 0", fontSize: 12, color: "var(--kt-fg-3)" }}>
                 Accepts CSV, JSON, PDF, DOCX
               </p>
             </div>
@@ -269,7 +269,7 @@ export function ImportUploadModal({
         </button>
 
         {error && (
-          <p role="alert" style={{ margin: "0 0 12px", fontSize: 13, color: "var(--error)" }}>
+          <p role="alert" style={{ margin: "0 0 12px", fontSize: 13, color: "var(--kt-danger)" }}>
             {error}
           </p>
         )}
@@ -279,9 +279,9 @@ export function ImportUploadModal({
             onClick={onClose}
             style={{
               padding: "8px 16px",
-              background: "var(--bg-surface)",
-              color: "var(--text-secondary)",
-              border: "1px solid var(--border-default)",
+              background: "var(--kt-bg-subtle)",
+              color: "var(--kt-fg-2)",
+              border: "1px solid var(--kt-border-1)",
               borderRadius: 6,
               fontSize: 13,
               cursor: "pointer",
@@ -294,8 +294,8 @@ export function ImportUploadModal({
             disabled={!importType || !file || uploading}
             style={{
               padding: "8px 16px",
-              background: importType && file ? "var(--accent-emphasis)" : "var(--border-default)",
-              color: importType && file ? "var(--text-on-accent)" : "var(--text-tertiary)",
+              background: importType && file ? "var(--kt-accent-hover)" : "var(--kt-border-1)",
+              color: importType && file ? "var(--kt-fg-on-inverse)" : "var(--kt-fg-3)",
               border: "none",
               borderRadius: 6,
               fontSize: 13,

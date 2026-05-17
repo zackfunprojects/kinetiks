@@ -1,7 +1,7 @@
 import { requireAuth } from "@/lib/auth/require-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { recalculateConfidence } from "@/lib/cortex";
 import { validateLayerData } from "@/lib/cortex";
+import { submitContextEditProposal } from "@/lib/cortex/submit-context-edit";
 import { deepMerge } from "@/lib/utils/deep-merge";
 import { apiSuccess, apiError } from "@/lib/utils/api-response";
 import { dispatchEvent } from "@/lib/webhooks/deliver";
@@ -36,6 +36,18 @@ export async function GET(
   return apiSuccess({ data: row });
 }
 
+/**
+ * PUT /api/context/{layer}
+ *
+ * F3: user-explicit edits flow through the Proposal pipeline (Archivist
+ * schema + conflict detection) and surface as an Approval audit card.
+ * The Approval pipeline auto-approves for user-explicit edits with no
+ * conflicts; conflicts escalate to a pending Approval card so the user
+ * can confirm before committing.
+ *
+ * Direct upserts to `kinetiks_context_*` are forbidden — every change
+ * is auditable via the Proposal + Approval + Insight chain.
+ */
 export async function PUT(
   request: Request,
   { params }: { params: Promise<{ layer: string }> }
@@ -63,88 +75,55 @@ export async function PUT(
     return apiError("Missing or invalid data", 400);
   }
 
-  const validation = validateLayerData(layerParam as ContextLayer, newData);
+  const layer = layerParam as ContextLayer;
+  const validation = validateLayerData(layer, newData);
   if (!validation.valid) {
     return apiError("Invalid data for layer", 400, validation.errors);
   }
 
   const admin = createAdminClient();
 
-  const tableName = `kinetiks_context_${layerParam}`;
-
-  // Read existing data and merge (preserve fields not in the update)
-  const { data: existingRow, error: readError } = await admin
-    .from(tableName)
-    .select("data")
-    .eq("account_id", auth.account_id)
-    .maybeSingle();
-
-  if (readError) {
-    console.error(`Failed to read ${tableName} for account ${auth.account_id}:`, readError.message);
-    return apiError("Failed to read existing context data", 500);
-  }
-
-  const existingData = (existingRow?.data as Record<string, unknown>) || {};
-  const mergedData = { ...existingData, ...newData };
-
-  // Upsert the merged context data
-  const { error: upsertError } = await admin
-    .from(tableName)
-    .upsert(
+  try {
+    const result = await submitContextEditProposal(
+      admin,
+      auth.account_id,
+      layer,
+      newData,
       {
-        account_id: auth.account_id,
-        data: mergedData,
-        source: "user_explicit",
-        source_detail: "context_editor",
-        updated_at: new Date().toISOString(),
+        source_app: "kinetiks_id",
+        source_operator: "cortex_identity_editor",
+        fields_updated: Object.keys(newData),
+        content_length: JSON.stringify(newData).length,
       },
-      { onConflict: "account_id" }
     );
 
-  if (upsertError) {
-    console.error(`Upsert failed for ${tableName} (account ${auth.account_id}):`, upsertError.message);
-    return apiError(`Failed to save context data: ${upsertError.message}`, 500);
-  }
-
-  // Log to ledger and recalculate confidence (non-blocking - upsert already succeeded)
-  let layerConfidence: number | undefined;
-
-  const { error: ledgerError } = await admin.from("kinetiks_ledger").insert({
-    account_id: auth.account_id,
-    event_type: "user_edit",
-    target_layer: layerParam,
-    detail: {
-      action: "context_edited",
-      layer: layerParam,
+    void dispatchEvent(auth.account_id, "context.updated", {
+      layer,
       fields_updated: Object.keys(newData),
-    },
-  });
-  if (ledgerError) {
-    console.error(`Ledger insert failed for ${layerParam} (account ${auth.account_id}):`, ledgerError.message);
+      outcome: result.outcome,
+      proposal_id: result.proposal_id,
+      approval_id: result.approval_id,
+    });
+
+    return apiSuccess({
+      updated: result.outcome === "auto_applied",
+      outcome: result.outcome,
+      proposal_id: result.proposal_id,
+      approval_id: result.approval_id,
+      approval_status: result.approval_status,
+      confidence: result.layer_confidence,
+      decline_reason: result.decline_reason,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return apiError(`Failed to submit context edit: ${message}`, 500);
   }
-
-  void dispatchEvent(auth.account_id, "context.updated", {
-    layer: layerParam,
-    fields_updated: Object.keys(newData),
-  });
-
-  try {
-    const confidence = await recalculateConfidence(admin, auth.account_id);
-    layerConfidence = confidence[layerParam as ContextLayer];
-  } catch (e) {
-    console.error(`Confidence recalculation failed for account ${auth.account_id}:`, e);
-  }
-
-  return apiSuccess({
-    updated: true,
-    confidence: layerConfidence,
-  });
 }
 
 /**
  * PATCH /api/context/{layer}
  * Partial update with deep merge (RFC 7386 JSON Merge Patch).
- * null values delete keys, nested objects merge recursively, arrays replace.
+ * Same Proposal → Approval pipeline as PUT.
  */
 export async function PATCH(
   request: Request,
@@ -173,10 +152,15 @@ export async function PATCH(
     return apiError("Missing or invalid data", 400);
   }
 
-  const admin = createAdminClient();
-  const tableName = `kinetiks_context_${layerParam}`;
+  const layer = layerParam as ContextLayer;
 
-  // Read existing data
+  const admin = createAdminClient();
+
+  // For PATCH we compute the merged data here so the Proposal payload
+  // carries the full intended state. The evaluator does its own merge
+  // semantically (shallow merge over current row), but PATCH callers
+  // expect deep-merge semantics.
+  const tableName = `kinetiks_context_${layer}`;
   const { data: existingRow, error: readError } = await admin
     .from(tableName)
     .select("data")
@@ -184,67 +168,50 @@ export async function PATCH(
     .maybeSingle();
 
   if (readError) {
-    console.error(`Failed to read ${tableName} for account ${auth.account_id}:`, readError.message);
     return apiError("Failed to read existing context data", 500);
   }
 
   const existingData = (existingRow?.data as Record<string, unknown>) || {};
   const mergedData = deepMerge(existingData, patchData);
 
-  // Validate merged result
-  const validation = validateLayerData(layerParam as ContextLayer, mergedData);
+  const validation = validateLayerData(layer, mergedData);
   if (!validation.valid) {
     return apiError("Merged data failed layer validation", 400, validation.errors);
   }
 
-  const { error: upsertError } = await admin
-    .from(tableName)
-    .upsert(
+  try {
+    const result = await submitContextEditProposal(
+      admin,
+      auth.account_id,
+      layer,
+      mergedData,
       {
-        account_id: auth.account_id,
-        data: mergedData,
-        source: "user_explicit",
-        source_detail: "context_patch",
-        updated_at: new Date().toISOString(),
+        source_app: "kinetiks_id",
+        source_operator: "cortex_identity_patch",
+        fields_updated: Object.keys(patchData),
+        content_length: JSON.stringify(patchData).length,
       },
-      { onConflict: "account_id" }
     );
 
-  if (upsertError) {
-    console.error(`Upsert failed for ${tableName} (account ${auth.account_id}):`, upsertError.message);
-    return apiError(`Failed to save context data: ${upsertError.message}`, 500);
-  }
-
-  let layerConfidence: number | undefined;
-
-  const { error: ledgerError } = await admin.from("kinetiks_ledger").insert({
-    account_id: auth.account_id,
-    event_type: "user_edit",
-    target_layer: layerParam,
-    detail: {
-      action: "context_patched",
-      layer: layerParam,
+    void dispatchEvent(auth.account_id, "context.updated", {
+      layer,
       fields_updated: Object.keys(patchData),
-    },
-  });
-  if (ledgerError) {
-    console.error(`Ledger insert failed for ${layerParam} (account ${auth.account_id}):`, ledgerError.message);
+      outcome: result.outcome,
+      proposal_id: result.proposal_id,
+      approval_id: result.approval_id,
+    });
+
+    return apiSuccess({
+      updated: result.outcome === "auto_applied",
+      outcome: result.outcome,
+      proposal_id: result.proposal_id,
+      approval_id: result.approval_id,
+      approval_status: result.approval_status,
+      confidence: result.layer_confidence,
+      decline_reason: result.decline_reason,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return apiError(`Failed to submit context edit: ${message}`, 500);
   }
-
-  void dispatchEvent(auth.account_id, "context.updated", {
-    layer: layerParam,
-    fields_updated: Object.keys(patchData),
-  });
-
-  try {
-    const confidence = await recalculateConfidence(admin, auth.account_id);
-    layerConfidence = confidence[layerParam as ContextLayer];
-  } catch (e) {
-    console.error(`Confidence recalculation failed for account ${auth.account_id}:`, e);
-  }
-
-  return apiSuccess({
-    updated: true,
-    confidence: layerConfidence,
-  });
 }

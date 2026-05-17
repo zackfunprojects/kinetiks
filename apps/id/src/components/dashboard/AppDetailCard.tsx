@@ -57,7 +57,7 @@ export function AppDetailCard({
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            color: "var(--text-on-accent)",
+            color: "var(--kt-fg-on-inverse)",
             fontWeight: 700,
             fontSize: 18,
             flexShrink: 0,
@@ -67,7 +67,7 @@ export function AppDetailCard({
         </div>
         <div style={{ flex: 1 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: "var(--text-primary)" }}>
+            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: "var(--kt-fg-1)" }}>
               {displayName}
             </h3>
             {isActive && (
@@ -77,7 +77,7 @@ export function AppDetailCard({
               <Badge label="Paused" variant="warning" />
             )}
           </div>
-          <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.4 }}>
+          <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--kt-fg-2)", lineHeight: 1.4 }}>
             {description}
           </p>
         </div>
@@ -86,7 +86,7 @@ export function AppDetailCard({
       {isActive && synapse && (
         <div style={{ marginBottom: 12 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-            <span style={{ fontSize: 12, color: "var(--text-tertiary)" }}>Synapse:</span>
+            <span style={{ fontSize: 12, color: "var(--kt-fg-3)" }}>Synapse:</span>
             <Badge
               label={synapse.status}
               variant={synapse.status === "active" ? "success" : "error"}
@@ -95,7 +95,7 @@ export function AppDetailCard({
 
           {synapse.read_layers.length > 0 && (
             <div style={{ marginBottom: 4 }}>
-              <span style={{ fontSize: 11, color: "var(--text-tertiary)" }}>Reads: </span>
+              <span style={{ fontSize: 11, color: "var(--kt-fg-3)" }}>Reads: </span>
               {synapse.read_layers.map((l) => (
                 <Badge
                   key={l}
@@ -108,7 +108,7 @@ export function AppDetailCard({
 
           {synapse.write_layers.length > 0 && (
             <div>
-              <span style={{ fontSize: 11, color: "var(--text-tertiary)" }}>Writes: </span>
+              <span style={{ fontSize: 11, color: "var(--kt-fg-3)" }}>Writes: </span>
               {synapse.write_layers.map((l) => (
                 <Badge
                   key={l}
@@ -120,7 +120,7 @@ export function AppDetailCard({
           )}
 
           {activation.activated_at && (
-            <p style={{ margin: "8px 0 0", fontSize: 11, color: "var(--text-tertiary)", fontFamily: "var(--font-mono), monospace" }}>
+            <p style={{ margin: "8px 0 0", fontSize: 11, color: "var(--kt-fg-3)", fontFamily: "var(--font-mono), monospace" }}>
               Activated {new Date(activation.activated_at).toLocaleDateString()}
             </p>
           )}
@@ -134,7 +134,7 @@ export function AppDetailCard({
             style={{
               padding: "8px 16px",
               background: color,
-              color: "var(--text-on-accent)",
+              color: "var(--kt-fg-on-inverse)",
               borderRadius: 8,
               fontSize: 13,
               fontWeight: 500,
@@ -149,8 +149,8 @@ export function AppDetailCard({
             disabled={loading}
             style={{
               padding: "8px 16px",
-              background: "var(--accent-emphasis)",
-              color: "var(--text-on-accent)",
+              background: "var(--kt-accent-hover)",
+              color: "var(--kt-fg-on-inverse)",
               border: "none",
               borderRadius: 8,
               fontSize: 13,

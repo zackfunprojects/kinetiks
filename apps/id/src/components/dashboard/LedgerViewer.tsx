@@ -106,11 +106,11 @@ export function LedgerViewer({
 
   const selectStyle: React.CSSProperties = {
     padding: "6px 10px",
-    border: "1px solid var(--border-default)",
+    border: "1px solid var(--kt-border-1)",
     borderRadius: 6,
     fontSize: 13,
-    color: "var(--text-secondary)",
-    background: "var(--bg-surface)",
+    color: "var(--kt-fg-2)",
+    background: "var(--kt-bg-subtle)",
   };
 
   return (
@@ -159,7 +159,7 @@ export function LedgerViewer({
 
       {/* Entries */}
       {entries.length === 0 ? (
-        <div style={{ textAlign: "center", padding: "40px 0", color: "var(--text-tertiary)" }}>
+        <div style={{ textAlign: "center", padding: "40px 0", color: "var(--kt-fg-3)" }}>
           <p style={{ fontSize: 14 }}>No ledger entries found</p>
         </div>
       ) : (
@@ -174,7 +174,7 @@ export function LedgerViewer({
                   alignItems: "flex-start",
                   gap: 12,
                   padding: "12px 0",
-                  borderBottom: i < entries.length - 1 ? "1px solid var(--bg-surface-raised)" : undefined,
+                  borderBottom: i < entries.length - 1 ? "1px solid var(--kt-bg-muted)" : undefined,
                 }}
               >
                 <div
@@ -183,10 +183,10 @@ export function LedgerViewer({
                     height: 8,
                     borderRadius: "50%",
                     background:
-                      variant === "success" ? "var(--success)" :
-                      variant === "error" ? "var(--error)" :
-                      variant === "accent" ? "var(--accent)" :
-                      variant === "warning" ? "var(--warning)" : "var(--text-tertiary)",
+                      variant === "success" ? "var(--kt-success)" :
+                      variant === "error" ? "var(--kt-danger)" :
+                      variant === "accent" ? "var(--kt-accent)" :
+                      variant === "warning" ? "var(--kt-warning)" : "var(--kt-fg-3)",
                     marginTop: 6,
                     flexShrink: 0,
                   }}
@@ -204,16 +204,16 @@ export function LedgerViewer({
                       />
                     )}
                     {entry.source_app && (
-                      <span style={{ fontSize: 11, color: "var(--text-tertiary)" }}>
+                      <span style={{ fontSize: 11, color: "var(--kt-fg-3)" }}>
                         via {entry.source_app.replace("_", " ")}
                       </span>
                     )}
                   </div>
-                  <p style={{ margin: 0, fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.4 }}>
+                  <p style={{ margin: 0, fontSize: 13, color: "var(--kt-fg-2)", lineHeight: 1.4 }}>
                     {getEventDescription(entry)}
                   </p>
                 </div>
-                <span style={{ fontSize: 11, color: "var(--text-tertiary)", flexShrink: 0, whiteSpace: "nowrap", fontFamily: "var(--font-mono), monospace" }}>
+                <span style={{ fontSize: 11, color: "var(--kt-fg-3)", flexShrink: 0, whiteSpace: "nowrap", fontFamily: "var(--font-mono), monospace" }}>
                   {new Date(entry.created_at).toLocaleString()}
                 </span>
               </div>

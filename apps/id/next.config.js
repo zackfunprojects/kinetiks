@@ -3,13 +3,17 @@ const nextConfig = {
   transpilePackages: [
     "@kinetiks/types",
     "@kinetiks/ui",
+    "@kinetiks/lib",
     "@kinetiks/supabase",
     "@kinetiks/synapse",
     "@kinetiks/ai",
     "@kinetiks/cortex",
+    "@kinetiks/tools",
+    "@kinetiks/runtime",
   ],
   experimental: {
     serverComponentsExternalPackages: ["@mendable/firecrawl-js"],
+    instrumentationHook: true,
   },
   async redirects() {
     return [

@@ -90,7 +90,7 @@ function SignupForm() {
         alignItems: "center",
         justifyContent: "center",
         minHeight: "100vh",
-        background: "var(--bg-base)",
+        background: "var(--kt-bg-base)",
       }}
     >
       <div
@@ -98,9 +98,9 @@ function SignupForm() {
           width: "100%",
           maxWidth: 440,
           padding: 40,
-          background: "var(--bg-surface)",
+          background: "var(--kt-bg-subtle)",
           borderRadius: 12,
-          border: "1px solid var(--border-default)",
+          border: "1px solid var(--kt-border-1)",
         }}
       >
         <div style={{ marginBottom: 32 }}>
@@ -108,7 +108,7 @@ function SignupForm() {
             style={{
               fontFamily: "var(--font-mono), monospace",
               fontSize: 14,
-              color: "var(--accent)",
+              color: "var(--kt-accent)",
               marginBottom: 16,
             }}
           >
@@ -118,13 +118,13 @@ function SignupForm() {
             style={{
               fontSize: 24,
               fontWeight: 700,
-              color: "var(--text-primary)",
+              color: "var(--kt-fg-1)",
               margin: 0,
             }}
           >
             {framing.title}
           </h1>
-          <p style={{ color: "var(--text-secondary)", marginTop: 8, fontSize: 14, lineHeight: 1.5 }}>
+          <p style={{ color: "var(--kt-fg-2)", marginTop: 8, fontSize: 14, lineHeight: 1.5 }}>
             {framing.subtitle}
           </p>
         </div>
@@ -138,7 +138,7 @@ function SignupForm() {
                 fontSize: 13,
                 fontWeight: 500,
                 marginBottom: 6,
-                color: "var(--text-secondary)",
+                color: "var(--kt-fg-2)",
                 fontFamily: "var(--font-mono), monospace",
               }}
             >
@@ -153,12 +153,12 @@ function SignupForm() {
               style={{
                 width: "100%",
                 padding: "10px 12px",
-                border: "1px solid var(--border-default)",
+                border: "1px solid var(--kt-border-1)",
                 borderRadius: 6,
                 fontSize: 14,
                 boxSizing: "border-box",
-                background: "var(--bg-inset)",
-                color: "var(--text-primary)",
+                background: "var(--kt-bg-base)",
+                color: "var(--kt-fg-1)",
               }}
             />
           </div>
@@ -171,7 +171,7 @@ function SignupForm() {
                 fontSize: 13,
                 fontWeight: 500,
                 marginBottom: 6,
-                color: "var(--text-secondary)",
+                color: "var(--kt-fg-2)",
                 fontFamily: "var(--font-mono), monospace",
               }}
             >
@@ -187,18 +187,18 @@ function SignupForm() {
               style={{
                 width: "100%",
                 padding: "10px 12px",
-                border: "1px solid var(--border-default)",
+                border: "1px solid var(--kt-border-1)",
                 borderRadius: 6,
                 fontSize: 14,
                 boxSizing: "border-box",
-                background: "var(--bg-inset)",
-                color: "var(--text-primary)",
+                background: "var(--kt-bg-base)",
+                color: "var(--kt-fg-1)",
               }}
             />
           </div>
 
           {error && (
-            <p style={{ color: "var(--error)", fontSize: 13, marginBottom: 16 }}>
+            <p style={{ color: "var(--kt-danger)", fontSize: 13, marginBottom: 16 }}>
               {error}
             </p>
           )}
@@ -209,8 +209,8 @@ function SignupForm() {
             style={{
               width: "100%",
               padding: "12px 0",
-              background: loading ? "var(--border-default)" : "var(--accent-emphasis)",
-              color: loading ? "var(--text-tertiary)" : "var(--text-on-accent)",
+              background: loading ? "var(--kt-border-1)" : "var(--kt-accent-hover)",
+              color: loading ? "var(--kt-fg-3)" : "var(--kt-fg-on-inverse)",
               border: "none",
               borderRadius: 6,
               fontSize: 14,
@@ -222,11 +222,11 @@ function SignupForm() {
           </button>
         </form>
 
-        <p style={{ textAlign: "center", marginTop: 20, fontSize: 13, color: "var(--text-secondary)" }}>
+        <p style={{ textAlign: "center", marginTop: 20, fontSize: 13, color: "var(--kt-fg-2)" }}>
           Already have an account?{" "}
           <Link
             href={fromApp ? `/login?from=${encodeURIComponent(fromApp)}` : "/login"}
-            style={{ color: "var(--accent)", textDecoration: "none" }}
+            style={{ color: "var(--kt-accent)", textDecoration: "none" }}
           >
             Log in
           </Link>
@@ -237,22 +237,22 @@ function SignupForm() {
           style={{
             marginTop: 32,
             padding: "16px 20px",
-            borderRadius: 10,
-            background: "rgba(108, 92, 231, 0.06)",
-            border: "1px solid rgba(108, 92, 231, 0.12)",
+            borderRadius: "var(--kt-radius-2)",
+            background: "var(--kt-accent-soft)",
+            border: "1px solid var(--kt-border-1)",
             textAlign: "center",
           }}
         >
-          <p style={{ margin: 0, fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.5 }}>
+          <p style={{ margin: 0, fontSize: "var(--kt-fs-13)", color: "var(--kt-fg-2)", lineHeight: "var(--kt-lh-body)" }}>
             Building with AI agents? Kinetiks has native{" "}
             <Link
               href="/developers"
-              style={{ color: "#6C5CE7", textDecoration: "none", fontWeight: 600 }}
+              style={{ color: "var(--kt-accent)", textDecoration: "none", fontWeight: "var(--kt-fw-semi)" }}
             >
               MCP support
             </Link>
             .{" "}
-            <span style={{ color: "rgba(255,255,255,0.4)" }}>
+            <span style={{ color: "var(--kt-fg-3)" }}>
               18 tools for context, onboarding, and intelligence.
             </span>
           </p>

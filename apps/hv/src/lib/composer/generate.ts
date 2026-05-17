@@ -58,8 +58,8 @@ export async function generateEmailDraft(params: GenerateParams): Promise<Genera
   // Load knowledge modules for email methodology
   let knowledgeContent = "";
   try {
-    const aiModule: Record<string, unknown> = await import("@kinetiks/ai");
-    const loadKnowledge = aiModule.loadKnowledge as (opts: Record<string, unknown>) => Promise<{ content: string }>;
+    const knowledgeModule: Record<string, unknown> = await import("@kinetiks/ai/knowledge");
+    const loadKnowledge = knowledgeModule.loadKnowledge as (opts: Record<string, unknown>) => Promise<{ content: string }>;
     const knowledge = await loadKnowledge({
       operator: "composer",
       intent: "write_cold_email",

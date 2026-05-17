@@ -268,7 +268,7 @@ export function MarcusChat({ initialThreads }: MarcusChatProps) {
         height: "calc(100vh - 64px)",
         borderRadius: 8,
         overflow: "hidden",
-        border: "1px solid var(--border-default)",
+        border: "1px solid var(--kt-border-1)",
       }}
     >
       {/* Thread sidebar */}
@@ -286,7 +286,7 @@ export function MarcusChat({ initialThreads }: MarcusChatProps) {
           flex: 1,
           display: "flex",
           flexDirection: "column",
-          backgroundColor: "var(--bg-base)",
+          backgroundColor: "var(--kt-bg-base)",
         }}
       >
         {/* Messages */}
@@ -304,7 +304,7 @@ export function MarcusChat({ initialThreads }: MarcusChatProps) {
                 alignItems: "center",
                 justifyContent: "center",
                 height: "100%",
-                color: "var(--text-tertiary)",
+                color: "var(--kt-fg-3)",
                 fontSize: 14,
               }}
             >
@@ -313,13 +313,13 @@ export function MarcusChat({ initialThreads }: MarcusChatProps) {
                   style={{
                     fontSize: 14,
                     fontFamily: "var(--font-mono), monospace",
-                    color: "var(--accent)",
+                    color: "var(--kt-accent)",
                     marginBottom: 8,
                   }}
                 >
                   {">"} marcus
                 </div>
-                <div style={{ color: "var(--text-tertiary)" }}>
+                <div style={{ color: "var(--kt-fg-3)" }}>
                   Your strategic advisor. Ask anything.
                 </div>
               </div>
@@ -351,7 +351,7 @@ export function MarcusChat({ initialThreads }: MarcusChatProps) {
         <div
           style={{
             padding: "16px 24px",
-            borderTop: "1px solid var(--border-muted)",
+            borderTop: "1px solid var(--kt-border-2)",
           }}
         >
           <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
@@ -365,7 +365,7 @@ export function MarcusChat({ initialThreads }: MarcusChatProps) {
               style={{
                 flex: 1,
                 padding: "10px 14px",
-                border: "1px solid var(--border-default)",
+                border: "1px solid var(--kt-border-1)",
                 borderRadius: 8,
                 fontSize: 14,
                 outline: "none",
@@ -374,8 +374,8 @@ export function MarcusChat({ initialThreads }: MarcusChatProps) {
                 lineHeight: 1.5,
                 maxHeight: 120,
                 overflow: "auto",
-                backgroundColor: "var(--bg-inset)",
-                color: "var(--text-primary)",
+                backgroundColor: "var(--kt-bg-base)",
+                color: "var(--kt-fg-1)",
               }}
               disabled={isStreaming}
             />
@@ -385,8 +385,8 @@ export function MarcusChat({ initialThreads }: MarcusChatProps) {
               style={{
                 padding: "10px 20px",
                 backgroundColor:
-                  isStreaming || !input.trim() ? "var(--border-default)" : "var(--accent-emphasis)",
-                color: isStreaming || !input.trim() ? "var(--text-tertiary)" : "var(--text-on-accent)",
+                  isStreaming || !input.trim() ? "var(--kt-border-1)" : "var(--kt-accent-hover)",
+                color: isStreaming || !input.trim() ? "var(--kt-fg-3)" : "var(--kt-fg-on-inverse)",
                 border: "none",
                 borderRadius: 8,
                 fontSize: 14,

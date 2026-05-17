@@ -30,7 +30,7 @@ export default async function DashboardLayout({
   return (
     <div style={{ display: "flex", minHeight: "100vh" }}>
       <Sidebar />
-      <main style={{ flex: 1, padding: 32, background: "var(--bg-base)" }}>{children}</main>
+      <main style={{ flex: 1, padding: 32, background: "var(--kt-bg-base)" }}>{children}</main>
     </div>
   );
 }

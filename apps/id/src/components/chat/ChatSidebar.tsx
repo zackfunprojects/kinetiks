@@ -29,11 +29,11 @@ export function ChatSidebar({
     <div
       style={{
         width: 280,
-        borderRight: "1px solid var(--border-muted)",
+        borderRight: "1px solid var(--kt-border-2)",
         display: "flex",
         flexDirection: "column",
         height: "100%",
-        backgroundColor: "var(--bg-surface)",
+        backgroundColor: "var(--kt-bg-subtle)",
       }}
     >
       <div style={{ padding: "12px 12px 0" }}>

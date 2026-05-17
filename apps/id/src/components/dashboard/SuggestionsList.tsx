@@ -9,15 +9,15 @@ interface SuggestionsListProps {
 }
 
 const SEVERITY_STYLES: Record<string, { dot: string; label: string }> = {
-  empty: { dot: "var(--error)", label: "Missing" },
-  thin: { dot: "var(--warning)", label: "Incomplete" },
-  stale: { dot: "var(--text-tertiary)", label: "Stale" },
+  empty: { dot: "var(--kt-danger)", label: "Missing" },
+  thin: { dot: "var(--kt-warning)", label: "Incomplete" },
+  stale: { dot: "var(--kt-fg-3)", label: "Stale" },
 };
 
 export function SuggestionsList({ findings }: SuggestionsListProps) {
   if (findings.length === 0) {
     return (
-      <p style={{ color: "var(--text-tertiary)", fontSize: 13, padding: "8px 0" }}>
+      <p style={{ color: "var(--kt-fg-3)", fontSize: 13, padding: "8px 0" }}>
         No suggestions right now. Your ID is looking good.
       </p>
     );
@@ -37,18 +37,18 @@ export function SuggestionsList({ findings }: SuggestionsListProps) {
               gap: 10,
               padding: "8px 12px",
               borderRadius: 6,
-              background: "var(--bg-surface-raised)",
+              background: "var(--kt-bg-muted)",
               textDecoration: "none",
               transition: "background 0.15s, border-color 0.15s",
               border: "1px solid transparent",
               cursor: "pointer",
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.background = "var(--bg-surface-overlay)";
-              e.currentTarget.style.borderColor = "var(--border-default)";
+              e.currentTarget.style.background = "var(--kt-bg-elevated)";
+              e.currentTarget.style.borderColor = "var(--kt-border-1)";
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.background = "var(--bg-surface-raised)";
+              e.currentTarget.style.background = "var(--kt-bg-muted)";
               e.currentTarget.style.borderColor = "transparent";
             }}
           >
@@ -63,17 +63,17 @@ export function SuggestionsList({ findings }: SuggestionsListProps) {
               }}
             />
             <div style={{ flex: 1 }}>
-              <p style={{ margin: 0, fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.4 }}>
+              <p style={{ margin: 0, fontSize: 13, color: "var(--kt-fg-2)", lineHeight: 1.4 }}>
                 {finding.suggestion}
               </p>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
-                <span style={{ fontSize: 11, color: "var(--text-tertiary)", fontFamily: "var(--font-mono), monospace" }}>
+                <span style={{ fontSize: 11, color: "var(--kt-fg-3)", fontFamily: "var(--font-mono), monospace" }}>
                   {LAYER_DISPLAY_NAMES[finding.layer]}
                 </span>
                 <span
                   style={{
                     fontSize: 11,
-                    color: "var(--accent)",
+                    color: "var(--kt-accent)",
                     fontWeight: 600,
                     fontFamily: "var(--font-mono), monospace",
                   }}
@@ -87,7 +87,7 @@ export function SuggestionsList({ findings }: SuggestionsListProps) {
               height={14}
               viewBox="0 0 24 24"
               fill="none"
-              stroke="var(--text-tertiary)"
+              stroke="var(--kt-fg-3)"
               strokeWidth={2}
               strokeLinecap="round"
               strokeLinejoin="round"

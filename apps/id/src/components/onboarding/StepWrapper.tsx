@@ -39,8 +39,8 @@ export function StepWrapper({
         <div
           className="rounded-xl"
           style={{
-            background: "var(--bg-surface)",
-            border: "1px solid var(--border-default)",
+            background: "var(--kt-bg-subtle)",
+            border: "1px solid var(--kt-border-1)",
           }}
         >
           {/* Header */}
@@ -51,9 +51,9 @@ export function StepWrapper({
                   <span
                     className="rounded px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider"
                     style={{
-                      background: "var(--bg-surface-raised)",
-                      color: "var(--text-tertiary)",
-                      border: "1px solid var(--border-muted)",
+                      background: "var(--kt-bg-muted)",
+                      color: "var(--kt-fg-3)",
+                      border: "1px solid var(--kt-border-2)",
                       fontFamily: "var(--font-mono), monospace",
                     }}
                   >
@@ -64,7 +64,7 @@ export function StepWrapper({
               <span
                 className="text-[11px] font-medium uppercase tracking-wider"
                 style={{
-                  color: "var(--text-tertiary)",
+                  color: "var(--kt-fg-3)",
                   fontFamily: "var(--font-mono), monospace",
                 }}
               >
@@ -72,11 +72,11 @@ export function StepWrapper({
               </span>
             </div>
 
-            <h1 className="text-xl font-bold" style={{ color: "var(--text-primary)" }}>
+            <h1 className="text-xl font-bold" style={{ color: "var(--kt-fg-1)" }}>
               {title}
             </h1>
             {subtitle && (
-              <p className="mt-2 text-sm leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+              <p className="mt-2 text-sm leading-relaxed" style={{ color: "var(--kt-fg-2)" }}>
                 {subtitle}
               </p>
             )}
@@ -90,7 +90,7 @@ export function StepWrapper({
           {/* Navigation */}
           <div
             className="mt-2 flex items-center justify-between px-8 py-5"
-            style={{ borderTop: "1px solid var(--border-muted)" }}
+            style={{ borderTop: "1px solid var(--kt-border-2)" }}
           >
             <div>
               {onBack && (
@@ -99,7 +99,7 @@ export function StepWrapper({
                   className="flex items-center gap-1.5 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors"
                   style={{
                     background: "transparent",
-                    color: "var(--text-secondary)",
+                    color: "var(--kt-fg-2)",
                     border: "none",
                     cursor: "pointer",
                   }}
@@ -118,7 +118,7 @@ export function StepWrapper({
                   className="flex items-center gap-1.5 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors"
                   style={{
                     background: "transparent",
-                    color: "var(--text-tertiary)",
+                    color: "var(--kt-fg-3)",
                     border: "none",
                     cursor: "pointer",
                   }}
@@ -136,8 +136,8 @@ export function StepWrapper({
                   disabled={continueDisabled || loading}
                   className="flex items-center gap-1.5 rounded-lg px-6 py-2.5 text-sm font-semibold transition-colors disabled:opacity-50"
                   style={{
-                    background: "var(--accent-emphasis)",
-                    color: "var(--text-on-accent)",
+                    background: "var(--kt-accent-hover)",
+                    color: "var(--kt-fg-on-inverse)",
                     border: "none",
                     cursor: continueDisabled || loading ? "default" : "pointer",
                   }}
@@ -146,7 +146,7 @@ export function StepWrapper({
                     <>
                       <div
                         className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-t-transparent"
-                        style={{ borderColor: "var(--text-on-accent)", borderTopColor: "transparent" }}
+                        style={{ borderColor: "var(--kt-fg-on-inverse)", borderTopColor: "transparent" }}
                       />
                       {continueLabel}
                     </>

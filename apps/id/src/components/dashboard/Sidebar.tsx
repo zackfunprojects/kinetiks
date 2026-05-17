@@ -27,12 +27,12 @@ export function Sidebar() {
     <aside
       style={{
         width: 240,
-        borderRight: "1px solid var(--border-muted)",
+        borderRight: "1px solid var(--kt-border-2)",
         padding: "24px 16px",
         display: "flex",
         flexDirection: "column",
         gap: 4,
-        background: "var(--bg-surface)",
+        background: "var(--kt-bg-subtle)",
       }}
     >
       <Link
@@ -41,7 +41,7 @@ export function Sidebar() {
           fontWeight: 700,
           fontSize: 16,
           fontFamily: "var(--font-mono), monospace",
-          color: "var(--logo-accent)",
+          color: "var(--kt-accent)",
           marginBottom: 24,
           padding: "0 8px",
           textDecoration: "none",
@@ -66,9 +66,9 @@ export function Sidebar() {
                 textDecoration: "none",
                 fontSize: 13,
                 fontWeight: active ? 500 : 400,
-                color: active ? "var(--sidebar-active-text)" : "var(--text-secondary)",
-                background: active ? "var(--sidebar-active-bg)" : "transparent",
-                borderLeft: active ? "2px solid var(--accent)" : "2px solid transparent",
+                color: active ? "var(--kt-accent-ink)" : "var(--kt-fg-2)",
+                background: active ? "var(--kt-accent-soft)" : "transparent",
+                borderLeft: active ? "2px solid var(--kt-accent)" : "2px solid transparent",
                 transition: "background 0.15s, color 0.15s, border-color 0.15s",
               }}
             >
@@ -77,7 +77,7 @@ export function Sidebar() {
                 height={16}
                 viewBox="0 0 24 24"
                 fill="none"
-                stroke={active ? "var(--accent)" : "var(--text-tertiary)"}
+                stroke={active ? "var(--kt-accent)" : "var(--kt-fg-3)"}
                 strokeWidth={1.5}
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -85,7 +85,7 @@ export function Sidebar() {
                 <path d={item.icon} />
               </svg>
               {active && (
-                <span style={{ fontFamily: "var(--font-mono), monospace", color: "var(--accent)", fontSize: 11, marginRight: -4 }}>
+                <span style={{ fontFamily: "var(--font-mono), monospace", color: "var(--kt-accent)", fontSize: 11, marginRight: -4 }}>
                   {">"}
                 </span>
               )}

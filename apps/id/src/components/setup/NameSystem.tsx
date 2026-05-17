@@ -50,7 +50,7 @@ export function NameSystem({ accountId, initialName, onComplete }: NameSystemPro
         style={{
           fontSize: 28,
           fontWeight: 700,
-          color: "var(--text-primary)",
+          color: "var(--kt-fg-1)",
           margin: "0 0 8px",
           textAlign: "center",
         }}
@@ -60,7 +60,7 @@ export function NameSystem({ accountId, initialName, onComplete }: NameSystemPro
       <p
         style={{
           fontSize: 14,
-          color: "var(--text-secondary)",
+          color: "var(--kt-fg-2)",
           margin: "0 0 32px",
           textAlign: "center",
           lineHeight: 1.5,
@@ -82,14 +82,14 @@ export function NameSystem({ accountId, initialName, onComplete }: NameSystemPro
           style={{
             width: "100%",
             padding: "14px 16px",
-            border: "1px solid var(--border-default)",
+            border: "1px solid var(--kt-border-1)",
             borderRadius: 8,
             fontSize: 18,
             fontWeight: 500,
             outline: "none",
             boxSizing: "border-box",
-            backgroundColor: "var(--bg-inset)",
-            color: "var(--text-primary)",
+            backgroundColor: "var(--kt-bg-base)",
+            color: "var(--kt-fg-1)",
             textAlign: "center",
           }}
           onKeyDown={(e) => {
@@ -97,7 +97,7 @@ export function NameSystem({ accountId, initialName, onComplete }: NameSystemPro
           }}
         />
         {error && (
-          <p style={{ fontSize: 13, color: "var(--error)", marginTop: 8, textAlign: "center" }}>
+          <p style={{ fontSize: 13, color: "var(--kt-danger)", marginTop: 8, textAlign: "center" }}>
             {error}
           </p>
         )}
@@ -113,11 +113,11 @@ export function NameSystem({ accountId, initialName, onComplete }: NameSystemPro
             marginBottom: 32,
             padding: 16,
             borderRadius: 8,
-            border: "1px solid var(--border-muted)",
-            background: "var(--bg-surface)",
+            border: "1px solid var(--kt-border-2)",
+            background: "var(--kt-bg-subtle)",
           }}
         >
-          <div style={{ fontSize: 12, color: "var(--text-tertiary)", fontFamily: "var(--font-mono), monospace", marginBottom: 4 }}>
+          <div style={{ fontSize: 12, color: "var(--kt-fg-3)", fontFamily: "var(--font-mono), monospace", marginBottom: 4 }}>
             Preview
           </div>
           <PreviewRow label="Chat" value={`${displayName}: "Here's your morning brief..."`} />
@@ -137,8 +137,8 @@ export function NameSystem({ accountId, initialName, onComplete }: NameSystemPro
           fontSize: 15,
           fontWeight: 500,
           cursor: saving || !name.trim() ? "not-allowed" : "pointer",
-          backgroundColor: saving || !name.trim() ? "var(--border-default)" : "var(--accent-emphasis)",
-          color: saving || !name.trim() ? "var(--text-tertiary)" : "var(--text-on-accent)",
+          backgroundColor: saving || !name.trim() ? "var(--kt-border-1)" : "var(--kt-accent-hover)",
+          color: saving || !name.trim() ? "var(--kt-fg-3)" : "var(--kt-fg-on-inverse)",
         }}
       >
         {saving ? "Saving..." : "Continue"}
@@ -153,7 +153,7 @@ function PreviewRow({ label, value }: { label: string; value: string }) {
       <span
         style={{
           fontSize: 11,
-          color: "var(--text-tertiary)",
+          color: "var(--kt-fg-3)",
           fontFamily: "var(--font-mono), monospace",
           width: 48,
           flexShrink: 0,
@@ -162,7 +162,7 @@ function PreviewRow({ label, value }: { label: string; value: string }) {
       >
         {label}
       </span>
-      <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>{value}</span>
+      <span style={{ fontSize: 13, color: "var(--kt-fg-2)" }}>{value}</span>
     </div>
   );
 }

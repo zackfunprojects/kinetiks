@@ -34,9 +34,9 @@ export function MessageBubble({
           maxWidth: "75%",
           padding: "12px 16px",
           borderRadius: 8,
-          backgroundColor: isUser ? "var(--user-bubble)" : "var(--marcus-bubble)",
-          color: isUser ? "var(--text-on-accent)" : "var(--text-primary)",
-          border: isUser ? "none" : "1px solid var(--border-muted)",
+          backgroundColor: isUser ? "var(--kt-bg-muted)" : "var(--kt-bg-elevated)",
+          color: isUser ? "var(--kt-fg-on-inverse)" : "var(--kt-fg-1)",
+          border: isUser ? "none" : "1px solid var(--kt-border-2)",
           fontSize: 14,
           lineHeight: 1.6,
           position: "relative",
@@ -51,7 +51,7 @@ export function MessageBubble({
                 display: "inline-block",
                 width: 6,
                 height: 16,
-                backgroundColor: "var(--accent)",
+                backgroundColor: "var(--kt-accent)",
                 marginLeft: 2,
                 animation: "blink 1s infinite",
                 verticalAlign: "text-bottom",
@@ -62,7 +62,7 @@ export function MessageBubble({
 
         {/* Extracted actions */}
         {extractedActions && extractedActions.length > 0 && (
-          <div style={{ marginTop: 8, borderTop: "1px solid var(--border-muted)", paddingTop: 8 }}>
+          <div style={{ marginTop: 8, borderTop: "1px solid var(--kt-border-2)", paddingTop: 8 }}>
             <button
               onClick={() => setShowActions(!showActions)}
               aria-expanded={showActions}
@@ -72,7 +72,7 @@ export function MessageBubble({
                 cursor: "pointer",
                 fontSize: 12,
                 fontFamily: "var(--font-mono), monospace",
-                color: isUser ? "rgba(255,255,255,0.8)" : "var(--accent)",
+                color: isUser ? "var(--kt-fg-on-inverse)" : "var(--kt-accent)",
                 padding: 0,
               }}
             >
@@ -110,7 +110,8 @@ export function MessageBubble({
             style={{
               fontSize: 11,
               fontFamily: "var(--font-mono), monospace",
-              color: isUser ? "rgba(255,255,255,0.5)" : "var(--text-tertiary)",
+              color: isUser ? "var(--kt-fg-on-inverse)" : "var(--kt-fg-3)",
+              opacity: isUser ? 0.6 : 1,
               marginTop: 4,
               textAlign: isUser ? "right" : "left",
             }}

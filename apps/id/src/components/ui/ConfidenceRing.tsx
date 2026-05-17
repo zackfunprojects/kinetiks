@@ -56,7 +56,7 @@ export function ConfidenceRing({
           style={{
             transform: "rotate(-90deg)",
             filter: animatedScore > 0
-              ? "drop-shadow(0 0 8px rgba(230, 237, 243, 0.2))"
+              ? "drop-shadow(var(--kt-shadow-xs))"
               : undefined,
           }}
         >
@@ -65,7 +65,7 @@ export function ConfidenceRing({
             cy={center}
             r={radius}
             fill="none"
-            stroke="var(--ring-track)"
+            stroke="var(--kt-border-2)"
             strokeWidth={strokeWidth}
           />
           <circle
@@ -73,7 +73,7 @@ export function ConfidenceRing({
             cy={center}
             r={radius}
             fill="none"
-            stroke="var(--ring-fill)"
+            stroke="var(--kt-accent)"
             strokeWidth={strokeWidth}
             strokeDasharray={circumference}
             strokeDashoffset={offset}
@@ -98,7 +98,7 @@ export function ConfidenceRing({
               fontSize: size * 0.28,
               fontWeight: 700,
               fontFamily: "var(--font-mono), monospace",
-              color: "var(--text-primary)",
+              color: "var(--kt-fg-1)",
               lineHeight: 1,
             }}
           >
@@ -111,7 +111,7 @@ export function ConfidenceRing({
           style={{
             fontSize: 12,
             fontFamily: "var(--font-mono), monospace",
-            color: "var(--text-tertiary)",
+            color: "var(--kt-fg-3)",
             marginTop: 2,
             letterSpacing: "0.02em",
           }}

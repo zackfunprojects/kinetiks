@@ -17,12 +17,12 @@ export function CortexNav() {
     <nav
       style={{
         width: 220,
-        borderRight: "1px solid var(--border-muted)",
+        borderRight: "1px solid var(--kt-border-2)",
         padding: "16px 12px",
         display: "flex",
         flexDirection: "column",
         gap: 2,
-        backgroundColor: "var(--bg-surface)",
+        backgroundColor: "var(--kt-bg-subtle)",
         flexShrink: 0,
       }}
     >
@@ -30,7 +30,7 @@ export function CortexNav() {
         style={{
           fontSize: 13,
           fontWeight: 600,
-          color: "var(--text-primary)",
+          color: "var(--kt-fg-1)",
           margin: "0 0 12px 8px",
           fontFamily: "var(--font-mono), monospace",
         }}
@@ -52,8 +52,8 @@ export function CortexNav() {
               textDecoration: "none",
               fontSize: 13,
               fontWeight: active ? 500 : 400,
-              color: active ? "var(--text-primary)" : "var(--text-secondary)",
-              background: active ? "var(--accent-subtle)" : "transparent",
+              color: active ? "var(--kt-fg-1)" : "var(--kt-fg-2)",
+              background: active ? "var(--kt-accent-soft)" : "transparent",
               transition: "background 0.15s, color 0.15s",
             }}
           >
@@ -62,7 +62,7 @@ export function CortexNav() {
               height={16}
               viewBox="0 0 24 24"
               fill="none"
-              stroke={active ? "var(--text-primary)" : "var(--text-tertiary)"}
+              stroke={active ? "var(--kt-fg-1)" : "var(--kt-fg-3)"}
               strokeWidth={1.5}
               strokeLinecap="round"
               strokeLinejoin="round"

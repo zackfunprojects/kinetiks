@@ -126,9 +126,9 @@ export function CalibrationStep({
         <div className="flex items-center gap-3 py-8">
           <div
             className="h-5 w-5 animate-spin rounded-full border-2 border-t-transparent"
-            style={{ borderColor: "var(--accent)", borderTopColor: "transparent" }}
+            style={{ borderColor: "var(--kt-accent)", borderTopColor: "transparent" }}
           />
-          <span className="text-sm" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-mono), monospace" }}>
+          <span className="text-sm" style={{ color: "var(--kt-fg-2)", fontFamily: "var(--font-mono), monospace" }}>
             Crafting writing samples based on your business...
           </span>
         </div>
@@ -173,7 +173,7 @@ export function CalibrationStep({
       <div className="mb-4">
         <span
           className="text-xs font-medium"
-          style={{ color: "var(--text-tertiary)", fontFamily: "var(--font-mono), monospace" }}
+          style={{ color: "var(--kt-fg-3)", fontFamily: "var(--font-mono), monospace" }}
         >
           Exercise {currentIndex + 1} of {exercises.length}
         </span>
@@ -189,7 +189,7 @@ export function CalibrationStep({
       />
 
       {submitError && (
-        <p className="mb-4 text-sm" style={{ color: "var(--error)" }}>{submitError}</p>
+        <p className="mb-4 text-sm" style={{ color: "var(--kt-danger)" }}>{submitError}</p>
       )}
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -197,34 +197,34 @@ export function CalibrationStep({
           onClick={() => setSelected("A")}
           className="rounded-lg p-5 text-left text-sm leading-relaxed transition-all"
           style={{
-            border: selected === "A" ? "2px solid var(--accent)" : "2px solid var(--border-default)",
-            background: selected === "A" ? "var(--accent-muted)" : "var(--bg-surface-raised)",
+            border: selected === "A" ? "2px solid var(--kt-accent)" : "2px solid var(--kt-border-1)",
+            background: selected === "A" ? "var(--kt-accent-soft)" : "var(--kt-bg-muted)",
           }}
         >
           <span
             className="mb-2 block text-xs font-semibold"
-            style={{ color: "var(--text-tertiary)", fontFamily: "var(--font-mono), monospace" }}
+            style={{ color: "var(--kt-fg-3)", fontFamily: "var(--font-mono), monospace" }}
           >
             Option A
           </span>
-          <span style={{ color: "var(--text-secondary)" }}>{exercise.optionA}</span>
+          <span style={{ color: "var(--kt-fg-2)" }}>{exercise.optionA}</span>
         </button>
 
         <button
           onClick={() => setSelected("B")}
           className="rounded-lg p-5 text-left text-sm leading-relaxed transition-all"
           style={{
-            border: selected === "B" ? "2px solid var(--accent)" : "2px solid var(--border-default)",
-            background: selected === "B" ? "var(--accent-muted)" : "var(--bg-surface-raised)",
+            border: selected === "B" ? "2px solid var(--kt-accent)" : "2px solid var(--kt-border-1)",
+            background: selected === "B" ? "var(--kt-accent-soft)" : "var(--kt-bg-muted)",
           }}
         >
           <span
             className="mb-2 block text-xs font-semibold"
-            style={{ color: "var(--text-tertiary)", fontFamily: "var(--font-mono), monospace" }}
+            style={{ color: "var(--kt-fg-3)", fontFamily: "var(--font-mono), monospace" }}
           >
             Option B
           </span>
-          <span style={{ color: "var(--text-secondary)" }}>{exercise.optionB}</span>
+          <span style={{ color: "var(--kt-fg-2)" }}>{exercise.optionB}</span>
         </button>
       </div>
     </StepWrapper>

@@ -15,10 +15,10 @@ interface Insight {
 }
 
 const SEVERITY_COLORS: Record<string, { bg: string; text: string }> = {
-  critical: { bg: "var(--error-muted)", text: "var(--error)" },
-  warning: { bg: "var(--warning-muted)", text: "var(--warning)" },
-  opportunity: { bg: "var(--success-muted)", text: "var(--success)" },
-  info: { bg: "var(--info-muted)", text: "var(--info)" },
+  critical: { bg: "var(--kt-danger-soft)", text: "var(--kt-danger)" },
+  warning: { bg: "var(--kt-warning-soft)", text: "var(--kt-warning)" },
+  opportunity: { bg: "var(--kt-success-soft)", text: "var(--kt-success)" },
+  info: { bg: "var(--kt-accent-soft)", text: "var(--kt-accent)" },
 };
 
 export function InsightSection() {
@@ -34,13 +34,13 @@ export function InsightSection() {
   }, []);
 
   if (loading) {
-    return <div style={{ padding: 16, color: "var(--text-tertiary)", fontSize: 13 }}>Loading insights...</div>;
+    return <div style={{ padding: 16, color: "var(--kt-fg-3)", fontSize: 13 }}>Loading insights...</div>;
   }
 
   if (insights.length === 0) {
     return (
-      <div style={{ padding: 24, borderRadius: 8, border: "1px dashed var(--border-default)", background: "var(--bg-surface)", textAlign: "center" }}>
-        <p style={{ fontSize: 13, color: "var(--text-tertiary)", margin: 0 }}>
+      <div style={{ padding: 24, borderRadius: 8, border: "1px dashed var(--kt-border-1)", background: "var(--kt-bg-subtle)", textAlign: "center" }}>
+        <p style={{ fontSize: 13, color: "var(--kt-fg-3)", margin: 0 }}>
           No insights yet. The Oracle will surface patterns as data flows in.
         </p>
       </div>
@@ -66,8 +66,8 @@ export function InsightSection() {
             style={{
               padding: 16,
               borderRadius: 8,
-              border: "1px solid var(--border-muted)",
-              background: "var(--bg-surface-raised)",
+              border: "1px solid var(--kt-border-2)",
+              background: "var(--kt-bg-muted)",
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
@@ -84,18 +84,18 @@ export function InsightSection() {
               >
                 {insight.severity}
               </span>
-              <span style={{ fontSize: 11, color: "var(--text-tertiary)" }}>
+              <span style={{ fontSize: 11, color: "var(--kt-fg-3)" }}>
                 {insight.insight_type}
               </span>
             </div>
-            <div style={{ fontSize: 14, fontWeight: 500, color: "var(--text-primary)", marginBottom: 4 }}>
+            <div style={{ fontSize: 14, fontWeight: 500, color: "var(--kt-fg-1)", marginBottom: 4 }}>
               {insight.title}
             </div>
-            <div style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.5, marginBottom: 8 }}>
+            <div style={{ fontSize: 13, color: "var(--kt-fg-2)", lineHeight: 1.5, marginBottom: 8 }}>
               {insight.body}
             </div>
             {insight.recommendation && (
-              <div style={{ fontSize: 12, color: "var(--accent-secondary)", marginBottom: 8 }}>
+              <div style={{ fontSize: 12, color: "var(--kt-warm)", marginBottom: 8 }}>
                 Recommendation: {insight.recommendation}
               </div>
             )}
@@ -104,7 +104,7 @@ export function InsightSection() {
                 href={`/chat?q=${encodeURIComponent(`Tell me more about: ${insight.title}`)}`}
                 style={{
                   fontSize: 12,
-                  color: "var(--accent-secondary)",
+                  color: "var(--kt-warm)",
                   textDecoration: "none",
                 }}
               >
@@ -114,7 +114,7 @@ export function InsightSection() {
                 onClick={() => handleDismiss(insight.id)}
                 style={{
                   fontSize: 12,
-                  color: "var(--text-tertiary)",
+                  color: "var(--kt-fg-3)",
                   background: "none",
                   border: "none",
                   cursor: "pointer",

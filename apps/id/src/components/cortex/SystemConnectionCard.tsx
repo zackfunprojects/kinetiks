@@ -13,12 +13,12 @@ export function SystemConnectionCard({ label, status, description }: SystemConne
       style={{
         padding: 16,
         borderRadius: 8,
-        border: "1px solid var(--border-muted)",
-        background: "var(--bg-surface-raised)",
+        border: "1px solid var(--kt-border-2)",
+        background: "var(--kt-bg-muted)",
       }}
     >
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-        <span style={{ fontSize: 14, fontWeight: 500, color: "var(--text-primary)" }}>
+        <span style={{ fontSize: 14, fontWeight: 500, color: "var(--kt-fg-1)" }}>
           {label}
         </span>
         <span
@@ -27,15 +27,15 @@ export function SystemConnectionCard({ label, status, description }: SystemConne
             fontWeight: 600,
             padding: "2px 6px",
             borderRadius: 4,
-            background: connected ? "var(--success-muted)" : "var(--bg-inset)",
-            color: connected ? "var(--success)" : "var(--text-tertiary)",
+            background: connected ? "var(--kt-success-soft)" : "var(--kt-bg-base)",
+            color: connected ? "var(--kt-success)" : "var(--kt-fg-3)",
             textTransform: "uppercase",
           }}
         >
           {status}
         </span>
       </div>
-      <p style={{ fontSize: 12, color: "var(--text-tertiary)", margin: "0 0 12px", lineHeight: 1.4 }}>
+      <p style={{ fontSize: 12, color: "var(--kt-fg-3)", margin: "0 0 12px", lineHeight: 1.4 }}>
         {description}
       </p>
       <button
@@ -43,9 +43,9 @@ export function SystemConnectionCard({ label, status, description }: SystemConne
         style={{
           padding: "6px 12px",
           borderRadius: 6,
-          border: "1px solid var(--border-default)",
+          border: "1px solid var(--kt-border-1)",
           background: "transparent",
-          color: "var(--text-tertiary)",
+          color: "var(--kt-fg-3)",
           fontSize: 12,
           cursor: "not-allowed",
           opacity: 0.5,

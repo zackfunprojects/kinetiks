@@ -21,26 +21,26 @@ export function AiFillBanner({
       disabled={disabled || loading}
       className="mb-5 flex w-full items-center gap-3 rounded-lg px-4 py-3 text-left transition-colors disabled:opacity-50"
       style={{
-        background: "var(--accent-muted)",
-        borderLeft: "3px solid var(--accent)",
+        background: "var(--kt-accent-soft)",
+        borderLeft: "3px solid var(--kt-accent)",
         border: "none",
         borderLeftWidth: 3,
         borderLeftStyle: "solid",
-        borderLeftColor: disabled ? "var(--border-default)" : "var(--accent)",
+        borderLeftColor: disabled ? "var(--kt-border-1)" : "var(--kt-accent)",
         cursor: disabled || loading ? "default" : "pointer",
       }}
     >
       {loading ? (
         <div
           className="h-4 w-4 flex-shrink-0 animate-spin rounded-full border-2 border-t-transparent"
-          style={{ borderColor: "var(--accent)", borderTopColor: "transparent" }}
+          style={{ borderColor: "var(--kt-accent)", borderTopColor: "transparent" }}
         />
       ) : (
         <svg
           className="h-4 w-4 flex-shrink-0"
           viewBox="0 0 24 24"
           fill="none"
-          stroke={disabled ? "var(--text-tertiary)" : "var(--accent)"}
+          stroke={disabled ? "var(--kt-fg-3)" : "var(--kt-accent)"}
           strokeWidth="2"
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -51,11 +51,11 @@ export function AiFillBanner({
       <div>
         <div
           className="text-sm font-medium"
-          style={{ color: disabled ? "var(--text-tertiary)" : "var(--accent)" }}
+          style={{ color: disabled ? "var(--kt-fg-3)" : "var(--kt-accent)" }}
         >
           {loading ? "Filling with AI..." : label}
         </div>
-        <div className="text-xs" style={{ color: "var(--text-tertiary)" }}>
+        <div className="text-xs" style={{ color: "var(--kt-fg-3)" }}>
           {disabled && disabledReason ? disabledReason : sublabel}
         </div>
       </div>

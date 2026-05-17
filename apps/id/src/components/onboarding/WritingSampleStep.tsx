@@ -131,22 +131,22 @@ export function WritingSampleStep({
       {feedback && (
         <div
           className="mb-4 rounded-lg px-4 py-3"
-          style={{ background: "var(--accent-muted)" }}
+          style={{ background: "var(--kt-accent-soft)" }}
         >
-          <span className="text-sm" style={{ color: "var(--accent)", fontFamily: "var(--font-mono), monospace" }}>
+          <span className="text-sm" style={{ color: "var(--kt-accent)", fontFamily: "var(--font-mono), monospace" }}>
             {feedback}
           </span>
         </div>
       )}
 
       {error && (
-        <p className="mb-4 text-sm" style={{ color: "var(--error)" }}>{error}</p>
+        <p className="mb-4 text-sm" style={{ color: "var(--kt-danger)" }}>{error}</p>
       )}
 
       {/* Textarea with sparkle */}
       <div>
         <div className="mb-1.5 flex items-center justify-between">
-          <span className="text-xs" style={{ color: "var(--text-tertiary)" }}>
+          <span className="text-xs" style={{ color: "var(--kt-fg-3)" }}>
             Writing sample
           </span>
           <SparkleButton
@@ -163,9 +163,9 @@ export function WritingSampleStep({
           disabled={analyzing}
           className="w-full resize-none rounded-lg px-4 py-3 text-sm disabled:opacity-50"
           style={{
-            border: "1px solid var(--border-default)",
-            background: "var(--bg-inset)",
-            color: "var(--text-primary)",
+            border: "1px solid var(--kt-border-1)",
+            background: "var(--kt-bg-base)",
+            color: "var(--kt-fg-1)",
           }}
         />
       </div>
@@ -174,14 +174,14 @@ export function WritingSampleStep({
         <span
           className="text-xs"
           style={{
-            color: text.trim().length < 100 ? "var(--text-tertiary)" : "var(--success)",
+            color: text.trim().length < 100 ? "var(--kt-fg-3)" : "var(--kt-success)",
             fontFamily: "var(--font-mono), monospace",
           }}
         >
           {text.trim().length} / 100 min characters
         </span>
         {samplesSubmitted > 0 && (
-          <span className="text-xs" style={{ color: "var(--text-tertiary)", fontFamily: "var(--font-mono), monospace" }}>
+          <span className="text-xs" style={{ color: "var(--kt-fg-3)", fontFamily: "var(--font-mono), monospace" }}>
             {samplesSubmitted} sample{samplesSubmitted > 1 ? "s" : ""} analyzed
           </span>
         )}

@@ -80,7 +80,7 @@ function LoginForm() {
         alignItems: "center",
         justifyContent: "center",
         minHeight: "100vh",
-        background: "var(--bg-base)",
+        background: "var(--kt-bg-base)",
       }}
     >
       <div
@@ -88,9 +88,9 @@ function LoginForm() {
           width: "100%",
           maxWidth: 440,
           padding: 40,
-          background: "var(--bg-surface)",
+          background: "var(--kt-bg-subtle)",
           borderRadius: 12,
-          border: "1px solid var(--border-default)",
+          border: "1px solid var(--kt-border-1)",
         }}
       >
         <div style={{ marginBottom: 32 }}>
@@ -98,7 +98,7 @@ function LoginForm() {
             style={{
               fontFamily: "var(--font-mono), monospace",
               fontSize: 14,
-              color: "var(--accent)",
+              color: "var(--kt-accent)",
               marginBottom: 16,
             }}
           >
@@ -108,13 +108,13 @@ function LoginForm() {
             style={{
               fontSize: 24,
               fontWeight: 700,
-              color: "var(--text-primary)",
+              color: "var(--kt-fg-1)",
               margin: 0,
             }}
           >
             Log in
           </h1>
-          <p style={{ color: "var(--text-secondary)", marginTop: 8, fontSize: 14 }}>
+          <p style={{ color: "var(--kt-fg-2)", marginTop: 8, fontSize: 14 }}>
             Access your Kinetiks ID and all connected apps
           </p>
         </div>
@@ -128,7 +128,7 @@ function LoginForm() {
                 fontSize: 13,
                 fontWeight: 500,
                 marginBottom: 6,
-                color: "var(--text-secondary)",
+                color: "var(--kt-fg-2)",
                 fontFamily: "var(--font-mono), monospace",
               }}
             >
@@ -143,12 +143,12 @@ function LoginForm() {
               style={{
                 width: "100%",
                 padding: "10px 12px",
-                border: "1px solid var(--border-default)",
+                border: "1px solid var(--kt-border-1)",
                 borderRadius: 6,
                 fontSize: 14,
                 boxSizing: "border-box",
-                background: "var(--bg-inset)",
-                color: "var(--text-primary)",
+                background: "var(--kt-bg-base)",
+                color: "var(--kt-fg-1)",
               }}
             />
           </div>
@@ -161,7 +161,7 @@ function LoginForm() {
                 fontSize: 13,
                 fontWeight: 500,
                 marginBottom: 6,
-                color: "var(--text-secondary)",
+                color: "var(--kt-fg-2)",
                 fontFamily: "var(--font-mono), monospace",
               }}
             >
@@ -176,18 +176,18 @@ function LoginForm() {
               style={{
                 width: "100%",
                 padding: "10px 12px",
-                border: "1px solid var(--border-default)",
+                border: "1px solid var(--kt-border-1)",
                 borderRadius: 6,
                 fontSize: 14,
                 boxSizing: "border-box",
-                background: "var(--bg-inset)",
-                color: "var(--text-primary)",
+                background: "var(--kt-bg-base)",
+                color: "var(--kt-fg-1)",
               }}
             />
           </div>
 
           {error && (
-            <p style={{ color: "var(--error)", fontSize: 13, marginBottom: 16 }}>
+            <p style={{ color: "var(--kt-danger)", fontSize: 13, marginBottom: 16 }}>
               {error}
             </p>
           )}
@@ -198,8 +198,8 @@ function LoginForm() {
             style={{
               width: "100%",
               padding: "12px 0",
-              background: loading ? "var(--border-default)" : "var(--accent-emphasis)",
-              color: loading ? "var(--text-tertiary)" : "var(--text-on-accent)",
+              background: loading ? "var(--kt-border-1)" : "var(--kt-accent-hover)",
+              color: loading ? "var(--kt-fg-3)" : "var(--kt-fg-on-inverse)",
               border: "none",
               borderRadius: 6,
               fontSize: 14,
@@ -211,15 +211,15 @@ function LoginForm() {
           </button>
         </form>
 
-        <p style={{ textAlign: "center", marginTop: 20, fontSize: 13, color: "var(--text-secondary)" }}>
+        <p style={{ textAlign: "center", marginTop: 20, fontSize: 13, color: "var(--kt-fg-2)" }}>
           Don&apos;t have an account?{" "}
-          <Link href={signupHref} style={{ color: "var(--accent)", textDecoration: "none" }}>
+          <Link href={signupHref} style={{ color: "var(--kt-accent)", textDecoration: "none" }}>
             Sign up
           </Link>
         </p>
 
-        <div style={{ textAlign: "center", marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border-muted)" }}>
-          <Link href="/developers" style={{ fontSize: 12, color: "var(--text-tertiary)", textDecoration: "none" }}>
+        <div style={{ textAlign: "center", marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--kt-border-2)" }}>
+          <Link href="/developers" style={{ fontSize: 12, color: "var(--kt-fg-3)", textDecoration: "none" }}>
             Developer docs &amp; API reference
           </Link>
         </div>

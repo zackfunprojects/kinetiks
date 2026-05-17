@@ -14,8 +14,8 @@ export function QuickApprovalCard({ approval, onApprove, onReject }: QuickApprov
       style={{
         padding: 12,
         borderRadius: 8,
-        border: "1px solid var(--border-muted)",
-        background: "var(--bg-surface-raised)",
+        border: "1px solid var(--kt-border-2)",
+        background: "var(--kt-bg-muted)",
         marginBottom: 8,
       }}
     >
@@ -27,20 +27,20 @@ export function QuickApprovalCard({ approval, onApprove, onReject }: QuickApprov
             fontWeight: 600,
             padding: "2px 6px",
             borderRadius: 4,
-            background: "var(--info-muted)",
-            color: "var(--info)",
+            background: "var(--kt-accent-soft)",
+            color: "var(--kt-accent)",
             textTransform: "uppercase",
           }}
         >
           Quick
         </span>
-        <span style={{ fontSize: 11, color: "var(--text-tertiary)" }}>
+        <span style={{ fontSize: 11, color: "var(--kt-fg-3)" }}>
           {approval.source_app}
         </span>
       </div>
 
       {/* Title */}
-      <div style={{ fontSize: 13, fontWeight: 500, color: "var(--text-primary)", marginBottom: 6 }}>
+      <div style={{ fontSize: 13, fontWeight: 500, color: "var(--kt-fg-1)", marginBottom: 6 }}>
         {approval.title}
       </div>
 
@@ -49,7 +49,7 @@ export function QuickApprovalCard({ approval, onApprove, onReject }: QuickApprov
         <div
           style={{
             fontSize: 12,
-            color: "var(--text-secondary)",
+            color: "var(--kt-fg-2)",
             marginBottom: 10,
             lineHeight: 1.4,
             maxHeight: 60,
@@ -69,8 +69,8 @@ export function QuickApprovalCard({ approval, onApprove, onReject }: QuickApprov
             padding: "6px 12px",
             borderRadius: 6,
             border: "none",
-            background: "var(--success-muted)",
-            color: "var(--success)",
+            background: "var(--kt-success-soft)",
+            color: "var(--kt-success)",
             fontSize: 12,
             fontWeight: 500,
             cursor: "pointer",
@@ -83,9 +83,9 @@ export function QuickApprovalCard({ approval, onApprove, onReject }: QuickApprov
           style={{
             padding: "6px 12px",
             borderRadius: 6,
-            border: "1px solid var(--border-default)",
+            border: "1px solid var(--kt-border-1)",
             background: "transparent",
-            color: "var(--text-secondary)",
+            color: "var(--kt-fg-2)",
             fontSize: 12,
             cursor: "pointer",
           }}

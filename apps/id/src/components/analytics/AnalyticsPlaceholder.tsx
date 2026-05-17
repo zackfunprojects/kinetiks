@@ -15,7 +15,7 @@ export function AnalyticsPlaceholder() {
           width: 64,
           height: 64,
           borderRadius: 16,
-          background: "var(--accent-subtle)",
+          background: "var(--kt-accent-soft)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -27,7 +27,7 @@ export function AnalyticsPlaceholder() {
           height={32}
           viewBox="0 0 24 24"
           fill="none"
-          stroke="var(--text-tertiary)"
+          stroke="var(--kt-fg-3)"
           strokeWidth={1.5}
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -39,7 +39,7 @@ export function AnalyticsPlaceholder() {
         style={{
           fontSize: 20,
           fontWeight: 600,
-          color: "var(--text-primary)",
+          color: "var(--kt-fg-1)",
           margin: "0 0 8px",
         }}
       >
@@ -48,7 +48,7 @@ export function AnalyticsPlaceholder() {
       <p
         style={{
           fontSize: 14,
-          color: "var(--text-tertiary)",
+          color: "var(--kt-fg-3)",
           margin: 0,
           maxWidth: 400,
           lineHeight: 1.5,

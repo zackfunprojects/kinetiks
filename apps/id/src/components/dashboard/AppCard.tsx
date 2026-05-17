@@ -55,7 +55,7 @@ export function AppCard({
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            color: "var(--text-on-accent)",
+            color: "var(--kt-fg-on-inverse)",
             fontWeight: 700,
             fontSize: 14,
             fontFamily: "var(--font-mono), monospace",
@@ -64,7 +64,7 @@ export function AppCard({
           {displayName[0]}
         </div>
         <div>
-          <h4 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: "var(--text-primary)" }}>
+          <h4 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: "var(--kt-fg-1)" }}>
             {displayName}
           </h4>
         </div>
@@ -76,7 +76,7 @@ export function AppCard({
         )}
       </div>
 
-      <p style={{ margin: "0 0 12px", fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.4 }}>
+      <p style={{ margin: "0 0 12px", fontSize: 13, color: "var(--kt-fg-2)", lineHeight: 1.4 }}>
         {description}
       </p>
 
@@ -86,8 +86,8 @@ export function AppCard({
           style={{
             display: "inline-block",
             padding: "6px 14px",
-            background: "var(--accent-emphasis)",
-            color: "var(--text-on-accent)",
+            background: "var(--kt-accent-hover)",
+            color: "var(--kt-fg-on-inverse)",
             borderRadius: 6,
             fontSize: 13,
             fontWeight: 500,
@@ -103,8 +103,8 @@ export function AppCard({
           style={{
             padding: "6px 14px",
             background: "transparent",
-            color: "var(--accent)",
-            border: "1px solid var(--accent)",
+            color: "var(--kt-accent)",
+            border: "1px solid var(--kt-accent)",
             borderRadius: 6,
             fontSize: 13,
             fontWeight: 500,
