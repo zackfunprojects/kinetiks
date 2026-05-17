@@ -1,7 +1,8 @@
 /**
  * POST /api/archivist/patterns/sweep
  *
- * Per addendum §1.9. Phase 1 time-based pattern decay sweep.
+ * Per the Kinetiks Contract Addendum §1.6 (Lifecycle and Empirical
+ * Decay Calibration). Phase 1 time-based pattern decay sweep.
  *
  * Algorithm per account (transactional):
  *   - For each pattern with status='validated' and user_starred=false:

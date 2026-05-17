@@ -114,7 +114,7 @@ CREATE TABLE IF NOT EXISTS kinetiks_tool_calls (
   status text NOT NULL CHECK (status IN ('success', 'error', 'denied', 'queued_for_approval')),
   error_message text,                                       -- generic, never raw upstream
 
-  -- Authority resolution outcome (per 2027 addendum §2.9)
+  -- Authority resolution outcome (per Kinetiks Contract Addendum §2.9)
   authority_outcome text CHECK (authority_outcome IN ('grant_covers', 'auto_threshold', 'queued', 'escalated', 'fallback', 'denied')),
 
   -- Timing

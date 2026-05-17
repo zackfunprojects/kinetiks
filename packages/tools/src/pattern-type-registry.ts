@@ -2,7 +2,7 @@
  * Pattern Type Registry - the canonical inventory of every pattern_type
  * an app may emit to the Pattern Library.
  *
- * Per the 2027 addendum §1.3. An unregistered pattern_type cannot be
+ * Per the Kinetiks Contract Addendum §1.3. An unregistered pattern_type cannot be
  * emitted (the /api/synapse/patterns endpoint rejects it) or referenced
  * from an Operator's required_patterns (the cross-registry validator
  * fails the boot).
@@ -374,7 +374,7 @@ function assertPatternTypeDescriptor(d: PatternTypeDescriptor): void {
     }
   } else {
     // Declared absence is a warning. Cardinality intent helps prevent
-    // explosion (addendum §1.14).
+    // explosion (Kinetiks Contract Addendum §1.3 - registered cardinality intent).
     // eslint-disable-next-line no-console
     console.warn(
       `[pattern-type-registry] Pattern type "${d.pattern_type}" did not declare expected_max_fingerprints_per_account. Add cardinality intent to help prevent pattern type explosion.`,

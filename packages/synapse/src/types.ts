@@ -147,7 +147,7 @@ export interface SynapseInstance {
     input: SynapseReviewInput
   ) => Promise<ReviewResponse>;
   /**
-   * Emit a Pattern to the Library per the 2027 addendum §1.4. The
+   * Emit a Pattern to the Library per the Kinetiks Contract Addendum §1.4. The
    * server validates the pattern_type against the Pattern Type Registry,
    * verifies emitting_apps, applies bucketize, validates dimensions,
    * checks outcome_metrics names + units, computes fingerprint, and

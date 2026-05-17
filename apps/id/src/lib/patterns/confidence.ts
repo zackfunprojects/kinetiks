@@ -1,5 +1,5 @@
 /**
- * Pinned Phase 1 confidence formula per the 2027 addendum §1.6.
+ * Pinned Phase 1 confidence formula per the Kinetiks Contract Addendum §1.6.
  *
  * The formula is intentionally simple, deterministic, and inspectable.
  * Phase 2 calibration layers LLM-judged stability evaluation and tunes

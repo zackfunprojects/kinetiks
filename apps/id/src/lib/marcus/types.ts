@@ -87,7 +87,7 @@ export interface PreAnalysisBrief {
    */
   recent_insights?: InsightForBrief[];
   /**
-   * L1a (2027 addendum §1.12) — top-N high-confidence patterns for
+   * L1a (Kinetiks Contract Addendum §1.10) — top-N high-confidence patterns for
    * this account. Pre-fetched passively (NOT a tool result); Marcus
    * weaves the implication into the response. The response body never
    * dumps raw statistics.

@@ -1,6 +1,6 @@
 /**
  * Seed Pattern Type Descriptors for Harvest (the outbound engine), per
- * the 2027 addendum §1.14.
+ * the Kinetiks Contract Addendum §1.14.
  *
  * Three pattern types ship in Phase 1. Each declares mandatory
  * bucketization where its raw inputs are naturally high-cardinality,

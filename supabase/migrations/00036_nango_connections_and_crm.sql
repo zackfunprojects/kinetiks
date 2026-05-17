@@ -19,7 +19,7 @@
 --      see per-source sync history and surface health in the Analytics
 --      SourcesPanel. RLS read-own.
 --
--- team_scope_id placeholder on every new table per the 2027 addendum.
+-- team_scope_id placeholder on every new table per the Kinetiks Contract Addendum.
 -- ============================================================
 
 -- ── 1. Nango columns on kinetiks_connections ──────────────────

@@ -46,7 +46,7 @@ export {
   _resetOperatorRegistryForTests,
 } from "./operator-registry";
 
-// Pattern Type Registry (2027 addendum §1.3, L1a)
+// Pattern Type Registry (Kinetiks Contract Addendum §1.3, L1a)
 export {
   definePatternType,
   registerPatternType,

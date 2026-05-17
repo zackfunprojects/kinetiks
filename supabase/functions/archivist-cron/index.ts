@@ -3,7 +3,7 @@
 // Runs every 6 hours. Two passes per onboarded account:
 //   1. /api/archivist/clean — deduplication, normalization, gap detection,
 //      quality scoring on Cortex context layers.
-//   2. /api/archivist/patterns/sweep (L1a, per 2027 addendum §1.9) —
+//   2. /api/archivist/patterns/sweep (L1a, per Kinetiks Contract Addendum §1.9) —
 //      time-based Pattern Library decay: validated → declining when
 //      now - last_observed_at > effective_decay_days * 0.7, and
 //      declining → archived when now > decay_at. User-starred patterns

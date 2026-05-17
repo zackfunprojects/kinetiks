@@ -1,5 +1,5 @@
 /**
- * Pattern Library types per the 2027 addendum §1.
+ * Pattern Library types per the Kinetiks Contract Addendum §1.
  *
  * The `Pattern` shape mirrors a `kinetiks_pattern_library` row as
  * surfaced through the read path. The emission/result types are the
@@ -16,7 +16,7 @@
 // ============================================================
 
 /**
- * Pattern lifecycle per addendum §1.7.
+ * Pattern lifecycle per Kinetiks Contract Addendum §1.6 (Lifecycle and Empirical Decay Calibration).
  *
  * Legal transitions (Archivist-driven, sole writer):
  *   emerging  → validated | archived
@@ -111,7 +111,7 @@ export interface Pattern {
   validated_at: string | null;
   declining_at: string | null;
   archived_at: string | null;
-  /** User pinned the pattern; exempts from auto-archive (§1.8). */
+  /** User pinned the pattern; exempts from auto-archive (§1.5 Read Path / user-override semantics). */
   user_starred: boolean;
   /** User suppressed; excluded from default reads, confidence projected to 0. */
   user_suppressed: boolean;
@@ -228,8 +228,8 @@ export type PatternEmissionResult =
 // Export schema (versioned payload for /api/cortex/patterns/export)
 // ============================================================
 
-/** Current export schema version. Phase 1 emits "2027-1". */
-export type PatternExportSchemaVersion = "2027-1";
+/** Current export schema version. Phase 1 emits "1.0.0". */
+export type PatternExportSchemaVersion = "1.0.0";
 
 /** A single pattern as it appears in the export file. */
 export interface PatternExportEntry {

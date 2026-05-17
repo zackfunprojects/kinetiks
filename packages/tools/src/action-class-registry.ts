@@ -2,7 +2,7 @@
  * Action Class Registry — the canonical inventory of every action_class
  * a tool may reference and that an Authority Grant may delegate.
  *
- * Per the 2027 addendum §2.4. An unregistered action_class cannot be
+ * Per the Kinetiks Contract Addendum §2.4. An unregistered action_class cannot be
  * referenced from a `GrantedCapability`, ever.
  *
  * Customer-facing language is enforced at the schema level: every

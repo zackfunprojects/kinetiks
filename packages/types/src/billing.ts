@@ -101,7 +101,7 @@ export type LedgerEventType =
   | "expiration"
   | "import"
   | "archivist_gap_detect"
-  // Pattern Library (2027 addendum §1.13)
+  // Pattern Library (Kinetiks Contract Addendum §1.13)
   | "pattern_observed"
   | "pattern_arbitrated"
   | "pattern_user_starred"

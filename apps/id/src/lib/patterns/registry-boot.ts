@@ -9,7 +9,7 @@ let _booted = false;
 /**
  * One-time boot for the Pattern Type Registry.
  *
- * Per the 2027 addendum §1.3, every pattern_type an app may emit is
+ * Per the Kinetiks Contract Addendum §1.3, every pattern_type an app may emit is
  * registered at boot. The cross-registry validator
  * (assertRegistriesValid in @kinetiks/tools) calls getPatternType()
  * during boot to validate Operator.required_patterns references; this

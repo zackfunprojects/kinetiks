@@ -1,6 +1,6 @@
 /**
  * Deterministic fingerprint of a pattern's identity-relevant
- * dimensions, per the 2027 addendum §1.4.
+ * dimensions, per the Kinetiks Contract Addendum §1.4.
  *
  * Identity = SHA-256(canonical_json(extract(bucketized_dimensions,
  * descriptor.fingerprint_dimensions))). First 32 hex characters of the

@@ -1,7 +1,8 @@
 /**
  * GET /api/cortex/patterns/export
  *
- * Per addendum §1.10. Full Pattern Library export, customer-owned data.
+ * Per the Kinetiks Contract Addendum §1.7 (Pattern Export and Import).
+ * Full Pattern Library export, customer-owned data.
  * Includes all statuses (archived too) with user_starred / user_suppressed
  * / user_annotation preserved.
  *
@@ -111,7 +112,7 @@ export async function GET(_request: Request) {
   }));
 
   const payload: PatternExportPayload = {
-    schema_version: "2027-1",
+    schema_version: "1.0.0",
     exported_at: new Date().toISOString(),
     account_id: account.id,
     patterns: exportEntries,
@@ -126,7 +127,7 @@ export async function GET(_request: Request) {
     target_layer: null,
     detail: {
       pattern_count: exportEntries.length,
-      schema_version: "2027-1",
+      schema_version: "1.0.0",
     },
   });
 

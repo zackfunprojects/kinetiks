@@ -16,7 +16,7 @@
 --   3. oracle-analysis-cron schedule line (*/30) using the existing
 --      _kt_schedule_edge_function() helper from migration 00035.
 --
--- team_scope_id placeholder per the 2027 addendum.
+-- team_scope_id placeholder per the Kinetiks Contract Addendum.
 -- ============================================================
 
 -- ── 1. dedup_key on kinetiks_insights ─────────────────────────

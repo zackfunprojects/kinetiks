@@ -170,7 +170,7 @@ export function formatBriefForSonnet(
           .join('\n')}`
       : '';
 
-  // L1a (2027 addendum §1.12) — high-confidence patterns the system has
+  // L1a (Kinetiks Contract Addendum §1.10) — high-confidence patterns the system has
   // observed about this customer's business. EVIDENCE, not statistics:
   // weave the implication into the response. The response body never
   // dumps raw pattern fingerprints, dimension blobs, or metric tables.

@@ -1,7 +1,7 @@
 /**
  * F2 authority resolution stub.
  *
- * Per the 2027 addendum §2.9, the full authority resolution flow is:
+ * Per the Kinetiks Contract Addendum §2.9, the full authority resolution flow is:
  *
  *   1. Identify the `action_class`.
  *   2. Find any active grant whose scope applies (narrowest-scope wins).

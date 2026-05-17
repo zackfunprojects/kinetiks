@@ -1,7 +1,7 @@
 -- ============================================================
 -- 00040_kinetiks_pattern_library.sql
 --
--- Pattern Library Phase 1 (L1a) per the 2027 addendum §1.
+-- Pattern Library Phase 1 (L1a) per the Kinetiks Contract Addendum §1.
 --
 -- Hybrid table: top-level lifecycle columns + jsonb for variable-shape
 -- payload (dimensions, outcome_metrics, evidence_summary). The hybrid
@@ -61,7 +61,7 @@ CREATE TABLE kinetiks_pattern_library (
 );
 
 COMMENT ON TABLE kinetiks_pattern_library IS
-  'Pattern Library per the 2027 addendum §1. Empirically validated multi-dimensional signatures with outcome data and confidence. Hybrid shape: top-level lifecycle fields for indexed reads, jsonb for variable-shape payload. team_scope_id is v2 placeholder. Reads via apps/id/src/lib/cortex/patterns/list.ts (single shared helper); writes via the Archivist sync path at /api/synapse/patterns and user-override Server Actions in apps/id.';
+  'Pattern Library per the Kinetiks Contract Addendum §1. Empirically validated multi-dimensional signatures with outcome data and confidence. Hybrid shape: top-level lifecycle fields for indexed reads, jsonb for variable-shape payload. team_scope_id is v2 placeholder. Reads via apps/id/src/lib/cortex/patterns/list.ts (single shared helper); writes via the Archivist sync path at /api/synapse/patterns and user-override Server Actions in apps/id.';
 
 COMMENT ON COLUMN kinetiks_pattern_library.fingerprint IS
   'Server-computed deterministic hash of the descriptor''s fingerprint_dimensions (canonicalized + SHA-256, first 32 hex chars). Identity for the pattern within (account_id, pattern_type).';
@@ -69,7 +69,7 @@ COMMENT ON COLUMN kinetiks_pattern_library.fingerprint IS
 COMMENT ON COLUMN kinetiks_pattern_library.evidence_summary IS
   'Rolling cap-50 last_n_ledger_ids + summary block. Detailed evidence lives in kinetiks_ledger; this is the pointer.';
 
--- ── Indexes (justified by the read paths in §1.5 and §1.9) ───
+-- ── Indexes (justified by the read paths in §1.5 and the decay sweep in §1.6) ───
 CREATE INDEX idx_pattern_library_account_status_type
   ON kinetiks_pattern_library (account_id, status, pattern_type);
 
@@ -110,7 +110,7 @@ CREATE TRIGGER pattern_library_touch_updated_at
   EXECUTE FUNCTION _kt_pattern_library_touch_updated_at();
 
 -- ── Lifecycle state-machine trigger (backstop) ──────────────
--- Legal transitions per addendum §1.7:
+-- Legal transitions per Kinetiks Contract Addendum §1.6 (Lifecycle and Empirical Decay Calibration):
 --   emerging  → validated | archived
 --   validated → declining | archived
 --   declining → validated | archived

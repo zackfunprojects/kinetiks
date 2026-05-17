@@ -1,7 +1,7 @@
 /**
  * POST /api/synapse/patterns
  *
- * Emission endpoint for the Pattern Library per the 2027 addendum §1.4.
+ * Emission endpoint for the Pattern Library per the Kinetiks Contract Addendum §1.4.
  * Suite apps' Synapse clients call this with a `PatternEmissionPayload`;
  * the Archivist write path runs synchronously and returns a discriminated
  * `PatternEmissionResult`.

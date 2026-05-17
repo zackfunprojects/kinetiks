@@ -9,7 +9,7 @@
  * Per CLAUDE.md, these are append-only contracts. Breaking changes
  * require a documented version bump in the platform contract.
  *
- * Per the 2027 addendum §1.3, §2.4, §3.3 — descriptors govern shape
+ * Per the Kinetiks Contract Addendum §1.3, §2.4, §3.3 — descriptors govern shape
  * validation at registration time. Apps that emit malformed descriptors
  * fail at boot, not at runtime.
  */
@@ -97,7 +97,7 @@ export type AvailabilityPredicate =
 // ============================================================
 
 /**
- * Per the 2027 addendum §2.4. An `action_class` is the unit of trust
+ * Per the Kinetiks Contract Addendum §2.4. An `action_class` is the unit of trust
  * for Authority Grants. Every consequential tool that can be authorized
  * under a grant references one.
  *
@@ -135,7 +135,7 @@ export interface ActionClassDescriptor {
 }
 
 // ============================================================
-// Operator Descriptor (per the 2027 addendum §3.3)
+// Operator Descriptor (per the Kinetiks Contract Addendum §3.3)
 // ============================================================
 
 /**
@@ -167,7 +167,7 @@ export interface OperatorDescriptor {
 }
 
 // ============================================================
-// Pattern Type Descriptor (per the 2027 addendum §1.3)
+// Pattern Type Descriptor (per the Kinetiks Contract Addendum §1.3)
 // ============================================================
 
 /** A registered outcome metric an emission may carry. */
@@ -211,7 +211,7 @@ export interface PatternConfidenceThresholds {
 }
 
 /**
- * Per the 2027 addendum §1.3. A `pattern_type` is the registered shape
+ * Per the Kinetiks Contract Addendum §1.3. A `pattern_type` is the registered shape
  * an app may emit to the Pattern Library. Every dimension of identity
  * (the fingerprint), every legal outcome metric, every read-side
  * boundary, and the lifecycle thresholds are declared here.
@@ -225,7 +225,7 @@ export interface PatternConfidenceThresholds {
  * Bucketization is mandatory for high-cardinality dimensions. The
  * single biggest failure mode of the Pattern Library is pattern type
  * explosion, prevented by bucketing raw inputs to coarse identity
- * before fingerprinting. See addendum §1.14.
+ * before fingerprinting. See Kinetiks Contract Addendum §1.3 (cardinality intent in the registry).
  */
 export interface PatternTypeDescriptor<
   TDimensions extends Record<string, unknown> = Record<string, unknown>,
@@ -290,7 +290,7 @@ export interface PatternTypeDescriptor<
   /**
    * Cardinality intent. Warns at registration if absent on a
    * non-trivial type; rejects if absurdly high. Helps prevent pattern
-   * type explosion (addendum §1.14).
+   * type explosion (Kinetiks Contract Addendum §1.3).
    */
   readonly expected_max_fingerprints_per_account?: number;
 }

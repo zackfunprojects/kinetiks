@@ -1,7 +1,8 @@
 /**
  * POST /api/cortex/patterns/import
  *
- * Per addendum §1.10. Conservative re-emerging import of a Pattern
+ * Per the Kinetiks Contract Addendum §1.7 (Pattern Export and Import).
+ * Conservative re-emerging import of a Pattern
  * Library export. Cross-account is allowed (the customer's own data,
  * e.g. trial→production migration); the destination account's audit
  * trail records a hash of the source account_id.
@@ -40,7 +41,7 @@ import type {
   PatternImportResult,
 } from "@kinetiks/types";
 
-const SUPPORTED_SCHEMA_VERSIONS = ["2027-1"] as const;
+const SUPPORTED_SCHEMA_VERSIONS = ["1.0.0"] as const;
 
 export async function POST(request: Request) {
   const serverClient = createClient();

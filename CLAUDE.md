@@ -2,7 +2,7 @@
 
 Operating instructions for Claude (and Claude Code) working on the Kinetiks AI codebase.
 
-Read this at the start of every session. Then check `docs/kinetiks-product-spec-v3.md` for the full product spec, `docs/platform-contract.md` (plus `docs/specs/platform-contract-2027-addendum.md`) for how apps, integrations, and agents plug into the platform, and `design/kinetiks-design-spec.md` for anything visual.
+Read this at the start of every session. Then check `docs/kinetiks-product-spec-v3.md` for the full product spec, `docs/platform-contract.md` (plus `docs/Kinetiks Contract Addendum.md`) for how apps, integrations, and agents plug into the platform, and `design/kinetiks-design-spec.md` for anything visual.
 
 ---
 
@@ -18,17 +18,17 @@ Older files are kept under `docs/archive/` (superseded but referenced from curre
 
 **`docs/platform-contract.md` is the canonical contract for everything that plugs into Kinetiks.** Apps, integrations, agents, tools - all conform. If a contract change is needed, update the contract first, then the implementations.
 
-**`docs/specs/platform-contract-2027-addendum.md` is part of the canonical contract.** It introduces the Pattern Library, Authority Grants, Operator Workflows, and multi-user placeholder schema. The platform contract version bumps with its merger. Every app, integration, and agent built or updated after the merge conforms to it. Read it before any work on Patterns, Authority, internal app workflows, or Implosion.
+**`docs/Kinetiks Contract Addendum.md` is part of the canonical contract.** It introduces the Pattern Library, Authority Grants, Operator Workflows, and multi-user placeholder schema. The platform contract version bumps with its merger. Every app, integration, and agent built or updated after the merge conforms to it. Read it before any work on Patterns, Authority, internal app workflows, or Implosion.
 
 **`design/kinetiks-design-spec.md` is the canonical design spec.** Every visual decision - tokens, typography, components, light/dark, motion, the application shell - is decided there. Implementation tokens live in `packages/ui/styles/kinetiks-tokens.css`, imported once at the root of every app. It supersedes all prior design guidance, including any color palettes or font recommendations in older docs.
 
-**Subsystem specs in `docs/specs/` are authoritative within their scope.** Examples: `approval-system-spec.md` for Approval, `cross-app-command-router-spec.md` for command routing, `marcus-engine-v2-plan.md` for the Marcus engine. They never contradict the v3 spec, the platform contract, the 2027 addendum, or the design spec; if they do, the higher-level doc wins.
+**Subsystem specs in `docs/specs/` are authoritative within their scope.** Examples: `approval-system-spec.md` for Approval, `cross-app-command-router-spec.md` for command routing, `marcus-engine-v2-plan.md` for the Marcus engine. They never contradict the v3 spec, the platform contract, the Kinetiks Contract Addendum, or the design spec; if they do, the higher-level doc wins.
 
 **Bootstrap files.** Several canonical sources named above are referenced before they may exist on disk in early sessions:
 
 - `design/kinetiks-design-spec.md`
 - `packages/ui/styles/kinetiks-tokens.css`
-- `docs/specs/platform-contract-2027-addendum.md`
+- `docs/Kinetiks Contract Addendum.md`
 - `packages/lib/` (the `@kinetiks/lib` workspace - explicitly marked TBD below)
 
 If any of these paths do not yet exist at the start of a session, the first task is to create the file as a stub at the named path and surface a question to Zack rather than silently working around the absence. Do not invent design rules, token values, or contract content; bootstrap stubs are placeholders that say "this file is canonical, contents to follow."
@@ -45,7 +45,7 @@ Kinetiks AI is a GTM operating system. The product is the Kinetiks core app (web
 
 **The system identity.** Users name their GTM system at setup (freeform - "Kit", "Archer", whatever). That name speaks in Chat, sends emails, posts in Slack, owns approval requests. The underlying engine is Marcus, but the user never sees that name in product surfaces.
 
-**The 2027 trust architecture.** Three structures together make Kinetiks safe enough for real spend and real outreach delegation: the **Pattern Library** is the system's evidence (what it has learned, exportable, visible at any time), **Authority Grants** are the unit of trust (scoped, time-bounded, plain-language, revocable), and **Operator Workflows** are the mechanism (intra-app agent coordination with explicit handoffs and approval checkpoints). The customer's relationship with the system is one of earned, granular, observable, revocable trust. See `docs/specs/platform-contract-2027-addendum.md`.
+**The 2027 trust architecture.** Three structures together make Kinetiks safe enough for real spend and real outreach delegation: the **Pattern Library** is the system's evidence (what it has learned, exportable, visible at any time), **Authority Grants** are the unit of trust (scoped, time-bounded, plain-language, revocable), and **Operator Workflows** are the mechanism (intra-app agent coordination with explicit handoffs and approval checkpoints). The customer's relationship with the system is one of earned, granular, observable, revocable trust. See `docs/Kinetiks Contract Addendum.md`.
 
 **Company:** Kinetiks AI. **Author:** Zack Holland.
 
@@ -69,13 +69,13 @@ Kinetiks AI is a GTM operating system. The product is the Kinetiks core app (web
 |-----------|-------|
 | **Dark Madder (apps/dm)** | Exists as standalone repo, needs monorepo migration |
 | **Hypothesis (apps/ht)** | Not started |
-| **Implosion (apps/im)** | AI ads product. Schedules after Hypothesis, before Litmus. First app that requires the 2027 addendum structures end-to-end (Pattern Library reads/writes, Authority Grants, internal Operator Workflows for its eight Operators). |
+| **Implosion (apps/im)** | AI ads product. Schedules after Hypothesis, before Litmus. First app that requires the Kinetiks Contract Addendum structures end-to-end (Pattern Library reads/writes, Authority Grants, internal Operator Workflows for its eight Operators). |
 | **Litmus (apps/lt)** | Not started |
 | **Adventure (apps/av)** | Scoping (creative GTM: OOH, events, sponsorships, unconventional) |
 | **Tool registry + agent runtime** | The 2026 platform layer - next to build |
-| **Pattern Library** | Phase 1 of the 2027 addendum. New table `kinetiks_pattern_library`, Pattern Type Registry, `query_patterns` tool, Archivist write path, export/import endpoints. Ships before Implosion - Harvest and Dark Madder can emit patterns from existing operational data. |
-| **Authority Grants** | Phase 4 of the 2027 addendum. New table `kinetiks_authority_grants`, Action Class Registry, new Authority Agent Operator, new `authority_grant_proposal` approval class, authority resolution flow in the Agent Runtime, per-class LLM judgment budgets. Ships closer to Implosion launch. |
-| **Operator Workflows extension** | Phase 3 of the 2027 addendum. `WorkflowTask` gains `target_type` and `target_app`, optional `operator_registry` on app manifests, runtime distinction between cross-app and internal dispatch. Ships when Implosion is being scoped. |
+| **Pattern Library** | Phase 1 of the Kinetiks Contract Addendum. New table `kinetiks_pattern_library`, Pattern Type Registry, `query_patterns` tool, Archivist write path, export/import endpoints. Ships before Implosion - Harvest and Dark Madder can emit patterns from existing operational data. |
+| **Authority Grants** | Phase 4 of the Kinetiks Contract Addendum. New table `kinetiks_authority_grants`, Action Class Registry, new Authority Agent Operator, new `authority_grant_proposal` approval class, authority resolution flow in the Agent Runtime, per-class LLM judgment budgets. Ships closer to Implosion launch. |
+| **Operator Workflows extension** | Phase 3 of the Kinetiks Contract Addendum. `WorkflowTask` gains `target_type` and `target_app`, optional `operator_registry` on app manifests, runtime distinction between cross-app and internal dispatch. Ships when Implosion is being scoped. |
 | **Integration extractors** | Connection framework exists (9 providers, OAuth, encryption) but zero actual data flows |
 | **`@kinetiks/lib`** | Shared utilities home (state machines, env, pagination, format helpers, template vars). Does not exist yet; create as the first task that needs it. |
 
@@ -95,7 +95,7 @@ The connections system has 9 providers defined with OAuth and encryption, but `r
 
 **Architecture over patches.** When the same kind of bug keeps recurring, the abstraction is wrong, not the implementation. Stop and re-architect rather than adding the next post-hoc validator. The Marcus engine v2 rebuild is the canonical example: post-generation validation could not fix what was a pre-generation evidence problem.
 
-**Innovation through composition.** Every new structure in the 2027 addendum (Pattern Library, Authority Grants, Operator Workflows) is built from existing primitives - Cortex objects, Synapse Proposals, Learning Ledger entries, the Approval System, Programs, Workflows. New work should follow the same principle. If a feature feels like it needs a new architectural concept, surface that as a question before introducing one.
+**Innovation through composition.** Every new structure in the Kinetiks Contract Addendum (Pattern Library, Authority Grants, Operator Workflows) is built from existing primitives - Cortex objects, Synapse Proposals, Learning Ledger entries, the Approval System, Programs, Workflows. New work should follow the same principle. If a feature feels like it needs a new architectural concept, surface that as a question before introducing one.
 
 **Ask when the spec is ambiguous.** If the spec does not cover something and the answer is not obvious, surface the question in `QUESTIONS.md` at the repo root or in the PR description. Never silently pick a direction on a meaningful product decision.
 
@@ -141,7 +141,7 @@ kinetiks/
     kinetiks-core-architecture-v2.md
     kinetiks-roadmap.md
     collaborative-workspace-spec.md  # Desktop interaction model (split-panel, presence, task drawer)
-    specs/                       # Subsystem specs (approval, command router, oracle, marcus, programs, autopilot, 2027 addendum, etc.)
+    specs/                       # Subsystem specs (approval, command router, oracle, marcus, programs, autopilot, etc.)
     archive/                     # Superseded but actively referenced (Plan 1 marcus, prior CLAUDE.md)
     legacy/                      # Older iterations, retired directions (Terminal, DeskOf), binary .docx originals
     build-phases/
@@ -240,21 +240,21 @@ Kinetiks is not a traditional SaaS with AI bolted on. The intelligence layer **i
 ### Core platform components
 
 - **Tool Registry** - central registry of all tools available to agents. Per-account availability based on what is connected.
-- **Pattern Type Registry** - global registry of every `pattern_type` an app may emit. Declares dimensions schema, valid outcome metrics, read allowlist, decay bounds, LLM-readable description. Patterns whose type is not registered cannot be written. (Per the 2027 addendum §1.3.)
-- **Action Class Registry** - global registry of every `action_class` that may appear in an Authority Grant capability. Declares constraint schema, customer-facing template, LLM judgment budget, eligibility for default standing grants. Unregistered action classes cannot be referenced in a grant. (Per the 2027 addendum §2.4.)
+- **Pattern Type Registry** - global registry of every `pattern_type` an app may emit. Declares dimensions schema, valid outcome metrics, read allowlist, decay bounds, LLM-readable description. Patterns whose type is not registered cannot be written. (Per the Kinetiks Contract Addendum §1.3.)
+- **Action Class Registry** - global registry of every `action_class` that may appear in an Authority Grant capability. Declares constraint schema, customer-facing template, LLM judgment budget, eligibility for default standing grants. Unregistered action classes cannot be referenced in a grant. (Per the Kinetiks Contract Addendum §2.4.)
 - **Agent Runtime** - executes background intelligence agents within safety boundaries (tool resolution, **authority resolution**, approval gating, cost tracking, error recovery, structured logging).
 - **Insight Store** - first-class objects with type, severity, evidence, suggested actions. Marcus reads undelivered insights and weaves them into conversation. Analytics surfaces them. Notifications push the urgent ones.
 - **Metric Cache** - write-through cache for data source query results. Shaped by agent behavior, not a predefined metric list.
-- **Pattern Library** - first-class Cortex structure (peer to Identity, Goals, Budget). Stores empirically validated multi-dimensional signatures with outcome data and confidence. Apps emit patterns via Synapse; Archivist is the canonical writer; all reads go through the `query_patterns` tool. (Per the 2027 addendum §1.)
-- **Authority Grants** - first-class Cortex structure (peer to Budget). Scoped, time-bounded, plain-language, customer-approved delegations of action authority. Every action under a grant logs to the Ledger with `grant_id`. Customer can pause, narrow, or revoke at any moment. (Per the 2027 addendum §2.)
+- **Pattern Library** - first-class Cortex structure (peer to Identity, Goals, Budget). Stores empirically validated multi-dimensional signatures with outcome data and confidence. Apps emit patterns via Synapse; Archivist is the canonical writer; all reads go through the `query_patterns` tool. (Per the Kinetiks Contract Addendum §1.)
+- **Authority Grants** - first-class Cortex structure (peer to Budget). Scoped, time-bounded, plain-language, customer-approved delegations of action authority. Every action under a grant logs to the Ledger with `grant_id`. Customer can pause, narrow, or revoke at any moment. (Per the Kinetiks Contract Addendum §2.)
 - **Approval System** - the most critical safety system. Confidence-based autonomy for actions outside an active grant; grants are the unit of trust for actions inside one. Trust earns over time and contracts when mistakes occur. See `docs/specs/approval-system-spec.md`.
-- **Synapse** - the contract by which suite apps communicate with Cortex (Proposals up, commands down, Patterns up). See `docs/platform-contract.md` and `docs/specs/platform-contract-2027-addendum.md`.
+- **Synapse** - the contract by which suite apps communicate with Cortex (Proposals up, commands down, Patterns up). See `docs/platform-contract.md` and `docs/Kinetiks Contract Addendum.md`.
 - **Learning Ledger** - append-only record of every approval decision, override, outcome, grant action, pattern observation, and correction. Inputs to confidence scoring, Oracle calibration, Authority Agent proposal calibration, and Pattern decay calibration.
 
 ### Three-layer agent system
 
 - **Layer 3 - Cortex.** Core intelligence. Context Structure, Patterns, Authority Grants, Proposals, routing, confidence scoring, the five Operators.
-- **Layer 2 - Suite app Operators.** Each app's internal agents (Harvest's Scout, Composer, etc.). Local to the app, but emit Proposals and Patterns up via Synapse. May coordinate among themselves via internal Operator Workflows (per the 2027 addendum §3). The full Operator decomposition for each app lives in that app's own `CLAUDE.md`.
+- **Layer 2 - Suite app Operators.** Each app's internal agents (Harvest's Scout, Composer, etc.). Local to the app, but emit Proposals and Patterns up via Synapse. May coordinate among themselves via internal Operator Workflows (per the Kinetiks Contract Addendum §3). The full Operator decomposition for each app lives in that app's own `CLAUDE.md`.
 - **Layer 1 - Tools.** The leaf-level capabilities (GA4 query, send email, browse URL, query patterns). Anything an agent invokes.
 
 The absolute communication rules from the original Three-Layer system remain in force: Operators in app A still cannot talk to Operators in app B. Cross-app intelligence still flows via Proposal/Pattern up or Routing Event down. Synapses still do not talk to other Synapses. Operator Workflows are a new addressing mode for an existing primitive; they do not introduce a new communication path.
@@ -344,7 +344,7 @@ The code-level rules CLAUDE.md enforces (everything else is in the design spec):
 - Forms use `react-hook-form` with Zod schemas. Inline error messages. Submit disabled during pending state.
 - Always handle three states: loading, error, empty. Every list, every form, every async view.
 - Three-tab shell at the top of `apps/id`: Chat, Analytics, Cortex. Approvals live in the Chat sidebar as a segmented toggle. Settings is a modal triggered from the avatar.
-- The Cortex tab carries seven peer sections in the sub-nav: Identity, Goals, Budget, **Patterns**, **Authority**, Integrations, Ledger. (The 2027 addendum adds Patterns and Authority; the existing order is preserved.)
+- The Cortex tab carries seven peer sections in the sub-nav: Identity, Goals, Budget, **Patterns**, **Authority**, Integrations, Ledger. (The Kinetiks Contract Addendum adds Patterns and Authority; the existing order is preserved.)
 - Suite apps render the Floating Pill from `@kinetiks/ui`. Minimal when standalone, full when connected to Kinetiks core.
 - Theme toggle (light/dark) persists to the Supabase user profile, not localStorage. Both modes ship from day one.
 - `prefers-reduced-motion` is always respected.
@@ -503,7 +503,7 @@ The Approval System is the most critical safety system in the product. Get this 
 - **Approval gates actions, not analysis.** Reading data, building briefs, generating insights, querying patterns - none of these need approval. Anything that changes external state or spends money does.
 - **Confidence-based autonomy.** Day one is everything-approved. Trust earns over time, contracts on mistakes. The contraction rule is durable: a single user override at high confidence drops the threshold for that action class. See `docs/specs/approval-system-spec.md` for the math.
 - **Authority Grants extend the Approval System; they do not replace it.** For actions outside any active grant, the existing per-action confidence flow is unchanged. For actions inside an active grant, the grant *is* the approval - the customer's prior approval of the grant covers every action within it. Escalation triggers inside a grant route the specific action back into the per-action approval flow without modifying the grant.
-- **Three approval classes by priority:** `budget_proposal` (highest bar, never auto-approved, Oracle-generated), `authority_grant_proposal` (Authority-Agent-generated, peer in prominence to budget), and standard per-action approvals (current confidence-based flow). See `docs/specs/approval-system-spec.md` and the 2027 addendum §2.
+- **Three approval classes by priority:** `budget_proposal` (highest bar, never auto-approved, Oracle-generated), `authority_grant_proposal` (Authority-Agent-generated, peer in prominence to budget), and standard per-action approvals (current confidence-based flow). See `docs/specs/approval-system-spec.md` and the Kinetiks Contract Addendum §2.
 - **Budget approvals remain non-negotiable.** A grant authorizes spend up to its envelope, but the envelope itself cannot exceed the approved Budget for the relevant category. If the system would spend beyond the Budget category, that is always a Budget overage approval, not a grant action.
 - **Every approval decision writes to the Learning Ledger.** Append-only. The Ledger feeds confidence scoring, Oracle calibration, and Authority Agent proposal calibration. Deleting a Ledger entry is denied at three layers (server action, trigger, RLS).
 - **An action without an approval record or an active grant cannot execute.** The Agent Runtime checks authority resolution before tool invocation. A missing approval and no covering grant is treated as a `rejected` decision, not as a permissive default.
@@ -514,7 +514,7 @@ The Approval System is the most critical safety system in the product. Get this 
 
 ## Pattern Library Patterns
 
-See `docs/specs/platform-contract-2027-addendum.md` §1 for the canonical spec.
+See `docs/Kinetiks Contract Addendum.md` §1 for the canonical spec.
 
 - **Apps emit patterns via Synapse.** They never write to `kinetiks_pattern_library` directly. The Archivist is the canonical writer, the same way it is for every other Cortex context table.
 - **All pattern reads from agents and suite apps go through the `query_patterns` tool.** Not raw selects. The tool enforces the Pattern Type Registry's `read_apps` allowlist at the boundary. Reads from the Cortex Patterns surface in `apps/id` go through a Server Action that uses the same underlying query helper the tool wraps; the allowlist is enforced server-side either way. No raw selects from any client code, anywhere.
@@ -531,7 +531,7 @@ See `docs/specs/platform-contract-2027-addendum.md` §1 for the canonical spec.
 
 ## Authority Grants Patterns
 
-See `docs/specs/platform-contract-2027-addendum.md` §2 for the canonical spec.
+See `docs/Kinetiks Contract Addendum.md` §2 for the canonical spec.
 
 - **The customer always approves a grant.** The Authority Agent proposes; it never grants and never executes. Approval is a first-class flow alongside Budget approval.
 - **Action Class Registry is the contract.** Every `action_class` value is registered at app boot with a constraint schema (Zod), customer-facing template, LLM judgment budget, default-standing-grant eligibility, and whether it requires budget attachment. Unregistered action classes cannot appear in a grant capability.
@@ -549,7 +549,7 @@ See `docs/specs/platform-contract-2027-addendum.md` §2 for the canonical spec.
 
 ## Operator Workflows Patterns
 
-See `docs/specs/platform-contract-2027-addendum.md` §3 for the canonical spec.
+See `docs/Kinetiks Contract Addendum.md` §3 for the canonical spec.
 
 - **The Workflow primitive is the canonical orchestration shape for both cross-app and intra-app coordination.** The `WorkflowTask` schema carries `target_type: 'cross_app' | 'internal_operator'` and `target_app`. Cross-app dispatch goes through Synapse Routing Event; internal dispatch goes through the executing app's own Operator registry.
 - **Programs stay cross-app.** A Program is a cross-app coordination structure that lives in `kinetiks_workflows` / `kinetiks_programs`. An app's internal Workflow is owned by the app and lives in the app's own prefixed tables (e.g. `im_workflows` for Implosion).
@@ -562,7 +562,7 @@ See `docs/specs/platform-contract-2027-addendum.md` §3 for the canonical spec.
 
 ## Synapse Patterns
 
-Synapse is the contract between suite apps and Cortex. See `docs/platform-contract.md` for the full spec and `docs/specs/platform-contract-2027-addendum.md` for the 2027 extensions.
+Synapse is the contract between suite apps and Cortex. See `docs/platform-contract.md` for the full spec and `docs/Kinetiks Contract Addendum.md` for the 2027 extensions.
 
 - **Apps never write to `kinetiks_*` tables directly.** All cross-app data flow goes through Synapse Proposals (for identity-shaped Context Structure updates) and Pattern emissions (for empirical signatures). The only exception is the Synapse handler itself, which is the canonical writer.
 - **Proposals are typed and versioned.** The Proposal contract types and the Pattern types live in `@kinetiks/types`. The contract is append-only without a versioned migration; breaking changes require a `synapse_version` bump in the platform contract.
@@ -579,10 +579,10 @@ Synapse is the contract between suite apps and Cortex. See `docs/platform-contra
 The 2026 platform layer plus the 2027 extensions.
 
 - **Every tool registers at boot** with name, description (LLM-readable), input schema (Zod), output schema (Zod), per-account availability resolver, and approval class.
-- **The Pattern Type and Action Class registries are global; the Operator Registry is per-app, declared in the app manifest** (per the 2027 addendum §3.3). All three follow the same operating model: register at boot, validate on use, fail at boot rather than at runtime when descriptors are inconsistent.
+- **The Pattern Type and Action Class registries are global; the Operator Registry is per-app, declared in the app manifest** (per the Kinetiks Contract Addendum §3.3). All three follow the same operating model: register at boot, validate on use, fail at boot rather than at runtime when descriptors are inconsistent.
 - **The Agent Runtime is the only invoker.** Feature code does not call tools directly. Tests double-mock the runtime, not individual tools.
 - **Tool calls are logged.** Every invocation emits a `tool_calls` row with task id, agent id, tool name, account id, latency, success, error, and (where applicable) `grant_id` if the call was authorized by an active Authority Grant. PII rules for `ai_calls` apply identically here.
-- **Authority resolution runs before action execution** per the flow in §2.9 of the 2027 addendum (also summarized in Authority Grants Patterns above). Tools that mutate external state declare an `action_class` in addition to their `approval_class`; the runtime resolves whether an active grant covers the call before invoking.
+- **Authority resolution runs before action execution** per the flow in §2.9 of the Kinetiks Contract Addendum (also summarized in Authority Grants Patterns above). Tools that mutate external state declare an `action_class` in addition to their `approval_class`; the runtime resolves whether an active grant covers the call before invoking.
 - **Tools that mutate external state declare an approval class.** The runtime enforces approval (or grant coverage) before the call.
 - **The Metric Cache is shaped by tool behavior.** Cache key is `(account_id, tool_name, normalized_input_hash)`. Stale-while-revalidate is acceptable; never block a Marcus turn on a slow integration.
 - **Background agents are described by a system prompt and a tool whitelist.** Adding an agent equals registering one record, not writing imperative orchestration code.
@@ -654,7 +654,7 @@ A task is not done until all of the following are true:
 - `team_scope_id` is `null` in every row created by v1 code, and queries treat null as the implicit single-user team.
 - Commit history is clean (squash WIP if needed).
 - PR opened with full description. Screenshots or Loom for any UI change. Self-reviewed before requesting review.
-- Compared against the relevant spec section, the platform contract, and the 2027 addendum (where applicable) before marking complete.
+- Compared against the relevant spec section, the platform contract, and the Kinetiks Contract Addendum (where applicable) before marking complete.
 - **Edge Functions deployed and schedule-set.** If the phase added or modified anything under `supabase/functions/`, run `pnpm functions:check` until it reports OK, run `pnpm functions:deploy` if not, and verify every cron schedule exists in `supabase/migrations/*_edge_function_schedules.sql` with the cadence declared in the function's header comment. Code in the repo is not code in production.
 - **Environment variables set + inventoried.** Every new env var consumed by a function or route is (a) set in BOTH Supabase (Edge Function env) and Vercel (Node env) where applicable, and (b) added to `docs/operational/env-vars.md` in the same PR. A function that silently falls back on `||` defaults is masking a missed step; verify by reading the function's logs for one real run.
 - **Production deploys green.** The latest Production deploy on Vercel must be Ready. `pnpm health` runs every check this section names in one command and fails on the first red signal. If any deploy is failing, fixing it is the next task — not the next phase.
@@ -760,7 +760,7 @@ D1 shipped with twelve Edge Functions under `supabase/functions/*` — zero of w
 - Implement a Button, Input, Card, Pill, ConfidenceRing, or Floating Pill inside an app instead of `packages/ui`
 - Ship a UI surface without consulting `design/kinetiks-design-spec.md` first
 - Build 8 shallow pages instead of 3 deep ones, or use "Coming in Phase 2" as an excuse for missing core logic
-- Mark a feature complete without comparing to the spec doc (and the 2027 addendum, where applicable)
+- Mark a feature complete without comparing to the spec doc (and the Kinetiks Contract Addendum, where applicable)
 - Merge your own PR without approval unless explicitly told otherwise
 
 ---
@@ -837,7 +837,7 @@ All keys must be set on Vercel for every app. Missing keys cause silent failures
 - **`docs/README.md`** - map of the docs folder. Read first if unfamiliar.
 - **`docs/kinetiks-product-spec-v3.md`** - the canonical product spec
 - **`docs/platform-contract.md`** - how apps, integrations, and agents plug into Kinetiks
-- **`docs/specs/platform-contract-2027-addendum.md`** - THE 2027 addendum (Pattern Library, Authority Grants, Operator Workflows, multi-user placeholders). Part of the canonical contract.
+- **`docs/Kinetiks Contract Addendum.md`** - THE Kinetiks Contract Addendum (Pattern Library, Authority Grants, Operator Workflows, multi-user placeholders). Part of the canonical contract.
 - **`docs/kinetiks-core-architecture-v2.md`** - the agent-native architecture (tool layer, agent runtime, insight store, approval membrane)
 - **`docs/kinetiks-roadmap.md`** - strategic priorities and timeline
 - **`docs/collaborative-workspace-spec.md`** - desktop app interaction model (split-panel collaboration, presence, task drawer with kill switch)
@@ -865,4 +865,4 @@ Check the active milestone or ask Zack. Work the phase tasks in order. Cross-pha
 
 The current focus is the 2026 platform layer: Tool Registry, Agent Runtime, Metric Cache, Insight Store, and the first real integration (GA4) end-to-end. Marcus answering "how is my traffic?" with real data through tools is the proof point. Everything else queues behind it.
 
-The 2027 addendum subsystems queue behind that work in dependency order: Pattern Type Registry + Pattern Library tables (Phase 1, ships before Implosion - Harvest and Dark Madder can emit on existing data), Empirical Decay Calibration (Phase 2, ~90 days after first patterns emerge), Operator Workflows extension (Phase 3, in time for Implosion scoping), Authority Grants + Authority Agent (Phase 4, closer to Implosion launch), Default Standing Grants and signup flow (Phase 5, with Phase 4).
+The Kinetiks Contract Addendum subsystems queue behind that work in dependency order: Pattern Type Registry + Pattern Library tables (Phase 1, ships before Implosion - Harvest and Dark Madder can emit on existing data), Empirical Decay Calibration (Phase 2, ~90 days after first patterns emerge), Operator Workflows extension (Phase 3, in time for Implosion scoping), Authority Grants + Authority Agent (Phase 4, closer to Implosion launch), Default Standing Grants and signup flow (Phase 5, with Phase 4).

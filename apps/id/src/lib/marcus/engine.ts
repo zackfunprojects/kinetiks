@@ -126,7 +126,7 @@ export async function processMarcusMessage(
     source_app: p.source_app,
     summary: p.summary,
   }));
-  // L1a — passive Pattern Library pre-fetch per addendum §1.12.
+  // L1a — passive Pattern Library pre-fetch per Kinetiks Contract Addendum §1.10.
   const briefPatterns = await loadPatternsForBrief({
     admin,
     account_id: accountId,
@@ -341,7 +341,7 @@ export async function streamMarcusMessage(
     source_app: p.source_app,
     summary: p.summary,
   }));
-  // L1a — passive Pattern Library pre-fetch per addendum §1.12.
+  // L1a — passive Pattern Library pre-fetch per Kinetiks Contract Addendum §1.10.
   const briefPatterns = await loadPatternsForBrief({
     admin,
     account_id: accountId,

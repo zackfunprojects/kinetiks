@@ -1,5 +1,5 @@
 /**
- * Pattern arbitration write path per the 2027 addendum §1.4.
+ * Pattern arbitration write path per the Kinetiks Contract Addendum §1.4.
  *
  * The Archivist is the canonical writer of `kinetiks_pattern_library`.
  * This module is the synchronous arbitration pipeline invoked by the
@@ -23,7 +23,8 @@
  *      sample_count), increment observation_count by the count of NEW
  *      distinct evidence refs, bump last_observed_at, extend decay_at,
  *      recompute confidence_score. Return evidence_added.
- *   6. Apply state machine transitions per §1.7. If confidence_score
+ *   6. Apply state machine transitions per §1.6 (Lifecycle and
+ *      Empirical Decay Calibration). If confidence_score
  *      crossed validate_at and current status is emerging, transition
  *      to validated; return promoted. If confidence_score fell below
  *      decline_at and current status is validated, transition to

@@ -1,6 +1,6 @@
 /**
- * Patterns pre-fetch for Marcus's evidence brief per the 2027 addendum
- * §1.12. Patterns enter the manifest PASSIVELY, alongside Cortex
+ * Patterns pre-fetch for Marcus's evidence brief per the Kinetiks Contract Addendum
+ * §1.10 (Marcus Usage Rules). Patterns enter the manifest PASSIVELY, alongside Cortex
  * context layers, NOT as a step 7.5 tool decision. Marcus weaves them
  * into the implication of the response; the response body never dumps
  * raw statistics.

@@ -7,8 +7,10 @@ import { assertTransition } from "@kinetiks/lib/state-machines";
 import { registerKinetiksStateMachines } from "@/lib/state-machines-init";
 
 /**
- * Server Actions for the Cortex Patterns sub-tab per addendum §1.8 +
- * §1.11. Star / suppress / annotate / archive routes here from the
+ * Server Actions for the Cortex Patterns sub-tab per the Kinetiks
+ * Contract Addendum §1.5 (Read Path: user-override semantics) and §1.8
+ * (Surface in the Cortex Tab). Star / suppress / annotate / archive
+ * routes here from the
  * client; the Archivist is the canonical writer of
  * kinetiks_pattern_library, and these actions act under
  * actor.kind === "agent" with operatorKey === "archivist" because the

@@ -1,7 +1,7 @@
 /**
  * Agent Runtime — single legitimate path for invoking platform tools.
  *
- * Per CLAUDE.md and the 2027 addendum, every consequential action flows
+ * Per CLAUDE.md and the Kinetiks Contract Addendum, every consequential action flows
  * through this Runtime so authority resolution, idempotency, retry,
  * timeout, and structured logging happen in exactly one place.
  *

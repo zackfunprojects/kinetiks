@@ -92,7 +92,7 @@ export function registerKinetiksStateMachines(): void {
   });
 
   // ── kinetiks_pattern_library ───────────────────────────────
-  // 2027 addendum §1.7. The Archivist is the sole writer.
+  // Kinetiks Contract Addendum §1.7. The Archivist is the sole writer.
   // Customer mutations (star/suppress/annotate/archive) route through
   // Server Actions that act under actor.kind === "agent" with the
   // Archivist's operator key, NOT actor.kind === "user" — the actor

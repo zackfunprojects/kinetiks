@@ -4,7 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { listPatterns } from "@/lib/cortex/patterns/list";
 
 /**
- * Pattern Library read tool per the 2027 addendum §1.5.
+ * Pattern Library read tool per the Kinetiks Contract Addendum §1.5.
  *
  * Replaces the F2 stub: now backed by `apps/id/src/lib/cortex/patterns/list.ts`,
  * which reads from `kinetiks_pattern_library` with the descriptor-defined

@@ -1,5 +1,5 @@
 /**
- * Shared Pattern Library read helper per the 2027 addendum §1.5.
+ * Shared Pattern Library read helper per the Kinetiks Contract Addendum §1.5.
  *
  * Both the `query_patterns` tool and the Cortex Patterns Server Action
  * (commit 17) call this. The single shared helper enforces the
