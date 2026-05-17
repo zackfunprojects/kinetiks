@@ -80,6 +80,20 @@ export interface PreAnalysisBrief {
   memory_facts: string[];
   response_shape: ResponseShape;
   action_availability: ActionAvailability[];
+  /**
+   * D2 Slice 11 — recent undelivered Oracle insights for this account.
+   * Sonnet may cite by `insight_id` (UUID); the engine post-processes the
+   * response and stamps delivered=true only on cited ids.
+   */
+  recent_insights?: InsightForBrief[];
+}
+
+export interface InsightForBrief {
+  insight_id: string;
+  type: string;
+  severity: "info" | "notable" | "urgent";
+  source_app: string;
+  summary: string;
 }
 
 export interface EvidencePoint {

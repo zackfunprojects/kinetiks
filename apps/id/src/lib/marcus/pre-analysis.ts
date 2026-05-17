@@ -40,6 +40,7 @@ export async function buildPreAnalysisBrief(
   recentMessages: string,
   claudeHaiku: (prompt: string) => Promise<any>,
   toolInventory?: string,
+  recentInsights?: import('./types').InsightForBrief[],
 ): Promise<{ brief: PreAnalysisBrief; formatted: string }> {
   const memoryFacts = formatMemoriesForContext(memories);
 
@@ -74,6 +75,9 @@ export async function buildPreAnalysisBrief(
       };
     }
     if (!brief.action_availability) brief.action_availability = [];
+    if (recentInsights && recentInsights.length > 0) {
+      brief.recent_insights = recentInsights;
+    }
 
     const formatted = formatBriefForSonnet(brief, toolInventory);
     return { brief, formatted };
@@ -150,6 +154,18 @@ export function formatBriefForSonnet(
     ? `\n\n[TOOL OBSERVATIONS - returned by ${toolObservations.tool_name}; cite ONLY the values below verbatim; do not extrapolate]\n${formatToolObservations(toolObservations)}`
     : '';
 
+  // D2 Slice 11 — recent Oracle insights. Sonnet may cite by insight_id
+  // (UUID); the engine post-processes the response to stamp delivered.
+  const insightsBlock =
+    brief.recent_insights && brief.recent_insights.length > 0
+      ? `\n\n[RECENT INSIGHTS - undelivered, last 72h, severity ≥ notable; cite by insight_id (UUID), do not paraphrase severity or type. Use only when the user's question makes this evidence relevant.]\n${brief.recent_insights
+          .map(
+            (i) =>
+              `- [insight_id=${i.insight_id}] [severity=${i.severity}] [type=${i.type}] [source_app=${i.source_app}] ${i.summary}`,
+          )
+          .join('\n')}`
+      : '';
+
   return `[EVIDENCE BRIEF - use ONLY this evidence in your response]
 Available data you CAN cite:
 ${evidence}
@@ -158,7 +174,7 @@ Data you DO NOT have (do not fabricate):
 ${notAvailable}
 
 [CONVERSATION MEMORY - these are decisions/corrections from this thread, honor them]
-${memory}${platformBlock}${observationsBlock}
+${memory}${platformBlock}${observationsBlock}${insightsBlock}
 
 [RESPONSE CONSTRAINTS]
 - Maximum ${brief.response_shape.max_sentences} sentences

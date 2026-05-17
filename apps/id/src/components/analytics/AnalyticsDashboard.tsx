@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { GoalOverview } from "./GoalOverview";
-import { InsightSection } from "./InsightSection";
+import { InsightsBoard } from "./InsightsBoard";
+import { SourcesPanel } from "./SourcesPanel";
 import { AppPerformance } from "./AppPerformance";
 import { BudgetSection } from "./BudgetSection";
 import { DateRangePicker } from "./DateRangePicker";
@@ -30,10 +31,14 @@ export function AnalyticsDashboard() {
         <GoalOverview />
       </section>
 
-      {/* Insights */}
+      {/* Insights — D2 Slice 12 surface, reads kinetiks_insights (v3). */}
       <section style={{ marginBottom: 32 }}>
-        <SectionHeader title="Insights" />
-        <InsightSection />
+        <InsightsBoard />
+      </section>
+
+      {/* Sources — connection health for Oracle integrations. */}
+      <section style={{ marginBottom: 32 }}>
+        <SourcesPanel />
       </section>
 
       {/* App Performance */}

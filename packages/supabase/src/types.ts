@@ -2285,6 +2285,8 @@ export type Database = {
           id: string
           last_sync_at: string | null
           metadata: Json | null
+          nango_connection_id: string | null
+          nango_provider_config_key: string | null
           provider: string
           status: string | null
         }
@@ -2295,6 +2297,8 @@ export type Database = {
           id?: string
           last_sync_at?: string | null
           metadata?: Json | null
+          nango_connection_id?: string | null
+          nango_provider_config_key?: string | null
           provider: string
           status?: string | null
         }
@@ -2305,6 +2309,8 @@ export type Database = {
           id?: string
           last_sync_at?: string | null
           metadata?: Json | null
+          nango_connection_id?: string | null
+          nango_provider_config_key?: string | null
           provider?: string
           status?: string | null
         }
@@ -2646,6 +2652,56 @@ export type Database = {
           },
         ]
       }
+      kinetiks_crm_entities: {
+        Row: {
+          account_id: string
+          created_at: string
+          data: Json
+          entity_type: string
+          external_id: string
+          external_updated_at: string | null
+          id: string
+          source: string
+          synced_at: string
+          team_scope_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          account_id: string
+          created_at?: string
+          data: Json
+          entity_type: string
+          external_id: string
+          external_updated_at?: string | null
+          id?: string
+          source: string
+          synced_at?: string
+          team_scope_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          account_id?: string
+          created_at?: string
+          data?: Json
+          entity_type?: string
+          external_id?: string
+          external_updated_at?: string | null
+          id?: string
+          source?: string
+          synced_at?: string
+          team_scope_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kinetiks_crm_entities_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "kinetiks_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       kinetiks_escalations: {
         Row: {
           account_id: string
@@ -2915,6 +2971,7 @@ export type Database = {
           approval_id: string | null
           correlation_id: string | null
           created_at: string
+          dedup_key: string | null
           delivered: boolean
           delivered_at: string | null
           delivery_channel: string | null
@@ -2946,6 +3003,7 @@ export type Database = {
           approval_id?: string | null
           correlation_id?: string | null
           created_at?: string
+          dedup_key?: string | null
           delivered?: boolean
           delivered_at?: string | null
           delivery_channel?: string | null
@@ -2977,6 +3035,7 @@ export type Database = {
           approval_id?: string | null
           correlation_id?: string | null
           created_at?: string
+          dedup_key?: string | null
           delivered?: boolean
           delivered_at?: string | null
           delivery_channel?: string | null
@@ -3415,6 +3474,86 @@ export type Database = {
           },
         ]
       }
+      kinetiks_oracle_runs: {
+        Row: {
+          account_id: string
+          ai_call_id: string | null
+          completed_at: string | null
+          created_at: string
+          duration_ms: number | null
+          error_class: string | null
+          error_message: string | null
+          haiku_tokens_in: number | null
+          haiku_tokens_out: number | null
+          id: string
+          insights_deduped: number
+          insights_written: number
+          proposals_emitted: number
+          reason: string | null
+          signals_by_type: Json
+          signals_total: number
+          source_operator: string
+          sources_evaluated: string[]
+          started_at: string
+          status: string
+          team_scope_id: string | null
+        }
+        Insert: {
+          account_id: string
+          ai_call_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          error_class?: string | null
+          error_message?: string | null
+          haiku_tokens_in?: number | null
+          haiku_tokens_out?: number | null
+          id?: string
+          insights_deduped?: number
+          insights_written?: number
+          proposals_emitted?: number
+          reason?: string | null
+          signals_by_type?: Json
+          signals_total?: number
+          source_operator?: string
+          sources_evaluated?: string[]
+          started_at?: string
+          status: string
+          team_scope_id?: string | null
+        }
+        Update: {
+          account_id?: string
+          ai_call_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          error_class?: string | null
+          error_message?: string | null
+          haiku_tokens_in?: number | null
+          haiku_tokens_out?: number | null
+          id?: string
+          insights_deduped?: number
+          insights_written?: number
+          proposals_emitted?: number
+          reason?: string | null
+          signals_by_type?: Json
+          signals_total?: number
+          source_operator?: string
+          sources_evaluated?: string[]
+          started_at?: string
+          status?: string
+          team_scope_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kinetiks_oracle_runs_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "kinetiks_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       kinetiks_proposals: {
         Row: {
           account_id: string
@@ -3725,6 +3864,77 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "kinetiks_synapses_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "kinetiks_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      kinetiks_sync_logs: {
+        Row: {
+          account_id: string
+          arrived_at: string
+          created_at: string
+          duration_ms: number | null
+          error_class: string | null
+          error_message: string | null
+          id: string
+          nango_connection_id: string | null
+          payload_sha256: string | null
+          provider_completed_at: string | null
+          records_added: number
+          records_deleted: number
+          records_updated: number
+          source: string
+          status: string
+          sync_name: string
+          team_scope_id: string | null
+          webhook_id: string | null
+        }
+        Insert: {
+          account_id: string
+          arrived_at?: string
+          created_at?: string
+          duration_ms?: number | null
+          error_class?: string | null
+          error_message?: string | null
+          id?: string
+          nango_connection_id?: string | null
+          payload_sha256?: string | null
+          provider_completed_at?: string | null
+          records_added?: number
+          records_deleted?: number
+          records_updated?: number
+          source: string
+          status: string
+          sync_name: string
+          team_scope_id?: string | null
+          webhook_id?: string | null
+        }
+        Update: {
+          account_id?: string
+          arrived_at?: string
+          created_at?: string
+          duration_ms?: number | null
+          error_class?: string | null
+          error_message?: string | null
+          id?: string
+          nango_connection_id?: string | null
+          payload_sha256?: string | null
+          provider_completed_at?: string | null
+          records_added?: number
+          records_deleted?: number
+          records_updated?: number
+          source?: string
+          status?: string
+          sync_name?: string
+          team_scope_id?: string | null
+          webhook_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kinetiks_sync_logs_account_id_fkey"
             columns: ["account_id"]
             isOneToOne: false
             referencedRelation: "kinetiks_accounts"

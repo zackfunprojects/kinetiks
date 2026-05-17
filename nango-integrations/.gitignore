@@ -1,0 +1,9 @@
+# Nango CLI build cache
+.nango/
+
+# Compiled output (Nango compiles in-place; emit dirs vary by CLI version)
+dist/
+
+# Local environment overrides for nango CLI auth
+.env
+.env.local

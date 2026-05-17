@@ -138,4 +138,15 @@ export function registerKinetiksPromptTasks(): void {
     version: "v1-2026-05",
     defaultModel: "claude-haiku-4-5-20251001",
   });
+
+  // ── Oracle (D2 Slice 10) ──────────────────────────────────
+  // Signal polish — one batched Haiku call per Oracle run that takes
+  // deterministic detector signals and produces customer-facing summary
+  // text + a one-sentence suggested_action label. Falls back to
+  // deterministic detector output if Haiku fails.
+  registerPromptTask({
+    task: "oracle.signal_polish",
+    version: "v1-2026-05",
+    defaultModel: "claude-haiku-4-5-20251001",
+  });
 }

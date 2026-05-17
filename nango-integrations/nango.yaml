@@ -1,0 +1,245 @@
+# Nango Integration Configuration
+#
+# This file is the source of truth for the custom Nango syncs we author and
+# deploy via `npx nango deploy`. Pre-built syncs (e.g. HubSpot companies,
+# contacts, deals) are configured in the Nango dashboard, not here.
+#
+# Deploy:  npx nango deploy <staging|prod>
+# Docs:    https://docs.nango.dev/reference/integration-configuration
+#
+# D2 slice ownership of each integration:
+#   - hubspot:                Slice 4 (uses Nango's pre-built syncs; no custom config here)
+#   - google-analytics:       Slice 5 (custom ga4-daily-metrics sync)
+#   - google-search-console:  Slice 6
+#   - stripe:                 Slice 6
+#   - facebook (Meta Ads):    Slice 7
+#   - google-ads:             Slice 7
+#
+# Until each slice lands, the corresponding stanza here is a placeholder so
+# `npx nango sync:list` is comprehensible to anyone running the CLI locally.
+# Adding a new integration after D2: see docs/integrations/nango-runbook.md.
+
+integrations:
+  # ── Slice 4 — HubSpot ───────────────────────────────────────────
+  # Uses Nango's pre-built syncs (companies, contacts, deals, owners,
+  # pipelines). Configured in the Nango dashboard; no custom syncs.
+  hubspot:
+    syncs: {}
+
+  # ── Slice 5 — Google Analytics 4 ───────────────────────────────
+  # ga4-daily-metrics: pulls last 90 days of sessions/users/bounce_rate
+  # with `date` dimension via the Data API. Output is one record per
+  # (date, dimension, dim_value, metric) tuple emitted into the
+  # Ga4MetricPoint model.
+  google-analytics:
+    syncs:
+      ga4-daily-metrics:
+        runs: every 15 minutes
+        description: |
+          Fetches sessions / total users / bounce rate for the last 90 days
+          via the GA4 Data API runReport endpoint, with `date` as the
+          primary dimension. Walks five secondary dimensions (overall,
+          country, device, source, medium, page_path) and emits one record
+          per (metric, date, dimension, dim_value) tuple. The selected
+          property id is read from the Nango connection metadata.
+        output: Ga4MetricPoint
+        sync_type: full
+        track_deletes: false
+        endpoint: POST /v1beta/properties/:property_id:runReport
+        scopes:
+          - https://www.googleapis.com/auth/analytics.readonly
+
+  # ── Slice 6 — Google Search Console ────────────────────────────
+  # gsc-daily-performance: impressions/clicks/CTR/avg-position aggregated
+  # by date + query for the last 90 days. One record per (date, page,
+  # query) tuple emitted into the GscPerformancePoint model.
+  google-search-console:
+    syncs:
+      gsc-daily-performance:
+        runs: every 1 hour
+        description: |
+          Pulls daily Search Analytics for the last 90 days from the verified
+          site set on the connection metadata. Two dimension slices walked:
+          (date), (date, query), (date, page). Records carry impressions,
+          clicks, CTR, and avg position.
+        output: GscPerformancePoint
+        sync_type: full
+        track_deletes: false
+        endpoint: POST /webmasters/v3/sites/:site_url/searchAnalytics/query
+        scopes:
+          - https://www.googleapis.com/auth/webmasters.readonly
+
+  # ── Slice 6 — Stripe ───────────────────────────────────────────
+  # Three incremental syncs covering revenue, customer, and subscription
+  # shapes. The handler derives MRR / ARR / churn / refund-rate metrics
+  # from these on the next aggregation cycle.
+  stripe:
+    syncs:
+      stripe-charges:
+        runs: every 30 minutes
+        description: |
+          Successful charges from the last 90 days with metadata + utm
+          attribution. Feeds revenue, refund-rate, and (with metadata)
+          cross-source ROAS detection.
+        output: StripeCharge
+        sync_type: incremental
+        track_deletes: false
+        endpoint: GET /v1/charges
+        scopes:
+          - read_only
+      stripe-customers:
+        runs: every 1 hour
+        description: |
+          Customer list with metadata. Emails are hashed before persistence
+          (PII guard); domain-only retained.
+        output: StripeCustomer
+        sync_type: incremental
+        track_deletes: false
+        endpoint: GET /v1/customers
+        scopes:
+          - read_only
+      stripe-subscriptions:
+        runs: every 30 minutes
+        description: |
+          Subscription state for MRR / churn computation. Includes status,
+          interval, current_period_end, canceled_at.
+        output: StripeSubscription
+        sync_type: incremental
+        track_deletes: false
+        endpoint: GET /v1/subscriptions
+        scopes:
+          - read_only
+
+  # ── Slice 7 — Meta Ads (Marketing API via Facebook integration) ─
+  # meta-ads-campaigns: campaign list + daily insights for the last 28
+  # days. Uses synchronous Insights API (small/medium ad accounts) with
+  # fall-through to async report run for larger windows. Ad-level
+  # granularity is deferred to D3.
+  facebook:
+    syncs:
+      meta-ads-campaigns:
+        runs: every 1 hour
+        description: |
+          Walks ad accounts attached to the connection; for each account
+          fetches active campaigns and their daily insights (impressions,
+          reach, clicks, spend, conversions, conversion value, CTR) for
+          the last 28 days. Output is one MetaAdsCampaignInsight per
+          (campaign, date) tuple.
+        output: MetaAdsCampaignInsight
+        sync_type: full
+        track_deletes: false
+        endpoint: GET /v18.0/act_:ad_account_id/insights
+        scopes:
+          - ads_read
+          - read_insights
+
+  # ── Slice 7 — Google Ads ───────────────────────────────────────
+  # google-ads-campaigns: daily campaign performance via the Search API
+  # (GAQL). Uses the customer id stored on the connection metadata.
+  google-ads:
+    syncs:
+      google-ads-campaigns:
+        runs: every 1 hour
+        description: |
+          Pulls daily campaign-level performance (impressions, clicks,
+          cost_micros, conversions, conversion_value) for the last 28
+          days via the GoogleAds Search API. Output is one
+          GoogleAdsCampaignInsight per (campaign, date) tuple.
+        output: GoogleAdsCampaignInsight
+        sync_type: full
+        track_deletes: false
+        endpoint: POST /v15/customers/:customer_id/googleAds:search
+        scopes:
+          - https://www.googleapis.com/auth/adwords
+
+# Models declared per sync. Each model maps to the shape of one record
+# the sync emits via nango.batchSave().
+models:
+  Ga4MetricPoint:
+    id: string                            # synthetic: {metric}_{dim}_{dim_value}_{date}
+    metric: string                        # 'ga4_sessions' | 'ga4_users' | 'ga4_bounce_rate'
+    property_id: string
+    date: string                          # YYYY-MM-DD
+    dimension: string                     # 'overall' | 'country' | 'device' | 'source' | 'medium' | 'page_path'
+    dim_value: string                     # actual dimension value, or empty string for 'overall'
+    value: number                         # bouncerate scaled 0..100
+    metric_unit: string                   # 'count' | 'percentage'
+
+  GscPerformancePoint:
+    id: string                            # synthetic: {dim}::{dim_value}::{date}
+    date: string                          # YYYY-MM-DD
+    dimension: string                     # 'overall' | 'query' | 'page'
+    dim_value: string                     # the query string or page url, or empty string for 'overall'
+    impressions: number
+    clicks: number
+    ctr: number                           # 0..1 from GSC; scaled to 0..100 in the handler
+    position: number                      # average position (lower better)
+    site_url: string
+
+  StripeCharge:
+    id: string                            # Stripe charge id
+    amount: number                        # in cents
+    currency: string
+    paid: boolean
+    refunded: boolean
+    refund_amount: number                 # in cents; 0 if no refund
+    customer_id: string                   # nullable in raw Stripe; "" when missing
+    payment_method: string                # 'card' | 'ach' | etc; "" when missing
+    utm_source: string                    # parsed from metadata.utm_source; "" when missing
+    utm_medium: string
+    utm_campaign: string
+    created_at: string                    # ISO
+
+  StripeCustomer:
+    id: string
+    email_lower_hash: string              # sha256 hex of lowercased email; "" if no email
+    domain: string                        # email right-side; "" if no email
+    created_at: string
+
+  StripeSubscription:
+    id: string
+    status: string                        # 'active' | 'past_due' | 'canceled' | 'trialing' | 'incomplete' | ...
+    customer_id: string
+    plan_amount: number                   # in cents; 0 if usage-based
+    plan_interval: string                 # 'month' | 'year' | ''
+    plan_interval_count: number           # most commonly 1
+    current_period_start: string          # ISO
+    current_period_end: string            # ISO
+    canceled_at: string                   # ISO; "" when not canceled
+    created_at: string
+
+  MetaAdsCampaignInsight:
+    id: string                            # synthetic: campaign_id::date
+    ad_account_id: string
+    campaign_id: string
+    campaign_name: string
+    objective: string                     # 'CONVERSIONS' | 'TRAFFIC' | 'AWARENESS' | etc
+    status: string                        # 'ACTIVE' | 'PAUSED' | ...
+    date: string                          # YYYY-MM-DD
+    impressions: number
+    reach: number
+    clicks: number
+    spend: number                         # in dollars (Meta returns string; we coerce)
+    ctr: number                           # percentage 0..100
+    cpc: number                           # dollars per click
+    cpm: number                           # dollars per 1000 impressions
+    conversions: number
+    conversion_value: number              # dollars
+    roas: number                          # conversion_value / spend; 0 if no spend
+
+  GoogleAdsCampaignInsight:
+    id: string                            # synthetic: campaign_id::date
+    customer_id: string
+    campaign_id: string
+    campaign_name: string
+    status: string                        # 'ENABLED' | 'PAUSED' | ...
+    advertising_channel_type: string      # 'SEARCH' | 'DISPLAY' | 'SHOPPING' | 'VIDEO' | ...
+    date: string                          # YYYY-MM-DD
+    impressions: number
+    clicks: number
+    cost: number                          # dollars (Google returns micros; we divide)
+    ctr: number                           # percentage
+    cpc: number
+    conversions: number
+    conversion_value: number
+    roas: number                          # conversion_value / cost
