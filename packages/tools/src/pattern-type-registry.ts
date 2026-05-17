@@ -45,8 +45,14 @@ export function definePatternType<TDimensions extends Record<string, unknown>>(
   return config;
 }
 
-/** Register a pattern type. Throws on structural violations. Idempotent for the same descriptor. */
-export function registerPatternType(descriptor: PatternTypeDescriptor): void {
+/**
+ * Register a pattern type. Throws on structural violations. Idempotent
+ * for the same descriptor. The generic parameter is a convenience for
+ * the descriptor's TDimensions; the registry erases it at the boundary
+ * because runtime validation is via the Zod schema, not the TS type.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function registerPatternType(descriptor: PatternTypeDescriptor<any>): void {
   assertPatternTypeDescriptor(descriptor);
   const existing = registry.get(descriptor.pattern_type);
   if (existing) {

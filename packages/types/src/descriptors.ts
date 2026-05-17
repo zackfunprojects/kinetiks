@@ -268,8 +268,12 @@ export interface PatternTypeDescriptor<
    * dimension whose raw cardinality exceeds a low threshold; without
    * it, patterns proliferate and never accumulate enough observations
    * to validate.
+   *
+   * Input is arbitrary (apps pass un-bucketized dimensions); output
+   * must conform to TDimensions (validated against dimensions_schema
+   * by the caller after bucketize runs).
    */
-  readonly bucketize?: (raw: TDimensions) => TDimensions;
+  readonly bucketize?: (raw: Record<string, unknown>) => TDimensions;
   /**
    * Outcome metrics the descriptor accepts. Emissions whose
    * `outcome_metrics[i].metric_name` is absent from this list, OR whose
