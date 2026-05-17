@@ -3554,6 +3554,98 @@ export type Database = {
           },
         ]
       }
+      kinetiks_pattern_library: {
+        Row: {
+          account_id: string
+          applies_to_icp: string | null
+          archived_at: string | null
+          confidence_score: number
+          created_at: string
+          decay_at: string
+          declining_at: string | null
+          dimensions: Json
+          effective_decay_days: number
+          emitting_app: string
+          evidence_summary: Json
+          fingerprint: string
+          first_observed_at: string
+          id: string
+          last_observed_at: string
+          observation_count: number
+          outcome_metrics: Json
+          pattern_type: string
+          status: string
+          team_scope_id: string | null
+          updated_at: string
+          user_annotation: string | null
+          user_starred: boolean
+          user_suppressed: boolean
+          validated_at: string | null
+        }
+        Insert: {
+          account_id: string
+          applies_to_icp?: string | null
+          archived_at?: string | null
+          confidence_score?: number
+          created_at?: string
+          decay_at: string
+          declining_at?: string | null
+          dimensions: Json
+          effective_decay_days: number
+          emitting_app: string
+          evidence_summary?: Json
+          fingerprint: string
+          first_observed_at?: string
+          id?: string
+          last_observed_at?: string
+          observation_count?: number
+          outcome_metrics?: Json
+          pattern_type: string
+          status?: string
+          team_scope_id?: string | null
+          updated_at?: string
+          user_annotation?: string | null
+          user_starred?: boolean
+          user_suppressed?: boolean
+          validated_at?: string | null
+        }
+        Update: {
+          account_id?: string
+          applies_to_icp?: string | null
+          archived_at?: string | null
+          confidence_score?: number
+          created_at?: string
+          decay_at?: string
+          declining_at?: string | null
+          dimensions?: Json
+          effective_decay_days?: number
+          emitting_app?: string
+          evidence_summary?: Json
+          fingerprint?: string
+          first_observed_at?: string
+          id?: string
+          last_observed_at?: string
+          observation_count?: number
+          outcome_metrics?: Json
+          pattern_type?: string
+          status?: string
+          team_scope_id?: string | null
+          updated_at?: string
+          user_annotation?: string | null
+          user_starred?: boolean
+          user_suppressed?: boolean
+          validated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kinetiks_pattern_library_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "kinetiks_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       kinetiks_proposals: {
         Row: {
           account_id: string
