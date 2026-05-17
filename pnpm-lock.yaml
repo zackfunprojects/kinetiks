@@ -62,7 +62,7 @@ importers:
         version: 2.99.3
       geist:
         specifier: ^1.3.0
-        version: 1.7.0(next@14.2.23(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))
+        version: 1.7.0(next@14.2.23(@opentelemetry/api@1.9.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))
       next:
         specifier: 14.2.23
         version: 14.2.23(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -241,7 +241,7 @@ importers:
         version: 5.5.0
       geist:
         specifier: ^1.3.0
-        version: 1.7.0(next@14.2.23(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))
+        version: 1.7.0(next@14.2.23(@opentelemetry/api@1.9.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))
       google-auth-library:
         specifier: ^10.4.0
         version: 10.6.2
@@ -447,9 +447,15 @@ importers:
         specifier: workspace:*
         version: link:../types
     devDependencies:
+      '@types/node':
+        specifier: ^20.0.0
+        version: 20.19.37
       typescript:
         specifier: ^5.7.0
         version: 5.9.3
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@20.19.37)(jsdom@25.0.1)(lightningcss@1.32.0)(terser@5.47.1)
 
   packages/tools:
     dependencies:
@@ -8401,7 +8407,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  geist@1.7.0(next@14.2.23(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)):
+  geist@1.7.0(next@14.2.23(@opentelemetry/api@1.9.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)):
     dependencies:
       next: 14.2.23(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
 

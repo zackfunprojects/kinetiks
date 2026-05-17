@@ -1,4 +1,10 @@
-import type { ContextLayer, ReviewResponse, RoutingEvent } from "@kinetiks/types";
+import type {
+  ContextLayer,
+  PatternEmissionPayload,
+  PatternEmissionResult,
+  ReviewResponse,
+  RoutingEvent,
+} from "@kinetiks/types";
 import type {
   SynapseConfig,
   SynapseInstance,
@@ -149,6 +155,39 @@ export function createSynapse(config: SynapseConfig): SynapseInstance {
       }
 
       return response.json() as Promise<SubmitProposalResult>;
+    },
+
+    async emitPattern(
+      accountId: string,
+      payload: PatternEmissionPayload
+    ): Promise<PatternEmissionResult> {
+      const endpoint = `${config.baseUrl}/api/synapse/patterns`;
+
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers,
+        credentials: "include",
+        body: JSON.stringify({
+          account_id: accountId,
+          emitting_app: config.appName,
+          pattern_type: payload.pattern_type,
+          dimensions: payload.dimensions,
+          outcome_metrics: payload.outcome_metrics,
+          applies_to_icp: payload.applies_to_icp ?? null,
+          evidence_refs: payload.evidence_refs,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({}));
+        const message =
+          (errorBody as Record<string, string>).error ??
+          `Pattern emission failed with status ${response.status}`;
+        throw new SynapseError(message, response.status, endpoint);
+      }
+
+      const envelope = (await response.json()) as { data: PatternEmissionResult };
+      return envelope.data;
     },
 
     async submitReview(
