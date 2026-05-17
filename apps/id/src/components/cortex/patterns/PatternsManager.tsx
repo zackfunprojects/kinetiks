@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Pattern, PatternLifecycleStatus } from "@kinetiks/types";
+import { PatternDetailDialog } from "./PatternDetailDialog";
 
 interface AvailableType {
   pattern_type: string;
@@ -56,6 +57,7 @@ export function PatternsManager({
 }: PatternsManagerProps) {
   const router = useRouter();
   const [draft, setDraft] = useState<PatternsManagerFilters>(filters);
+  const [selectedPattern, setSelectedPattern] = useState<Pattern | null>(null);
 
   const apply = useCallback(
     (next: PatternsManagerFilters) => {
@@ -291,7 +293,18 @@ export function PatternsManager({
                   display: "flex",
                   flexDirection: "column",
                   gap: "var(--kt-s-2)",
+                  cursor: "pointer",
                 }}
+                onClick={() => setSelectedPattern(p)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setSelectedPattern(p);
+                  }
+                }}
+                tabIndex={0}
+                role="button"
+                aria-label={`View details for pattern ${p.pattern_type}`}
               >
                 <div
                   style={{
@@ -382,6 +395,13 @@ export function PatternsManager({
             );
           })}
         </ul>
+      )}
+
+      {selectedPattern && (
+        <PatternDetailDialog
+          pattern={selectedPattern}
+          onClose={() => setSelectedPattern(null)}
+        />
       )}
 
       {totalPages > 1 && (
