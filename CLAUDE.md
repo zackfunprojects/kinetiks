@@ -11,7 +11,7 @@ Read this at the start of every session. Then check `docs/kinetiks-product-spec-
 **`docs/kinetiks-product-spec-v3.md` is the canonical product spec.** It supersedes:
 - Any earlier `kinetiks-product-spec*.md` files
 - The original "Platform Addendum" (now `docs/specs/programs-spec.md`, content elaborated and brought under v3)
-- The `kinetiks-terminal-spec-v2.md` (now at `docs/legacy/terminal/`)
+- The `kinetiks-terminal-spec-v2.md` (now at `docs/archive/legacy/terminal/`)
 - Any spec referenced as "v1" or "v2" in chat history
 
 Older files are kept under `docs/archive/` (superseded but referenced from current docs) and `docs/legacy/` (older iterations, retired product directions, binary `.docx` originals) as historical reference. **Never build from them.** Any conflict, the v3 spec wins. If the v3 spec is wrong, flag it in a PR or in `QUESTIONS.md`, do not work around it.

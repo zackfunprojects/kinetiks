@@ -63,7 +63,7 @@ All colors are **CSS variables**. No component file contains a hardcoded hex val
 
 ### 2.1 Light mode — Paper
 
-```
+```css
 /* Surface — Paper */
 --kt-bg-base:        #FCFBF8;   /* primary canvas — warm off-white, the page */
 --kt-bg-subtle:      #F6F4EE;   /* secondary surface — sidebar, sections */
@@ -105,7 +105,7 @@ All colors are **CSS variables**. No component file contains a hardcoded hex val
 
 ### 2.2 Dark mode — Slate
 
-```
+```css
 --kt-bg-base:        #0B0B0D;   /* primary canvas — deep ink, slightly warm */
 --kt-bg-subtle:      #131316;   /* secondary surface */
 --kt-bg-muted:       #1B1B1F;   /* row hover, pressed */
@@ -169,7 +169,7 @@ Do **not** use ink for:
 
 ### 3.1 Font stack
 
-```
+```css
 --kt-font-serif: 'DM Serif Display', 'Recoleta', Georgia, 'Times New Roman', serif;
 --kt-font-sans:  'Geist', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
 --kt-font-mono:  'Geist Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
@@ -186,7 +186,7 @@ Do not fall back to Inter. Inter is the generic SaaS font; the whole point of th
 
 App-density scale. The marketing site uses bigger sizes; the app caps at ~44px.
 
-```
+```css
 --kt-fs-11: 11px;   /* mono labels, tertiary metadata */
 --kt-fs-12: 12px;   /* eyebrow, table secondary, badge */
 --kt-fs-13: 13px;   /* mono inline (codes, IDs) */
@@ -203,7 +203,7 @@ App-density scale. The marketing site uses bigger sizes; the app caps at ~44px.
 
 ### 3.3 Weight, leading, tracking
 
-```
+```css
 --kt-fw-reg:  400;
 --kt-fw-med:  500;
 --kt-fw-semi: 600;
@@ -255,7 +255,7 @@ Each role has one font. The system decides, not the developer.
 
 Base 4px. Use the scale; never invent intermediate values.
 
-```
+```css
 --kt-s-1:   4px;
 --kt-s-2:   8px;
 --kt-s-3:  12px;
@@ -272,7 +272,7 @@ App-level inner padding: 24–32px. Card padding: 16–20px. Tight stacked rows:
 
 ### 4.2 Radii
 
-```
+```css
 --kt-radius-0:    0px;     /* table cells, hairline-style splits */
 --kt-radius-1:    6px;     /* default — buttons, inputs, badges */
 --kt-radius-2:   10px;     /* cards, modals, popovers */
@@ -284,7 +284,7 @@ App-level inner padding: 24–32px. Card padding: 16–20px. Tight stacked rows:
 
 Kinetiks separates surfaces with **tone**, not with elevation. Shadows exist for popovers and modals only.
 
-```
+```css
 /* Light mode */
 --kt-shadow-xs: 0 1px 2px rgb(10 10 11 / 0.04);
 --kt-shadow-sm: 0 4px 14px rgb(10 10 11 / 0.06);
@@ -304,7 +304,7 @@ Dark-mode shadows use a faint inner ring of white at very low opacity — this i
 
 Motion is calm and short. The product does not bounce, swoosh, or spring. It glides.
 
-```
+```css
 --kt-dur-1: 120ms;   /* micro — color, opacity, single-property */
 --kt-dur-2: 200ms;   /* default — most transitions */
 --kt-dur-3: 320ms;   /* drawers, modals, sidebar collapse */
@@ -326,7 +326,7 @@ Motion is calm and short. The product does not bounce, swoosh, or spring. It gli
 
 ### 4.5 Layout
 
-```
+```css
 --kt-app-tabbar-h:      48px;        /* top tab bar height */
 --kt-app-sidebar-w:    260px;        /* chat sidebar, cortex subnav */
 --kt-app-sidebar-w-sm:  64px;        /* collapsed sidebar */
@@ -342,7 +342,7 @@ Motion is calm and short. The product does not bounce, swoosh, or spring. It gli
 
 ### 5.1 Three-tab shell (the canonical layout)
 
-```
+```text
 +----------------------------------------------------------------+
 |  Kinetiks  |  Chat  Analytics  Cortex            ⌘K   ☾   Av  |   <- 48px top bar
 +------------+---------------------------------------------------+
@@ -585,7 +585,7 @@ Chat is *the* product. Every interaction should feel like a calm, ongoing conver
 Three variants — quick, review, strategic — all share the same skeleton.
 
 **Skeleton:**
-```
+```text
 +--------------------------------------------+
 | [App badge]    [Type label]       [⏱ 2h]  |   <- 12px sans / fg-3
 |                                            |
@@ -639,7 +639,7 @@ The Context Structure has 8 layers. Each layer has its own page (Cortex > Identi
 
 The Oracle's findings. The single most important atomic unit on the Analytics tab.
 
-```
+```text
 +-------------------------------------------------+
 | [Icon]   ANOMALY                       [Dismiss]|
 |                                                 |
@@ -668,7 +668,7 @@ The Oracle's findings. The single most important atomic unit on the Analytics ta
 
 ### 7.5 Goal card
 
-```
+```text
 +-------------------------------------------+
 | [Status pill]                              |
 |                                            |
