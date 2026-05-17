@@ -46,6 +46,19 @@ export {
   _resetOperatorRegistryForTests,
 } from "./operator-registry";
 
+// Pattern Type Registry (2027 addendum §1.3, L1a)
+export {
+  definePatternType,
+  registerPatternType,
+  getPatternType,
+  assertPatternType,
+  listPatternTypes,
+  listPatternTypesForEmittingApp,
+  listPatternTypesForReadingApp,
+  listCustomerVisiblePatternTypes,
+  _resetPatternTypeRegistryForTests,
+} from "./pattern-type-registry";
+
 // Customer template renderer
 export {
   renderCustomerSentence,
