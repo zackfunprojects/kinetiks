@@ -704,7 +704,9 @@ D1 shipped with twelve Edge Functions under `supabase/functions/*` — zero of w
 
 **How to fix:** `pnpm functions:deploy [name ...]` deploys every function in the repo (or only the ones named), using the project ref pinned in the script. Re-runs are idempotent.
 
-**How to extend:** adding a new Edge Function means dropping it under `supabase/functions/<name>/index.ts`. The deploy + drift-check scripts auto-discover it on next run.
+**How to extend:** adding a new Edge Function means three steps, all version-controlled: (1) drop it under `supabase/functions/<name>/index.ts`; (2) add a `_kt_schedule_edge_function('<name>', '<cron>', '<name>')` line to the latest `*_edge_function_schedules.sql` migration (or a new follow-up migration); (3) run `pnpm functions:deploy` and `supabase db push --linked`. The deploy script and the cron migration together are the source of truth — `pnpm functions:check` will fail until both sides match the repo.
+
+**Why schedules live in a migration, not the dashboard:** Supabase's Edge Function dashboard does not have a Schedules tab; cron is set up via `pg_cron` + `pg_net` extensions in SQL. Keeping that SQL in a versioned migration means schedules survive environment rebuilds, can be code-reviewed, and the drift script can verify them.
 
 (Add entries below as new scars accumulate.)
 

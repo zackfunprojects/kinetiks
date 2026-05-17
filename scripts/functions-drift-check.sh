@@ -43,8 +43,21 @@ for fn in "${deployed_sorted[@]}"; do
   fi
 done
 
-if [ "${#missing_deploy[@]}" -eq 0 ] && [ "${#extra_deploy[@]}" -eq 0 ]; then
-  [ "$QUIET" = 0 ] && echo "OK: ${#repo_sorted[@]} functions in repo, all deployed."
+# Schedule drift: every repo function should have an entry in the
+# latest cron-schedule migration. A function that exists, is deployed,
+# but is unscheduled is the second flavor of the D1 bug shape.
+schedule_migration="$(ls -1 supabase/migrations/*_edge_function_schedules.sql 2>/dev/null | tail -n1)"
+missing_schedule=()
+if [ -n "$schedule_migration" ]; then
+  for fn in "${repo_sorted[@]}"; do
+    if ! grep -q "'${fn}'" "$schedule_migration"; then
+      missing_schedule+=("$fn")
+    fi
+  done
+fi
+
+if [ "${#missing_deploy[@]}" -eq 0 ] && [ "${#extra_deploy[@]}" -eq 0 ] && [ "${#missing_schedule[@]}" -eq 0 ]; then
+  [ "$QUIET" = 0 ] && echo "OK: ${#repo_sorted[@]} functions in repo, all deployed, all scheduled."
   exit 0
 fi
 
@@ -58,5 +71,11 @@ if [ "${#extra_deploy[@]}" -gt 0 ]; then
   echo "" >&2
   echo "  Deployed but NOT in repo (orphans — review for deletion):" >&2
   printf "    - %s\n" "${extra_deploy[@]}" >&2
+fi
+if [ "${#missing_schedule[@]}" -gt 0 ]; then
+  echo "" >&2
+  echo "  In repo but NOT scheduled in $(basename "$schedule_migration"):" >&2
+  echo "  (add a _kt_schedule_edge_function() call or extend the migration)" >&2
+  printf "    - %s\n" "${missing_schedule[@]}" >&2
 fi
 exit 1

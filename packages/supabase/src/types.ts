@@ -14,6 +14,44 @@ export type Database = {
   }
   public: {
     Tables: {
+      hv_accounts_config: {
+        Row: {
+          created_at: string
+          id: string
+          kinetiks_id: string
+          onboarding_state: Json | null
+          outreach_goal: Json
+          sender_profile: Json | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          kinetiks_id: string
+          onboarding_state?: Json | null
+          outreach_goal?: Json
+          sender_profile?: Json | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          kinetiks_id?: string
+          onboarding_state?: Json | null
+          outreach_goal?: Json
+          sender_profile?: Json | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hv_accounts_config_kinetiks_id_fkey"
+            columns: ["kinetiks_id"]
+            isOneToOne: true
+            referencedRelation: "kinetiks_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       hv_activities: {
         Row: {
           contact_id: string | null
@@ -772,6 +810,7 @@ export type Database = {
           in_reply_to_id: string | null
           kinetiks_id: string
           mailbox_id: string | null
+          message_id: string | null
           opened_at: string | null
           org_id: string | null
           replied_at: string | null
@@ -806,6 +845,7 @@ export type Database = {
           in_reply_to_id?: string | null
           kinetiks_id: string
           mailbox_id?: string | null
+          message_id?: string | null
           opened_at?: string | null
           org_id?: string | null
           replied_at?: string | null
@@ -840,6 +880,7 @@ export type Database = {
           in_reply_to_id?: string | null
           kinetiks_id?: string
           mailbox_id?: string | null
+          message_id?: string | null
           opened_at?: string | null
           org_id?: string | null
           replied_at?: string | null
@@ -913,6 +954,80 @@ export type Database = {
           },
           {
             foreignKeyName: "hv_emails_sequence_id_fkey"
+            columns: ["sequence_id"]
+            isOneToOne: false
+            referencedRelation: "hv_sequences"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hv_enrollments: {
+        Row: {
+          campaign_id: string | null
+          completed_at: string | null
+          contact_id: string
+          created_at: string | null
+          current_step: number
+          id: string
+          kinetiks_id: string
+          next_step_at: string | null
+          paused_at: string | null
+          sequence_id: string
+          started_at: string | null
+          status: string
+        }
+        Insert: {
+          campaign_id?: string | null
+          completed_at?: string | null
+          contact_id: string
+          created_at?: string | null
+          current_step?: number
+          id?: string
+          kinetiks_id: string
+          next_step_at?: string | null
+          paused_at?: string | null
+          sequence_id: string
+          started_at?: string | null
+          status?: string
+        }
+        Update: {
+          campaign_id?: string | null
+          completed_at?: string | null
+          contact_id?: string
+          created_at?: string | null
+          current_step?: number
+          id?: string
+          kinetiks_id?: string
+          next_step_at?: string | null
+          paused_at?: string | null
+          sequence_id?: string
+          started_at?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hv_enrollments_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "hv_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hv_enrollments_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "hv_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hv_enrollments_kinetiks_id_fkey"
+            columns: ["kinetiks_id"]
+            isOneToOne: false
+            referencedRelation: "kinetiks_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hv_enrollments_sequence_id_fkey"
             columns: ["sequence_id"]
             isOneToOne: false
             referencedRelation: "hv_sequences"
@@ -1204,6 +1319,66 @@ export type Database = {
           },
         ]
       }
+      hv_templates: {
+        Row: {
+          body_template: string
+          category: string
+          created_at: string
+          id: string
+          is_ai_generated: boolean
+          kinetiks_id: string
+          merge_fields: Json
+          name: string
+          performance: Json
+          style_preset_id: string | null
+          subject_template: string
+          updated_at: string
+        }
+        Insert: {
+          body_template?: string
+          category?: string
+          created_at?: string
+          id?: string
+          is_ai_generated?: boolean
+          kinetiks_id: string
+          merge_fields?: Json
+          name: string
+          performance?: Json
+          style_preset_id?: string | null
+          subject_template?: string
+          updated_at?: string
+        }
+        Update: {
+          body_template?: string
+          category?: string
+          created_at?: string
+          id?: string
+          is_ai_generated?: boolean
+          kinetiks_id?: string
+          merge_fields?: Json
+          name?: string
+          performance?: Json
+          style_preset_id?: string | null
+          subject_template?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hv_templates_kinetiks_id_fkey"
+            columns: ["kinetiks_id"]
+            isOneToOne: false
+            referencedRelation: "kinetiks_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hv_templates_style_preset_id_fkey"
+            columns: ["style_preset_id"]
+            isOneToOne: false
+            referencedRelation: "hv_style_presets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       hv_tracking_events: {
         Row: {
           click_url: string | null
@@ -1214,6 +1389,9 @@ export type Database = {
           id: string
           ip_address: string | null
           kinetiks_id: string
+          metadata: Json | null
+          occurred_at: string | null
+          url: string | null
           user_agent: string | null
         }
         Insert: {
@@ -1225,6 +1403,9 @@ export type Database = {
           id?: string
           ip_address?: string | null
           kinetiks_id: string
+          metadata?: Json | null
+          occurred_at?: string | null
+          url?: string | null
           user_agent?: string | null
         }
         Update: {
@@ -1236,6 +1417,9 @@ export type Database = {
           id?: string
           ip_address?: string | null
           kinetiks_id?: string
+          metadata?: Json | null
+          occurred_at?: string | null
+          url?: string | null
           user_agent?: string | null
         }
         Relationships: [
@@ -3922,6 +4106,10 @@ export type Database = {
     }
     Functions: {
       _kt_release_advisory_lock: { Args: { p_key: string }; Returns: boolean }
+      _kt_schedule_edge_function: {
+        Args: { p_cron: string; p_function_slug: string; p_name: string }
+        Returns: undefined
+      }
       _kt_try_advisory_lock: { Args: { p_key: string }; Returns: boolean }
       hv_check_suppression: {
         Args: { p_email?: string; p_kinetiks_id: string; p_phone?: string }
@@ -4071,5 +4259,3 @@ export const Constants = {
     Enums: {},
   },
 } as const
-A new version of Supabase CLI is available: v2.98.2 (currently installed v2.75.0)
-We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
