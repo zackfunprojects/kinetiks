@@ -6,7 +6,8 @@
     "dev": "turbo dev",
     "lint": "turbo lint",
     "type-check": "turbo type-check",
-    "clean": "turbo clean"
+    "clean": "turbo clean",
+    "db:types": "supabase gen types typescript --project-id ioptgqtzykqwnebwkioo > packages/supabase/src/types.ts"
   },
   "devDependencies": {
     "turbo": "^2.4.0",
