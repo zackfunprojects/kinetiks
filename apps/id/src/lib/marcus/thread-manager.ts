@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { MarcusChannel, MarcusThread, MarcusMessage } from "@kinetiks/types";
-import { askClaude } from "@kinetiks/ai";
+import { routeAskClaude, type AICallContext } from "@kinetiks/ai";
 
 /**
  * Create a new conversation thread.
@@ -139,11 +139,13 @@ export async function getRecentThreadMessages(
 
 /**
  * Auto-generate a thread title from the first exchange.
- * Uses Haiku for speed.
+ * Uses Haiku for speed; routed through `marcus.thread_title` so the
+ * call is observable in `ai_calls`.
  */
 export async function autoTitleThread(
   admin: SupabaseClient,
-  threadId: string
+  threadId: string,
+  aiContext?: AICallContext,
 ): Promise<string> {
   const messages = await getThreadMessages(admin, threadId, 4);
   if (messages.length < 2) return "";
@@ -153,9 +155,14 @@ export async function autoTitleThread(
     .map((m) => `${m.role}: ${m.content.slice(0, 200)}`)
     .join("\n");
 
-  const title = await askClaude(
+  const title = await routeAskClaude(
+    "marcus.thread_title",
     `Generate a 3-5 word title for this conversation. Return ONLY the title, no quotes, no punctuation at the end.\n\n${exchange}`,
-    { model: "claude-haiku-4-5-20251001", maxTokens: 20 }
+    undefined,
+    {
+      maxTokens: 20,
+      context: aiContext ?? { threadId },
+    },
   );
 
   const cleanTitle = title.trim().replace(/[."]+$/, "").slice(0, 100);

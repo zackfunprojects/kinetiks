@@ -1,15 +1,17 @@
-import { askClaude } from "@kinetiks/ai";
+import { routeAskClaude, type AICallContext } from "@kinetiks/ai";
 import type { SynapseCommand, CommandContext } from "@kinetiks/synapse";
 import type { CapabilityMatch, ParsedCommandIntent } from "./command-router";
 
 /**
  * Translate a parsed intent into structured SynapseCommand(s).
- * Uses Claude Sonnet for complex translation.
+ * Uses Sonnet via the router so each translation is observable in
+ * `ai_calls`. Optional `aiContext` carries thread/run correlation ids.
  */
 export async function translateCommand(
   intent: ParsedCommandIntent,
   matches: CapabilityMatch[],
-  context: CommandContext
+  context: CommandContext,
+  aiContext?: AICallContext,
 ): Promise<SynapseCommand[]> {
   if (matches.length === 0) return [];
 
@@ -29,13 +31,14 @@ export async function translateCommand(
       score: m.score,
     }));
 
-    const result = await askClaude(
+    const result = await routeAskClaude(
+      "marcus.command_translate",
       `User intent: "${intent.raw_text}"\nParsed type: ${intent.type}\nSubject: ${intent.subject}\nParameters: ${JSON.stringify(intent.parameters)}\n\nAvailable capabilities:\n${JSON.stringify(capabilitySchema, null, 2)}\n\nGenerate a dispatch plan as JSON array of commands: [{ "app": string, "capability": string, "parameters": object, "parallel": boolean }]`,
+      `You are a command translator for a GTM system. Convert user intent into structured app commands. Choose the best matching capability and fill parameters. If multiple apps needed, set parallel=true for independent commands. Respond with JSON only.`,
       {
-        system: `You are a command translator for a GTM system. Convert user intent into structured app commands. Choose the best matching capability and fill parameters. If multiple apps needed, set parallel=true for independent commands. Respond with JSON only.`,
-        model: "claude-sonnet-4-20250514",
         maxTokens: 1024,
-      }
+        context: aiContext ?? { accountId: context.account_id },
+      },
     );
 
     const plan = JSON.parse(result) as { app: string; capability: string; parameters: Record<string, unknown>; parallel: boolean }[];

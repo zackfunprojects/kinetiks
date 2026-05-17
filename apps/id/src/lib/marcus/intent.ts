@@ -1,4 +1,4 @@
-import { askClaude } from "@kinetiks/ai";
+import { routeAskClaude, type AICallContext } from "@kinetiks/ai";
 import type { MarcusIntent } from "@kinetiks/types";
 
 const INTENT_PROMPT = `You are an intent classifier for Marcus, a strategic AI advisor. Classify the user's message into exactly one intent category.
@@ -15,21 +15,26 @@ Respond with ONLY the category name, nothing else.`;
 
 /**
  * Classify user message intent to determine context assembly budget.
- * Uses Haiku for speed - this should be fast.
+ * Uses Haiku via the router so the call is observable in `ai_calls`.
  */
 export async function classifyIntent(
   message: string,
-  recentMessages?: string[]
+  recentMessages?: string[],
+  context?: AICallContext,
 ): Promise<MarcusIntent> {
-  const context = recentMessages?.length
+  const prefix = recentMessages?.length
     ? `\nRecent conversation:\n${recentMessages.slice(-3).join("\n")}\n\nLatest message:`
     : "";
 
-  const result = await askClaude(`${context}\n${message}`, {
-    system: INTENT_PROMPT,
-    model: "claude-haiku-4-5-20251001",
-    maxTokens: 20,
-  });
+  const result = await routeAskClaude(
+    "marcus.intent",
+    `${prefix}\n${message}`,
+    INTENT_PROMPT,
+    {
+      maxTokens: 20,
+      context: context ?? {},
+    },
+  );
 
   const intent = result.trim().toLowerCase() as MarcusIntent;
 

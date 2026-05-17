@@ -16,6 +16,7 @@ export async function buildPreAnalysisBrief(
   intentType: string,
   recentMessages: string,
   claudeHaiku: (prompt: string) => Promise<any>,
+  toolInventory?: string,
 ): Promise<{ brief: PreAnalysisBrief; formatted: string }> {
   const memoryFacts = formatMemoriesForContext(memories);
 
@@ -51,7 +52,7 @@ export async function buildPreAnalysisBrief(
     }
     if (!brief.action_availability) brief.action_availability = [];
 
-    const formatted = formatBriefForSonnet(brief);
+    const formatted = formatBriefForSonnet(brief, toolInventory);
     return { brief, formatted };
   } catch (error) {
     console.error('Pre-analysis brief generation failed', error);
@@ -82,7 +83,7 @@ export async function buildPreAnalysisBrief(
           : c.connected ? 'Connected but unhealthy' : 'Not connected',
       })),
     };
-    return { brief: fallbackBrief, formatted: formatBriefForSonnet(fallbackBrief) };
+    return { brief: fallbackBrief, formatted: formatBriefForSonnet(fallbackBrief, toolInventory) };
   }
 }
 
@@ -90,7 +91,7 @@ export async function buildPreAnalysisBrief(
  * Format the brief as a string to inject into the Sonnet user message.
  * This sits DIRECTLY ADJACENT to the user's question in the prompt.
  */
-function formatBriefForSonnet(brief: PreAnalysisBrief): string {
+function formatBriefForSonnet(brief: PreAnalysisBrief, toolInventory?: string): string {
   const evidence = brief.available_evidence.length > 0
     ? brief.available_evidence.map((e) => `- ${e.citation}`).join('\n')
     : '- No specific data points available. Flag this in your response.';
@@ -111,6 +112,10 @@ function formatBriefForSonnet(brief: PreAnalysisBrief): string {
     ? brief.response_shape.must_flag.map((m) => `- ${m}`).join('\n')
     : '';
 
+  const platformBlock = toolInventory
+    ? `\n\n[PLATFORM CAPABILITIES - the canonical inventory; reference these by name, do not invent tools that are not listed]\n${toolInventory}`
+    : '';
+
   return `[EVIDENCE BRIEF - use ONLY this evidence in your response]
 Available data you CAN cite:
 ${evidence}
@@ -119,7 +124,7 @@ Data you DO NOT have (do not fabricate):
 ${notAvailable}
 
 [CONVERSATION MEMORY - these are decisions/corrections from this thread, honor them]
-${memory}
+${memory}${platformBlock}
 
 [RESPONSE CONSTRAINTS]
 - Maximum ${brief.response_shape.max_sentences} sentences

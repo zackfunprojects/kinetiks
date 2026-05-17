@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { MarcusIntent, ContextBudget } from "@kinetiks/types";
 import { CONTEXT_BUDGETS } from "@kinetiks/types";
-import { loadKnowledge } from "@kinetiks/ai";
+import { loadKnowledge } from "@kinetiks/ai/knowledge";
 import type { KnowledgeIntent } from "@kinetiks/ai";
 import { getThreadMessages } from "./thread-manager";
 import { searchDocs } from "./docs-search";
