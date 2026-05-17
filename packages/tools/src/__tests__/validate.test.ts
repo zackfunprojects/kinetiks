@@ -1,13 +1,16 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
+import type { PatternTypeDescriptor } from "@kinetiks/types";
 import {
   _resetActionClassRegistryForTests,
   _resetOperatorRegistryForTests,
+  _resetPatternTypeRegistryForTests,
   _resetToolRegistryForTests,
   assertRegistriesValid,
   defineTool,
   registerActionClass,
   registerOperators,
+  registerPatternType,
   registerTool,
   ToolError,
   validateRegistries,
@@ -17,7 +20,33 @@ afterEach(() => {
   _resetToolRegistryForTests();
   _resetActionClassRegistryForTests();
   _resetOperatorRegistryForTests();
+  _resetPatternTypeRegistryForTests();
 });
+
+function patternType(over: Partial<PatternTypeDescriptor> = {}): PatternTypeDescriptor {
+  return {
+    pattern_type: "noop.test_signature",
+    description:
+      "A test fixture pattern type used by the cross-registry validator suite.",
+    emitting_apps: ["noop"],
+    read_apps: ["noop"],
+    customer_visible: false,
+    dimensions_schema: z.object({ x: z.string() }),
+    fingerprint_dimensions: ["x"],
+    valid_outcome_metrics: [
+      { name: "rate", description: "Test outcome rate metric.", unit: "ratio_0_1" },
+    ],
+    decay_bounds: {
+      initial_decay_days: 30,
+      decay_floor_days: 14,
+      decay_ceiling_days: 90,
+      calibration_sample_threshold: 10,
+    },
+    confidence_thresholds: { validate_at: 0.7, decline_at: 0.4 },
+    expected_max_fingerprints_per_account: 100,
+    ...over,
+  };
+}
 
 describe("cross-registry validation", () => {
   it("succeeds when all references are satisfied", () => {
@@ -115,20 +144,45 @@ describe("cross-registry validation", () => {
     expect(report.warnings.join("\n")).toMatch(/not referenced by any tool/);
   });
 
-  it("warns when an operator declares required_patterns before L1a lands", () => {
+  it("fails when an operator references an unregistered pattern_type", () => {
+    // Cardinality intent warning is expected here; mute console.warn.
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     registerOperators("noop", [
       {
         key: "pattern_aware",
-        description: "Operator that reads patterns; warns until L1a ships",
+        description: "Operator that reads patterns; references a missing pattern type",
         inputs_schema: z.object({}),
         outputs_schema: z.object({}),
         required_tools: [],
-        required_patterns: ["pattern.creative_signature"],
+        required_patterns: ["noop.ghost_signature"],
+        action_classes: [],
+      },
+    ]);
+    const report = validateRegistries();
+    expect(report.ok).toBe(false);
+    expect(report.errors.join("\n")).toMatch(
+      /unregistered pattern_type "noop.ghost_signature"/,
+    );
+    warn.mockRestore();
+  });
+
+  it("succeeds when an operator references a registered pattern_type", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    registerPatternType(patternType());
+    registerOperators("noop", [
+      {
+        key: "pattern_aware",
+        description: "Operator that reads a registered pattern type",
+        inputs_schema: z.object({}),
+        outputs_schema: z.object({}),
+        required_tools: [],
+        required_patterns: ["noop.test_signature"],
         action_classes: [],
       },
     ]);
     const report = validateRegistries();
     expect(report.ok).toBe(true);
-    expect(report.warnings.join("\n")).toMatch(/Pattern Type Registry is not active/);
+    expect(report.counts.patternTypes).toBe(1);
+    warn.mockRestore();
   });
 });
