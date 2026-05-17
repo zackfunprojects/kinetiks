@@ -10,29 +10,29 @@ const VARIANT_STYLES: Record<
   { background: string; color: string; borderLeft: string }
 > = {
   default: {
-    background: "var(--bg-surface-raised)",
-    color: "var(--text-secondary)",
-    borderLeft: "2px solid var(--border-default)",
+    background: "var(--kt-bg-muted)",
+    color: "var(--kt-fg-2)",
+    borderLeft: "2px solid var(--kt-border-1)",
   },
   success: {
-    background: "var(--success-muted)",
-    color: "var(--success)",
-    borderLeft: "2px solid var(--success)",
+    background: "var(--kt-success-soft)",
+    color: "var(--kt-success)",
+    borderLeft: "2px solid var(--kt-success)",
   },
   warning: {
-    background: "var(--warning-muted)",
-    color: "var(--warning)",
-    borderLeft: "2px solid var(--warning)",
+    background: "var(--kt-warning-soft)",
+    color: "var(--kt-warning)",
+    borderLeft: "2px solid var(--kt-warning)",
   },
   error: {
-    background: "var(--error-muted)",
-    color: "var(--error)",
-    borderLeft: "2px solid var(--error)",
+    background: "var(--kt-danger-soft)",
+    color: "var(--kt-danger)",
+    borderLeft: "2px solid var(--kt-danger)",
   },
   accent: {
-    background: "var(--accent-muted)",
-    color: "var(--accent)",
-    borderLeft: "2px solid var(--accent)",
+    background: "var(--kt-accent-soft)",
+    color: "var(--kt-accent)",
+    borderLeft: "2px solid var(--kt-accent)",
   },
 };
 

@@ -166,6 +166,8 @@ The ID is the foundation. The apps use it to power their intelligence. Kinetiks 
 
 ## 4. The Desktop Application
 
+> For the full interaction model the desktop app provides — split-panel collaboration, presence, annotations, the task drawer with kill switch — see `collaborative-workspace-spec.md`.
+
 ### 4.1 Application Architecture
 
 The Kinetiks desktop app is an Electron application wrapping a Next.js web application. The architecture:

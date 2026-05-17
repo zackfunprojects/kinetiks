@@ -92,22 +92,22 @@ export function CrawlStep({ onComplete, onSkip, onBack, stepNumber, totalSteps }
             <div
               key={key}
               className="flex items-center justify-between rounded-lg px-4 py-2.5"
-              style={{ border: "1px solid var(--border-muted)" }}
+              style={{ border: "1px solid var(--kt-border-2)" }}
             >
-              <span className="text-sm" style={{ color: "var(--text-secondary)" }}>
+              <span className="text-sm" style={{ color: "var(--kt-fg-2)" }}>
                 {EXTRACTION_LABELS[key] ?? key}
               </span>
               {val.success ? (
                 <span
                   className="text-xs font-medium"
-                  style={{ color: "var(--success)", fontFamily: "var(--font-mono), monospace" }}
+                  style={{ color: "var(--kt-success)", fontFamily: "var(--font-mono), monospace" }}
                 >
                   captured
                 </span>
               ) : (
                 <span
                   className="text-xs"
-                  style={{ color: "var(--text-tertiary)", fontFamily: "var(--font-mono), monospace" }}
+                  style={{ color: "var(--kt-fg-3)", fontFamily: "var(--font-mono), monospace" }}
                 >
                   not found
                 </span>
@@ -145,9 +145,9 @@ export function CrawlStep({ onComplete, onSkip, onBack, stepNumber, totalSteps }
           disabled={crawling}
           className="w-full rounded-lg px-4 py-3 text-sm disabled:opacity-50"
           style={{
-            border: "1px solid var(--border-default)",
-            background: "var(--bg-inset)",
-            color: "var(--text-primary)",
+            border: "1px solid var(--kt-border-1)",
+            background: "var(--kt-bg-base)",
+            color: "var(--kt-fg-1)",
           }}
         />
       </div>
@@ -156,16 +156,16 @@ export function CrawlStep({ onComplete, onSkip, onBack, stepNumber, totalSteps }
         <div className="mt-5 flex items-center gap-3">
           <div
             className="h-4 w-4 animate-spin rounded-full border-2 border-t-transparent"
-            style={{ borderColor: "var(--accent)", borderTopColor: "transparent" }}
+            style={{ borderColor: "var(--kt-accent)", borderTopColor: "transparent" }}
           />
-          <span className="text-sm" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-mono), monospace" }}>
+          <span className="text-sm" style={{ color: "var(--kt-fg-2)", fontFamily: "var(--font-mono), monospace" }}>
             {PROGRESS_MESSAGES[progressIdx]}
           </span>
         </div>
       )}
 
       {error && (
-        <p className="mt-4 text-sm" style={{ color: "var(--error)" }}>{error}</p>
+        <p className="mt-4 text-sm" style={{ color: "var(--kt-danger)" }}>{error}</p>
       )}
     </StepWrapper>
   );

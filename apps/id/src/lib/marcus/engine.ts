@@ -1,9 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { MarcusChannel, MarcusChatResponse } from "@kinetiks/types";
-import type { ConversationMessage } from "@kinetiks/ai";
-import { askClaudeMultiTurn, askClaude, streamClaude } from "@kinetiks/ai";
+import type { AICallContext, RouterConversationMessage as ConversationMessage } from "@kinetiks/ai";
+import { routeAskClaude, routeAskClaudeMultiTurn, routeStreamClaude } from "@kinetiks/ai";
+import { startAgentRun } from "@kinetiks/runtime";
 import { classifyIntent } from "./intent";
 import { assembleContext, buildDataAvailabilityManifest } from "./context-assembly";
+import { buildToolInventoryForBrief } from "./tool-bridge";
 import {
   getOrCreateThread,
   addMessage,
@@ -18,14 +20,16 @@ import { assembleResponse } from "./response-assembler";
 import type { DataAvailabilityManifest, ActionGenerationResult } from "./types";
 
 /**
- * Wrap askClaude for Haiku calls so it returns the format our modules expect:
- * { content: [{ text: string }] }
+ * Build a task-bound Haiku caller for sub-modules. Each sub-module
+ * (pre-analysis, action-generator, memory) is invoked with a caller
+ * already tagged with its prompt task, so every `ai_calls` row is
+ * correctly attributed and correlated.
  */
-function makeHaikuCaller() {
+function makeHaikuCaller(task: string, context: AICallContext) {
   return async (prompt: string) => {
-    const text = await askClaude(prompt, {
-      model: "claude-haiku-4-5-20251001",
+    const text = await routeAskClaude(task, prompt, undefined, {
       maxTokens: 1024,
+      context,
     });
     return { content: [{ text }] };
   };
@@ -56,17 +60,30 @@ export async function processMarcusMessage(
   threadId?: string,
   channel: MarcusChannel = "web"
 ): Promise<MarcusChatResponse & { _validation?: ValidationMetadata; manifest?: DataAvailabilityManifest }> {
-  const claudeHaiku = makeHaikuCaller();
-
   // 1. Get or create thread (validates ownership before any reads)
   const thread = await getOrCreateThread(admin, accountId, threadId, channel);
+
+  // Run-scoped context: every AI call this turn gets the agent_run_id +
+  // thread_id stamped on its ai_calls row, so the full Marcus turn is
+  // queryable as one trace.
+  const run = startAgentRun({
+    accountId,
+    invokedByAgent: "marcus",
+    threadId: thread.id,
+  });
+  const aiContext: AICallContext = {
+    accountId,
+    threadId: thread.id,
+    agentRunId: run.runId,
+  };
+  const haikuFor = (task: string) => makeHaikuCaller(task, aiContext);
 
   // 2. Fetch prior history BEFORE saving user message to avoid duplication
   const history = await getRecentThreadMessages(admin, thread.id, 20);
 
   // 3. Classify intent using recent history
   const recentContent = history.slice(-5).map((m) => m.content);
-  const intent = await classifyIntent(message, recentContent.length > 0 ? recentContent : undefined);
+  const intent = await classifyIntent(message, recentContent.length > 0 ? recentContent : undefined, aiContext);
 
   // 4. Save user message (after history fetch to prevent it appearing in history)
   await addMessage(admin, thread.id, "user", message, channel);
@@ -86,14 +103,19 @@ export async function processMarcusMessage(
     .map((m) => `${m.role === "user" ? "USER" : "ASSISTANT"}: ${m.content}`)
     .join("\n");
 
-  // 7. Pre-analysis brief (Haiku)
+  // 7. Pre-analysis brief (Haiku) — pre-fetch the platform tool
+  // inventory so the brief includes the canonical capability list.
+  const toolInventory = await buildToolInventoryForBrief({ accountId }).catch(
+    () => undefined,
+  );
   const { brief, formatted: briefText } = await buildPreAnalysisBrief(
     message,
     manifest,
     memories,
     intent,
     recentMessages,
-    claudeHaiku,
+    haikuFor("marcus.pre_analysis"),
+    toolInventory,
   );
   console.log("[ENGINE] brief evidence count:", brief.available_evidence.length);
   console.log("[ENGINE] brief must_not:", brief.response_shape.must_not);
@@ -112,15 +134,19 @@ export async function processMarcusMessage(
     },
   ];
 
-  const responseText = await askClaudeMultiTurn(conversationMessages, {
-    system: systemPrompt,
-    model: "claude-sonnet-4-20250514",
-    maxTokens: 2048,
-  });
+  const responseText = await routeAskClaudeMultiTurn(
+    "marcus.persona_response",
+    conversationMessages,
+    systemPrompt,
+    {
+      maxTokens: 2048,
+      context: aiContext,
+    },
+  );
 
   // 9. Action generation (Haiku) - runs before memory update so we can assemble and save first
   const conversationSummary = recentMessages;
-  const actionResult = await generateActions(message, responseText, manifest, conversationSummary, claudeHaiku);
+  const actionResult = await generateActions(message, responseText, manifest, conversationSummary, haikuFor("marcus.action_generate"));
 
   // 10. Assemble response + action footer
   const finalResponse = assembleResponse(responseText, actionResult);
@@ -136,7 +162,7 @@ export async function processMarcusMessage(
     responseText,
     memories,
     history.length,
-    claudeHaiku,
+    haikuFor("marcus.memory_extract"),
     admin,
   ).catch((err) => console.error("Memory extraction failed", err));
 
@@ -160,10 +186,11 @@ export async function processMarcusMessage(
 
   // Auto-title if first exchange
   if (history.length === 0 && !thread.title) {
-    autoTitleThread(admin, thread.id).catch(() => {});
+    autoTitleThread(admin, thread.id, aiContext).catch(() => {});
   }
 
-  // 14. Return
+  // 14. End the run + return
+  run.end();
   return {
     thread_id: thread.id,
     message: finalResponse,
@@ -203,17 +230,28 @@ export async function streamMarcusMessage(
   threadId?: string,
   channel: MarcusChannel = "web"
 ): Promise<{ stream: ReadableStream; threadId: string; manifest: DataAvailabilityManifest; actionsPromise?: Promise<ActionGenerationResult> }> {
-  const claudeHaiku = makeHaikuCaller();
-
   // 1. Get or create thread
   const thread = await getOrCreateThread(admin, accountId, threadId, channel);
+
+  // Run-scoped context: stamps agent_run_id + thread_id on every ai_calls row.
+  const run = startAgentRun({
+    accountId,
+    invokedByAgent: "marcus",
+    threadId: thread.id,
+  });
+  const aiContext: AICallContext = {
+    accountId,
+    threadId: thread.id,
+    agentRunId: run.runId,
+  };
+  const haikuFor = (task: string) => makeHaikuCaller(task, aiContext);
 
   // 2. Fetch prior history
   const history = await getRecentThreadMessages(admin, thread.id, 20);
 
   // 3. Classify intent
   const recentContent = history.slice(-5).map((m) => m.content);
-  const intent = await classifyIntent(message, recentContent.length > 0 ? recentContent : undefined);
+  const intent = await classifyIntent(message, recentContent.length > 0 ? recentContent : undefined, aiContext);
 
   // 4. Save user message
   await addMessage(admin, thread.id, "user", message, channel);
@@ -230,14 +268,19 @@ export async function streamMarcusMessage(
     .map((m) => `${m.role === "user" ? "USER" : "ASSISTANT"}: ${m.content}`)
     .join("\n");
 
-  // 7. Pre-analysis brief (Haiku)
+  // 7. Pre-analysis brief (Haiku) — pre-fetch the platform tool
+  // inventory so the brief includes the canonical capability list.
+  const toolInventory = await buildToolInventoryForBrief({ accountId }).catch(
+    () => undefined,
+  );
   const { brief, formatted: briefText } = await buildPreAnalysisBrief(
     message,
     manifest,
     memories,
     intent,
     recentMessages,
-    claudeHaiku,
+    haikuFor("marcus.pre_analysis"),
+    toolInventory,
   );
 
   // 8. Build messages with brief adjacent to question
@@ -255,11 +298,15 @@ export async function streamMarcusMessage(
   ];
 
   // 9. Create streaming response
-  const claudeStream = streamClaude(conversationMessages, {
-    system: systemPrompt,
-    model: "claude-sonnet-4-20250514",
-    maxTokens: 2048,
-  });
+  const claudeStream = routeStreamClaude(
+    "marcus.persona_stream",
+    conversationMessages,
+    systemPrompt,
+    {
+      maxTokens: 2048,
+      context: aiContext,
+    },
+  );
 
   let fullResponse = "";
   const isFirstExchange = history.length === 0 && !thread.title;
@@ -299,7 +346,7 @@ export async function streamMarcusMessage(
 
         // Post-stream: action generation (Haiku)
         const conversationSummary = recentMessages;
-        const actionResult = await generateActions(message, fullResponse, manifest, conversationSummary, claudeHaiku);
+        const actionResult = await generateActions(message, fullResponse, manifest, conversationSummary, haikuFor("marcus.action_generate"));
 
         // Resolve actions promise for API route to execute
         resolveActions!(actionResult);
@@ -326,7 +373,7 @@ export async function streamMarcusMessage(
           fullResponse,
           memories,
           history.length,
-          claudeHaiku,
+          haikuFor("marcus.memory_extract"),
           admin,
         ).catch((err) => console.error("Memory extraction failed", err));
 
@@ -351,8 +398,11 @@ export async function streamMarcusMessage(
 
         // Auto-title if first exchange
         if (isFirstExchange) {
-          autoTitleThread(admin, thread.id).catch(() => {});
+          autoTitleThread(admin, thread.id, aiContext).catch(() => {});
         }
+
+        // End the run
+        run.end();
 
         // Signal completion
         controller.enqueue(

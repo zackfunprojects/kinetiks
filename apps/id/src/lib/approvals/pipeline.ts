@@ -64,8 +64,23 @@ export async function processApproval(
 
   // Step 7: Create approval record
   const status = autoApprove ? "auto_approved" : "pending";
-  const expiresAt = submission.expires_in_hours
-    ? new Date(Date.now() + submission.expires_in_hours * 60 * 60 * 1000).toISOString()
+  // Expiry windows per CLAUDE.md / approval-system-spec §6.2:
+  //   quick      → 24h (time-sensitive: follow-ups, scheduling)
+  //   review     → 72h (campaign: sequence launches, content publishes)
+  //   strategic  → 7d  (direction shifts, messaging changes)
+  // Callers may override via `expires_in_hours`; null means "no expiry"
+  // only if the caller explicitly opts out.
+  const defaultHoursByType: Record<typeof approvalType, number> = {
+    quick: 24,
+    review: 72,
+    strategic: 7 * 24,
+  };
+  const effectiveHours =
+    submission.expires_in_hours !== null && submission.expires_in_hours !== undefined
+      ? submission.expires_in_hours
+      : defaultHoursByType[approvalType];
+  const expiresAt = effectiveHours > 0
+    ? new Date(Date.now() + effectiveHours * 60 * 60 * 1000).toISOString()
     : null;
 
   const { data: approval, error: insertError } = await admin

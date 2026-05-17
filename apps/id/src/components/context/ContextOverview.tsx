@@ -31,10 +31,10 @@ export function ContextOverview({ layers, confidence }: ContextOverviewProps) {
   return (
     <div>
       <div style={{ marginBottom: 32 }}>
-        <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: "var(--text-primary)" }}>
+        <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: "var(--kt-fg-1)" }}>
           Context Structure
         </h1>
-        <p style={{ margin: "4px 0 0", fontSize: 14, color: "var(--text-secondary)" }}>
+        <p style={{ margin: "4px 0 0", fontSize: 14, color: "var(--kt-fg-2)" }}>
           Your 8-layer business identity. Click any layer to view and edit.
         </p>
       </div>
@@ -47,16 +47,16 @@ export function ContextOverview({ layers, confidence }: ContextOverviewProps) {
           gap: 24,
           marginBottom: 32,
           padding: 24,
-          background: "var(--bg-base)",
+          background: "var(--kt-bg-base)",
           borderRadius: 12,
         }}
       >
         <ConfidenceRing score={confidence.aggregate} size={100} strokeWidth={8} />
         <div>
-          <p style={{ margin: 0, fontSize: 16, fontWeight: 600, color: "var(--text-primary)" }}>
+          <p style={{ margin: 0, fontSize: 16, fontWeight: 600, color: "var(--kt-fg-1)" }}>
             Overall Confidence: {Math.round(confidence.aggregate)}%
           </p>
-          <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--text-secondary)" }}>
+          <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--kt-fg-2)" }}>
             Weighted average across all 8 layers
           </p>
         </div>

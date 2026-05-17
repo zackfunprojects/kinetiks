@@ -13,7 +13,7 @@ export function SidebarToggle({ active, onToggle, approvalCount = 0 }: SidebarTo
     <div
       style={{
         display: "flex",
-        background: "var(--bg-inset)",
+        background: "var(--kt-bg-base)",
         borderRadius: 6,
         padding: 2,
         gap: 2,
@@ -56,8 +56,8 @@ function ToggleButton({
         cursor: "pointer",
         fontSize: 12,
         fontWeight: active ? 500 : 400,
-        color: active ? "var(--text-primary)" : "var(--text-tertiary)",
-        background: active ? "var(--bg-surface-raised)" : "transparent",
+        color: active ? "var(--kt-fg-1)" : "var(--kt-fg-3)",
+        background: active ? "var(--kt-bg-muted)" : "transparent",
         transition: "background 0.15s, color 0.15s",
         display: "flex",
         alignItems: "center",
@@ -69,8 +69,8 @@ function ToggleButton({
       {badge !== undefined && (
         <span
           style={{
-            background: "var(--accent-secondary)",
-            color: "var(--bg-base)",
+            background: "var(--kt-warm)",
+            color: "var(--kt-bg-base)",
             fontSize: 10,
             fontWeight: 600,
             borderRadius: 10,

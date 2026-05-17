@@ -55,7 +55,7 @@ export function SettingsModal({ account, userEmail, onClose }: SettingsModalProp
         style={{
           position: "absolute",
           inset: 0,
-          background: "rgba(0, 0, 0, 0.6)",
+          background: "var(--kt-overlay-strong)",
           backdropFilter: "blur(4px)",
         }}
       />
@@ -68,9 +68,9 @@ export function SettingsModal({ account, userEmail, onClose }: SettingsModalProp
           maxWidth: 960,
           height: "calc(100vh - 80px)",
           maxHeight: 720,
-          background: "var(--bg-surface)",
+          background: "var(--kt-bg-subtle)",
           borderRadius: 12,
-          border: "1px solid var(--border-default)",
+          border: "1px solid var(--kt-border-1)",
           display: "flex",
           overflow: "hidden",
         }}
@@ -101,8 +101,8 @@ export function SettingsModal({ account, userEmail, onClose }: SettingsModalProp
             height: 32,
             borderRadius: 6,
             border: "none",
-            background: "var(--bg-surface-raised)",
-            color: "var(--text-secondary)",
+            background: "var(--kt-bg-muted)",
+            color: "var(--kt-fg-2)",
             cursor: "pointer",
             display: "flex",
             alignItems: "center",

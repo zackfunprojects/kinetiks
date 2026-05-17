@@ -23,7 +23,7 @@ export function FieldEditor({
     display: "block",
     fontSize: 12,
     fontWeight: 500,
-    color: "var(--text-secondary)",
+    color: "var(--kt-fg-2)",
     marginBottom: 4,
     textTransform: "capitalize",
   };
@@ -31,11 +31,11 @@ export function FieldEditor({
   const inputStyle: React.CSSProperties = {
     width: "100%",
     padding: "8px 10px",
-    border: "1px solid var(--border-default)",
+    border: "1px solid var(--kt-border-1)",
     borderRadius: 6,
     fontSize: 13,
-    color: "var(--text-primary)",
-    background: "var(--bg-surface)",
+    color: "var(--kt-fg-1)",
+    background: "var(--kt-bg-subtle)",
     boxSizing: "border-box",
   };
 

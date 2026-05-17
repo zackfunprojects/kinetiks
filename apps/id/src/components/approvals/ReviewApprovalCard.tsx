@@ -14,8 +14,8 @@ export function ReviewApprovalCard({ approval, onApprove, onReject }: ReviewAppr
       style={{
         padding: 12,
         borderRadius: 8,
-        border: "1px solid var(--border-muted)",
-        background: "var(--bg-surface-raised)",
+        border: "1px solid var(--kt-border-2)",
+        background: "var(--kt-bg-muted)",
         marginBottom: 8,
       }}
     >
@@ -27,25 +27,25 @@ export function ReviewApprovalCard({ approval, onApprove, onReject }: ReviewAppr
             fontWeight: 600,
             padding: "2px 6px",
             borderRadius: 4,
-            background: "var(--warning-muted)",
-            color: "var(--warning)",
+            background: "var(--kt-warning-soft)",
+            color: "var(--kt-warning)",
             textTransform: "uppercase",
           }}
         >
           Review
         </span>
-        <span style={{ fontSize: 11, color: "var(--text-tertiary)" }}>
+        <span style={{ fontSize: 11, color: "var(--kt-fg-3)" }}>
           {approval.source_app}
         </span>
         {approval.confidence_score !== null && (
-          <span style={{ fontSize: 11, color: "var(--text-tertiary)", marginLeft: "auto" }}>
+          <span style={{ fontSize: 11, color: "var(--kt-fg-3)", marginLeft: "auto" }}>
             {Math.round(approval.confidence_score)}% conf.
           </span>
         )}
       </div>
 
       {/* Title */}
-      <div style={{ fontSize: 13, fontWeight: 500, color: "var(--text-primary)", marginBottom: 6 }}>
+      <div style={{ fontSize: 13, fontWeight: 500, color: "var(--kt-fg-1)", marginBottom: 6 }}>
         {approval.title}
       </div>
 
@@ -54,7 +54,7 @@ export function ReviewApprovalCard({ approval, onApprove, onReject }: ReviewAppr
         <div
           style={{
             fontSize: 12,
-            color: "var(--text-secondary)",
+            color: "var(--kt-fg-2)",
             marginBottom: 8,
             lineHeight: 1.4,
           }}
@@ -68,10 +68,10 @@ export function ReviewApprovalCard({ approval, onApprove, onReject }: ReviewAppr
         style={{
           padding: 10,
           borderRadius: 6,
-          background: "var(--bg-inset)",
-          border: "1px solid var(--border-muted)",
+          background: "var(--kt-bg-base)",
+          border: "1px solid var(--kt-border-2)",
           fontSize: 12,
-          color: "var(--text-secondary)",
+          color: "var(--kt-fg-2)",
           lineHeight: 1.5,
           maxHeight: 120,
           overflowY: "auto",
@@ -90,7 +90,7 @@ export function ReviewApprovalCard({ approval, onApprove, onReject }: ReviewAppr
           rel="noopener noreferrer"
           style={{
             fontSize: 11,
-            color: "var(--accent-secondary)",
+            color: "var(--kt-warm)",
             textDecoration: "none",
             display: "block",
             marginBottom: 10,
@@ -109,8 +109,8 @@ export function ReviewApprovalCard({ approval, onApprove, onReject }: ReviewAppr
             padding: "6px 12px",
             borderRadius: 6,
             border: "none",
-            background: "var(--success-muted)",
-            color: "var(--success)",
+            background: "var(--kt-success-soft)",
+            color: "var(--kt-success)",
             fontSize: 12,
             fontWeight: 500,
             cursor: "pointer",
@@ -123,9 +123,9 @@ export function ReviewApprovalCard({ approval, onApprove, onReject }: ReviewAppr
           style={{
             padding: "6px 12px",
             borderRadius: 6,
-            border: "1px solid var(--border-default)",
+            border: "1px solid var(--kt-border-1)",
             background: "transparent",
-            color: "var(--text-secondary)",
+            color: "var(--kt-fg-2)",
             fontSize: 12,
             cursor: "pointer",
           }}

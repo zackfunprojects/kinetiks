@@ -18,11 +18,11 @@ import { LENGTH_RANGES } from "./thresholds";
  */
 async function loadEditorialMethodology(): Promise<string> {
   try {
-    // Dynamic import with type bypass - loadKnowledge uses fs/promises which
-    // webpack can't statically analyze, but it exists at runtime on the server.
+    // Dynamic import of the knowledge subpath; the main @kinetiks/ai
+    // module is intentionally Edge-safe and does not re-export loadKnowledge.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const aiModule: any = await import("@kinetiks/ai");
-    const result = await aiModule.loadKnowledge({
+    const knowledgeModule: any = await import("@kinetiks/ai/knowledge");
+    const result = await knowledgeModule.loadKnowledge({
       operator: "content_generator",
       intent: "write_blog_post",
       tokenBudget: 1500,

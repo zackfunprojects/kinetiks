@@ -43,8 +43,8 @@ export async function generateResearchBrief(
   if (params.tier === "deep") {
     try {
       // Dynamic import to avoid webpack issues with fs/promises
-      const aiModule: Record<string, unknown> = await import("@kinetiks/ai");
-      const loadKnowledge = aiModule.loadKnowledge as (opts: Record<string, unknown>) => Promise<{ content: string }>;
+      const knowledgeModule: Record<string, unknown> = await import("@kinetiks/ai/knowledge");
+      const loadKnowledge = knowledgeModule.loadKnowledge as (opts: Record<string, unknown>) => Promise<{ content: string }>;
       const knowledge = await loadKnowledge({
         operator: "composer",
         intent: "prospect_research",

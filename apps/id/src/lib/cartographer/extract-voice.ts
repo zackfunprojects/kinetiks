@@ -1,5 +1,6 @@
 import type { VoiceData } from "@kinetiks/types";
-import { askClaude, loadKnowledge } from "@kinetiks/ai";
+import { routeAskClaude } from "@kinetiks/ai";
+import { loadKnowledge } from "@kinetiks/ai/knowledge";
 import {
   CARTOGRAPHER_VOICE_EXTRACTION_PROMPT,
   buildVoiceExtractionPrompt,
@@ -135,11 +136,12 @@ export async function extractVoice(
       ? `${CARTOGRAPHER_VOICE_EXTRACTION_PROMPT}\n\n## Reference Methodology\n${methodology}`
       : CARTOGRAPHER_VOICE_EXTRACTION_PROMPT;
 
-    const response = await askClaude(prompt, {
-      system: systemPrompt,
-      model: "claude-sonnet-4-20250514",
-      maxTokens: 2048,
-    });
+    const response = await routeAskClaude(
+      "cartographer.extract_voice",
+      prompt,
+      systemPrompt,
+      { maxTokens: 2048, context: {} },
+    );
 
     const parsed = parseClaudeJSON<VoiceExtractionResponse>(response);
 

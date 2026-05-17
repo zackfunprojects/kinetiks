@@ -48,7 +48,7 @@ export function PendingProposalCard({
         />
         <Badge label={proposal.action} />
         {proposal.source_app && (
-          <span style={{ fontSize: 11, color: "var(--text-tertiary)", fontFamily: "var(--font-mono), monospace" }}>
+          <span style={{ fontSize: 11, color: "var(--kt-fg-3)", fontFamily: "var(--font-mono), monospace" }}>
             from {proposal.source_app.replace("_", " ")}
           </span>
         )}
@@ -59,9 +59,9 @@ export function PendingProposalCard({
           style={{
             marginBottom: 12,
             padding: "8px 10px",
-            background: "var(--bg-inset)",
+            background: "var(--kt-bg-base)",
             borderRadius: 4,
-            border: "1px solid var(--border-muted)",
+            border: "1px solid var(--kt-border-2)",
           }}
         >
           {previewEntries.map(([key, value]) => (
@@ -74,8 +74,8 @@ export function PendingProposalCard({
                 lineHeight: 1.5,
               }}
             >
-              <span style={{ color: "var(--text-tertiary)" }}>{key}:</span>{" "}
-              <span style={{ color: "var(--text-primary)" }}>
+              <span style={{ color: "var(--kt-fg-3)" }}>{key}:</span>{" "}
+              <span style={{ color: "var(--kt-fg-1)" }}>
                 {typeof value === "string"
                   ? value.length > 80
                     ? `${value.slice(0, 80)}...`
@@ -99,7 +99,7 @@ export function PendingProposalCard({
           }
         />
         {proposal.evidence && proposal.evidence.length > 0 && (
-          <span style={{ fontSize: 11, color: "var(--text-tertiary)", fontFamily: "var(--font-mono), monospace" }}>
+          <span style={{ fontSize: 11, color: "var(--kt-fg-3)", fontFamily: "var(--font-mono), monospace" }}>
             {proposal.evidence.length} evidence item{proposal.evidence.length > 1 ? "s" : ""}
           </span>
         )}
@@ -111,8 +111,8 @@ export function PendingProposalCard({
           disabled={loading}
           style={{
             padding: "6px 14px",
-            background: "var(--accent-emphasis)",
-            color: "var(--text-on-accent)",
+            background: "var(--kt-accent-hover)",
+            color: "var(--kt-fg-on-inverse)",
             border: "none",
             borderRadius: 6,
             fontSize: 13,
@@ -128,8 +128,8 @@ export function PendingProposalCard({
           style={{
             padding: "6px 14px",
             background: "transparent",
-            color: "var(--text-secondary)",
-            border: "1px solid var(--border-default)",
+            color: "var(--kt-fg-2)",
+            border: "1px solid var(--kt-border-1)",
             borderRadius: 6,
             fontSize: 13,
             fontWeight: 500,

@@ -41,7 +41,7 @@ export default async function ConnectionsPage() {
         <h1 style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>
           Connections
         </h1>
-        <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--text-secondary)" }}>
+        <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--kt-fg-2)" }}>
           Connect your data sources to enrich your Kinetiks ID
         </p>
       </div>

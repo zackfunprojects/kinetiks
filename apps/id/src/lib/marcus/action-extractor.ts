@@ -6,13 +6,38 @@ import type {
   ExtractedFollowUp,
   ContextLayer,
 } from "@kinetiks/types";
-import { askClaude } from "@kinetiks/ai";
+import { routeAskClaude, type AICallContext } from "@kinetiks/ai";
+import { reviewContent } from "@kinetiks/sentinel";
+import type { SentinelContentType, SentinelVerdict } from "@kinetiks/types";
 import {
   MARCUS_EXTRACTION_PROMPT,
   buildExtractionPrompt,
 } from "@/lib/ai/prompts/marcus-extract";
 import { evaluateProposal } from "@/lib/cortex";
 import type { DataAvailabilityManifest } from "./types";
+
+/**
+ * Map a brief target app to the closest matching Sentinel content type.
+ * Used to route Marcus-generated briefs through the right editorial
+ * and compliance evaluators before they hit suite-app queues. Briefs
+ * are downgrade-only — the suite app re-reviews with its own content
+ * type before publishing.
+ */
+function sentinelContentTypeForBrief(targetApp: string): SentinelContentType {
+  switch (targetApp) {
+    case "harvest":
+      return "cold_email";
+    case "dark_madder":
+      return "blog_post";
+    case "hypothesis":
+      return "landing_page";
+    case "litmus":
+      return "journalist_pitch";
+    default:
+      // Conservative default — harvest evaluators are the strictest.
+      return "cold_email";
+  }
+}
 
 const VALID_LAYERS: ContextLayer[] = [
   "org",
@@ -57,7 +82,8 @@ export async function extractActions(
   userMessage: string,
   marcusResponse: string,
   contextSummary: string,
-  manifest?: DataAvailabilityManifest
+  manifest?: DataAvailabilityManifest,
+  aiContext?: AICallContext,
 ): Promise<ExtractedAction[]> {
   const prompt = buildExtractionPrompt(userMessage, marcusResponse, contextSummary);
 
@@ -76,11 +102,15 @@ export async function extractActions(
 
   let result: string;
   try {
-    result = await askClaude(prompt, {
-      system: MARCUS_EXTRACTION_PROMPT + connectionContext,
-      model: "claude-haiku-4-5-20251001",
-      maxTokens: 1024,
-    });
+    result = await routeAskClaude(
+      "marcus.action_extract",
+      prompt,
+      MARCUS_EXTRACTION_PROMPT + connectionContext,
+      {
+        maxTokens: 1024,
+        context: aiContext ?? {},
+      },
+    );
   } catch {
     return [];
   }
@@ -228,6 +258,44 @@ export async function executeActions(
       }
 
       case "brief": {
+        // Sentinel gate: every brief Marcus emits goes through editorial +
+        // brand safety + compliance before it lands in a suite app's queue.
+        // "held" verdict blocks the route; "flagged" still queues but
+        // is tagged so the suite app's review surface can pick it up.
+        let sentinelVerdict: SentinelVerdict = "approved";
+        let sentinelReviewId: string | null = null;
+        try {
+          const review = await reviewContent(admin, {
+            account_id: accountId,
+            source_app: "kinetiks_id",
+            source_operator: "marcus",
+            content_type: sentinelContentTypeForBrief(action.target_app),
+            content: action.content,
+            metadata: {
+              origin: "marcus_brief",
+              target_app: action.target_app,
+              thread_id: threadId,
+            },
+          });
+          sentinelVerdict = review.verdict;
+          sentinelReviewId = review.review_id;
+        } catch (sentinelErr) {
+          // Sentinel failure must not block the brief — log and continue
+          // as "approved". The next-layer review (in the suite app) is the
+          // final gate.
+          console.warn("[marcus] sentinel review failed; continuing without gate", {
+            target_app: action.target_app,
+            error: sentinelErr instanceof Error ? sentinelErr.message : String(sentinelErr),
+          });
+        }
+
+        if (sentinelVerdict === "held") {
+          disclosures.push(
+            `Held a draft for ${action.target_app} pending review (Sentinel flagged: ${sentinelReviewId ?? "n/a"})`
+          );
+          break;
+        }
+
         // Create routing event for the target app
         const { error: briefError } = await admin.from("kinetiks_routing_events").insert({
           account_id: accountId,
@@ -236,13 +304,16 @@ export async function executeActions(
             type: "marcus_brief",
             content: action.content,
             source: "marcus_conversation",
+            sentinel_verdict: sentinelVerdict,
+            sentinel_review_id: sentinelReviewId,
           },
           relevance_note: `Marcus brief: ${action.content.slice(0, 100)}`,
         });
 
         if (!briefError) {
+          const flag = sentinelVerdict === "flagged" ? " [Sentinel: flagged]" : "";
           disclosures.push(
-            `Queued brief for ${action.target_app}: ${action.content.slice(0, 80)}`
+            `Queued brief for ${action.target_app}${flag}: ${action.content.slice(0, 80)}`
           );
         }
         break;

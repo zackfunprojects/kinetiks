@@ -39,7 +39,7 @@ export function SetupComplete({ accountId, systemName }: SetupCompleteProps) {
           width: 64,
           height: 64,
           borderRadius: 16,
-          background: "var(--success-muted)",
+          background: "var(--kt-success-soft)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -51,7 +51,7 @@ export function SetupComplete({ accountId, systemName }: SetupCompleteProps) {
           height={32}
           viewBox="0 0 24 24"
           fill="none"
-          stroke="var(--success)"
+          stroke="var(--kt-success)"
           strokeWidth={2}
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -63,7 +63,7 @@ export function SetupComplete({ accountId, systemName }: SetupCompleteProps) {
         style={{
           fontSize: 24,
           fontWeight: 700,
-          color: "var(--text-primary)",
+          color: "var(--kt-fg-1)",
           margin: "0 0 8px",
         }}
       >
@@ -72,7 +72,7 @@ export function SetupComplete({ accountId, systemName }: SetupCompleteProps) {
       <p
         style={{
           fontSize: 14,
-          color: "var(--text-secondary)",
+          color: "var(--kt-fg-2)",
           margin: "0 0 24px",
           lineHeight: 1.5,
         }}

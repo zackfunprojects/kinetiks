@@ -192,7 +192,7 @@ export function ChatArea({
         flex: 1,
         display: "flex",
         flexDirection: "column",
-        backgroundColor: "var(--bg-base)",
+        backgroundColor: "var(--kt-bg-base)",
         height: "100%",
       }}
     >
@@ -212,7 +212,7 @@ export function ChatArea({
                 alignItems: "center",
                 justifyContent: "center",
                 height: "calc(100vh - 200px)",
-                color: "var(--text-tertiary)",
+                color: "var(--kt-fg-3)",
                 fontSize: 14,
               }}
             >
@@ -221,13 +221,13 @@ export function ChatArea({
                   style={{
                     fontSize: 20,
                     fontWeight: 600,
-                    color: "var(--text-primary)",
+                    color: "var(--kt-fg-1)",
                     marginBottom: 8,
                   }}
                 >
                   {systemName || "Kinetiks"}
                 </div>
-                <div style={{ color: "var(--text-tertiary)" }}>
+                <div style={{ color: "var(--kt-fg-3)" }}>
                   Ask {displayName} anything about your GTM.
                 </div>
               </div>
@@ -253,7 +253,7 @@ export function ChatArea({
       </div>
 
       {/* Input */}
-      <div style={{ padding: "16px 24px", borderTop: "1px solid var(--border-muted)" }}>
+      <div style={{ padding: "16px 24px", borderTop: "1px solid var(--kt-border-2)" }}>
         <div style={{ maxWidth: 720, margin: "0 auto", display: "flex", gap: 8, alignItems: "flex-end" }}>
           <textarea
             value={input}
@@ -265,7 +265,7 @@ export function ChatArea({
             style={{
               flex: 1,
               padding: "10px 14px",
-              border: "1px solid var(--border-default)",
+              border: "1px solid var(--kt-border-1)",
               borderRadius: 8,
               fontSize: 14,
               outline: "none",
@@ -274,8 +274,8 @@ export function ChatArea({
               lineHeight: 1.5,
               maxHeight: 120,
               overflow: "auto",
-              backgroundColor: "var(--bg-inset)",
-              color: "var(--text-primary)",
+              backgroundColor: "var(--kt-bg-base)",
+              color: "var(--kt-fg-1)",
             }}
             disabled={isStreaming}
           />
@@ -285,8 +285,8 @@ export function ChatArea({
             style={{
               padding: "10px 20px",
               backgroundColor:
-                isStreaming || !input.trim() ? "var(--border-default)" : "var(--accent-emphasis)",
-              color: isStreaming || !input.trim() ? "var(--text-tertiary)" : "var(--text-on-accent)",
+                isStreaming || !input.trim() ? "var(--kt-border-1)" : "var(--kt-accent-hover)",
+              color: isStreaming || !input.trim() ? "var(--kt-fg-3)" : "var(--kt-fg-on-inverse)",
               border: "none",
               borderRadius: 8,
               fontSize: 14,

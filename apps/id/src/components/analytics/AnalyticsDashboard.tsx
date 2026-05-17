@@ -14,10 +14,10 @@ export function AnalyticsDashboard() {
     <div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
         <div>
-          <h1 style={{ fontSize: 24, fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>
+          <h1 style={{ fontSize: 24, fontWeight: 700, color: "var(--kt-fg-1)", margin: 0 }}>
             Analytics
           </h1>
-          <p style={{ fontSize: 14, color: "var(--text-secondary)", margin: "4px 0 0" }}>
+          <p style={{ fontSize: 14, color: "var(--kt-fg-2)", margin: "4px 0 0" }}>
             Cross-app performance powered by the Oracle
           </p>
         </div>
@@ -57,7 +57,7 @@ function SectionHeader({ title }: { title: string }) {
       style={{
         fontSize: 16,
         fontWeight: 600,
-        color: "var(--text-primary)",
+        color: "var(--kt-fg-1)",
         margin: "0 0 12px",
         fontFamily: "var(--font-mono), monospace",
       }}

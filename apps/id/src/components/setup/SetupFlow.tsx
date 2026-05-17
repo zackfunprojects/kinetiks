@@ -24,7 +24,7 @@ export function SetupFlow({ accountId, existingName }: SetupFlowProps) {
         alignItems: "center",
         justifyContent: "center",
         minHeight: "100vh",
-        background: "var(--bg-base)",
+        background: "var(--kt-bg-base)",
         padding: 24,
       }}
     >

@@ -13,17 +13,21 @@ export async function analyzeEdits(
 
   if (diffs.length === 0) return [];
 
-  // Try to classify with Claude Haiku
+  // Try to classify with Haiku via the router (ai_calls observable)
   try {
-    const { askClaude } = await import("@kinetiks/ai");
+    const { routeAskClaude } = await import("@kinetiks/ai");
 
-    const result = await askClaude(
+    const result = await routeAskClaude(
+      "approval.edit_analyzer",
       `Original:\n${JSON.stringify(original, null, 2)}\n\nEdited:\n${JSON.stringify(edited, null, 2)}\n\nDiffs:\n${JSON.stringify(diffs, null, 2)}\n\nAction category: ${context.action_category}\nSource app: ${context.source_app}`,
+      `You are an edit classifier for a GTM system. Analyze the differences between original and edited content. For each change, classify it as one of: tone_adjustment, factual_correction, targeting_adjustment, structural_change, minor_polish. Respond with JSON array only: [{ "edit_type": string, "description": string, "field_path": string, "proposal_generated": boolean }]. Set proposal_generated=true only for tone_adjustment, factual_correction, or targeting_adjustment edits that suggest a systematic pattern.`,
       {
-        system: `You are an edit classifier for a GTM system. Analyze the differences between original and edited content. For each change, classify it as one of: tone_adjustment, factual_correction, targeting_adjustment, structural_change, minor_polish. Respond with JSON array only: [{ "edit_type": string, "description": string, "field_path": string, "proposal_generated": boolean }]. Set proposal_generated=true only for tone_adjustment, factual_correction, or targeting_adjustment edits that suggest a systematic pattern.`,
-        model: "claude-haiku-4-5-20251001",
         maxTokens: 1024,
-      }
+        context: {
+          accountId: context.account_id,
+          approvalId: context.id,
+        },
+      },
     );
 
     return JSON.parse(result) as EditClassification[];

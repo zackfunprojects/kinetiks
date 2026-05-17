@@ -1,5 +1,5 @@
 import type { BrandLayer } from "@kinetiks/types";
-import { askClaude } from "@kinetiks/ai";
+import { routeAskClaude } from "@kinetiks/ai";
 import {
   CARTOGRAPHER_BRAND_ASSIST_PROMPT,
   buildBrandAssistPrompt,
@@ -589,13 +589,11 @@ export async function extractBrand(
     } | null = null;
 
     try {
-      const subjectiveResponse = await askClaude(
+      const subjectiveResponse = await routeAskClaude(
+        "cartographer.extract_brand_subjective",
         buildBrandAssistPrompt(cssData, url),
-        {
-          system: CARTOGRAPHER_BRAND_ASSIST_PROMPT,
-          model: "claude-haiku-4-5-20251001",
-          maxTokens: 1024,
-        }
+        CARTOGRAPHER_BRAND_ASSIST_PROMPT,
+        { maxTokens: 1024, context: {} },
       );
       subjective = parseClaudeJSON(subjectiveResponse);
     } catch (err) {

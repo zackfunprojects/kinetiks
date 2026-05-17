@@ -1,5 +1,5 @@
 import type { OrgData, ProductsData } from "@kinetiks/types";
-import { askClaude } from "@kinetiks/ai";
+import { routeAskClaude } from "@kinetiks/ai";
 import {
   CARTOGRAPHER_ORG_EXTRACTION_PROMPT,
   buildOrgExtractionPrompt,
@@ -117,11 +117,12 @@ export async function extractOrg(
     const content = truncateContent(markdown, MAX_CONTENT_LENGTH);
     const prompt = buildOrgExtractionPrompt(content, url);
 
-    const response = await askClaude(prompt, {
-      system: CARTOGRAPHER_ORG_EXTRACTION_PROMPT,
-      model: "claude-sonnet-4-20250514",
-      maxTokens: 4096,
-    });
+    const response = await routeAskClaude(
+      "cartographer.extract_org",
+      prompt,
+      CARTOGRAPHER_ORG_EXTRACTION_PROMPT,
+      { maxTokens: 4096, context: {} },
+    );
 
     const parsed = parseClaudeJSON<OrgExtractionResponse>(response);
 

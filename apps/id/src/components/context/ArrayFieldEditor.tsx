@@ -56,7 +56,7 @@ export function ArrayFieldEditor({
           style={{
             fontSize: 13,
             fontWeight: 600,
-            color: "var(--text-secondary)",
+            color: "var(--kt-fg-2)",
             textTransform: "capitalize",
           }}
         >
@@ -66,8 +66,8 @@ export function ArrayFieldEditor({
           onClick={addItem}
           style={{
             padding: "4px 10px",
-            background: "var(--accent-muted)",
-            color: "var(--accent)",
+            background: "var(--kt-accent-soft)",
+            color: "var(--kt-accent)",
             border: "none",
             borderRadius: 4,
             fontSize: 12,
@@ -89,7 +89,7 @@ export function ArrayFieldEditor({
             <div
               key={index}
               style={{
-                border: "1px solid var(--border-default)",
+                border: "1px solid var(--kt-border-1)",
                 borderRadius: 8,
                 overflow: "hidden",
               }}
@@ -100,7 +100,7 @@ export function ArrayFieldEditor({
                   alignItems: "center",
                   justifyContent: "space-between",
                   padding: "0 12px 0 0",
-                  background: "var(--bg-base)",
+                  background: "var(--kt-bg-base)",
                 }}
               >
                 <button
@@ -119,12 +119,12 @@ export function ArrayFieldEditor({
                     cursor: "pointer",
                     fontSize: 13,
                     fontWeight: 500,
-                    color: "var(--text-secondary)",
+                    color: "var(--kt-fg-2)",
                     textAlign: "left",
                     fontFamily: "inherit",
                   }}
                 >
-                  <span style={{ fontSize: 12, color: "var(--text-tertiary)" }}>
+                  <span style={{ fontSize: 12, color: "var(--kt-fg-3)" }}>
                     {isExpanded ? "\u25B2" : "\u25BC"}
                   </span>
                   {title}
@@ -135,9 +135,9 @@ export function ArrayFieldEditor({
                   style={{
                     padding: "2px 6px",
                     background: "none",
-                    border: "1px solid #FCA5A5",
+                    border: "1px solid var(--kt-danger-soft)",
                     borderRadius: 4,
-                    color: "var(--error)",
+                    color: "var(--kt-danger)",
                     fontSize: 11,
                     cursor: "pointer",
                   }}

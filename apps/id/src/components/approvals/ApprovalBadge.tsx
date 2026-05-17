@@ -10,8 +10,8 @@ export function ApprovalBadge({ count }: ApprovalBadgeProps) {
   return (
     <span
       style={{
-        background: "var(--accent-secondary)",
-        color: "var(--bg-base)",
+        background: "var(--kt-warm)",
+        color: "var(--kt-bg-base)",
         fontSize: 10,
         fontWeight: 600,
         borderRadius: 10,

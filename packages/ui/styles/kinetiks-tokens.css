@@ -1,0 +1,521 @@
+/* ============================================================
+   KINETIKS — Design Tokens
+   Source of truth for every visual decision.
+   Imported once at the root of each app's layout.
+
+   Light mode (default) is "Paper": warm off-white, near-black ink.
+   Dark mode is "Slate": deep ink with cool fg, applied via
+   [data-theme="dark"] or via prefers-color-scheme when no explicit
+   attribute is set.
+
+   Every color, type, space, radius, shadow, and motion value lives
+   here. Components must reference these variables. No hardcoded
+   values in component code.
+
+   Fonts: DM Serif Display, Geist, Geist Mono. Loaded by each app
+   via next/font/google (self-hosted, preloaded). Do not re-import
+   from Google Fonts here.
+   ============================================================ */
+
+/* ============================================================
+   LIGHT MODE (default) — Paper
+   ============================================================ */
+
+:root {
+  /* ---- Surfaces ---- */
+  --kt-bg-base:        #FCFBF8;
+  --kt-bg-subtle:      #F6F4EE;
+  --kt-bg-muted:       #EDEAE2;
+  --kt-bg-elevated:    #FFFFFF;
+  --kt-bg-inverse:     #0B0B0D;
+
+  /* ---- Foreground (ink) ---- */
+  --kt-fg-1:           #0A0A0B;
+  --kt-fg-2:           #3A3A3E;
+  --kt-fg-3:           #6B6B70;
+  --kt-fg-4:           #A0A0A5;
+  --kt-fg-on-inverse:  #F5F4F1;
+
+  /* ---- Lines ---- */
+  --kt-border-1:       #E8E5DE;
+  --kt-border-2:       #D6D2C9;
+  --kt-border-strong:  #0A0A0B;
+
+  /* ---- Accent — Ink-indigo (THE accent) ---- */
+  --kt-accent:         #3D4FC4;
+  --kt-accent-hover:   #2F3FA8;
+  --kt-accent-soft:    #EAEDF9;
+  --kt-accent-ink:     #2A3892;
+
+  /* ---- Warm secondary — verified wins only ---- */
+  --kt-warm:           #C97863;
+  --kt-warm-soft:      #F6E7E1;
+  --kt-warm-ink:       #8E4F3D;
+
+  /* ---- Semantic ---- */
+  --kt-success:        #3F7A5B;
+  --kt-success-soft:   #E4EEE7;
+  --kt-warning:        #A87E2F;
+  --kt-warning-soft:   #F4EBD6;
+  --kt-danger:         #9C3A2C;
+  --kt-danger-soft:    #F4DCD6;
+
+  /* ---- Focus ring ---- */
+  --kt-focus-ring:      var(--kt-accent);
+  --kt-focus-ring-soft: var(--kt-accent-soft);
+
+  /* ---- Shadows (almost invisible) ---- */
+  --kt-shadow-xs: 0 1px 2px rgb(10 10 11 / 0.04);
+  --kt-shadow-sm: 0 4px 14px rgb(10 10 11 / 0.06);
+  --kt-shadow-md: 0 16px 36px rgb(10 10 11 / 0.08);
+  --kt-shadow-lg: 0 32px 72px rgb(10 10 11 / 0.12);
+
+  /* ---- App signatures (per design spec § 10) ---- */
+  --kt-app-core:        var(--kt-accent);
+  --kt-app-harvest:     #3F7A5B;
+  --kt-app-darkmadder:  #9C3A2C;
+  --kt-app-hypothesis:  #A87E2F;
+  --kt-app-litmus:      #5A6F8C;
+  --kt-app-ads:         #7D5C8E;
+  --kt-app-adventure:   #C97863;
+
+  /* ---- Overlay / backdrop (translucent over the canvas) ---- */
+  --kt-backdrop:        rgb(10 10 11 / 0.4);
+  --kt-overlay-strong:  rgb(10 10 11 / 0.6);
+  --kt-glass:           rgb(252 251 248 / 0.78);
+}
+
+/* ============================================================
+   DARK MODE — Slate
+   Applied via [data-theme="dark"] OR via prefers-color-scheme
+   when no explicit attribute is set.
+   ============================================================ */
+
+:root[data-theme="dark"],
+:root:not([data-theme="light"]) {
+  @media (prefers-color-scheme: dark) {
+    --kt-bg-base:        #0B0B0D;
+    --kt-bg-subtle:      #131316;
+    --kt-bg-muted:       #1B1B1F;
+    --kt-bg-elevated:    #1F1F23;
+    --kt-bg-inverse:     #FCFBF8;
+
+    --kt-fg-1:           #F5F4F1;
+    --kt-fg-2:           #BCBAB4;
+    --kt-fg-3:           #8A8884;
+    --kt-fg-4:           #56544F;
+    --kt-fg-on-inverse:  #0A0A0B;
+
+    --kt-border-1:       #232328;
+    --kt-border-2:       #2E2D31;
+    --kt-border-strong:  #F5F4F1;
+
+    --kt-accent:         #8B97E5;
+    --kt-accent-hover:   #A4AEEC;
+    --kt-accent-soft:    #1A1D33;
+    --kt-accent-ink:     #C5CCF2;
+
+    --kt-warm:           #E89683;
+    --kt-warm-soft:      #2C1F1B;
+    --kt-warm-ink:       #F0B4A6;
+
+    --kt-success:        #6FA888;
+    --kt-success-soft:   #182621;
+    --kt-warning:        #D3A968;
+    --kt-warning-soft:   #2A2316;
+    --kt-danger:         #C6705F;
+    --kt-danger-soft:    #2A1A16;
+
+    --kt-shadow-xs: 0 1px 2px rgb(0 0 0 / 0.4),  inset 0 0 0 1px rgb(255 255 255 / 0.02);
+    --kt-shadow-sm: 0 4px 14px rgb(0 0 0 / 0.45), inset 0 0 0 1px rgb(255 255 255 / 0.03);
+    --kt-shadow-md: 0 16px 36px rgb(0 0 0 / 0.55), inset 0 0 0 1px rgb(255 255 255 / 0.04);
+    --kt-shadow-lg: 0 32px 72px rgb(0 0 0 / 0.7),  inset 0 0 0 1px rgb(255 255 255 / 0.05);
+
+    --kt-backdrop:        rgb(0 0 0 / 0.55);
+    --kt-overlay-strong:  rgb(0 0 0 / 0.7);
+    --kt-glass:           rgb(11 11 13 / 0.78);
+  }
+}
+
+/* Explicit dark mode (manual override, wins over system pref) */
+:root[data-theme="dark"] {
+  --kt-bg-base:        #0B0B0D;
+  --kt-bg-subtle:      #131316;
+  --kt-bg-muted:       #1B1B1F;
+  --kt-bg-elevated:    #1F1F23;
+  --kt-bg-inverse:     #FCFBF8;
+
+  --kt-fg-1:           #F5F4F1;
+  --kt-fg-2:           #BCBAB4;
+  --kt-fg-3:           #8A8884;
+  --kt-fg-4:           #56544F;
+  --kt-fg-on-inverse:  #0A0A0B;
+
+  --kt-border-1:       #232328;
+  --kt-border-2:       #2E2D31;
+  --kt-border-strong:  #F5F4F1;
+
+  --kt-accent:         #8B97E5;
+  --kt-accent-hover:   #A4AEEC;
+  --kt-accent-soft:    #1A1D33;
+  --kt-accent-ink:     #C5CCF2;
+
+  --kt-warm:           #E89683;
+  --kt-warm-soft:      #2C1F1B;
+  --kt-warm-ink:       #F0B4A6;
+
+  --kt-success:        #6FA888;
+  --kt-success-soft:   #182621;
+  --kt-warning:        #D3A968;
+  --kt-warning-soft:   #2A2316;
+  --kt-danger:         #C6705F;
+  --kt-danger-soft:    #2A1A16;
+
+  --kt-shadow-xs: 0 1px 2px rgb(0 0 0 / 0.4),  inset 0 0 0 1px rgb(255 255 255 / 0.02);
+  --kt-shadow-sm: 0 4px 14px rgb(0 0 0 / 0.45), inset 0 0 0 1px rgb(255 255 255 / 0.03);
+  --kt-shadow-md: 0 16px 36px rgb(0 0 0 / 0.55), inset 0 0 0 1px rgb(255 255 255 / 0.04);
+  --kt-shadow-lg: 0 32px 72px rgb(0 0 0 / 0.7),  inset 0 0 0 1px rgb(255 255 255 / 0.05);
+
+  --kt-backdrop:        rgb(0 0 0 / 0.55);
+  --kt-overlay-strong:  rgb(0 0 0 / 0.7);
+  --kt-glass:           rgb(11 11 13 / 0.78);
+}
+
+/* ============================================================
+   TYPE — Families, scale, weight, leading, tracking
+   Mode-independent. Lives at :root for both themes.
+   Family vars expect the per-app next/font/google variables
+   (--font-serif, --font-sans, --font-mono) to be in scope.
+   ============================================================ */
+
+:root {
+  /* ---- Families ---- */
+  --kt-font-serif: var(--font-serif), 'Recoleta', Georgia, 'Times New Roman', serif;
+  --kt-font-sans:  var(--font-sans), -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
+  --kt-font-mono:  var(--font-mono), ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  /* ---- Scale (app-density) ---- */
+  --kt-fs-11: 11px;
+  --kt-fs-12: 12px;
+  --kt-fs-13: 13px;
+  --kt-fs-14: 14px;
+  --kt-fs-15: 15px;
+  --kt-fs-17: 17px;
+  --kt-fs-20: 20px;
+  --kt-fs-24: 24px;
+  --kt-fs-32: 32px;
+  --kt-fs-44: 44px;
+  --kt-fs-60: 60px;   /* marketing site */
+  --kt-fs-80: 80px;   /* marketing site */
+
+  /* ---- Weight ---- */
+  --kt-fw-reg:  400;
+  --kt-fw-med:  500;
+  --kt-fw-semi: 600;
+  --kt-fw-bold: 700;
+
+  /* ---- Leading ---- */
+  --kt-lh-display: 1.05;
+  --kt-lh-tight:   1.2;
+  --kt-lh-snug:    1.35;
+  --kt-lh-body:    1.55;
+  --kt-lh-relaxed: 1.7;
+
+  /* ---- Tracking ---- */
+  --kt-tr-display: -0.02em;
+  --kt-tr-body:     0;
+  --kt-tr-eyebrow:  0.1em;
+  --kt-tr-mono:     0;
+
+  /* ============================================================
+     SPACE — 4px base scale
+     ============================================================ */
+  --kt-s-1:   4px;
+  --kt-s-2:   8px;
+  --kt-s-3:  12px;
+  --kt-s-4:  16px;
+  --kt-s-5:  24px;
+  --kt-s-6:  32px;
+  --kt-s-7:  48px;
+  --kt-s-8:  64px;
+  --kt-s-9:  96px;
+  --kt-s-10:128px;
+
+  /* ============================================================
+     RADIUS
+     ============================================================ */
+  --kt-radius-0:    0px;
+  --kt-radius-1:    6px;
+  --kt-radius-2:   10px;
+  --kt-radius-3:   14px;
+  --kt-radius-full: 9999px;
+
+  /* ============================================================
+     MOTION
+     ============================================================ */
+  --kt-dur-1: 120ms;
+  --kt-dur-2: 200ms;
+  --kt-dur-3: 320ms;
+  --kt-dur-4: 600ms;
+
+  --kt-ease-standard: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --kt-ease-emphasis: cubic-bezier(0.32, 0.72, 0, 1);
+  --kt-ease-linear:   linear;
+
+  /* ============================================================
+     LAYOUT
+     ============================================================ */
+  --kt-app-tabbar-h:      48px;
+  --kt-app-sidebar-w:    260px;
+  --kt-app-sidebar-w-sm:  64px;
+  --kt-app-content-pad-x: 32px;
+  --kt-app-content-pad-y: 24px;
+  --kt-content-max-w:    920px;
+  --kt-content-max-w-lg: 1280px;
+}
+
+/* ============================================================
+   ROOT BASE STYLES
+   ============================================================ */
+
+html {
+  background-color: var(--kt-bg-base);
+  color: var(--kt-fg-1);
+  font-family: var(--kt-font-sans);
+  font-size: var(--kt-fs-15);
+  line-height: var(--kt-lh-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color var(--kt-dur-4) var(--kt-ease-standard),
+              color var(--kt-dur-4) var(--kt-ease-standard);
+}
+
+body {
+  margin: 0;
+  background-color: var(--kt-bg-base);
+  color: var(--kt-fg-1);
+  font-family: var(--kt-font-sans);
+  font-size: var(--kt-fs-15);
+  line-height: var(--kt-lh-body);
+  font-feature-settings: 'ss01', 'cv11';
+}
+
+/* All numeric values across the app */
+.kt-mono,
+[data-numeric="true"] {
+  font-family: var(--kt-font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--kt-tr-mono);
+}
+
+/* ============================================================
+   SEMANTIC TEXT CLASSES (strict roles from design spec § 3.4)
+   Use these instead of hand-rolling font-size + family combos.
+   ============================================================ */
+
+.kt-voice-display {
+  font-family: var(--kt-font-serif);
+  font-size: clamp(32px, 4.5vw, var(--kt-fs-44));
+  font-weight: var(--kt-fw-reg);
+  line-height: var(--kt-lh-display);
+  letter-spacing: var(--kt-tr-display);
+  color: var(--kt-fg-1);
+}
+
+.kt-voice-name {
+  font-family: var(--kt-font-serif);
+  font-size: var(--kt-fs-17);
+  font-weight: var(--kt-fw-reg);
+  line-height: var(--kt-lh-tight);
+  letter-spacing: -0.01em;
+  color: var(--kt-fg-1);
+}
+
+.kt-voice-name-sm {
+  font-family: var(--kt-font-serif);
+  font-size: var(--kt-fs-14);
+  font-weight: var(--kt-fw-reg);
+  line-height: var(--kt-lh-tight);
+  color: var(--kt-fg-1);
+}
+
+.kt-voice-quote {
+  font-family: var(--kt-font-serif);
+  font-size: var(--kt-fs-17);
+  font-weight: var(--kt-fw-reg);
+  font-style: italic;
+  line-height: var(--kt-lh-relaxed);
+  color: var(--kt-fg-1);
+}
+
+.kt-page-title {
+  font-family: var(--kt-font-sans);
+  font-size: var(--kt-fs-24);
+  font-weight: var(--kt-fw-semi);
+  line-height: var(--kt-lh-tight);
+  letter-spacing: -0.01em;
+  color: var(--kt-fg-1);
+}
+
+.kt-section-title {
+  font-family: var(--kt-font-sans);
+  font-size: var(--kt-fs-17);
+  font-weight: var(--kt-fw-semi);
+  line-height: var(--kt-lh-snug);
+  color: var(--kt-fg-1);
+}
+
+.kt-card-title {
+  font-family: var(--kt-font-sans);
+  font-size: var(--kt-fs-15);
+  font-weight: var(--kt-fw-med);
+  line-height: var(--kt-lh-snug);
+  color: var(--kt-fg-1);
+}
+
+.kt-body {
+  font-family: var(--kt-font-sans);
+  font-size: var(--kt-fs-15);
+  font-weight: var(--kt-fw-reg);
+  line-height: var(--kt-lh-body);
+  color: var(--kt-fg-2);
+}
+
+.kt-body-chat {
+  font-family: var(--kt-font-sans);
+  font-size: var(--kt-fs-17);
+  font-weight: var(--kt-fw-reg);
+  line-height: var(--kt-lh-relaxed);
+  color: var(--kt-fg-1);
+}
+
+.kt-small {
+  font-family: var(--kt-font-sans);
+  font-size: var(--kt-fs-13);
+  font-weight: var(--kt-fw-reg);
+  line-height: var(--kt-lh-snug);
+  color: var(--kt-fg-3);
+}
+
+.kt-eyebrow {
+  font-family: var(--kt-font-sans);
+  font-size: var(--kt-fs-11);
+  font-weight: var(--kt-fw-med);
+  letter-spacing: var(--kt-tr-eyebrow);
+  text-transform: uppercase;
+  line-height: var(--kt-lh-snug);
+  color: var(--kt-fg-3);
+}
+
+.kt-data-large {
+  font-family: var(--kt-font-mono);
+  font-size: var(--kt-fs-32);
+  font-weight: var(--kt-fw-med);
+  line-height: var(--kt-lh-tight);
+  font-variant-numeric: tabular-nums;
+  color: var(--kt-fg-1);
+}
+
+.kt-data-cell {
+  font-family: var(--kt-font-mono);
+  font-size: var(--kt-fs-14);
+  font-weight: var(--kt-fw-reg);
+  font-variant-numeric: tabular-nums;
+  color: var(--kt-fg-1);
+}
+
+.kt-data-inline {
+  font-family: var(--kt-font-mono);
+  font-size: var(--kt-fs-13);
+  font-weight: var(--kt-fw-reg);
+  font-variant-numeric: tabular-nums;
+  color: inherit;
+}
+
+.kt-code {
+  font-family: var(--kt-font-mono);
+  font-size: var(--kt-fs-13);
+  font-weight: var(--kt-fw-reg);
+  color: var(--kt-fg-2);
+  background-color: var(--kt-bg-muted);
+  padding: 1px 6px;
+  border-radius: var(--kt-radius-1);
+}
+
+/* ============================================================
+   LINKS
+   ============================================================ */
+
+.kt-link {
+  color: var(--kt-accent);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  transition: text-underline-offset var(--kt-dur-2) var(--kt-ease-standard),
+              color var(--kt-dur-1) var(--kt-ease-standard);
+}
+.kt-link:hover {
+  color: var(--kt-accent-hover);
+  text-underline-offset: 2px;
+}
+
+/* ============================================================
+   FOCUS RING — applied to all interactive elements
+   ============================================================ */
+
+:where(button, a, input, textarea, select, [role="button"], [tabindex]):focus-visible {
+  outline: 2px solid var(--kt-focus-ring);
+  outline-offset: 2px;
+  border-radius: var(--kt-radius-1);
+}
+
+/* ============================================================
+   REDUCED MOTION
+   ============================================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ============================================================
+   SELECTION
+   ============================================================ */
+
+::selection {
+  background-color: var(--kt-accent-soft);
+  color: var(--kt-accent-ink);
+}
+
+/* ============================================================
+   SCROLLBARS — subtle, themed, never decorative
+   ============================================================ */
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--kt-border-2) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background-color: var(--kt-border-2);
+  border-radius: var(--kt-radius-full);
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background-color: var(--kt-fg-4);
+  background-clip: content-box;
+}

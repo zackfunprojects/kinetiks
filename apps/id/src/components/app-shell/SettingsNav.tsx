@@ -20,7 +20,7 @@ export function SettingsNav({ active, onSelect }: SettingsNavProps) {
     <div
       style={{
         width: 200,
-        borderRight: "1px solid var(--border-muted)",
+        borderRight: "1px solid var(--kt-border-2)",
         padding: "24px 12px",
         display: "flex",
         flexDirection: "column",
@@ -31,7 +31,7 @@ export function SettingsNav({ active, onSelect }: SettingsNavProps) {
         style={{
           fontSize: 14,
           fontWeight: 600,
-          color: "var(--text-primary)",
+          color: "var(--kt-fg-1)",
           margin: "0 0 16px 8px",
           fontFamily: "var(--font-mono), monospace",
         }}
@@ -54,8 +54,8 @@ export function SettingsNav({ active, onSelect }: SettingsNavProps) {
               cursor: "pointer",
               fontSize: 13,
               fontWeight: isActive ? 500 : 400,
-              color: isActive ? "var(--text-primary)" : "var(--text-secondary)",
-              background: isActive ? "var(--accent-subtle)" : "transparent",
+              color: isActive ? "var(--kt-fg-1)" : "var(--kt-fg-2)",
+              background: isActive ? "var(--kt-accent-soft)" : "transparent",
               transition: "background 0.15s, color 0.15s",
             }}
           >

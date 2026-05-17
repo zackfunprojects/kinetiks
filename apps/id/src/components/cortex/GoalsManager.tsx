@@ -67,8 +67,8 @@ export function GoalsManager() {
     <div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
         <div>
-          <h1 style={{ fontSize: 24, fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>Goals</h1>
-          <p style={{ fontSize: 14, color: "var(--text-secondary)", margin: "4px 0 0" }}>
+          <h1 style={{ fontSize: 24, fontWeight: 700, color: "var(--kt-fg-1)", margin: 0 }}>Goals</h1>
+          <p style={{ fontSize: 14, color: "var(--kt-fg-2)", margin: "4px 0 0" }}>
             KPI targets and OKRs for your GTM system
           </p>
         </div>
@@ -79,8 +79,8 @@ export function GoalsManager() {
               padding: "8px 16px",
               borderRadius: 6,
               border: "none",
-              background: "var(--accent-emphasis)",
-              color: "var(--text-on-accent)",
+              background: "var(--kt-accent-hover)",
+              color: "var(--kt-fg-on-inverse)",
               fontSize: 13,
               fontWeight: 500,
               cursor: "pointer",
@@ -100,12 +100,12 @@ export function GoalsManager() {
       )}
 
       {loading ? (
-        <div style={{ padding: 24, textAlign: "center", color: "var(--text-tertiary)", fontSize: 13 }}>
+        <div style={{ padding: 24, textAlign: "center", color: "var(--kt-fg-3)", fontSize: 13 }}>
           Loading goals...
         </div>
       ) : fetchError ? (
-        <div style={{ padding: 24, borderRadius: 8, border: "1px dashed var(--error-muted)", background: "var(--bg-surface)", textAlign: "center" }}>
-          <p style={{ fontSize: 13, color: "var(--error)", margin: 0 }}>{fetchError}</p>
+        <div style={{ padding: 24, borderRadius: 8, border: "1px dashed var(--kt-danger-soft)", background: "var(--kt-bg-subtle)", textAlign: "center" }}>
+          <p style={{ fontSize: 13, color: "var(--kt-danger)", margin: 0 }}>{fetchError}</p>
         </div>
       ) : activeGoals.length === 0 && editing === null ? (
         <div
@@ -115,11 +115,11 @@ export function GoalsManager() {
             alignItems: "center",
             padding: 48,
             borderRadius: 8,
-            border: "1px dashed var(--border-default)",
-            background: "var(--bg-surface)",
+            border: "1px dashed var(--kt-border-1)",
+            background: "var(--kt-bg-subtle)",
           }}
         >
-          <p style={{ fontSize: 14, color: "var(--text-tertiary)", margin: 0 }}>
+          <p style={{ fontSize: 14, color: "var(--kt-fg-3)", margin: 0 }}>
             No active goals. Create one to start tracking your GTM performance.
           </p>
         </div>
@@ -136,7 +136,7 @@ export function GoalsManager() {
 
           {completedGoals.length > 0 && (
             <details style={{ marginTop: 24 }}>
-              <summary style={{ fontSize: 13, color: "var(--success)", cursor: "pointer" }}>
+              <summary style={{ fontSize: 13, color: "var(--kt-success)", cursor: "pointer" }}>
                 {completedGoals.length} completed goal{completedGoals.length !== 1 ? "s" : ""}
               </summary>
               <div style={{ marginTop: 8, opacity: 0.7 }}>
@@ -149,7 +149,7 @@ export function GoalsManager() {
 
           {archivedGoals.length > 0 && (
             <details style={{ marginTop: 16 }}>
-              <summary style={{ fontSize: 13, color: "var(--text-tertiary)", cursor: "pointer" }}>
+              <summary style={{ fontSize: 13, color: "var(--kt-fg-3)", cursor: "pointer" }}>
                 {archivedGoals.length} archived goal{archivedGoals.length !== 1 ? "s" : ""}
               </summary>
               <div style={{ marginTop: 8, opacity: 0.5 }}>

@@ -18,7 +18,7 @@ export function EmptyApprovals() {
           width: 48,
           height: 48,
           borderRadius: 12,
-          background: "var(--success-muted)",
+          background: "var(--kt-success-soft)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -30,7 +30,7 @@ export function EmptyApprovals() {
           height={24}
           viewBox="0 0 24 24"
           fill="none"
-          stroke="var(--success)"
+          stroke="var(--kt-success)"
           strokeWidth={1.5}
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -38,10 +38,10 @@ export function EmptyApprovals() {
           <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
       </div>
-      <p style={{ fontSize: 13, color: "var(--text-secondary)", margin: "0 0 4px" }}>
+      <p style={{ fontSize: 13, color: "var(--kt-fg-2)", margin: "0 0 4px" }}>
         All clear
       </p>
-      <p style={{ fontSize: 12, color: "var(--text-tertiary)", margin: 0 }}>
+      <p style={{ fontSize: 12, color: "var(--kt-fg-3)", margin: 0 }}>
         No pending approvals
       </p>
     </div>

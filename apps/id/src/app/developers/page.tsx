@@ -83,82 +83,82 @@ const ENDPOINTS: EndpointEntry[] = [
 ];
 
 const s = {
-  page: { minHeight: "100vh", background: "#0F0F1A", color: "#E8E8ED" },
+  page: { minHeight: "100vh", background: "var(--kt-bg-base)", color: "var(--kt-fg-1)" },
   container: { maxWidth: 860, margin: "0 auto", padding: "60px 24px 120px" },
   nav: {
     display: "flex", justifyContent: "space-between", alignItems: "center",
-    padding: "16px 24px", borderBottom: "1px solid rgba(255,255,255,0.08)",
+    padding: "16px 24px", borderBottom: "1px solid var(--kt-border-1)",
   } as const,
-  logo: { fontSize: 18, fontWeight: 700, color: "#6C5CE7", textDecoration: "none" },
+  logo: { fontSize: "var(--kt-fs-17)", fontWeight: "var(--kt-fw-bold)", color: "var(--kt-accent)", textDecoration: "none" },
   cta: {
-    fontSize: 14, padding: "8px 20px", borderRadius: 8,
-    background: "#6C5CE7", color: "#fff", textDecoration: "none",
+    fontSize: "var(--kt-fs-14)", padding: "8px 20px", borderRadius: "var(--kt-radius-1)",
+    background: "var(--kt-accent)", color: "var(--kt-fg-on-inverse)", textDecoration: "none",
   },
   hero: { textAlign: "center" as const, marginBottom: 80 },
-  h1: { fontSize: 48, fontWeight: 700, lineHeight: 1.1, margin: "0 0 16px", color: "#fff" },
-  accent: { color: "#00CEC9" },
-  subtitle: { fontSize: 18, color: "#9B9BA7", maxWidth: 560, margin: "0 auto 40px" },
+  h1: { fontSize: "var(--kt-fs-44)", fontWeight: "var(--kt-fw-bold)", lineHeight: "var(--kt-lh-display)", margin: "0 0 16px", color: "var(--kt-fg-1)" },
+  accent: { color: "var(--kt-accent)" },
+  subtitle: { fontSize: "var(--kt-fs-17)", color: "var(--kt-fg-3)", maxWidth: 560, margin: "0 auto 40px" },
   code: {
-    display: "block", background: "#1A1A2E", border: "1px solid rgba(255,255,255,0.08)",
-    borderRadius: 12, padding: "20px 24px", fontFamily: "var(--font-mono, monospace)",
-    fontSize: 13, lineHeight: 1.6, overflowX: "auto" as const, textAlign: "left" as const,
-    color: "#C8C8D0", whiteSpace: "pre" as const, margin: "0 auto", maxWidth: 640,
+    display: "block", background: "var(--kt-bg-elevated)", border: "1px solid var(--kt-border-1)",
+    borderRadius: "var(--kt-radius-2)", padding: "20px 24px", fontFamily: "var(--kt-font-mono)",
+    fontSize: "var(--kt-fs-13)", lineHeight: "var(--kt-lh-body)", overflowX: "auto" as const, textAlign: "left" as const,
+    color: "var(--kt-fg-1)", whiteSpace: "pre" as const, margin: "0 auto", maxWidth: 640,
   },
   section: { marginBottom: 64 },
-  h2: { fontSize: 28, fontWeight: 700, color: "#fff", margin: "0 0 12px" },
-  h3: { fontSize: 18, fontWeight: 600, color: "#fff", margin: "24px 0 8px" },
-  p: { fontSize: 15, color: "#9B9BA7", lineHeight: 1.6, margin: "0 0 16px" },
+  h2: { fontSize: "var(--kt-fs-24)", fontWeight: "var(--kt-fw-bold)", color: "var(--kt-fg-1)", margin: "0 0 12px" },
+  h3: { fontSize: "var(--kt-fs-17)", fontWeight: "var(--kt-fw-semi)", color: "var(--kt-fg-1)", margin: "24px 0 8px" },
+  p: { fontSize: "var(--kt-fs-15)", color: "var(--kt-fg-2)", lineHeight: "var(--kt-lh-body)", margin: "0 0 16px" },
   steps: { display: "grid" as const, gridTemplateColumns: "repeat(3, 1fr)", gap: 24 },
   step: {
-    background: "#1A1A2E", borderRadius: 12, padding: 24,
-    border: "1px solid rgba(255,255,255,0.06)",
+    background: "var(--kt-bg-elevated)", borderRadius: "var(--kt-radius-2)", padding: 24,
+    border: "1px solid var(--kt-border-1)",
   },
-  stepNum: { fontSize: 32, fontWeight: 700, color: "#6C5CE7", margin: "0 0 8px" },
-  stepTitle: { fontSize: 16, fontWeight: 600, color: "#fff", margin: "0 0 8px" },
-  stepDesc: { fontSize: 14, color: "#9B9BA7", lineHeight: 1.5, margin: 0 },
+  stepNum: { fontSize: "var(--kt-fs-32)", fontWeight: "var(--kt-fw-bold)", color: "var(--kt-accent)", margin: "0 0 8px" },
+  stepTitle: { fontSize: "var(--kt-fs-15)", fontWeight: "var(--kt-fw-semi)", color: "var(--kt-fg-1)", margin: "0 0 8px" },
+  stepDesc: { fontSize: "var(--kt-fs-14)", color: "var(--kt-fg-2)", lineHeight: "var(--kt-lh-body)", margin: 0 },
   table: {
-    width: "100%", borderCollapse: "collapse" as const, fontSize: 14,
-    background: "#1A1A2E", borderRadius: 12, overflow: "hidden" as const,
+    width: "100%", borderCollapse: "collapse" as const, fontSize: "var(--kt-fs-14)",
+    background: "var(--kt-bg-elevated)", borderRadius: "var(--kt-radius-2)", overflow: "hidden" as const,
   },
   th: {
-    textAlign: "left" as const, padding: "12px 16px", fontSize: 12,
-    fontWeight: 600, color: "#6B6B7B", textTransform: "uppercase" as const,
-    letterSpacing: "0.05em", borderBottom: "1px solid rgba(255,255,255,0.06)",
+    textAlign: "left" as const, padding: "12px 16px", fontSize: "var(--kt-fs-12)",
+    fontWeight: "var(--kt-fw-semi)", color: "var(--kt-fg-3)", textTransform: "uppercase" as const,
+    letterSpacing: "0.05em", borderBottom: "1px solid var(--kt-border-1)",
   },
   td: {
-    padding: "10px 16px", borderBottom: "1px solid rgba(255,255,255,0.04)",
-    color: "#C8C8D0",
+    padding: "10px 16px", borderBottom: "1px solid var(--kt-border-1)",
+    color: "var(--kt-fg-2)",
   },
   tdMono: {
-    padding: "10px 16px", borderBottom: "1px solid rgba(255,255,255,0.04)",
-    fontFamily: "var(--font-mono, monospace)", fontSize: 13, color: "#00CEC9",
+    padding: "10px 16px", borderBottom: "1px solid var(--kt-border-1)",
+    fontFamily: "var(--kt-font-mono)", fontSize: "var(--kt-fs-13)", color: "var(--kt-accent)",
   },
   badge: {
-    display: "inline-block", fontSize: 11, padding: "2px 8px", borderRadius: 4,
-    fontWeight: 600, background: "rgba(108,92,231,0.15)", color: "#6C5CE7",
+    display: "inline-block", fontSize: "var(--kt-fs-11)", padding: "2px 8px", borderRadius: "var(--kt-radius-1)",
+    fontWeight: "var(--kt-fw-semi)", background: "var(--kt-accent-soft)", color: "var(--kt-accent-ink)",
   },
   badgeWrite: {
-    display: "inline-block", fontSize: 11, padding: "2px 8px", borderRadius: 4,
-    fontWeight: 600, background: "rgba(0,206,201,0.15)", color: "#00CEC9",
+    display: "inline-block", fontSize: "var(--kt-fs-11)", padding: "2px 8px", borderRadius: "var(--kt-radius-1)",
+    fontWeight: "var(--kt-fw-semi)", background: "var(--kt-warm-soft)", color: "var(--kt-warm-ink)",
   },
   catRow: {
-    padding: "10px 16px", background: "rgba(108,92,231,0.06)",
-    borderBottom: "1px solid rgba(255,255,255,0.04)",
-    fontSize: 12, fontWeight: 700, color: "#6C5CE7", textTransform: "uppercase" as const,
+    padding: "10px 16px", background: "var(--kt-bg-subtle)",
+    borderBottom: "1px solid var(--kt-border-1)",
+    fontSize: "var(--kt-fs-12)", fontWeight: "var(--kt-fw-bold)", color: "var(--kt-fg-3)", textTransform: "uppercase" as const,
     letterSpacing: "0.05em",
   },
   method: {
-    display: "inline-block", fontSize: 11, fontWeight: 700, padding: "2px 6px",
-    borderRadius: 4, fontFamily: "var(--font-mono, monospace)",
+    display: "inline-block", fontSize: "var(--kt-fs-11)", fontWeight: "var(--kt-fw-bold)", padding: "2px 6px",
+    borderRadius: "var(--kt-radius-1)", fontFamily: "var(--kt-font-mono)",
   },
 } as const;
 
 function MethodBadge({ method }: { method: string }): React.JSX.Element {
   const colors: Record<string, { bg: string; fg: string }> = {
-    GET: { bg: "rgba(0,206,201,0.15)", fg: "#00CEC9" },
-    POST: { bg: "rgba(108,92,231,0.15)", fg: "#6C5CE7" },
-    PATCH: { bg: "rgba(253,203,110,0.15)", fg: "#FDCB6E" },
-    ALL: { bg: "rgba(255,255,255,0.08)", fg: "#9B9BA7" },
+    GET:   { bg: "var(--kt-success-soft)", fg: "var(--kt-success)" },
+    POST:  { bg: "var(--kt-accent-soft)",  fg: "var(--kt-accent-ink)" },
+    PATCH: { bg: "var(--kt-warning-soft)", fg: "var(--kt-warning)" },
+    ALL:   { bg: "var(--kt-bg-muted)",     fg: "var(--kt-fg-3)" },
   };
   const c = colors[method] ?? colors.GET;
   return <span style={{ ...s.method, background: c.bg, color: c.fg }}>{method}</span>;
@@ -249,7 +249,7 @@ export default function DevelopersPage(): React.JSX.Element {
   }
 }`}</pre>
           <p style={{ ...s.p, marginTop: 16 }}>
-            Or install globally: <code style={{ color: "#00CEC9" }}>npm install -g @kinetiks/mcp</code>
+            Or install globally: <code style={{ color: "var(--kt-accent)" }}>npm install -g @kinetiks/mcp</code>
           </p>
         </div>
 
@@ -257,7 +257,7 @@ export default function DevelopersPage(): React.JSX.Element {
         <div style={s.section}>
           <h2 style={s.h2}>Available Tools</h2>
           <p style={s.p}>{TOOLS.length} tools across {new Set(TOOLS.map((t) => t.category)).size} categories. All accessible via MCP tool calls.</p>
-          <div style={{ borderRadius: 12, overflow: "hidden", border: "1px solid rgba(255,255,255,0.06)" }}>
+          <div style={{ borderRadius: 12, overflow: "hidden", border: "1px solid var(--kt-border-1)" }}>
             <table style={s.table}>
               <thead>
                 <tr>
@@ -305,9 +305,9 @@ export default function DevelopersPage(): React.JSX.Element {
           </p>
           <h3 style={s.h3}>Permission Levels</h3>
           <p style={s.p}>
-            <strong style={{ color: "#fff" }}>read-only</strong> - read context, list approvals, view connections.{" "}
-            <strong style={{ color: "#fff" }}>read-write</strong> - everything read-only can do plus write context, crawl, approve proposals, chat.{" "}
-            <strong style={{ color: "#fff" }}>admin</strong> - everything plus manage API keys and billing.
+            <strong style={{ color: "var(--kt-fg-1)" }}>read-only</strong> - read context, list approvals, view connections.{" "}
+            <strong style={{ color: "var(--kt-fg-1)" }}>read-write</strong> - everything read-only can do plus write context, crawl, approve proposals, chat.{" "}
+            <strong style={{ color: "var(--kt-fg-1)" }}>admin</strong> - everything plus manage API keys and billing.
           </p>
           <h3 style={s.h3}>Rate Limits</h3>
           <p style={s.p}>
@@ -327,7 +327,7 @@ export default function DevelopersPage(): React.JSX.Element {
           <p style={s.p}>
             The MCP server wraps these endpoints. You can also call them directly with curl.
           </p>
-          <div style={{ borderRadius: 12, overflow: "hidden", border: "1px solid rgba(255,255,255,0.06)" }}>
+          <div style={{ borderRadius: 12, overflow: "hidden", border: "1px solid var(--kt-border-1)" }}>
             <table style={s.table}>
               <thead>
                 <tr>
@@ -417,11 +417,11 @@ Claude uses: onboard_me({ url: "example.com" })
         </div>
 
         {/* Footer */}
-        <div style={{ textAlign: "center", color: "#6B6B7B", fontSize: 14, marginTop: 80 }}>
+        <div style={{ textAlign: "center", color: "var(--kt-fg-3)", fontSize: "var(--kt-fs-14)", marginTop: 80 }}>
           <p>
-            <Link href="/signup" style={{ color: "#6C5CE7", textDecoration: "none" }}>Create your Kinetiks ID</Link>
+            <Link href="/signup" style={{ color: "var(--kt-accent)", textDecoration: "none" }}>Create your Kinetiks ID</Link>
             {" "}-{" "}
-            <Link href="/" style={{ color: "#6C5CE7", textDecoration: "none" }}>kinetiks.ai</Link>
+            <Link href="/" style={{ color: "var(--kt-accent)", textDecoration: "none" }}>kinetiks.ai</Link>
           </p>
         </div>
       </div>

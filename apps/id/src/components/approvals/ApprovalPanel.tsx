@@ -116,7 +116,7 @@ export function ApprovalPanel({ systemName }: ApprovalPanelProps) {
 
   if (loading) {
     return (
-      <div style={{ padding: 24, textAlign: "center", color: "var(--text-tertiary)", fontSize: 13 }}>
+      <div style={{ padding: 24, textAlign: "center", color: "var(--kt-fg-3)", fontSize: 13 }}>
         Loading...
       </div>
     );

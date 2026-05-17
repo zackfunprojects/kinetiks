@@ -9,10 +9,10 @@ export function Card({ children, style, onClick }: CardProps) {
     <div
       onClick={onClick}
       style={{
-        border: "1px solid var(--border-default)",
+        border: "1px solid var(--kt-border-1)",
         borderRadius: 8,
         padding: 20,
-        background: "var(--bg-surface)",
+        background: "var(--kt-bg-subtle)",
         cursor: onClick ? "pointer" : undefined,
         ...style,
       }}

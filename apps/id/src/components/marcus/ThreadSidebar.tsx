@@ -48,11 +48,11 @@ export function ThreadSidebar({
     <div
       style={{
         width: 280,
-        borderRight: "1px solid var(--border-muted)",
+        borderRight: "1px solid var(--kt-border-2)",
         display: "flex",
         flexDirection: "column",
         height: "100%",
-        backgroundColor: "var(--bg-surface)",
+        backgroundColor: "var(--kt-bg-subtle)",
       }}
     >
       {/* Header */}
@@ -65,14 +65,14 @@ export function ThreadSidebar({
             marginBottom: 12,
           }}
         >
-          <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: "var(--text-primary)", fontFamily: "var(--font-mono), monospace" }}>
+          <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: "var(--kt-fg-1)", fontFamily: "var(--font-mono), monospace" }}>
             threads
           </h3>
           <button
             onClick={onNewThread}
             style={{
-              background: "var(--accent-emphasis)",
-              color: "var(--text-on-accent)",
+              background: "var(--kt-accent-hover)",
+              color: "var(--kt-fg-on-inverse)",
               border: "none",
               borderRadius: 4,
               padding: "6px 12px",
@@ -95,13 +95,13 @@ export function ThreadSidebar({
           style={{
             width: "100%",
             padding: "8px 12px",
-            border: "1px solid var(--border-default)",
+            border: "1px solid var(--kt-border-1)",
             borderRadius: 6,
             fontSize: 13,
             outline: "none",
             boxSizing: "border-box",
-            backgroundColor: "var(--bg-inset)",
-            color: "var(--text-primary)",
+            backgroundColor: "var(--kt-bg-base)",
+            color: "var(--kt-fg-1)",
           }}
         />
       </div>
@@ -121,7 +121,7 @@ export function ThreadSidebar({
           <ThreadGroup label="Earlier" threads={earlier} currentThreadId={currentThreadId} onSelect={onSelectThread} />
         )}
         {threads.length === 0 && (
-          <p style={{ textAlign: "center", color: "var(--text-tertiary)", fontSize: 13, padding: 16, fontFamily: "var(--font-mono), monospace" }}>
+          <p style={{ textAlign: "center", color: "var(--kt-fg-3)", fontSize: 13, padding: 16, fontFamily: "var(--font-mono), monospace" }}>
             No conversations yet
           </p>
         )}
@@ -148,7 +148,7 @@ function ThreadGroup({
           fontSize: 11,
           fontWeight: 600,
           fontFamily: "var(--font-mono), monospace",
-          color: "var(--text-tertiary)",
+          color: "var(--kt-fg-3)",
           textTransform: "uppercase",
           letterSpacing: 0.5,
           padding: "4px 8px",
@@ -170,11 +170,11 @@ function ThreadGroup({
             cursor: "pointer",
             fontSize: 13,
             backgroundColor:
-              thread.id === currentThreadId ? "var(--accent-muted)" : "transparent",
-            color: thread.id === currentThreadId ? "var(--accent)" : "var(--text-secondary)",
+              thread.id === currentThreadId ? "var(--kt-accent-soft)" : "transparent",
+            color: thread.id === currentThreadId ? "var(--kt-accent)" : "var(--kt-fg-2)",
             fontWeight: thread.id === currentThreadId ? 500 : 400,
             marginBottom: 2,
-            borderLeft: thread.id === currentThreadId ? "2px solid var(--accent)" : "2px solid transparent",
+            borderLeft: thread.id === currentThreadId ? "2px solid var(--kt-accent)" : "2px solid transparent",
           }}
         >
           <div
@@ -187,7 +187,7 @@ function ThreadGroup({
             {thread.pinned && "# "}
             {thread.title || "New conversation"}
           </div>
-          <div style={{ fontSize: 11, color: "var(--text-tertiary)", marginTop: 2, fontFamily: "var(--font-mono), monospace" }}>
+          <div style={{ fontSize: 11, color: "var(--kt-fg-3)", marginTop: 2, fontFamily: "var(--font-mono), monospace" }}>
             {formatRelativeTime(thread.updated_at)}
           </div>
         </button>

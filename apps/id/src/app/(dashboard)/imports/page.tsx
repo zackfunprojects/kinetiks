@@ -33,10 +33,10 @@ export default async function ImportsPage() {
   return (
     <div>
       <div style={{ marginBottom: 24 }}>
-        <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: "var(--text-primary)" }}>
+        <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: "var(--kt-fg-1)" }}>
           Imports
         </h1>
-        <p style={{ margin: "4px 0 0", fontSize: 14, color: "var(--text-secondary)" }}>
+        <p style={{ margin: "4px 0 0", fontSize: 14, color: "var(--kt-fg-2)" }}>
           Upload data to enrich your Kinetiks ID
         </p>
       </div>

@@ -13,7 +13,7 @@ export function BatchApproveBar({ quickCount, onBatchApprove, loading }: BatchAp
     <div
       style={{
         padding: "8px 12px",
-        background: "var(--info-muted)",
+        background: "var(--kt-accent-soft)",
         borderRadius: 8,
         marginBottom: 8,
         display: "flex",
@@ -21,7 +21,7 @@ export function BatchApproveBar({ quickCount, onBatchApprove, loading }: BatchAp
         justifyContent: "space-between",
       }}
     >
-      <span style={{ fontSize: 12, color: "var(--info)" }}>
+      <span style={{ fontSize: 12, color: "var(--kt-accent)" }}>
         {quickCount} quick approvals
       </span>
       <button
@@ -31,8 +31,8 @@ export function BatchApproveBar({ quickCount, onBatchApprove, loading }: BatchAp
           padding: "4px 12px",
           borderRadius: 4,
           border: "none",
-          background: "var(--info)",
-          color: "#fff",
+          background: "var(--kt-accent)",
+          color: "var(--kt-fg-on-inverse)",
           fontSize: 11,
           fontWeight: 500,
           cursor: loading ? "not-allowed" : "pointer",

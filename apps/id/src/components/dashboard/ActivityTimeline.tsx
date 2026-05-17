@@ -55,7 +55,7 @@ interface ActivityTimelineProps {
 export function ActivityTimeline({ entries }: ActivityTimelineProps) {
   if (entries.length === 0) {
     return (
-      <p style={{ color: "var(--text-tertiary)", fontSize: 13, padding: "12px 0" }}>
+      <p style={{ color: "var(--kt-fg-3)", fontSize: 13, padding: "12px 0" }}>
         No recent activity
       </p>
     );
@@ -76,7 +76,7 @@ export function ActivityTimeline({ entries }: ActivityTimelineProps) {
               alignItems: "flex-start",
               gap: 12,
               padding: "10px 0",
-              borderBottom: i < entries.length - 1 ? "1px solid var(--border-muted)" : undefined,
+              borderBottom: i < entries.length - 1 ? "1px solid var(--kt-border-2)" : undefined,
             }}
           >
             <div
@@ -84,10 +84,10 @@ export function ActivityTimeline({ entries }: ActivityTimelineProps) {
                 width: 8,
                 height: 8,
                 borderRadius: "50%",
-                background: eventInfo.variant === "success" ? "var(--success)" :
-                  eventInfo.variant === "error" ? "var(--error)" :
-                  eventInfo.variant === "accent" ? "var(--accent)" :
-                  eventInfo.variant === "warning" ? "var(--warning)" : "var(--text-tertiary)",
+                background: eventInfo.variant === "success" ? "var(--kt-success)" :
+                  eventInfo.variant === "error" ? "var(--kt-danger)" :
+                  eventInfo.variant === "accent" ? "var(--kt-accent)" :
+                  eventInfo.variant === "warning" ? "var(--kt-warning)" : "var(--kt-fg-3)",
                 marginTop: 5,
                 flexShrink: 0,
               }}
@@ -96,16 +96,16 @@ export function ActivityTimeline({ entries }: ActivityTimelineProps) {
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
                 <Badge label={eventInfo.label} variant={eventInfo.variant} />
                 {entry.target_layer && (
-                  <span style={{ fontSize: 11, color: "var(--text-tertiary)", fontFamily: "var(--font-mono), monospace" }}>
+                  <span style={{ fontSize: 11, color: "var(--kt-fg-3)", fontFamily: "var(--font-mono), monospace" }}>
                     {entry.target_layer}
                   </span>
                 )}
               </div>
-              <p style={{ margin: 0, fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.4 }}>
+              <p style={{ margin: 0, fontSize: 13, color: "var(--kt-fg-2)", lineHeight: 1.4 }}>
                 {getEventDescription(entry)}
               </p>
             </div>
-            <span style={{ fontSize: 11, color: "var(--text-tertiary)", fontFamily: "var(--font-mono), monospace", flexShrink: 0, marginTop: 2 }}>
+            <span style={{ fontSize: 11, color: "var(--kt-fg-3)", fontFamily: "var(--font-mono), monospace", flexShrink: 0, marginTop: 2 }}>
               {timeAgo(entry.created_at)}
             </span>
           </div>

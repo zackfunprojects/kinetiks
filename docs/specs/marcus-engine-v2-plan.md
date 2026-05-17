@@ -1770,11 +1770,11 @@ git commit -m "test(marcus): add v2 pipeline integration tests reproducing bug r
 Not a code task. This is a testing guide for verifying the pipeline works end-to-end in the running application.
 
 **Files:**
-- Create: `docs/marcus-v2-testing-playbook.md`
+- Create: `docs/specs/marcus-v2-testing-playbook.md`
 
 - [ ] **Step 1: Write the playbook**
 
-Create `docs/marcus-v2-testing-playbook.md`:
+Create `docs/specs/marcus-v2-testing-playbook.md`:
 
 ```markdown
 # Marcus V2 Manual Testing Playbook
@@ -1871,7 +1871,7 @@ FAIL if:
 - [ ] **Step 2: Commit**
 
 ```bash
-git add docs/marcus-v2-testing-playbook.md
+git add docs/specs/marcus-v2-testing-playbook.md
 git commit -m "docs: add Marcus v2 manual testing playbook"
 ```
 
@@ -1904,3 +1904,100 @@ No TODOs, TBDs, "implement later", or "similar to Task N". All code complete.
 - `assembleResponse()` defined in Task 7, called in Task 8
 - `loadThreadMemories()` / `extractAndPersistMemories()` / `formatMemoriesForContext()` defined in Task 3, called in Tasks 4, 8, 9
 - All consistent.
+
+---
+
+## F2 changelog — Agent Runtime + hardening (2026-05)
+
+The original v2 plan describes the pipeline; F2 of the core build adds
+the observability and orchestration substrate around it. Nothing in the
+pipeline shape changes; what changes is where the calls flow and how
+they are observed.
+
+### What landed in F2
+
+1. **Every Marcus AI call now routes through `@kinetiks/ai`'s router.**
+   - 10 direct `askClaude` / `askClaudeMultiTurn` / `streamClaude` call
+     sites in `apps/id/src/lib/marcus/*` were migrated to
+     `routeAskClaude` / `routeAskClaudeMultiTurn` / `routeStreamClaude`.
+   - 8 direct calls in `apps/id/src/lib/cartographer/*` similarly.
+   - Each call carries a registered prompt task name
+     (`marcus.persona_stream`, `marcus.pre_analysis`, `marcus.intent`,
+     `marcus.action_generate`, `marcus.action_extract`,
+     `marcus.memory_extract`, `marcus.thread_title`,
+     `marcus.persona_response`, `marcus.command_translate`,
+     `cartographer.*` etc.) so the resulting `ai_calls` row is
+     attributable.
+   - The streaming variant taps `finalMessage` / `error` events
+     internally; callers still attach their own event listeners as
+     before, no API break.
+
+2. **Run-scoped correlation.**
+   - Each entry to `processMarcusMessage` / `streamMarcusMessage`
+     starts an `AgentRun` via `startAgentRun` from `@kinetiks/runtime`.
+   - The run's `runId` is stamped on every AI call this turn via
+     `AICallContext.agentRunId`, so a full Marcus turn is queryable as
+     one trace from `ai_calls` + `tool_calls`.
+
+3. **Tool registry inventory in the brief.**
+   - `apps/id/src/lib/marcus/tool-bridge.ts` builds a short LLM-readable
+     inventory from `buildCapabilityManifest`. The engine pre-fetches
+     it and passes it to `buildPreAnalysisBrief`, which injects a
+     `[PLATFORM CAPABILITIES]` block into the formatted brief.
+   - This is how Marcus answers "what tools do you have?" without
+     inventing tools that don't exist — Sonnet sees the canonical list
+     adjacent to the question.
+
+4. **Sentinel splice on every brief action.**
+   - `action-extractor.ts → executeActions → case "brief"` now routes
+     content through `reviewContent` (editorial + brand safety +
+     compliance + fatigue) before inserting the routing event.
+   - `held` verdict blocks the route and surfaces a hold disclosure.
+     `flagged` still routes but tags the routing event payload with
+     `sentinel_verdict` + `sentinel_review_id` so the suite-app review
+     surface can pick it up. Sentinel failures degrade to permissive —
+     the next-layer review in the suite app is the final gate.
+   - The content type is inferred from `target_app` (harvest →
+     cold_email, dark_madder → blog_post, hypothesis → landing_page,
+     litmus → journalist_pitch).
+
+5. **Authority resolution stub + Agent Runtime.**
+   - `packages/runtime` ships `AgentRun.invokeTool` as the single
+     legitimate path for tool invocation. F1's `executeTool` handles
+     structural concerns; the Runtime adds authority resolution
+     (stubbed to `auto_threshold` until L2a), exponential-backoff
+     retry, run-level cost/trace rollup, and per-call timeout +
+     AbortSignal merge.
+   - F2 stub tools `query_patterns` and `query_actions_authority` are
+     registered so Marcus can describe authority + pattern surfaces
+     accurately ("no covering grant, falls back to per-tool
+     threshold") instead of hallucinating.
+
+6. **Lint + CI boundaries enforced.**
+   - `.eslintrc.json` adds `no-restricted-syntax` against any
+     `*Tool.execute(` call outside `packages/tools` and
+     `packages/runtime`.
+   - `scripts/check-runtime-boundary.sh` mirrors the AI-boundary
+     script — a grep-based CI gate that fires without needing ESLint
+     installed.
+
+### What did NOT change
+
+- Pipeline shape (intent → manifest → memory → pre-analysis → Sonnet →
+  action generation → memory write-back → ledger) is unchanged.
+- Persona prompt, brief format, action-generator output schema, memory
+  schema — all preserved.
+- The Sonnet streaming SSE event sequence (`thread_id`, `text`, `done`)
+  is unchanged.
+
+### Deferred to later phases
+
+- **L2a (Authority Grants):** the runtime's authority resolver returns
+  `auto_threshold` for every action; L2a replaces it with live grant
+  resolution against `kinetiks_authority_grants` and fills
+  `tool_calls.authority_outcome` + `grant_id` accordingly.
+- **L1a (Pattern Library):** `query_patterns` returns an empty list
+  until the table + Archivist write path ship.
+- **F3 (Approval pipeline production wiring):** the action-extractor
+  splice currently logs Sentinel verdicts onto routing-event payloads;
+  F3 routes proposals + briefs end-to-end through the approval queue.

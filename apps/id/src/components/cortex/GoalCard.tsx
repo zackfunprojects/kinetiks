@@ -9,11 +9,11 @@ interface GoalCardProps {
 }
 
 const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
-  on_track: { bg: "var(--success-muted)", text: "var(--success)" },
-  ahead: { bg: "var(--info-muted)", text: "var(--info)" },
-  behind: { bg: "var(--warning-muted)", text: "var(--warning)" },
-  at_risk: { bg: "var(--error-muted)", text: "var(--error)" },
-  critical: { bg: "var(--error-muted)", text: "var(--error)" },
+  on_track: { bg: "var(--kt-success-soft)", text: "var(--kt-success)" },
+  ahead: { bg: "var(--kt-accent-soft)", text: "var(--kt-accent)" },
+  behind: { bg: "var(--kt-warning-soft)", text: "var(--kt-warning)" },
+  at_risk: { bg: "var(--kt-danger-soft)", text: "var(--kt-danger)" },
+  critical: { bg: "var(--kt-danger-soft)", text: "var(--kt-danger)" },
 };
 
 export function GoalCard({ goal, onEdit, onArchive }: GoalCardProps) {
@@ -28,8 +28,8 @@ export function GoalCard({ goal, onEdit, onArchive }: GoalCardProps) {
       style={{
         padding: 16,
         borderRadius: 8,
-        border: "1px solid var(--border-muted)",
-        background: "var(--bg-surface-raised)",
+        border: "1px solid var(--kt-border-2)",
+        background: "var(--kt-bg-muted)",
         marginBottom: 8,
       }}
     >
@@ -41,8 +41,8 @@ export function GoalCard({ goal, onEdit, onArchive }: GoalCardProps) {
               fontWeight: 600,
               padding: "2px 6px",
               borderRadius: 4,
-              background: "var(--accent-subtle)",
-              color: "var(--text-secondary)",
+              background: "var(--kt-accent-soft)",
+              color: "var(--kt-fg-2)",
               textTransform: "uppercase",
             }}
           >
@@ -68,7 +68,7 @@ export function GoalCard({ goal, onEdit, onArchive }: GoalCardProps) {
             style={{
               background: "none",
               border: "none",
-              color: "var(--text-tertiary)",
+              color: "var(--kt-fg-3)",
               cursor: "pointer",
               fontSize: 12,
               padding: "2px 6px",
@@ -81,7 +81,7 @@ export function GoalCard({ goal, onEdit, onArchive }: GoalCardProps) {
             style={{
               background: "none",
               border: "none",
-              color: "var(--text-tertiary)",
+              color: "var(--kt-fg-3)",
               cursor: "pointer",
               fontSize: 12,
               padding: "2px 6px",
@@ -92,17 +92,17 @@ export function GoalCard({ goal, onEdit, onArchive }: GoalCardProps) {
         </div>
       </div>
 
-      <div style={{ fontSize: 14, fontWeight: 500, color: "var(--text-primary)", marginBottom: 8 }}>
+      <div style={{ fontSize: 14, fontWeight: 500, color: "var(--kt-fg-1)", marginBottom: 8 }}>
         {goal.name}
       </div>
 
       {goal.target_value !== null && (
         <div style={{ marginBottom: 8 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--text-secondary)", marginBottom: 4 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--kt-fg-2)", marginBottom: 4 }}>
             <span>{goal.current_value.toLocaleString()}</span>
             <span>{goal.target_value.toLocaleString()}</span>
           </div>
-          <div style={{ height: 4, borderRadius: 2, background: "var(--bg-inset)" }}>
+          <div style={{ height: 4, borderRadius: 2, background: "var(--kt-bg-base)" }}>
             <div
               style={{
                 height: "100%",
@@ -125,8 +125,8 @@ export function GoalCard({ goal, onEdit, onArchive }: GoalCardProps) {
                 fontSize: 10,
                 padding: "1px 6px",
                 borderRadius: 4,
-                border: "1px solid var(--border-muted)",
-                color: "var(--text-tertiary)",
+                border: "1px solid var(--kt-border-2)",
+                color: "var(--kt-fg-3)",
               }}
             >
               {app}
@@ -136,7 +136,7 @@ export function GoalCard({ goal, onEdit, onArchive }: GoalCardProps) {
       )}
 
       {goal.target_period && (
-        <div style={{ fontSize: 11, color: "var(--text-tertiary)", marginTop: 8, fontFamily: "var(--font-mono), monospace" }}>
+        <div style={{ fontSize: 11, color: "var(--kt-fg-3)", marginTop: 8, fontFamily: "var(--font-mono), monospace" }}>
           {goal.target_period} {goal.direction && `(${goal.direction})`}
         </div>
       )}

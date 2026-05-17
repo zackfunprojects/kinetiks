@@ -6,7 +6,7 @@
  * for revenue-connected insights.
  */
 
-import { loadKnowledge } from "@kinetiks/ai";
+import { loadKnowledge } from "@kinetiks/ai/knowledge";
 
 /**
  * Load attribution methodology for revenue-connected brief generation.

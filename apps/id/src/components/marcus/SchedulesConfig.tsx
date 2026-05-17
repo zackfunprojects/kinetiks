@@ -107,10 +107,10 @@ export function SchedulesConfig({ schedules }: SchedulesConfigProps) {
         <div
           key={schedule.id}
           style={{
-            border: "1px solid var(--border-default)",
+            border: "1px solid var(--kt-border-1)",
             borderRadius: 8,
             padding: 20,
-            backgroundColor: schedule.enabled ? "var(--bg-surface)" : "var(--bg-surface-raised)",
+            backgroundColor: schedule.enabled ? "var(--kt-bg-subtle)" : "var(--kt-bg-muted)",
           }}
         >
           <div
@@ -121,7 +121,7 @@ export function SchedulesConfig({ schedules }: SchedulesConfigProps) {
               marginBottom: 8,
             }}
           >
-            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: "var(--text-primary)" }}>
+            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: "var(--kt-fg-1)" }}>
               {SCHEDULE_LABELS[schedule.type] ?? schedule.type}
             </h3>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -130,13 +130,13 @@ export function SchedulesConfig({ schedules }: SchedulesConfigProps) {
                 disabled={savingSendNow === schedule.type}
                 style={{
                   padding: "6px 12px",
-                  border: "1px solid var(--border-default)",
+                  border: "1px solid var(--kt-border-1)",
                   borderRadius: 4,
                   background: "transparent",
                   fontSize: 12,
                   fontFamily: "var(--font-mono), monospace",
                   cursor: savingSendNow === schedule.type ? "not-allowed" : "pointer",
-                  color: "var(--accent)",
+                  color: "var(--kt-accent)",
                 }}
               >
                 {getSendNowLabel(schedule.type)}
@@ -148,8 +148,8 @@ export function SchedulesConfig({ schedules }: SchedulesConfigProps) {
                   padding: "6px 16px",
                   border: "none",
                   borderRadius: 4,
-                  backgroundColor: schedule.enabled ? "var(--accent-emphasis)" : "var(--border-default)",
-                  color: schedule.enabled ? "var(--text-on-accent)" : "var(--text-tertiary)",
+                  backgroundColor: schedule.enabled ? "var(--kt-accent-hover)" : "var(--kt-border-1)",
+                  color: schedule.enabled ? "var(--kt-fg-on-inverse)" : "var(--kt-fg-3)",
                   fontSize: 12,
                   fontFamily: "var(--font-mono), monospace",
                   cursor: savingToggle === schedule.id ? "not-allowed" : "pointer",
@@ -161,7 +161,7 @@ export function SchedulesConfig({ schedules }: SchedulesConfigProps) {
             </div>
           </div>
 
-          <p style={{ margin: "0 0 12px", fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.5 }}>
+          <p style={{ margin: "0 0 12px", fontSize: 13, color: "var(--kt-fg-2)", lineHeight: 1.5 }}>
             {SCHEDULE_DESCRIPTIONS[schedule.type]}
           </p>
 
@@ -171,21 +171,21 @@ export function SchedulesConfig({ schedules }: SchedulesConfigProps) {
               gap: 24,
               fontSize: 12,
               fontFamily: "var(--font-mono), monospace",
-              color: "var(--text-tertiary)",
+              color: "var(--kt-fg-3)",
             }}
           >
             <div>
-              <strong style={{ color: "var(--text-secondary)" }}>schedule:</strong> {cronToHuman(schedule.schedule)}
+              <strong style={{ color: "var(--kt-fg-2)" }}>schedule:</strong> {cronToHuman(schedule.schedule)}
             </div>
             <div>
-              <strong style={{ color: "var(--text-secondary)" }}>channel:</strong> {schedule.channel}
+              <strong style={{ color: "var(--kt-fg-2)" }}>channel:</strong> {schedule.channel}
             </div>
             <div>
-              <strong style={{ color: "var(--text-secondary)" }}>tz:</strong> {schedule.timezone}
+              <strong style={{ color: "var(--kt-fg-2)" }}>tz:</strong> {schedule.timezone}
             </div>
             {schedule.last_sent_at && (
               <div>
-                <strong style={{ color: "var(--text-secondary)" }}>last:</strong>{" "}
+                <strong style={{ color: "var(--kt-fg-2)" }}>last:</strong>{" "}
                 {new Date(schedule.last_sent_at).toLocaleDateString()}
               </div>
             )}
@@ -194,7 +194,7 @@ export function SchedulesConfig({ schedules }: SchedulesConfigProps) {
       ))}
 
       {localSchedules.length === 0 && (
-        <p style={{ textAlign: "center", color: "var(--text-tertiary)", padding: 32, fontFamily: "var(--font-mono), monospace" }}>
+        <p style={{ textAlign: "center", color: "var(--kt-fg-3)", padding: 32, fontFamily: "var(--font-mono), monospace" }}>
           No schedules configured yet. They will be created when you connect Slack.
         </p>
       )}

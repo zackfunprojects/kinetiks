@@ -65,14 +65,14 @@ function OnboardingContent() {
     return (
       <main
         className="flex min-h-screen items-center justify-center"
-        style={{ background: "var(--bg-base)" }}
+        style={{ background: "var(--kt-bg-base)" }}
       >
         <div className="flex items-center gap-3">
           <div
             className="h-4 w-4 animate-spin rounded-full border-2 border-t-transparent"
-            style={{ borderColor: "var(--accent)", borderTopColor: "transparent" }}
+            style={{ borderColor: "var(--kt-accent)", borderTopColor: "transparent" }}
           />
-          <p className="text-sm" style={{ color: "var(--text-tertiary)" }}>Setting up your Kinetiks ID...</p>
+          <p className="text-sm" style={{ color: "var(--kt-fg-3)" }}>Setting up your Kinetiks ID...</p>
         </div>
       </main>
     );
@@ -82,23 +82,21 @@ function OnboardingContent() {
     return (
       <main
         className="flex min-h-screen items-center justify-center"
-        style={{ background: "#0F0F1A" }}
+        style={{ background: "var(--kt-bg-base)" }}
       >
         <div className="text-center">
-          <p className="text-sm" style={{ color: "#EF4444" }}>
+          <p className="text-sm" style={{ color: "var(--kt-danger)" }}>
             {error ?? "Failed to load account. Please try again."}
           </p>
           <button
             onClick={() => window.location.reload()}
-            className="mt-4 mr-3 rounded-lg px-6 py-2.5 text-sm font-semibold"
-            style={{ background: "#6C5CE7", color: "#FFFFFF" }}
+            className="mt-4 mr-3 rounded-lg px-6 py-2.5 text-sm font-semibold kt-btn kt-btn--accent kt-btn--md"
           >
             Retry
           </button>
           <button
             onClick={() => router.push("/login")}
-            className="mt-4 rounded-lg px-6 py-2.5 text-sm font-semibold"
-            style={{ background: "#333", color: "#FFFFFF" }}
+            className="mt-4 rounded-lg px-6 py-2.5 text-sm font-semibold kt-btn kt-btn--secondary kt-btn--md"
           >
             Back to login
           </button>

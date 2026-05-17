@@ -59,9 +59,9 @@ export function ThreadList({
             onClick={onNewThread}
             style={{
               width: "100%",
-              background: "var(--accent-subtle)",
-              color: "var(--text-primary)",
-              border: "1px solid var(--border-muted)",
+              background: "var(--kt-accent-soft)",
+              color: "var(--kt-fg-1)",
+              border: "1px solid var(--kt-border-2)",
               borderRadius: 6,
               padding: "8px 12px",
               fontSize: 13,
@@ -82,13 +82,13 @@ export function ThreadList({
           style={{
             width: "100%",
             padding: "7px 10px",
-            border: "1px solid var(--border-default)",
+            border: "1px solid var(--kt-border-1)",
             borderRadius: 6,
             fontSize: 12,
             outline: "none",
             boxSizing: "border-box",
-            backgroundColor: "var(--bg-inset)",
-            color: "var(--text-primary)",
+            backgroundColor: "var(--kt-bg-base)",
+            color: "var(--kt-fg-1)",
           }}
         />
       </div>
@@ -111,7 +111,7 @@ export function ThreadList({
           <p
             style={{
               textAlign: "center",
-              color: "var(--text-tertiary)",
+              color: "var(--kt-fg-3)",
               fontSize: 13,
               padding: 16,
             }}
@@ -141,7 +141,7 @@ function ThreadGroup({
         style={{
           fontSize: 11,
           fontWeight: 600,
-          color: "var(--text-tertiary)",
+          color: "var(--kt-fg-3)",
           textTransform: "uppercase",
           letterSpacing: 0.5,
           padding: "4px 8px",
@@ -165,8 +165,8 @@ function ThreadGroup({
               borderRadius: 6,
               cursor: "pointer",
               fontSize: 13,
-              backgroundColor: active ? "var(--accent-muted)" : "transparent",
-              color: active ? "var(--text-primary)" : "var(--text-secondary)",
+              backgroundColor: active ? "var(--kt-accent-soft)" : "transparent",
+              color: active ? "var(--kt-fg-1)" : "var(--kt-fg-2)",
               fontWeight: active ? 500 : 400,
               marginBottom: 1,
             }}
@@ -184,7 +184,7 @@ function ThreadGroup({
             <div
               style={{
                 fontSize: 11,
-                color: "var(--text-tertiary)",
+                color: "var(--kt-fg-3)",
                 marginTop: 2,
                 fontFamily: "var(--font-mono), monospace",
               }}

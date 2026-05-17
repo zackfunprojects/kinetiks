@@ -88,6 +88,16 @@ export type {
   WebhookPayloadEnvelope,
 } from "./api";
 export type {
+  ToolDescriptor,
+  ActionClassDescriptor,
+  OperatorDescriptor,
+  AvailabilityPredicate,
+  RateLimitConfig,
+  LLMJudgmentModel,
+  LLMJudgmentFallback,
+  LLMJudgmentBudget,
+} from "./descriptors";
+export type {
   SentinelVerdict,
   ReviewResolution,
   SentinelContentType,

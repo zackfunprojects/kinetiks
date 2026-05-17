@@ -1,107 +1,35 @@
 @import "tailwindcss";
 
-/* ── Theme tokens ────────────────────────────────────────────── */
-:root {
-  /* Backgrounds (layered surfaces, darkest to lightest) */
-  --bg-base: #0d1117;
-  --bg-surface: #161b22;
-  --bg-surface-raised: #1c2128;
-  --bg-surface-overlay: #2d333b;
-  --bg-inset: #010409;
+/* ============================================================
+   App-level globals.
 
-  /* Borders */
-  --border-default: #30363d;
-  --border-muted: #21262d;
+   Design tokens (--kt-*) live in @kinetiks/ui/styles/kinetiks-tokens.css
+   and are imported in app/layout.tsx. This file is for app-only
+   utilities that compose tokens — never redefine them.
 
-  /* Text */
-  --text-primary: #e6edf3;
-  --text-secondary: #8b949e;
-  --text-tertiary: #484f58;
-  --text-on-accent: #0d1117;
+   No hardcoded color/font/size/radius/shadow/motion values are allowed
+   in this file or in component code. Always reference a --kt-* token.
+   ============================================================ */
 
-  /* Logo accent - green, only for the kinetiks_id wordmark */
-  --logo-accent: #3fb950;
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-  /* Accent - white/light for UI elements */
-  --accent: #e6edf3;
-  --accent-emphasis: #e6edf3;
-  --accent-muted: rgba(230, 237, 243, 0.1);
-  --accent-subtle: rgba(230, 237, 243, 0.06);
-
-  /* Secondary accent - cool blue */
-  --accent-secondary: #58a6ff;
-  --accent-secondary-muted: rgba(88, 166, 255, 0.15);
-
-  /* Semantic */
-  --success: #3fb950;
-  --success-muted: rgba(63, 185, 80, 0.15);
-  --warning: #d29922;
-  --warning-muted: rgba(210, 153, 34, 0.15);
-  --error: #f85149;
-  --error-muted: rgba(248, 81, 73, 0.15);
-  --info: #58a6ff;
-  --info-muted: rgba(88, 166, 255, 0.15);
-
-  /* Special purpose */
-  --ring-track: #21262d;
-  --ring-fill: #e6edf3;
-  --user-bubble: #30363d;
-  --marcus-bubble: #1c2128;
-  --sidebar-active-bg: rgba(230, 237, 243, 0.06);
-  --sidebar-active-text: #e6edf3;
-}
-
-/* ── Base styles ─────────────────────────────────────────────── */
-body {
-  background-color: var(--bg-base);
-  color: var(--text-secondary);
-}
-
-/* ── Focus styles ────────────────────────────────────────────── */
-input:focus-visible,
-textarea:focus-visible,
-select:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
-}
-
-/* ── Animations ──────────────────────────────────────────────── */
-@keyframes blink {
+@keyframes kt-cursor-blink {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0; }
+  50%      { opacity: 0; }
+}
+.kt-cursor {
+  display: inline-block;
+  width: 0.55ch;
+  background-color: var(--kt-fg-1);
+  margin-left: 1px;
+  animation: kt-cursor-blink 1s steps(1) infinite;
 }
 
-@keyframes terminal-glow {
-  0%, 100% { filter: drop-shadow(0 0 6px rgba(230, 237, 243, 0.2)); }
-  50% { filter: drop-shadow(0 0 12px rgba(230, 237, 243, 0.35)); }
-}
-
-@keyframes fade-in {
+@keyframes kt-fade-in {
   from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: translateY(0); }
+  to   { opacity: 1; transform: translateY(0); }
 }
-
-/* ── Scrollbar ───────────────────────────────────────────────── */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background: var(--border-default);
-  border-radius: 3px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: var(--text-tertiary);
-}
-
-/* ── Selection ───────────────────────────────────────────────── */
-::selection {
-  background: var(--accent-muted);
-  color: var(--text-primary);
+.kt-fade-in {
+  animation: kt-fade-in var(--kt-dur-3) var(--kt-ease-standard);
 }

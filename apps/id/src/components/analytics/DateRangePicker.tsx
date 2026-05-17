@@ -13,7 +13,7 @@ interface DateRangePickerProps {
 
 export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
   return (
-    <div style={{ display: "flex", gap: 4, background: "var(--bg-inset)", borderRadius: 6, padding: 2 }}>
+    <div style={{ display: "flex", gap: 4, background: "var(--kt-bg-base)", borderRadius: 6, padding: 2 }}>
       {RANGES.map((range) => (
         <button
           key={range.value}
@@ -25,8 +25,8 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
             cursor: "pointer",
             fontSize: 12,
             fontWeight: value === range.value ? 500 : 400,
-            color: value === range.value ? "var(--text-primary)" : "var(--text-tertiary)",
-            background: value === range.value ? "var(--bg-surface-raised)" : "transparent",
+            color: value === range.value ? "var(--kt-fg-1)" : "var(--kt-fg-3)",
+            background: value === range.value ? "var(--kt-bg-muted)" : "transparent",
           }}
         >
           {range.label}

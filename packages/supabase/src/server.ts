@@ -1,5 +1,7 @@
-import { createServerClient as createSupabaseServerClient } from "@supabase/ssr";
+import { createServerClient as createSupabaseServerClient, type CookieOptions } from "@supabase/ssr";
 import type { ReadonlyRequestCookies } from "next/dist/server/web/spec-extension/adapters/request-cookies";
+
+type CookieToSet = { name: string; value: string; options: CookieOptions };
 
 export function createServerClient(cookieStore: ReadonlyRequestCookies) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -14,8 +16,8 @@ export function createServerClient(cookieStore: ReadonlyRequestCookies) {
       getAll() {
         return cookieStore.getAll();
       },
-      setAll(cookiesToSet) {
-        cookiesToSet.forEach(({ name, value, options }) => {
+      setAll(cookiesToSet: CookieToSet[]) {
+        cookiesToSet.forEach(({ name, value, options }: CookieToSet) => {
           try {
             cookieStore.set(name, value, {
               ...options,

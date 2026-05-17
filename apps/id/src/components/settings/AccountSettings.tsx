@@ -14,7 +14,7 @@ export function AccountSettings({ account, userEmail }: AccountSettingsProps) {
         style={{
           fontSize: 18,
           fontWeight: 600,
-          color: "var(--text-primary)",
+          color: "var(--kt-fg-1)",
           margin: "0 0 24px",
         }}
       >
@@ -43,7 +43,7 @@ function SettingsField({ label, value }: { label: string; value: string }) {
         style={{
           fontSize: 12,
           fontWeight: 500,
-          color: "var(--text-tertiary)",
+          color: "var(--kt-fg-3)",
           marginBottom: 4,
           fontFamily: "var(--font-mono), monospace",
           textTransform: "uppercase",
@@ -52,7 +52,7 @@ function SettingsField({ label, value }: { label: string; value: string }) {
       >
         {label}
       </div>
-      <div style={{ fontSize: 14, color: "var(--text-primary)" }}>{value}</div>
+      <div style={{ fontSize: 14, color: "var(--kt-fg-1)" }}>{value}</div>
     </div>
   );
 }

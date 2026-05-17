@@ -4,11 +4,11 @@ import { useState, useEffect } from "react";
 import type { GoalProgress } from "@/lib/oracle/goal-tracker";
 
 const STATUS_COLORS: Record<string, string> = {
-  on_track: "var(--success)",
-  ahead: "var(--info)",
-  behind: "var(--warning)",
-  at_risk: "var(--error)",
-  critical: "var(--error)",
+  on_track: "var(--kt-success)",
+  ahead: "var(--kt-accent)",
+  behind: "var(--kt-warning)",
+  at_risk: "var(--kt-danger)",
+  critical: "var(--kt-danger)",
 };
 
 export function GoalOverview() {
@@ -28,21 +28,21 @@ export function GoalOverview() {
   }, []);
 
   if (loading) {
-    return <div style={{ padding: 16, color: "var(--text-tertiary)", fontSize: 13 }}>Loading goals...</div>;
+    return <div style={{ padding: 16, color: "var(--kt-fg-3)", fontSize: 13 }}>Loading goals...</div>;
   }
 
   if (fetchError) {
     return (
-      <div style={{ padding: 24, borderRadius: 8, border: "1px dashed var(--error-muted)", background: "var(--bg-surface)", textAlign: "center" }}>
-        <p style={{ fontSize: 13, color: "var(--error)", margin: 0 }}>{fetchError}</p>
+      <div style={{ padding: 24, borderRadius: 8, border: "1px dashed var(--kt-danger-soft)", background: "var(--kt-bg-subtle)", textAlign: "center" }}>
+        <p style={{ fontSize: 13, color: "var(--kt-danger)", margin: 0 }}>{fetchError}</p>
       </div>
     );
   }
 
   if (goals.length === 0) {
     return (
-      <div style={{ padding: 24, borderRadius: 8, border: "1px dashed var(--border-default)", background: "var(--bg-surface)", textAlign: "center" }}>
-        <p style={{ fontSize: 13, color: "var(--text-tertiary)", margin: 0 }}>
+      <div style={{ padding: 24, borderRadius: 8, border: "1px dashed var(--kt-border-1)", background: "var(--kt-bg-subtle)", textAlign: "center" }}>
+        <p style={{ fontSize: 13, color: "var(--kt-fg-3)", margin: 0 }}>
           No active goals. Create goals in Cortex to track them here.
         </p>
       </div>
@@ -57,38 +57,38 @@ export function GoalOverview() {
           style={{
             padding: 16,
             borderRadius: 8,
-            border: "1px solid var(--border-muted)",
-            background: "var(--bg-surface-raised)",
+            border: "1px solid var(--kt-border-2)",
+            background: "var(--kt-bg-muted)",
           }}
         >
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-            <span style={{ fontSize: 13, fontWeight: 500, color: "var(--text-primary)" }}>
+            <span style={{ fontSize: 13, fontWeight: 500, color: "var(--kt-fg-1)" }}>
               {goal.goal_id.slice(0, 8)}...
             </span>
-            <span style={{ fontSize: 11, color: STATUS_COLORS[goal.status] ?? "var(--text-tertiary)", fontWeight: 600, textTransform: "uppercase" }}>
+            <span style={{ fontSize: 11, color: STATUS_COLORS[goal.status] ?? "var(--kt-fg-3)", fontWeight: 600, textTransform: "uppercase" }}>
               {goal.status.replace("_", " ")}
             </span>
           </div>
 
           {/* Progress bar */}
-          <div style={{ height: 6, borderRadius: 3, background: "var(--bg-inset)", marginBottom: 8 }}>
+          <div style={{ height: 6, borderRadius: 3, background: "var(--kt-bg-base)", marginBottom: 8 }}>
             <div
               style={{
                 height: "100%",
                 borderRadius: 3,
-                background: STATUS_COLORS[goal.status] ?? "var(--text-tertiary)",
+                background: STATUS_COLORS[goal.status] ?? "var(--kt-fg-3)",
                 width: `${Math.min(goal.completion_percentage, 100)}%`,
               }}
             />
           </div>
 
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--text-secondary)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--kt-fg-2)" }}>
             <span>{goal.current_value.toLocaleString()} / {goal.target_value.toLocaleString()}</span>
             <span>{goal.completion_percentage.toFixed(1)}%</span>
           </div>
 
           {goal.forecast_value !== null && (
-            <div style={{ fontSize: 11, color: "var(--text-tertiary)", marginTop: 4 }}>
+            <div style={{ fontSize: 11, color: "var(--kt-fg-3)", marginTop: 4 }}>
               Forecast: {goal.forecast_value.toLocaleString()} ({goal.days_remaining}d remaining)
             </div>
           )}

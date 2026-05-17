@@ -145,17 +145,17 @@ function ToneEditor({
 
   return (
     <div style={{ marginBottom: 16 }}>
-      <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--text-secondary)", marginBottom: 8 }}>
+      <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--kt-fg-2)", marginBottom: 8 }}>
         Tone
       </label>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
         {dimensions.map((dim) => (
           <div key={dim}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-              <span style={{ fontSize: 12, color: "var(--text-secondary)", textTransform: "capitalize" }}>
+              <span style={{ fontSize: 12, color: "var(--kt-fg-2)", textTransform: "capitalize" }}>
                 {dim}
               </span>
-              <span style={{ fontSize: 12, fontWeight: 600, color: "var(--accent)", fontFamily: "var(--font-mono), monospace" }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: "var(--kt-accent)", fontFamily: "var(--font-mono), monospace" }}>
                 {tone[dim] ?? 50}
               </span>
             </div>
@@ -165,7 +165,7 @@ function ToneEditor({
               max={100}
               value={tone[dim] ?? 50}
               onChange={(e) => onChange({ ...tone, [dim]: Number(e.target.value) })}
-              style={{ width: "100%", accentColor: "var(--accent)" }}
+              style={{ width: "100%", accentColor: "var(--kt-accent)" }}
             />
           </div>
         ))}
@@ -221,7 +221,7 @@ export function LayerDetail({
       <div style={{ marginBottom: 24 }}>
         <Link
           href="/context"
-          style={{ fontSize: 13, color: "var(--accent)", textDecoration: "none" }}
+          style={{ fontSize: 13, color: "var(--kt-accent)", textDecoration: "none" }}
         >
           &larr; Back to Context
         </Link>
@@ -230,10 +230,10 @@ export function LayerDetail({
       <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 24 }}>
         <ConfidenceRing score={confidence} size={64} strokeWidth={5} />
         <div>
-          <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: "var(--text-primary)" }}>
+          <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: "var(--kt-fg-1)" }}>
             {LAYER_DISPLAY_NAMES[layer]}
           </h1>
-          <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--text-secondary)" }}>
+          <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--kt-fg-2)" }}>
             {LAYER_DESCRIPTIONS[layer]}
           </p>
           <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
@@ -244,7 +244,7 @@ export function LayerDetail({
               />
             )}
             {updatedAt && (
-              <span style={{ fontSize: 11, color: "var(--text-tertiary)", fontFamily: "var(--font-mono), monospace" }}>
+              <span style={{ fontSize: 11, color: "var(--kt-fg-3)", fontFamily: "var(--font-mono), monospace" }}>
                 Last updated: {new Date(updatedAt).toLocaleDateString()}
               </span>
             )}
@@ -297,8 +297,8 @@ export function LayerDetail({
             disabled={!hasChanges || saving}
             style={{
               padding: "8px 20px",
-              background: hasChanges ? "var(--accent-emphasis)" : "var(--border-default)",
-              color: hasChanges ? "var(--text-on-accent)" : "var(--text-tertiary)",
+              background: hasChanges ? "var(--kt-accent-hover)" : "var(--kt-border-1)",
+              color: hasChanges ? "var(--kt-fg-on-inverse)" : "var(--kt-fg-3)",
               border: "none",
               borderRadius: 8,
               fontSize: 14,
@@ -309,12 +309,12 @@ export function LayerDetail({
             {saving ? "Saving..." : "Save Changes"}
           </button>
           {saved && (
-            <span style={{ fontSize: 13, color: "var(--success)" }}>
+            <span style={{ fontSize: 13, color: "var(--kt-success)" }}>
               Saved successfully
             </span>
           )}
           {error && (
-            <span style={{ fontSize: 13, color: "var(--error)" }}>{error}</span>
+            <span style={{ fontSize: 13, color: "var(--kt-danger)" }}>{error}</span>
           )}
         </div>
       </Card>
@@ -322,7 +322,7 @@ export function LayerDetail({
       {/* Recent proposals */}
       {recentProposals.length > 0 && (
         <div>
-          <h3 style={{ margin: "0 0 12px", fontSize: 15, fontWeight: 600, color: "var(--text-primary)" }}>
+          <h3 style={{ margin: "0 0 12px", fontSize: 15, fontWeight: 600, color: "var(--kt-fg-1)" }}>
             Recent Changes
           </h3>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -334,7 +334,7 @@ export function LayerDetail({
                   alignItems: "center",
                   gap: 8,
                   padding: "8px 12px",
-                  background: "var(--bg-base)",
+                  background: "var(--kt-bg-base)",
                   borderRadius: 8,
                   fontSize: 13,
                 }}
@@ -347,10 +347,10 @@ export function LayerDetail({
                     p.status === "escalated" ? "warning" : "default"
                   }
                 />
-                <span style={{ color: "var(--text-secondary)" }}>
+                <span style={{ color: "var(--kt-fg-2)" }}>
                   {p.action} from {p.source_app?.replace("_", " ") || "system"}
                 </span>
-                <span style={{ color: "var(--text-tertiary)", marginLeft: "auto", fontSize: 11, fontFamily: "var(--font-mono), monospace" }}>
+                <span style={{ color: "var(--kt-fg-3)", marginLeft: "auto", fontSize: 11, fontFamily: "var(--font-mono), monospace" }}>
                   {new Date(p.submitted_at).toLocaleDateString()}
                 </span>
               </div>
