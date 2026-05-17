@@ -91,6 +91,63 @@ export function registerKinetiksStateMachines(): void {
     ],
   });
 
+  // ── kinetiks_pattern_library ───────────────────────────────
+  // 2027 addendum §1.7. The Archivist is the sole writer.
+  // Customer mutations (star/suppress/annotate/archive) route through
+  // Server Actions that act under actor.kind === "agent" with the
+  // Archivist's operator key, NOT actor.kind === "user" — the actor
+  // model treats the Archivist as the canonical mutator, since the
+  // customer's intent is mediated by the Archivist before the row
+  // changes.
+  registerStateMachine({
+    entity: "kinetiks_pattern_library",
+    states: ["emerging", "validated", "declining", "archived"] as const,
+    initial: "emerging",
+    terminal: ["archived"] as const,
+    transitions: [
+      // Confidence threshold crossing
+      {
+        from: "emerging",
+        to: "validated",
+        allow: (actor) => actor.kind === "agent" || actor.kind === "system",
+        reason: "Only the Archivist promotes emerging → validated",
+      },
+      // Re-validation after decline
+      {
+        from: "declining",
+        to: "validated",
+        allow: (actor) => actor.kind === "agent" || actor.kind === "system",
+        reason: "Only the Archivist re-validates declining → validated",
+      },
+      // Confidence falling below decline_at
+      {
+        from: "validated",
+        to: "declining",
+        allow: (actor) => actor.kind === "agent" || actor.kind === "system",
+        reason: "Only the Archivist demotes validated → declining",
+      },
+      // Customer or Archivist archive (decay sweep or ICP removed)
+      {
+        from: "emerging",
+        to: "archived",
+        allow: (actor) => actor.kind === "agent" || actor.kind === "system",
+        reason: "Archive routes through the Archivist (decay or customer action)",
+      },
+      {
+        from: "validated",
+        to: "archived",
+        allow: (actor) => actor.kind === "agent" || actor.kind === "system",
+        reason: "Archive routes through the Archivist (decay or customer action)",
+      },
+      {
+        from: "declining",
+        to: "archived",
+        allow: (actor) => actor.kind === "agent" || actor.kind === "system",
+        reason: "Archive routes through the Archivist (decay or customer action)",
+      },
+    ],
+  });
+
   // ── kinetiks_proposals ─────────────────────────────────────
   registerStateMachine({
     entity: "kinetiks_proposals",
