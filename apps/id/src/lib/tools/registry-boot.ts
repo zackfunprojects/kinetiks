@@ -10,6 +10,7 @@ import { noopTestTool } from "./noop-test";
 import { listCapabilitiesTool } from "./list-capabilities";
 import { queryPatternsTool } from "./query-patterns";
 import { queryActionsAuthorityTool } from "./query-actions-authority";
+import { ga4QueryTool } from "./ga4-query";
 
 let _booted = false;
 
@@ -34,6 +35,8 @@ export function bootToolRegistry(): void {
   // F2 stubs — replaced by L1a / L2a implementations
   registerTool(queryPatternsTool);
   registerTool(queryActionsAuthorityTool);
+  // D1 — first real data tool. Reads GA4 traffic through the cache layer.
+  registerTool(ga4QueryTool);
   // Cross-registry validation — fails the boot if anything is inconsistent.
   // At F1/F2 we register no consequential tools and no operators, so this
   // is a no-op safety pass; L2a will add real entries here.
