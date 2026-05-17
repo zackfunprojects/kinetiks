@@ -437,7 +437,7 @@ The only design-adjacent rule CLAUDE.md enforces is structural: never hardcode a
 
 ### State machines
 
-- Shared enforcement module in `@kinetiks/cortex/state-machines.ts` with `canTransition({ entity, from, to, actor })`.
+- Shared enforcement module in `@kinetiks/lib/state-machines` with `canTransition({ entity, from, to, actor })`.
 - Every status-bearing entity routes through it: Approvals, Proposals, Goals, Authority Grants, Patterns, Harvest sequences, Dark Madder articles, agent runs.
 - Three-layer enforcement for any status with security implications:
   1. Server action calls `canTransition()` before write.
@@ -507,7 +507,7 @@ The Approval System is the most critical safety system in the product. Get this 
 - **Budget approvals remain non-negotiable.** A grant authorizes spend up to its envelope, but the envelope itself cannot exceed the approved Budget for the relevant category. If the system would spend beyond the Budget category, that is always a Budget overage approval, not a grant action.
 - **Every approval decision writes to the Learning Ledger.** Append-only. The Ledger feeds confidence scoring, Oracle calibration, and Authority Agent proposal calibration. Deleting a Ledger entry is denied at three layers (server action, trigger, RLS).
 - **An action without an approval record or an active grant cannot execute.** The Agent Runtime checks authority resolution before tool invocation. A missing approval and no covering grant is treated as a `rejected` decision, not as a permissive default.
-- **Approvals expire.** Default expiry per action class lives in `@kinetiks/cortex/state-machines.ts`. Expired approvals are not silently re-issued; the action returns to the user. Authority Grants also expire per their `expires_at` field; expired grants do not re-issue.
+- **Approvals expire.** Default expiry per action class lives in `@kinetiks/lib/state-machines`. Expired approvals are not silently re-issued; the action returns to the user. Authority Grants also expire per their `expires_at` field; expired grants do not re-issue.
 - **Marcus never hard-sells app activations and never overrides approvals on the user's behalf.** Recommendations are backed by user-specific data (patterns, ledger evidence) or they are not made.
 
 ---
@@ -523,7 +523,7 @@ See `docs/specs/platform-contract-2027-addendum.md` §1 for the canonical spec.
 - **User overrides win, always.** `user_starred`, `user_suppressed`, and `user_annotation` are user-entered data and override AI-generated arbitration per the existing Cortex ownership hierarchy. Suppressed patterns are excluded from default reads.
 - **Empirical decay is bounded.** Each pattern type declares `initial_decay_days`, `decay_floor_days`, `decay_ceiling_days`, and `calibration_sample_threshold` in its registry entry. The nightly Archivist calibration job cannot move `effective_decay_days` outside those bounds.
 - **Patterns are observations, not opinions.** The customer can star, suppress, or annotate, but cannot directly edit `dimensions` or `outcome_value`. Those are empirical and immutable from the UI.
-- **Pattern lifecycle is a state machine.** Legal transitions: `emerging → validated` (sample size and confidence cross threshold), `validated → declining` (recent evidence trend reverses or `decay_at` passes without re-validation), `declining → validated` (re-validation), `emerging | validated | declining → archived` (decayed past usefulness, customer-archived, or ICP removed). `archived` is terminal. The Archivist is the sole writer of these transitions and routes through `@kinetiks/cortex/state-machines.ts` like every other status-bearing entity.
+- **Pattern lifecycle is a state machine.** Legal transitions: `emerging → validated` (sample size and confidence cross threshold), `validated → declining` (recent evidence trend reverses or `decay_at` passes without re-validation), `declining → validated` (re-validation), `emerging | validated | declining → archived` (decayed past usefulness, customer-archived, or ICP removed). `archived` is terminal. The Archivist is the sole writer of these transitions and routes through `@kinetiks/lib/state-machines` like every other status-bearing entity.
 - **Export and import are first-class.** `/api/cortex/patterns/export` is self-service, authenticated, rate-limited, logged. `/api/cortex/patterns/import` accepts the export schema, conservatively imports with `status: 'emerging'`, halved `confidence_score`, and fresh `effective_decay_days`. The customer's patterns belong to the customer.
 - **Patterns compose with the Learning Ledger.** Every action taken because of a pattern logs back to the Ledger with `pattern_id` attached. Every pattern's evidence is itself sourced from Ledger entries. Closed loop, attributable both directions.
 
@@ -673,9 +673,9 @@ Seed entries from the Marcus engine v2 cycle:
 
 Plan 1 wrapped Marcus output in a `DataAvailabilityManifest` validator, regex checks, and a Haiku rewrite loop. None of it worked, because the failure was that the response was generated against the wrong evidence in the first place. Plan 2 moved the manifest to a pre-generation Haiku call producing a structured evidence brief placed adjacent to the user's question. **Rule:** semantic LLM behavior is shaped by what the model sees before generating, not by checks run after. Validation belongs at structural layers (action emission, approval gating, authority resolution), not at semantic layers.
 
-### 2. Cortex tables use a `data` jsonb column, not top-level fields
+### 2. Cortex context tables use a `data` jsonb column; Pattern Library and Authority Grants are hybrid
 
-The Marcus manifest builder bug shape was: query `kinetiks_voice` instead of `kinetiks_context_voice`, expect top-level fields rather than the `data` jsonb shape with `confidence_score` sibling, and pass `auth.users.id` instead of `kinetiks_accounts.id`. **Rule:** all `kinetiks_context_*` tables and `kinetiks_pattern_library` follow the `(account_id, data jsonb, confidence_score float, ...)` shape. `kinetiks_authority_grants` is a hybrid - lifecycle fields are top-level columns; the granted-capabilities envelope is jsonb. Read through `@kinetiks/cortex/context-readers`, never raw selects from feature code.
+The Marcus manifest builder bug shape was: query `kinetiks_voice` instead of `kinetiks_context_voice`, expect top-level fields rather than the `data` jsonb shape with `confidence_score` sibling, and pass `auth.users.id` instead of `kinetiks_accounts.id`. **Rule:** all `kinetiks_context_*` tables follow the `(account_id, data jsonb, confidence_score float, ...)` shape. `kinetiks_pattern_library` and `kinetiks_authority_grants` are hybrid: queryable lifecycle fields (status, scope, confidence_score, decay_at, user_starred, etc.) are top-level columns for indexing, RLS, constraints, and the read paths that filter on them; the variable-shape payload (`dimensions` + `outcome_metrics` for patterns; `granted_capabilities` + `escalation_triggers` + `usage_summary` for grants) is jsonb. The hybrid is necessary because the read path for patterns needs indexed access on `(pattern_type, status, applies_to_icp, confidence_score, decay_at)` and the authority resolution path runs on every consequential action and must filter cheaply. Read through `@kinetiks/cortex/context-readers` for context layers, and through `apps/id/src/lib/cortex/patterns/list.ts` (the single shared helper feeding both `query_patterns` and the Cortex Patterns UI) for patterns; never raw selects from feature code.
 
 ### 3. False promises are worse than silence
 
