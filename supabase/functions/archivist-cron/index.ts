@@ -1,8 +1,13 @@
 // Archivist CRON Edge Function
 //
-// Runs every 6 hours. Triggers a full clean pass for all onboarded accounts
-// via the /api/archivist/clean endpoint. The clean pass includes deduplication,
-// normalization, gap detection, and quality scoring.
+// Runs every 6 hours. Two passes per onboarded account:
+//   1. /api/archivist/clean — deduplication, normalization, gap detection,
+//      quality scoring on Cortex context layers.
+//   2. /api/archivist/patterns/sweep (L1a, per 2027 addendum §1.9) —
+//      time-based Pattern Library decay: validated → declining when
+//      now - last_observed_at > effective_decay_days * 0.7, and
+//      declining → archived when now > decay_at. User-starred patterns
+//      are exempt.
 //
 // CRON schedule: every 6 hours ("0 */6 * * *")
 
@@ -62,16 +67,15 @@ Deno.serve(async () => {
   const allIds = accounts.map((a) => a.id as string);
   let accountsProcessed = 0;
   let totalErrors = 0;
+  let patternSweepProcessed = 0;
+  let patternSweepErrors = 0;
 
-  // Process in batches
-  for (let i = 0; i < allIds.length; i += API_BATCH_SIZE) {
-    const batchIds = allIds.slice(i, i + API_BATCH_SIZE);
-
+  // Helper: POST to an internal endpoint with timeout + service auth.
+  async function postInternal(path: string, batchIds: string[]): Promise<{ ok: boolean; body: unknown }> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-
     try {
-      const response = await fetch(`${APP_URL}/api/archivist/clean`, {
+      const response = await fetch(`${APP_URL}${path}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -80,17 +84,29 @@ Deno.serve(async () => {
         body: JSON.stringify({ account_ids: batchIds }),
         signal: controller.signal,
       });
-
-      if (!response.ok) {
-        console.error(
-          `[archivist-cron] Clean API returned ${response.status} for batch starting at index ${i}`
-        );
-        totalErrors += batchIds.length;
-        continue;
+      if (!response.ok) return { ok: false, body: { status: response.status } };
+      const json = await response.json();
+      return { ok: true, body: json };
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        console.error(`[archivist-cron] ${path} timed out after ${FETCH_TIMEOUT_MS}ms`);
+      } else {
+        console.error(`[archivist-cron] ${path} failed:`, err);
       }
+      return { ok: false, body: { error: String(err) } };
+    } finally {
+      clearTimeout(timer);
+    }
+  }
 
-      // Response contains either a single result or { results: [...], accounts_processed }
-      const result = await response.json();
+  // Pass 1: clean Cortex layers. Process in batches.
+  for (let i = 0; i < allIds.length; i += API_BATCH_SIZE) {
+    const batchIds = allIds.slice(i, i + API_BATCH_SIZE);
+    const { ok, body } = await postInternal("/api/archivist/clean", batchIds);
+    if (!ok) {
+      totalErrors += batchIds.length;
+    } else {
+      const result = body as { accounts_processed?: number; results?: unknown[] };
       let resultCount: number;
       if (typeof result.accounts_processed === "number") {
         resultCount = result.accounts_processed;
@@ -100,23 +116,27 @@ Deno.serve(async () => {
         resultCount = 1;
       }
       accountsProcessed += resultCount;
-    } catch (err) {
-      if (err instanceof DOMException && err.name === "AbortError") {
-        console.error(
-          `[archivist-cron] Clean API timed out after ${FETCH_TIMEOUT_MS}ms for batch starting at index ${i}`
-        );
-      } else {
-        console.error(
-          `[archivist-cron] Failed to call clean API for batch starting at index ${i}:`,
-          err
-        );
-      }
-      totalErrors += batchIds.length;
-    } finally {
-      clearTimeout(timer);
     }
 
-    // Pause between batches to avoid overwhelming the endpoint
+    if (i + API_BATCH_SIZE < allIds.length) {
+      await new Promise((resolve) => setTimeout(resolve, BATCH_DELAY_MS));
+    }
+  }
+
+  // Pass 2: Pattern Library time-decay sweep. Same batching, same auth.
+  for (let i = 0; i < allIds.length; i += API_BATCH_SIZE) {
+    const batchIds = allIds.slice(i, i + API_BATCH_SIZE);
+    const { ok, body } = await postInternal("/api/archivist/patterns/sweep", batchIds);
+    if (!ok) {
+      patternSweepErrors += batchIds.length;
+    } else {
+      const env = body as { data?: { accounts_processed?: number } };
+      const count =
+        typeof env?.data?.accounts_processed === "number"
+          ? env.data.accounts_processed
+          : batchIds.length;
+      patternSweepProcessed += count;
+    }
     if (i + API_BATCH_SIZE < allIds.length) {
       await new Promise((resolve) => setTimeout(resolve, BATCH_DELAY_MS));
     }
@@ -131,6 +151,8 @@ Deno.serve(async () => {
       accounts_queued: allIds.length,
       accounts_processed: accountsProcessed,
       errors: totalErrors,
+      pattern_sweep_processed: patternSweepProcessed,
+      pattern_sweep_errors: patternSweepErrors,
       timestamp: new Date().toISOString(),
     },
   });
@@ -142,6 +164,8 @@ Deno.serve(async () => {
     accounts_queued: allIds.length,
     accounts_processed: accountsProcessed,
     errors: totalErrors,
+    pattern_sweep_processed: patternSweepProcessed,
+    pattern_sweep_errors: patternSweepErrors,
   };
 
   console.log("[archivist-cron] Run complete:", JSON.stringify(summary));
