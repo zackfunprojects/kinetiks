@@ -100,7 +100,18 @@ export type LedgerEventType =
   | "archivist_clean"
   | "expiration"
   | "import"
-  | "archivist_gap_detect";
+  | "archivist_gap_detect"
+  // Pattern Library (2027 addendum §1.13)
+  | "pattern_observed"
+  | "pattern_arbitrated"
+  | "pattern_user_starred"
+  | "pattern_user_unstarred"
+  | "pattern_user_suppressed"
+  | "pattern_user_unsuppressed"
+  | "pattern_user_annotated"
+  | "pattern_exported"
+  | "pattern_imported"
+  | "pattern_archived";
 
 export interface LedgerEntry {
   id: string;
