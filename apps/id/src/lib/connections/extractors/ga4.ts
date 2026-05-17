@@ -245,11 +245,13 @@ function parseGa4Number(raw: string, metric: Ga4MetricKey): number {
 export async function createGa4Client(
   creds: StoredOAuthCredentials
 ): Promise<Ga4Client> {
-  // Lazy import keeps unit tests fast and lets us defer the dependency to
-  // production / smoke-test code paths only.
+  // Lazy import + webpackIgnore: keeps the GA4 SDK out of every static
+  // bundle. The runtime guard in instrumentation.ts ensures this code
+  // only executes under Node — the SDK uses node:net / node:fs / node:tls
+  // (via gRPC + gaxios) and would otherwise blow the Edge bundle.
   const [{ BetaAnalyticsDataClient }, { OAuth2Client }] = await Promise.all([
-    import("@google-analytics/data"),
-    import("google-auth-library"),
+    import(/* webpackIgnore: true */ "@google-analytics/data"),
+    import(/* webpackIgnore: true */ "google-auth-library"),
   ]);
 
   const auth = new OAuth2Client();

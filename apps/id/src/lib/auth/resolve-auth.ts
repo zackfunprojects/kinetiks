@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { hashApiKey, isKineticsApiKey } from "./api-keys";
-import { timingSafeEqual } from "crypto";
+import { timingSafeEqual } from "node:crypto";
 import type { AuthenticatedContext, ApiKeyPermission } from "@kinetiks/types";
 
 /**

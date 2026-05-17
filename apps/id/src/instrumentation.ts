@@ -1,35 +1,21 @@
 /**
- * Next.js instrumentation: runs once on server boot in both Node and
- * Edge runtimes. We use it to wire up cross-cutting platform concerns
- * that every later request depends on.
+ * Next.js instrumentation entry. Runs on every server boot in BOTH the
+ * Node and Edge runtimes — so the body must NOT import any module that
+ * touches Node-only APIs (node:crypto, node:fs, native bindings,
+ * @grpc/grpc-js, anything in @kinetiks/* that reaches them).
  *
- * Node runtime wires:
- *  - `@kinetiks/ai` router → Supabase ai_calls logger + prompt-task registry
- *  - `@kinetiks/tools` registry → Supabase tool_calls logger, platform
- *    tools (noop_test, list_capabilities, query_patterns, query_actions_authority),
- *    cross-registry validation
+ * Standard Next.js 14+ pattern: keep this file tiny; conditionally load
+ * a Node-only sibling under a process.env.NEXT_RUNTIME guard. Next.js's
+ * runtime-aware code splitting ensures the sibling module is never
+ * bundled into the Edge chunk.
  *
- * The boot path is intentionally fail-loud. A malformed descriptor or
- * an unregistered task surfaces here at startup, not at runtime.
+ * The actual wiring lives in ./instrumentation-node.ts.
  */
 export async function register(): Promise<void> {
-  if (process.env.NEXT_RUNTIME !== "nodejs") return;
-
-  const { configureAICallLogger } = await import("@kinetiks/ai");
-  const { supabaseAICallLogger } = await import("./lib/ai/logger");
-  configureAICallLogger(supabaseAICallLogger);
-
-  const { registerKinetiksPromptTasks } = await import("./lib/ai/task-registry");
-  registerKinetiksPromptTasks();
-
-  const { registerKinetiksStateMachines } = await import("./lib/state-machines-init");
-  registerKinetiksStateMachines();
-
-  const { bootToolRegistry } = await import("./lib/tools/registry-boot");
-  bootToolRegistry();
-
-  // Side-effect import: each module under connections/extractors calls
-  // registerExtractor() at load. The barrel is the single place we add
-  // a new provider's extractor file as it ships.
-  await import("./lib/connections/extractors");
+  if (process.env.NEXT_RUNTIME === "nodejs") {
+    const { bootNodeInstrumentation } = await import(
+      "./instrumentation-node"
+    );
+    bootNodeInstrumentation();
+  }
 }

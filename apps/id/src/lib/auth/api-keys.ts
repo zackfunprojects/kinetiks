@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from "crypto";
+import { createHash, randomBytes } from "node:crypto";
 
 const KEY_PREFIX = "kntk_";
 const KEY_RANDOM_LENGTH = 30; // 30 bytes -> 40 base64url chars

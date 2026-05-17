@@ -107,8 +107,8 @@ async function listGa4Properties(creds: {
   access_token: string;
   refresh_token: string | null;
 }): Promise<Ga4Property[]> {
-  const { OAuth2Client } = await import("google-auth-library");
-  const { google } = await import("googleapis");
+  const { OAuth2Client } = await import(/* webpackIgnore: true */ "google-auth-library");
+  const { google } = await import(/* webpackIgnore: true */ "googleapis");
 
   const auth = new OAuth2Client();
   auth.setCredentials({

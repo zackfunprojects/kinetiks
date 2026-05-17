@@ -1,7 +1,7 @@
 import { requireAuth } from "@/lib/auth/require-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { apiSuccess, apiError } from "@/lib/utils/api-response";
-import { randomBytes } from "crypto";
+import { randomBytes } from "node:crypto";
 import type { WebhookEventType } from "@kinetiks/types";
 
 const VALID_EVENTS: WebhookEventType[] = [
