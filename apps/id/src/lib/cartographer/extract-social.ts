@@ -1,5 +1,5 @@
 import type { NarrativeData } from "@kinetiks/types";
-import { askClaude } from "@kinetiks/ai";
+import { routeAskClaude } from "@kinetiks/ai";
 import {
   CARTOGRAPHER_NARRATIVE_EXTRACTION_PROMPT,
   buildNarrativeExtractionPrompt,
@@ -131,11 +131,12 @@ export async function extractSocial(
         const content = truncateContent(aboutContent, 5000);
         const prompt = buildNarrativeExtractionPrompt(content, url);
 
-        const response = await askClaude(prompt, {
-          system: CARTOGRAPHER_NARRATIVE_EXTRACTION_PROMPT,
-          model: "claude-haiku-4-5-20251001",
-          maxTokens: 1024,
-        });
+        const response = await routeAskClaude(
+          "cartographer.extract_social",
+          prompt,
+          CARTOGRAPHER_NARRATIVE_EXTRACTION_PROMPT,
+          { maxTokens: 1024, context: {} },
+        );
 
         const parsed = parseClaudeJSON<Partial<NarrativeData>>(response);
 

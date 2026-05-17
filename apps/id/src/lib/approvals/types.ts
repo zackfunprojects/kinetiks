@@ -35,7 +35,14 @@ export type PreviewType =
   | "pitch"
   | "social_post"
   | "config_change"
-  | "budget";
+  | "budget"
+  | "context_edit";
+
+/** The three approval classes per CLAUDE.md. UI for budget/authority lands in L2b. */
+export type ApprovalClass =
+  | "standard"
+  | "budget_proposal"
+  | "authority_grant_proposal";
 
 export type EditClassificationType =
   | "tone_adjustment"

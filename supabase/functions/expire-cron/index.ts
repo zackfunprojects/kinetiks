@@ -148,6 +148,71 @@ Deno.serve(async () => {
     }
   }
 
+  // ── 4. Expire pending approvals past expires_at ──
+  // Per approval-system-spec §6.2 and F3 plan: quick=24h, review=72h,
+  // strategic=7d; the pipeline sets `expires_at` accordingly. The state
+  // machine trigger on kinetiks_approvals allows pending → expired.
+  const { data: expiredApprovals, error: err3 } = await admin
+    .from("kinetiks_approvals")
+    .update({
+      status: "expired",
+      acted_at: now,
+    })
+    .eq("status", "pending")
+    .not("expires_at", "is", null)
+    .lt("expires_at", now)
+    .select("id, account_id, source_app, action_category, approval_type")
+    .limit(BATCH_SIZE);
+
+  if (err3) {
+    console.error("[expire-cron] Approval expiration query failed:", err3);
+  }
+
+  if (expiredApprovals && expiredApprovals.length > 0) {
+    const ledgerEntries = expiredApprovals.map((a) => ({
+      account_id: a.account_id,
+      event_type: "approval_expired",
+      source_app: a.source_app,
+      source_operator: "approval_expiration",
+      target_layer: null,
+      detail: {
+        approval_id: a.id,
+        approval_type: a.approval_type,
+        action_category: a.action_category,
+      },
+    }));
+
+    const { error: ledgerErr } = await admin
+      .from("kinetiks_ledger")
+      .insert(ledgerEntries);
+    if (ledgerErr) {
+      console.error("[expire-cron] Approval ledger insert failed:", ledgerErr);
+    }
+
+    // Emit insights so the user has visibility into the queue cleanup.
+    const insightRows = expiredApprovals.map((a) => ({
+      account_id: a.account_id,
+      type: "approval_outcome",
+      severity: "info",
+      summary: `Expired pending approval: ${a.action_category}.`,
+      evidence: {
+        approval_id: a.id,
+        approval_type: a.approval_type,
+        action_category: a.action_category,
+      },
+      source_app: a.source_app,
+      source_operator: "approval_expiration",
+      approval_id: a.id,
+    }));
+    const { error: insightErr } = await admin
+      .from("kinetiks_insights")
+      .insert(insightRows);
+    if (insightErr) {
+      // Insights table may not exist in older environments; warn and continue.
+      console.warn("[expire-cron] Insights insert failed:", insightErr);
+    }
+  }
+
   // Log summary to ledger
   const { error: summaryLedgerErr } = await admin
     .from("kinetiks_ledger")
@@ -159,6 +224,7 @@ Deno.serve(async () => {
         expired_explicit: (expiredExplicit ?? []).length,
         expired_stale: (expiredStale ?? []).length,
         superseded: supersededCount,
+        expired_approvals: (expiredApprovals ?? []).length,
         timestamp: now,
       },
     });
@@ -170,7 +236,8 @@ Deno.serve(async () => {
     expired_explicit: (expiredExplicit ?? []).length,
     expired_stale: (expiredStale ?? []).length,
     superseded: supersededCount,
-    total_expired: allExpired.length,
+    expired_approvals: (expiredApprovals ?? []).length,
+    total_expired: allExpired.length + (expiredApprovals ?? []).length,
   };
 
   console.log("[expire-cron] Run complete:", JSON.stringify(summary));

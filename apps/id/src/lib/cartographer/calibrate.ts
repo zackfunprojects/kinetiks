@@ -5,7 +5,7 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { askClaude } from "@kinetiks/ai";
+import { routeAskClaude } from "@kinetiks/ai";
 import {
   CALIBRATION_GENERATION_PROMPT,
   buildCalibrationPrompt,
@@ -106,11 +106,12 @@ export async function generateCalibrationExercises(
     count
   );
 
-  const response = await askClaude(userPrompt, {
-    system: CALIBRATION_GENERATION_PROMPT,
-    model: "claude-sonnet-4-20250514",
-    maxTokens: 4096,
-  });
+  const response = await routeAskClaude(
+    "cartographer.calibrate",
+    userPrompt,
+    CALIBRATION_GENERATION_PROMPT,
+    { maxTokens: 4096, context: {} },
+  );
 
   const parsed = parseJSON<CalibrationExercise[]>(response);
   if (!parsed || !Array.isArray(parsed) || parsed.length === 0) {

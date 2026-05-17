@@ -4,7 +4,8 @@
  * Returns both competitive and market layer data in a single Claude call.
  */
 
-import { askClaude, loadKnowledge } from "@kinetiks/ai";
+import { routeAskClaude } from "@kinetiks/ai";
+import { loadKnowledge } from "@kinetiks/ai/knowledge";
 import {
   CARTOGRAPHER_POSITIONING_EXTRACTION_PROMPT,
   buildPositioningExtractionPrompt,
@@ -91,11 +92,12 @@ export async function extractPositioning(
       ? `${CARTOGRAPHER_POSITIONING_EXTRACTION_PROMPT}\n\n## Positioning Analysis Methodology\n${methodology}`
       : CARTOGRAPHER_POSITIONING_EXTRACTION_PROMPT;
 
-    const response = await askClaude(prompt, {
-      system: systemPrompt,
-      model: "claude-sonnet-4-20250514",
-      maxTokens: 2048,
-    });
+    const response = await routeAskClaude(
+      "cartographer.extract_positioning",
+      prompt,
+      systemPrompt,
+      { maxTokens: 2048, context: {} },
+    );
 
     const parsed = parseClaudeJSON<PositioningResponse>(response);
     if (!parsed) {

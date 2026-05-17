@@ -6,7 +6,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ContextLayer } from "@kinetiks/types";
-import { askClaude } from "@kinetiks/ai";
+import { routeAskClaude } from "@kinetiks/ai";
 import {
   CONVERSATION_QUESTION_PROMPT,
   CONVERSATION_ANSWER_EXTRACTION_PROMPT,
@@ -201,11 +201,12 @@ export async function generateNextQuestion(
     fromApp
   );
 
-  const response = await askClaude(userPrompt, {
-    system: CONVERSATION_QUESTION_PROMPT,
-    model: "claude-haiku-4-5-20251001",
-    maxTokens: 512,
-  });
+  const response = await routeAskClaude(
+    "cartographer.conversation",
+    userPrompt,
+    CONVERSATION_QUESTION_PROMPT,
+    { model: "claude-haiku-4-5-20251001", maxTokens: 512, context: { accountId } },
+  );
 
   const parsed = parseJSON<ConversationQuestion>(response);
   if (!parsed || !parsed.question || !parsed.targetLayers) return null;
@@ -240,11 +241,12 @@ export async function processAnswer(
     contextSummary
   );
 
-  const response = await askClaude(userPrompt, {
-    system: CONVERSATION_ANSWER_EXTRACTION_PROMPT,
-    model: "claude-sonnet-4-20250514",
-    maxTokens: 2048,
-  });
+  const response = await routeAskClaude(
+    "cartographer.conversation",
+    userPrompt,
+    CONVERSATION_ANSWER_EXTRACTION_PROMPT,
+    { maxTokens: 2048, context: { accountId } },
+  );
 
   const extracted = parseJSON<Record<string, Record<string, unknown>>>(response);
   if (!extracted || Object.keys(extracted).length === 0) {

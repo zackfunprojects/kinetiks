@@ -6,6 +6,14 @@ import type {
   DEFAULT_THRESHOLDS,
 } from "./types";
 import { DEFAULT_THRESHOLDS as DEFAULTS } from "./types";
+import { computeThresholdUpdate } from "./threshold-math";
+
+// Re-export pure math for callers that want to predict-without-persist.
+export {
+  computeThresholdUpdate,
+  type ThresholdState,
+  type ThresholdUpdate,
+} from "./threshold-math";
 
 /**
  * Get threshold for an action category. Returns DB record or default.
@@ -62,10 +70,8 @@ export function shouldAutoApprove(
 }
 
 /**
- * Calibrate threshold after an approval event.
- *
- * Trust expansion: 20 consecutive clean -> -5pts, 50 consecutive -> another -5pts
- * Trust contraction: 1 rejection -> +10pts, 2 in 7 days -> +20pts, 3 in 7 days -> reset to 100
+ * Calibrate threshold after an approval event. Persists the result.
+ * Pure math lives in `./threshold-math` and is unit-tested separately.
  */
 export async function calibrateThreshold(
   accountId: string,
@@ -77,51 +83,23 @@ export async function calibrateThreshold(
   // Ensure record exists
   const existing = await getThreshold(accountId, category);
 
+  const recentRejections =
+    event === "rejected"
+      ? await countRecentRejections(admin, accountId, category, 7)
+      : 0;
+
+  const computed = computeThresholdUpdate({ existing, event, recentRejections });
+
   const updates: Record<string, unknown> = {
     updated_at: new Date().toISOString(),
+    auto_approve_threshold: computed.auto_approve_threshold,
+    consecutive_approvals: computed.consecutive_approvals,
+    total_approvals: computed.total_approvals,
+    total_rejections: computed.total_rejections,
+    approval_rate: computed.approval_rate,
   };
-
-  if (event === "approved_clean") {
-    const newConsecutive = existing.consecutive_approvals + 1;
-    const newTotal = existing.total_approvals + 1;
-    updates.consecutive_approvals = newConsecutive;
-    updates.total_approvals = newTotal;
-    updates.approval_rate = calculateRate(newTotal, existing.total_rejections);
-
-    // Trust expansion thresholds
-    let threshold = existing.auto_approve_threshold;
-    if (newConsecutive === 20) threshold = Math.max(threshold - 5, 0);
-    if (newConsecutive === 50) threshold = Math.max(threshold - 5, 0);
-    updates.auto_approve_threshold = threshold;
-  } else if (event === "approved_with_edits") {
-    // Edits break the consecutive streak but count as approval
-    const newTotal = existing.total_approvals + 1;
-    updates.consecutive_approvals = 0;
-    updates.total_approvals = newTotal;
-    updates.approval_rate = calculateRate(newTotal, existing.total_rejections);
-    // edit_rate is updated separately when edit analysis completes
-  } else if (event === "rejected") {
-    const newRejections = existing.total_rejections + 1;
-    updates.consecutive_approvals = 0;
-    updates.total_rejections = newRejections;
-    updates.last_rejection_at = new Date().toISOString();
-    updates.approval_rate = calculateRate(existing.total_approvals, newRejections);
-
-    // Trust contraction
-    let threshold = existing.auto_approve_threshold;
-    const recentRejections = await countRecentRejections(admin, accountId, category, 7);
-
-    if (recentRejections >= 3) {
-      // 3 rejections in 7 days: reset to 100 (always ask)
-      threshold = 100;
-    } else if (recentRejections >= 2) {
-      // 2 in 7 days: +20 and reverse all auto-reductions
-      threshold = Math.min(threshold + 20, 100);
-    } else {
-      // Single rejection: +10
-      threshold = Math.min(threshold + 10, 100);
-    }
-    updates.auto_approve_threshold = threshold;
+  if (computed.last_rejection_at) {
+    updates.last_rejection_at = computed.last_rejection_at;
   }
 
   // Upsert threshold record
@@ -164,12 +142,6 @@ export async function setOverride(
       },
       { onConflict: "account_id,action_category" }
     );
-}
-
-function calculateRate(approvals: number, rejections: number): number {
-  const total = approvals + rejections;
-  if (total === 0) return 0;
-  return Math.round((approvals / total) * 10000) / 100;
 }
 
 async function countRecentRejections(

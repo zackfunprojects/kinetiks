@@ -1,8 +1,45 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { resolveProposal } from "@kinetiks/cortex";
 import type { ApprovalRecord, ApprovalAction } from "./types";
+import type { ContextLayer } from "@kinetiks/types";
 import { calibrateThreshold } from "./threshold";
 import { analyzeEdits } from "./edit-analyzer";
 import { emitApprovalEvent } from "./events";
+import { emitInsight } from "@/lib/insights";
+
+/**
+ * For context_edit approvals, resolve the linked Proposal so the merge
+ * actually applies to `kinetiks_context_{layer}`. Auto-approved cases
+ * applied the merge directly via `submitContextEditProposal` →
+ * `evaluateProposal`; this path handles the user-clicks-approve case
+ * for escalated proposals.
+ */
+async function applyContextEditApproval(
+  admin: ReturnType<typeof createAdminClient>,
+  approval: ApprovalRecord,
+  decision: "accept" | "decline",
+  declineReason?: string,
+): Promise<{ layer: ContextLayer; proposalId: string; applied: boolean }> {
+  const content = approval.preview.content as Record<string, unknown>;
+  const proposalId = content.proposal_id as string | undefined;
+  const layer = content.layer as ContextLayer | undefined;
+  if (!proposalId || !layer) {
+    throw new Error("context_edit approval missing proposal_id/layer in preview");
+  }
+  const result = await resolveProposal(
+    admin,
+    approval.account_id,
+    proposalId,
+    decision,
+    "approval_system",
+    declineReason,
+  );
+  return {
+    layer,
+    proposalId,
+    applied: result.status === "accepted" && result.mergeSuccess !== false,
+  };
+}
 
 /**
  * Process a user's approval decision.
@@ -54,6 +91,17 @@ export async function processApprovalDecision(
       throw new Error(`Failed to update approval: ${updateError.message}`);
     }
 
+    // If this is a context_edit approval, apply the linked Proposal now.
+    let contextEditApplied: { layer: ContextLayer; proposalId: string; applied: boolean } | null = null;
+    if (approval.preview?.type === "context_edit") {
+      try {
+        contextEditApplied = await applyContextEditApproval(admin, approval, "accept");
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.error("[approvals] failed to apply context_edit on approve", e);
+      }
+    }
+
     // Calibrate threshold
     const calibrationEvent = hasEdits ? "approved_with_edits" : "approved_clean";
     await calibrateThreshold(
@@ -73,6 +121,7 @@ export async function processApprovalDecision(
         approval_type: approval.approval_type,
         edits: action.edits,
         edit_classification: editClassifications,
+        context_edit: contextEditApplied,
       },
       source_operator: "approval_system",
     });
@@ -85,6 +134,29 @@ export async function processApprovalDecision(
       approval.action_category,
       { edits: action.edits, edit_classification: editClassifications }
     );
+
+    // Emit Insight — captures the approval outcome for Analytics surfacing.
+    void emitInsight(admin, {
+      account_id: approval.account_id,
+      type: contextEditApplied ? "identity_update" : "approval_outcome",
+      severity: "info",
+      summary: contextEditApplied
+        ? `Approved ${contextEditApplied.layer} layer edit (${contextEditApplied.applied ? "applied" : "queued"}).`
+        : `Approved: ${approval.title}.`,
+      evidence: {
+        approval_id: approval.id,
+        approval_type: approval.approval_type,
+        action_category: approval.action_category,
+        had_edits: hasEdits,
+        ...(contextEditApplied
+          ? { layer: contextEditApplied.layer, proposal_id: contextEditApplied.proposalId }
+          : {}),
+      },
+      source_app: approval.source_app,
+      source_operator: "approval_system",
+      approval_id: approval.id,
+      proposal_id: contextEditApplied?.proposalId,
+    });
   } else if (action.action === "reject") {
     // Update approval record
     await admin
@@ -95,6 +167,23 @@ export async function processApprovalDecision(
         acted_at: now,
       })
       .eq("id", approval.id);
+
+    // If this is a context_edit approval, mark the linked Proposal as declined.
+    let contextEditDeclined: { layer: ContextLayer; proposalId: string } | null = null;
+    if (approval.preview?.type === "context_edit") {
+      try {
+        const result = await applyContextEditApproval(
+          admin,
+          approval,
+          "decline",
+          action.rejection_reason ?? "user_rejected",
+        );
+        contextEditDeclined = { layer: result.layer, proposalId: result.proposalId };
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.error("[approvals] failed to decline context_edit on reject", e);
+      }
+    }
 
     // Calibrate threshold (trust contraction)
     await calibrateThreshold(
@@ -113,6 +202,7 @@ export async function processApprovalDecision(
         approval_id: approval.id,
         approval_type: approval.approval_type,
         rejection_reason: action.rejection_reason,
+        context_edit_declined: contextEditDeclined,
       },
       source_operator: "approval_system",
     });
@@ -125,6 +215,26 @@ export async function processApprovalDecision(
       approval.action_category,
       { rejection_reason: action.rejection_reason }
     );
+
+    // Emit Insight — rejections are notable signal (trust contraction).
+    void emitInsight(admin, {
+      account_id: approval.account_id,
+      type: "approval_outcome",
+      severity: "notable",
+      summary: `Rejected: ${approval.title}${action.rejection_reason ? ` (${action.rejection_reason.slice(0, 80)})` : ""}.`,
+      evidence: {
+        approval_id: approval.id,
+        approval_type: approval.approval_type,
+        action_category: approval.action_category,
+        ...(contextEditDeclined
+          ? { layer: contextEditDeclined.layer, proposal_id: contextEditDeclined.proposalId }
+          : {}),
+      },
+      source_app: approval.source_app,
+      source_operator: "approval_system",
+      approval_id: approval.id,
+      proposal_id: contextEditDeclined?.proposalId,
+    });
   }
 }
 
