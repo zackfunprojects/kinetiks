@@ -281,7 +281,12 @@ export function PatternsManager({
         >
           {patterns.map((p) => {
             const tone = STATUS_TONE[p.status];
-            const primaryMetric = p.outcome_metrics[0];
+            // Canonical L1b: single primary outcome on the row.
+            const primaryMetric = {
+              metric_name: p.outcome_metric,
+              value: p.outcome_value,
+              unit: "ratio_0_1", // descriptor declares the unit; row stores value+metric only
+            };
             return (
               <li
                 key={p.id}
@@ -330,7 +335,7 @@ export function PatternsManager({
                     {humanizeType(p.pattern_type)}
                   </strong>
                   <span style={{ color: "var(--kt-fg-3)", fontSize: "var(--kt-fs-12, 12px)" }}>
-                    via {p.emitting_app}
+                    via {p.source_app}
                   </span>
                   {p.user_starred && (
                     <span

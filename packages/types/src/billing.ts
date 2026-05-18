@@ -243,11 +243,16 @@ export type LedgerEventType = keyof LedgerEventDetailMap;
 /**
  * Discriminated union: each LedgerEntry variant carries an event_type
  * and the matching detail shape. Readers narrow on event_type to
- * access detail fields.
+ * access typed detail fields.
  *
- * Note: `account_id` is nullable because some platform-level events
- * (e.g. archivist_cron_run summaries) are not scoped to a single
- * account.
+ * detail is the typed shape PLUS an open extension: writers may
+ * include arbitrary additional fields (legacy writers add display
+ * fields the typed map doesn't enumerate, and that is allowed without
+ * cascading type errors). Readers that access untyped extras should
+ * narrow the access via index notation.
+ *
+ * `account_id` is nullable because some platform-level events (e.g.
+ * archivist_cron_run summaries) are not scoped to a single account.
  */
 export type LedgerEntry = {
   [K in LedgerEventType]: {
@@ -257,7 +262,7 @@ export type LedgerEntry = {
     source_app: string | null;
     source_operator: string | null;
     target_layer: ContextLayer | null;
-    detail: LedgerEventDetailMap[K];
+    detail: LedgerEventDetailMap[K] & { [key: string]: unknown };
     created_at: string;
   };
 }[LedgerEventType];

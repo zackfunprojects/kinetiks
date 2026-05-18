@@ -155,24 +155,50 @@ export async function POST(request: Request) {
       continue;
     }
 
-    // Conservative re-emerging insert.
+    // Conservative re-emerging insert per addendum §1.7.
     const initialDecayDays = descriptor.decay_bounds.initial_decay_days;
     const halvedConfidence = Math.max(0, Math.min(1, (entry.confidence_score ?? 0) / 2));
     const nowIso = now.toISOString();
     const decayAt = new Date(now.getTime() + initialDecayDays * 24 * 60 * 60 * 1000).toISOString();
+
+    // outcome_metric must match the descriptor's canonical primary metric.
+    // If the export was made against a different descriptor shape, skip.
+    if (entry.outcome_metric !== descriptor.outcome_metric) {
+      result.skipped += 1;
+      result.errors.push({
+        pattern_type: entry.pattern_type,
+        fingerprint,
+        reason: `outcome_metric '${entry.outcome_metric}' does not match descriptor's '${descriptor.outcome_metric}'`,
+      });
+      continue;
+    }
+
+    const baselineValue = entry.baseline_value ?? null;
+    const liftRatio =
+      baselineValue !== null && baselineValue !== 0
+        ? entry.outcome_value / baselineValue
+        : null;
 
     const { data: inserted, error: insertError } = await admin
       .from("kinetiks_pattern_library")
       .insert({
         account_id: account.id,
         team_scope_id: null,
+        source_app: entry.source_app,
+        source_workflow_id: entry.source_workflow_id ?? null,
         pattern_type: entry.pattern_type,
-        emitting_app: entry.emitting_app,
         applies_to_icp: entry.applies_to_icp ?? null,
         fingerprint,
-        status: "emerging",
-        confidence_score: halvedConfidence,
+        outcome_metric: entry.outcome_metric,
+        outcome_value: entry.outcome_value,
+        outcome_direction: entry.outcome_direction,
+        baseline_value: baselineValue,
+        lift_ratio: liftRatio,
+        sample_size: Math.max(0, entry.sample_size ?? 0),
         observation_count: Math.max(0, entry.observation_count ?? 0),
+        confidence_score: halvedConfidence,
+        variance: entry.variance ?? null,
+        status: "emerging",
         first_observed_at: nowIso,
         last_observed_at: nowIso,
         effective_decay_days: initialDecayDays,
@@ -180,21 +206,20 @@ export async function POST(request: Request) {
         validated_at: null,
         declining_at: null,
         archived_at: null,
+        imported: true,
+        imported_from: {
+          account_id: sourceAccountHash,
+          exported_at: body.exported_at,
+        },
         user_starred: false,
         user_suppressed: false,
         user_annotation: entry.user_annotation ?? null,
         dimensions: parsedDims.data,
-        outcome_metrics: entry.outcome_metrics ?? [],
         evidence_summary: {
           last_n_ledger_ids: [],
           summary: {
             total_evidence_count: Math.max(0, entry.observation_count ?? 0),
             period_days: 0,
-            primary_metric: descriptor.valid_outcome_metrics[0]?.name ?? "",
-            primary_metric_value:
-              (entry.outcome_metrics?.find(
-                (m) => m.metric_name === descriptor.valid_outcome_metrics[0]?.name,
-              )?.value ?? 0),
           },
         },
       })

@@ -103,21 +103,34 @@ export function PatternDetailDialog({ pattern, onClose }: PatternDetailDialogPro
 
         <section aria-labelledby="metrics-h">
           <h3 id="metrics-h" style={sectionHeading}>
-            Outcome metrics
+            Outcome
           </h3>
           <ul style={{ margin: 0, paddingLeft: 18, color: "var(--kt-fg-2)" }}>
-            {pattern.outcome_metrics.map((m) => (
-              <li key={m.metric_name}>
-                <strong style={{ color: "var(--kt-fg-1)" }}>{m.metric_name}</strong>:{" "}
-                {m.unit === "ratio_0_1"
-                  ? `${(m.value * 100).toFixed(1)}%`
-                  : `${m.value.toLocaleString()} ${m.unit}`}
-                <span style={{ color: "var(--kt-fg-3)" }}>
-                  {" "}
-                  (n={m.sample_count.toLocaleString()}, conf={(m.confidence * 100).toFixed(0)}%)
-                </span>
+            <li>
+              <strong style={{ color: "var(--kt-fg-1)" }}>{pattern.outcome_metric}</strong>:{" "}
+              {pattern.outcome_value.toLocaleString()}{" "}
+              <span style={{ color: "var(--kt-fg-3)" }}>
+                ({pattern.outcome_direction === "higher_is_better" ? "↑" : "↓"} better;{" "}
+                n={pattern.sample_size.toLocaleString()})
+              </span>
+            </li>
+            {pattern.baseline_value !== null && (
+              <li>
+                <strong style={{ color: "var(--kt-fg-1)" }}>baseline</strong>:{" "}
+                {pattern.baseline_value.toLocaleString()}
+                {pattern.lift_ratio !== null && (
+                  <span style={{ color: "var(--kt-fg-3)" }}>
+                    {" "}(lift {pattern.lift_ratio.toFixed(2)}x)
+                  </span>
+                )}
               </li>
-            ))}
+            )}
+            {pattern.variance !== null && (
+              <li>
+                <strong style={{ color: "var(--kt-fg-1)" }}>variance</strong>:{" "}
+                {pattern.variance.toFixed(4)}
+              </li>
+            )}
           </ul>
         </section>
 

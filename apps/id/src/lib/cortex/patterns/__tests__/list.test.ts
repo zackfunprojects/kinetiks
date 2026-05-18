@@ -11,16 +11,16 @@ const ACCOUNT_ID = "00000000-0000-0000-0000-000000000001";
 
 function patternType(over: Partial<PatternTypeDescriptor> = {}): PatternTypeDescriptor {
   return {
-    pattern_type: "harvest.outreach_angle_performance",
+    pattern_type: "harvest.outreach_angle_performance.reply_rate",
+    source_app: "harvest",
     description: "Outreach angle x industry x seniority (fixture for list tests).",
-    emitting_apps: ["harvest"],
     read_apps: ["marcus", "harvest", "oracle"],
     customer_visible: true,
     dimensions_schema: z.object({}).passthrough(),
     fingerprint_dimensions: ["angle_kind"],
-    valid_outcome_metrics: [
-      { name: "reply_rate", description: "Replies / sends ratio.", unit: "ratio_0_1" },
-    ],
+    outcome_metric: "reply_rate",
+    outcome_unit: "ratio_0_1",
+    outcome_direction: "higher_is_better",
     decay_bounds: {
       initial_decay_days: 30,
       decay_floor_days: 14,
@@ -172,7 +172,7 @@ afterEach(() => {
 const baseRow = (over: Partial<FakeRow> = {}): FakeRow => ({
   id: "r1",
   account_id: ACCOUNT_ID,
-  pattern_type: "harvest.outreach_angle_performance",
+  pattern_type: "harvest.outreach_angle_performance.reply_rate",
   emitting_app: "harvest",
   status: "validated",
   confidence_score: 0.7,
@@ -241,18 +241,18 @@ describe("listPatterns", () => {
   });
 
   it("respects customer_visible for the customer_ui caller", async () => {
-    registerPatternType(patternType({ pattern_type: "harvest.public", customer_visible: true }));
+    registerPatternType(patternType({ pattern_type: "harvest.public.metric_x", customer_visible: true }));
     registerPatternType(
       patternType({
-        pattern_type: "harvest.internal",
+        pattern_type: "harvest.internal.metric_y",
         customer_visible: false,
         // Pattern Type Registry requires unique fingerprints/dimensions per descriptor
         fingerprint_dimensions: ["angle_kind"],
       }),
     );
     const fake = makeFake([
-      asPatternRow(baseRow({ id: "rp", pattern_type: "harvest.public" })),
-      asPatternRow(baseRow({ id: "ri", pattern_type: "harvest.internal" })),
+      asPatternRow(baseRow({ id: "rp", pattern_type: "harvest.public.metric_x" })),
+      asPatternRow(baseRow({ id: "ri", pattern_type: "harvest.internal.metric_y" })),
     ]);
     const res = await listPatterns(fake, {
       account_id: ACCOUNT_ID,

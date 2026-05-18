@@ -1,29 +1,43 @@
 /**
  * Seed Pattern Type Descriptors for Harvest (the outbound engine), per
- * the Kinetiks Contract Addendum §1.14.
+ * the Kinetiks Contract Addendum §1.3.
  *
- * Three pattern types ship in Phase 1. Each declares mandatory
- * bucketization where its raw inputs are naturally high-cardinality,
- * and an explicit `expected_max_fingerprints_per_account` so the
- * cardinality intent is reviewable.
+ * L1b canonical shape: each descriptor has a SINGLE primary outcome
+ * (outcome_metric + outcome_unit + outcome_direction). Multi-outcome
+ * insights are modeled as separate pattern types sharing fingerprint
+ * dimensions. The L1a multi-outcome types are split here:
+ *
+ *   L1a: harvest.outreach_angle_performance    (reply_rate + meeting_book_rate)
+ *   L1b: harvest.outreach_angle_performance.reply_rate
+ *        harvest.outreach_angle_performance.meeting_book_rate
+ *
+ *   L1a: harvest.sequence_step_conversion      (open_rate + reply_rate)
+ *   L1b: harvest.sequence_step_conversion.open_rate
+ *        harvest.sequence_step_conversion.reply_rate
+ *
+ *   L1a: harvest.icp_resonance                 (reply_rate + meeting_book_rate + deal_close_rate)
+ *   L1b: harvest.icp_resonance.reply_rate
+ *        harvest.icp_resonance.meeting_book_rate
+ *        harvest.icp_resonance.deal_close_rate
+ *
+ * Seven Harvest pattern types total. Each declares mandatory
+ * bucketization where raw inputs are naturally high-cardinality and
+ * an explicit `expected_max_fingerprints_per_account` for cardinality
+ * intent per §1.3.
  *
  * These descriptors live in apps/id for Phase 1 because Harvest does
- * not have an instrumentation.ts boot path yet. When Harvest's boot
- * lands (a separate phase), move this file to apps/hv/src/lib/patterns/
- * and import from there.
+ * not have an instrumentation.ts boot path yet. Move to
+ * apps/hv/src/lib/patterns/ when Harvest's boot lands.
  */
 
 import { z } from "zod";
 import { definePatternType } from "@kinetiks/tools";
 
 // ─────────────────────────────────────────────
-// Bucketization helpers (pure functions, exported for testability)
+// Bucketization helpers (pure functions)
 // ─────────────────────────────────────────────
 
-/**
- * Coarse NAICS-L2-flavored industry buckets. Maps raw free-text or
- * NAICS-coded industry to ~15 broad buckets. Unknown → "other".
- */
+/** Coarse NAICS-L2 industry buckets. */
 export function bucketIndustry(raw: string): string {
   const v = String(raw ?? "").toLowerCase();
   if (/saas|software|tech|engineering|developer|api/.test(v)) return "b2b_saas";
@@ -103,7 +117,7 @@ export function bucketEmployeeCount(rawCount: number): string {
 }
 
 // ─────────────────────────────────────────────
-// Descriptors
+// Shared dimension schemas + bucketize functions
 // ─────────────────────────────────────────────
 
 const ANGLE_KIND_ENUM = [
@@ -120,115 +134,178 @@ const ANGLE_KIND_ENUM = [
 
 const CHANNEL_ENUM = ["email", "linkedin_inmail", "linkedin_connection", "phone", "video"] as const;
 
-export const harvestOutreachAnglePerformance = definePatternType({
-  pattern_type: "harvest.outreach_angle_performance",
-  description:
-    "Outreach angle (closed enum) crossed with industry bucket (~15 NAICS L2) and seniority tier (IC / manager / director / VP / exec), mapped to reply rate and meeting booking rate. Use this to recommend angles likelier to land with a given ICP.",
-  emitting_apps: ["harvest"],
-  read_apps: ["marcus", "oracle", "harvest"],
-  customer_visible: true,
-  dimensions_schema: z.object({
-    angle_kind: z.enum(ANGLE_KIND_ENUM),
-    industry_bucket: z.string(),
-    seniority_tier: z.string(),
-  }),
-  fingerprint_dimensions: ["angle_kind", "industry_bucket", "seniority_tier"],
-  bucketize: (raw) => ({
-    angle_kind: raw.angle_kind,
+const angleSchema = z.object({
+  angle_kind: z.enum(ANGLE_KIND_ENUM),
+  industry_bucket: z.string(),
+  seniority_tier: z.string(),
+});
+
+function bucketAngle(raw: Record<string, unknown>) {
+  return {
+    angle_kind: raw.angle_kind as (typeof ANGLE_KIND_ENUM)[number],
     industry_bucket: bucketIndustry(String(raw.industry ?? raw.industry_bucket ?? "")),
     seniority_tier: bucketSeniority(String(raw.seniority ?? raw.seniority_tier ?? "")),
-  }),
-  valid_outcome_metrics: [
-    { name: "reply_rate", description: "Replies / sends ratio.", unit: "ratio_0_1" },
-    {
-      name: "meeting_book_rate",
-      description: "Meetings booked / sends ratio.",
-      unit: "ratio_0_1",
-    },
-  ],
-  decay_bounds: {
-    initial_decay_days: 60,
-    decay_floor_days: 30,
-    decay_ceiling_days: 180,
-    calibration_sample_threshold: 20,
-  },
-  confidence_thresholds: { validate_at: 0.65, decline_at: 0.35 },
-  expected_max_fingerprints_per_account:
-    ANGLE_KIND_ENUM.length * 15 * 5, // angle × industry × seniority = 675
+  };
+}
+
+const seqSchema = z.object({
+  step_index: z.number().int().min(1).max(12),
+  day_offset_bucket: z.string(),
+  channel: z.enum(CHANNEL_ENUM),
 });
 
-export const harvestSequenceStepConversion = definePatternType({
-  pattern_type: "harvest.sequence_step_conversion",
-  description:
-    "Sequence step (index 1-12) crossed with day-offset bucket (day_0 / day_1_2 / day_3_5 / day_6_10 / day_11_plus) and channel (closed enum), mapped to open rate and reply rate. Use this to recommend send timing and channel selection across the sequence.",
-  emitting_apps: ["harvest"],
-  read_apps: ["marcus", "oracle", "harvest"],
-  customer_visible: true,
-  dimensions_schema: z.object({
-    step_index: z.number().int().min(1).max(12),
-    day_offset_bucket: z.string(),
-    channel: z.enum(CHANNEL_ENUM),
-  }),
-  fingerprint_dimensions: ["step_index", "day_offset_bucket", "channel"],
-  bucketize: (raw) => ({
+function bucketSequenceStep(raw: Record<string, unknown>) {
+  return {
     step_index: Number(raw.step_index ?? 1),
     day_offset_bucket: bucketDayOffset(Number(raw.day_offset ?? raw.day_offset_bucket ?? 0)),
-    channel: raw.channel,
-  }),
-  valid_outcome_metrics: [
-    {
-      name: "open_rate",
-      description: "Opens / sends ratio (email/inmail only; other channels emit 0).",
-      unit: "ratio_0_1",
-    },
-    { name: "reply_rate", description: "Replies / sends ratio.", unit: "ratio_0_1" },
-  ],
-  decay_bounds: {
-    initial_decay_days: 60,
-    decay_floor_days: 30,
-    decay_ceiling_days: 180,
-    calibration_sample_threshold: 20,
-  },
-  confidence_thresholds: { validate_at: 0.65, decline_at: 0.35 },
-  expected_max_fingerprints_per_account: 12 * 5 * CHANNEL_ENUM.length, // 300
+    channel: raw.channel as (typeof CHANNEL_ENUM)[number],
+  };
+}
+
+const icpSchema = z.object({
+  title_family: z.string(),
+  seniority_tier: z.string(),
+  industry_bucket: z.string(),
+  employee_count_band: z.string(),
 });
 
-export const harvestIcpResonance = definePatternType({
-  pattern_type: "harvest.icp_resonance",
-  description:
-    "ICP fit signature: title family (~12 families like 'marketing_leadership'), seniority tier, industry bucket, employee count band. Mapped to reply rate, meeting book rate, and deal close rate. Use this to refine the ICP definition based on what actually books and closes.",
-  emitting_apps: ["harvest"],
-  read_apps: ["marcus", "oracle", "harvest"],
-  customer_visible: true,
-  dimensions_schema: z.object({
-    title_family: z.string(),
-    seniority_tier: z.string(),
-    industry_bucket: z.string(),
-    employee_count_band: z.string(),
-  }),
-  fingerprint_dimensions: [
-    "title_family",
-    "seniority_tier",
-    "industry_bucket",
-    "employee_count_band",
-  ],
-  bucketize: (raw) => ({
+function bucketIcp(raw: Record<string, unknown>) {
+  return {
     title_family: bucketTitleFamily(String(raw.title ?? raw.title_family ?? "")),
     seniority_tier: bucketSeniority(String(raw.seniority ?? raw.seniority_tier ?? "")),
     industry_bucket: bucketIndustry(String(raw.industry ?? raw.industry_bucket ?? "")),
     employee_count_band: bucketEmployeeCount(
       Number(raw.employee_count ?? raw.employee_count_band ?? 0),
     ),
-  }),
-  valid_outcome_metrics: [
-    { name: "reply_rate", description: "Replies / sends ratio.", unit: "ratio_0_1" },
-    { name: "meeting_book_rate", description: "Meetings booked / sends ratio.", unit: "ratio_0_1" },
-    {
-      name: "deal_close_rate",
-      description: "Deals closed / meetings booked ratio.",
-      unit: "ratio_0_1",
-    },
+  };
+}
+
+const ANGLE_FP = 9 * 15 * 5; // 675
+const SEQ_FP = 12 * 5 * CHANNEL_ENUM.length; // 300
+const ICP_FP = 12 * 5 * 15 * 10; // 9000
+
+// ─────────────────────────────────────────────
+// Outreach angle performance (2 outcomes)
+// ─────────────────────────────────────────────
+
+export const harvestOutreachAngleReplyRate = definePatternType({
+  pattern_type: "harvest.outreach_angle_performance.reply_rate",
+  source_app: "harvest",
+  description:
+    "Outreach angle (closed enum) crossed with industry bucket (~15 NAICS L2) and seniority tier mapped to reply rate. Use this to recommend angles likelier to elicit replies for a given ICP.",
+  read_apps: ["marcus", "oracle", "harvest"],
+  customer_visible: true,
+  dimensions_schema: angleSchema,
+  fingerprint_dimensions: ["angle_kind", "industry_bucket", "seniority_tier"],
+  bucketize: bucketAngle,
+  outcome_metric: "reply_rate",
+  outcome_unit: "ratio_0_1",
+  outcome_direction: "higher_is_better",
+  decay_bounds: {
+    initial_decay_days: 60,
+    decay_floor_days: 30,
+    decay_ceiling_days: 180,
+    calibration_sample_threshold: 20,
+  },
+  confidence_thresholds: { validate_at: 0.65, decline_at: 0.35 },
+  expected_max_fingerprints_per_account: ANGLE_FP,
+});
+
+export const harvestOutreachAngleMeetingBookRate = definePatternType({
+  pattern_type: "harvest.outreach_angle_performance.meeting_book_rate",
+  source_app: "harvest",
+  description:
+    "Outreach angle x industry bucket x seniority tier mapped to meeting booking rate. Same fingerprint as the reply_rate variant; tracks the downstream conversion.",
+  read_apps: ["marcus", "oracle", "harvest"],
+  customer_visible: true,
+  dimensions_schema: angleSchema,
+  fingerprint_dimensions: ["angle_kind", "industry_bucket", "seniority_tier"],
+  bucketize: bucketAngle,
+  outcome_metric: "meeting_book_rate",
+  outcome_unit: "ratio_0_1",
+  outcome_direction: "higher_is_better",
+  decay_bounds: {
+    initial_decay_days: 60,
+    decay_floor_days: 30,
+    decay_ceiling_days: 180,
+    calibration_sample_threshold: 20,
+  },
+  confidence_thresholds: { validate_at: 0.65, decline_at: 0.35 },
+  expected_max_fingerprints_per_account: ANGLE_FP,
+});
+
+// ─────────────────────────────────────────────
+// Sequence step conversion (2 outcomes)
+// ─────────────────────────────────────────────
+
+export const harvestSequenceStepOpenRate = definePatternType({
+  pattern_type: "harvest.sequence_step_conversion.open_rate",
+  source_app: "harvest",
+  description:
+    "Sequence step (index 1-12) crossed with day-offset bucket and channel mapped to email/inmail open rate. Other channels emit 0.",
+  read_apps: ["marcus", "oracle", "harvest"],
+  customer_visible: true,
+  dimensions_schema: seqSchema,
+  fingerprint_dimensions: ["step_index", "day_offset_bucket", "channel"],
+  bucketize: bucketSequenceStep,
+  outcome_metric: "open_rate",
+  outcome_unit: "ratio_0_1",
+  outcome_direction: "higher_is_better",
+  decay_bounds: {
+    initial_decay_days: 60,
+    decay_floor_days: 30,
+    decay_ceiling_days: 180,
+    calibration_sample_threshold: 20,
+  },
+  confidence_thresholds: { validate_at: 0.65, decline_at: 0.35 },
+  expected_max_fingerprints_per_account: SEQ_FP,
+});
+
+export const harvestSequenceStepReplyRate = definePatternType({
+  pattern_type: "harvest.sequence_step_conversion.reply_rate",
+  source_app: "harvest",
+  description:
+    "Sequence step x day-offset bucket x channel mapped to reply rate. Use this to recommend send timing across the sequence.",
+  read_apps: ["marcus", "oracle", "harvest"],
+  customer_visible: true,
+  dimensions_schema: seqSchema,
+  fingerprint_dimensions: ["step_index", "day_offset_bucket", "channel"],
+  bucketize: bucketSequenceStep,
+  outcome_metric: "reply_rate",
+  outcome_unit: "ratio_0_1",
+  outcome_direction: "higher_is_better",
+  decay_bounds: {
+    initial_decay_days: 60,
+    decay_floor_days: 30,
+    decay_ceiling_days: 180,
+    calibration_sample_threshold: 20,
+  },
+  confidence_thresholds: { validate_at: 0.65, decline_at: 0.35 },
+  expected_max_fingerprints_per_account: SEQ_FP,
+});
+
+// ─────────────────────────────────────────────
+// ICP resonance (3 outcomes)
+// ─────────────────────────────────────────────
+
+export const harvestIcpResonanceReplyRate = definePatternType({
+  pattern_type: "harvest.icp_resonance.reply_rate",
+  source_app: "harvest",
+  description:
+    "ICP fit signature (title family x seniority x industry bucket x employee count band) mapped to reply rate. The lightest-weight conversion signal — useful for early ICP refinement.",
+  read_apps: ["marcus", "oracle", "harvest"],
+  customer_visible: true,
+  dimensions_schema: icpSchema,
+  fingerprint_dimensions: [
+    "title_family",
+    "seniority_tier",
+    "industry_bucket",
+    "employee_count_band",
   ],
+  bucketize: bucketIcp,
+  outcome_metric: "reply_rate",
+  outcome_unit: "ratio_0_1",
+  outcome_direction: "higher_is_better",
   decay_bounds: {
     initial_decay_days: 90,
     decay_floor_days: 45,
@@ -236,12 +313,71 @@ export const harvestIcpResonance = definePatternType({
     calibration_sample_threshold: 30,
   },
   confidence_thresholds: { validate_at: 0.6, decline_at: 0.3 },
-  // ~12 title families × 5 seniority × 15 industries × 10 employee bands = 9000
-  expected_max_fingerprints_per_account: 12 * 5 * 15 * 10,
+  expected_max_fingerprints_per_account: ICP_FP,
+});
+
+export const harvestIcpResonanceMeetingBookRate = definePatternType({
+  pattern_type: "harvest.icp_resonance.meeting_book_rate",
+  source_app: "harvest",
+  description:
+    "ICP fit signature mapped to meeting booking rate. Stronger ICP signal than reply_rate — captures buyer intent past the initial response.",
+  read_apps: ["marcus", "oracle", "harvest"],
+  customer_visible: true,
+  dimensions_schema: icpSchema,
+  fingerprint_dimensions: [
+    "title_family",
+    "seniority_tier",
+    "industry_bucket",
+    "employee_count_band",
+  ],
+  bucketize: bucketIcp,
+  outcome_metric: "meeting_book_rate",
+  outcome_unit: "ratio_0_1",
+  outcome_direction: "higher_is_better",
+  decay_bounds: {
+    initial_decay_days: 90,
+    decay_floor_days: 45,
+    decay_ceiling_days: 270,
+    calibration_sample_threshold: 30,
+  },
+  confidence_thresholds: { validate_at: 0.6, decline_at: 0.3 },
+  expected_max_fingerprints_per_account: ICP_FP,
+});
+
+export const harvestIcpResonanceDealCloseRate = definePatternType({
+  pattern_type: "harvest.icp_resonance.deal_close_rate",
+  source_app: "harvest",
+  description:
+    "ICP fit signature mapped to deal close rate (deals closed / meetings booked). The strongest ICP signal; refines the customer's working definition of who buys.",
+  read_apps: ["marcus", "oracle", "harvest"],
+  customer_visible: true,
+  dimensions_schema: icpSchema,
+  fingerprint_dimensions: [
+    "title_family",
+    "seniority_tier",
+    "industry_bucket",
+    "employee_count_band",
+  ],
+  bucketize: bucketIcp,
+  outcome_metric: "deal_close_rate",
+  outcome_unit: "ratio_0_1",
+  outcome_direction: "higher_is_better",
+  decay_bounds: {
+    initial_decay_days: 120,
+    decay_floor_days: 60,
+    decay_ceiling_days: 365,
+    calibration_sample_threshold: 30,
+  },
+  confidence_thresholds: { validate_at: 0.6, decline_at: 0.3 },
+  expected_max_fingerprints_per_account: ICP_FP,
 });
 
 export const harvestDescriptors = [
-  harvestOutreachAnglePerformance,
-  harvestSequenceStepConversion,
-  harvestIcpResonance,
+  harvestOutreachAngleReplyRate,
+  harvestOutreachAngleMeetingBookRate,
+  harvestSequenceStepOpenRate,
+  harvestSequenceStepReplyRate,
+  harvestIcpResonanceReplyRate,
+  harvestIcpResonanceMeetingBookRate,
+  harvestIcpResonanceDealCloseRate,
 ] as const;

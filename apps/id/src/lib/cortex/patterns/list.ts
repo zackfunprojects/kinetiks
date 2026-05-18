@@ -10,8 +10,10 @@
  *   - caller_app === "customer_ui": include only patterns whose
  *     descriptor.customer_visible === true
  *
- * Default ordering: confidence_score DESC, last_observed_at DESC,
- * observation_count DESC. Suppressed patterns excluded by default;
+ * Default ordering: lift_ratio DESC NULLS LAST, confidence_score DESC,
+ * last_observed_at DESC, observation_count DESC. Per canonical §1.5
+ * the lift_ratio drives ranking (when present); confidence + recency
+ * + observation breadth break ties. Suppressed patterns excluded by default;
  * archived patterns excluded unless explicitly requested via
  * `include_archived: true` (the tool never requests it; the UI requests
  * it via the dedicated archived view).
@@ -114,7 +116,7 @@ export async function listPatterns(
     .in("status", statusFilter);
 
   if (input.source_apps && input.source_apps.length > 0) {
-    query = query.in("emitting_app", input.source_apps);
+    query = query.in("source_app", input.source_apps);
   }
   if (input.applies_to_icp !== undefined) {
     if (input.applies_to_icp === null) {
@@ -134,6 +136,7 @@ export async function listPatterns(
   }
 
   query = query
+    .order("lift_ratio", { ascending: false, nullsFirst: false })
     .order("confidence_score", { ascending: false })
     .order("last_observed_at", { ascending: false })
     .order("observation_count", { ascending: false })

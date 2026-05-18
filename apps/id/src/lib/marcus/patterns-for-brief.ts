@@ -27,12 +27,16 @@ interface AdminLike {
 export interface PatternForBrief {
   pattern_id: string;
   pattern_type: string;
-  emitting_app: string;
+  source_app: string;
   status: "emerging" | "validated" | "declining";
   applies_to_icp: string | null;
   confidence_score: number;
   observation_count: number;
+  sample_size: number;
+  /** Single primary outcome per canonical §1.2. */
   primary_metric: { name: string; value: number; unit: string } | null;
+  /** outcome_value / baseline_value when both present. */
+  lift_ratio: number | null;
   summary: string;
 }
 
@@ -91,25 +95,34 @@ export async function loadPatternsForBrief(args: {
 }
 
 function toBriefShape(p: Pattern): PatternForBrief {
-  const primary = p.outcome_metrics[0] ?? null;
+  // Canonical L1b: row carries a single primary outcome. The unit is
+  // descriptor-declared and not stored on the row; we default to
+  // "ratio_0_1" for ratios under 1 and "count" otherwise as a display
+  // heuristic. The real unit is in the registry snapshot.
+  const inferredUnit =
+    Math.abs(p.outcome_value) <= 1 ? "ratio_0_1" : "count";
+  const primary = {
+    name: p.outcome_metric,
+    value: p.outcome_value,
+    unit: inferredUnit,
+  };
   const dims = compactDimensions(p.dimensions);
-  const primaryStr = primary
-    ? formatPrimary({ name: primary.metric_name, value: primary.value, unit: primary.unit })
-    : null;
-  // Single-line summary: type, ICP if present, key dims, primary metric.
-  // No statistics dump; just the load-bearing values.
+  const primaryStr = formatPrimary(primary);
+  // Single-line summary: type, ICP if present, key dims, primary metric,
+  // confidence, lift, sample size. No raw statistics dump.
   const parts = [
     humanize(p.pattern_type),
     p.applies_to_icp ? `icp=${p.applies_to_icp}` : null,
     dims || null,
     primaryStr,
+    p.lift_ratio !== null ? `lift=${p.lift_ratio.toFixed(2)}x` : null,
     `conf=${(p.confidence_score * 100).toFixed(0)}%`,
-    `n=${p.observation_count}`,
+    `n=${p.sample_size}`,
   ].filter(Boolean);
   return {
     pattern_id: p.id,
     pattern_type: p.pattern_type,
-    emitting_app: p.emitting_app,
+    source_app: p.source_app,
     status: (p.status === "archived" ? "validated" : p.status) as
       | "emerging"
       | "validated"
@@ -117,9 +130,9 @@ function toBriefShape(p: Pattern): PatternForBrief {
     applies_to_icp: p.applies_to_icp,
     confidence_score: p.confidence_score,
     observation_count: p.observation_count,
-    primary_metric: primary
-      ? { name: primary.metric_name, value: primary.value, unit: primary.unit }
-      : null,
+    sample_size: p.sample_size,
+    primary_metric: primary,
+    lift_ratio: p.lift_ratio,
     summary: parts.join(" | "),
   };
 }

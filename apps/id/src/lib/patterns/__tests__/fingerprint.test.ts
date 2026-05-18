@@ -11,17 +11,17 @@ import {
 const descriptor = (
   over: Partial<PatternTypeDescriptor> = {},
 ): PatternTypeDescriptor => ({
-  pattern_type: "test.signature",
+  pattern_type: "test.signature.rate",
+  source_app: "test",
   description:
     "A fixture pattern descriptor for the fingerprint unit tests; values are arbitrary.",
-  emitting_apps: ["test"],
   read_apps: ["test"],
   customer_visible: false,
   dimensions_schema: z.object({}).passthrough(),
   fingerprint_dimensions: ["a", "b", "c"],
-  valid_outcome_metrics: [
-    { name: "rate", description: "Test outcome rate metric.", unit: "ratio_0_1" },
-  ],
+  outcome_metric: "rate",
+  outcome_unit: "ratio_0_1",
+  outcome_direction: "higher_is_better",
   decay_bounds: {
     initial_decay_days: 30,
     decay_floor_days: 14,

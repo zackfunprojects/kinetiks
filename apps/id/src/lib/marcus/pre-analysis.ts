@@ -180,7 +180,7 @@ export function formatBriefForSonnet(
       ? `\n\n[RELEVANT PATTERNS - empirically validated signatures observed for THIS account; treat as evidence to weave into the recommendation's implication, NOT as statistics to recite. Do not paste raw dimension blobs or metric tables in your response. Cite by pattern_id when relevant.]\n${brief.recent_patterns
           .map(
             (p) =>
-              `- [pattern_id=${p.pattern_id}] [${p.status}] [emitted_by=${p.emitting_app}] ${p.summary}`,
+              `- [pattern_id=${p.pattern_id}] [${p.status}] [source_app=${p.source_app}] ${p.summary}`,
           )
           .join('\n')}`
       : '';

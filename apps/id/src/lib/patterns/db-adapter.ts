@@ -2,26 +2,19 @@
  * Production adapter implementing the PatternWriteDb seam used by
  * pattern-write.ts. Wraps the service-role Supabase admin client.
  *
- * Per addendum §1.2, RLS denies user-token writes; this adapter must
- * be used only from server-side code that already has the service-role
- * client. Never expose it to client code or to a request whose
- * principal is not server-authoritative.
+ * L1b canonical shape: writes target the canonical columns
+ * (source_app, outcome_metric/value/direction/baseline/lift_ratio,
+ * sample_size, variance, imported, imported_from).
+ *
+ * Per Kinetiks Contract Addendum §1.2 RLS denies user-token writes;
+ * this adapter must be used only from server-side code that already
+ * has the service-role client. Never expose to client code or to a
+ * request whose principal is not server-authoritative.
  */
 
-import type {
-  Pattern,
-  PatternEvidenceSummary,
-  PatternLifecycleStatus,
-  PatternOutcomeMetric,
-} from "@kinetiks/types";
+import type { Pattern, PatternLifecycleStatus, PatternEvidenceSummary } from "@kinetiks/types";
 import type { PatternWriteDb } from "./pattern-write";
 
-/**
- * The admin client returned by `createAdminClient()` in
- * apps/id/src/lib/supabase/admin.ts is the un-generic Supabase client.
- * We type the seam loosely here to avoid forcing the entire app to
- * thread a Database generic; the runtime contract is what matters.
- */
 type AdminLike = {
   from: (table: string) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -54,11 +47,7 @@ export function createPatternWriteDb(admin: AdminLike): PatternWriteDb {
     async insertPattern(row) {
       const { data, error } = await admin
         .from("kinetiks_pattern_library")
-        .insert({
-          ...row,
-          // jsonb columns require explicit assignment; Supabase generates the
-          // shape from the row type, but the runtime values are passed through.
-        })
+        .insert({ ...row })
         .select("*")
         .single();
       if (error || !data) {
@@ -71,21 +60,29 @@ export function createPatternWriteDb(admin: AdminLike): PatternWriteDb {
 
     async updatePatternEvidence({
       id,
+      outcome_value,
+      sample_size,
+      variance,
+      baseline_value,
+      lift_ratio,
       confidence_score,
       observation_count,
       last_observed_at,
       decay_at,
-      outcome_metrics,
       evidence_summary,
     }) {
       const { data, error } = await admin
         .from("kinetiks_pattern_library")
         .update({
+          outcome_value,
+          sample_size,
+          variance,
+          baseline_value,
+          lift_ratio,
           confidence_score,
           observation_count,
           last_observed_at,
           decay_at,
-          outcome_metrics: outcome_metrics as unknown as PatternOutcomeMetric[],
           evidence_summary: evidence_summary as unknown as PatternEvidenceSummary,
         })
         .eq("id", id)

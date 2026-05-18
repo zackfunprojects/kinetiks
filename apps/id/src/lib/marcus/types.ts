@@ -111,12 +111,14 @@ export interface InsightForBrief {
 export interface PatternForBrief {
   pattern_id: string;
   pattern_type: string;
-  emitting_app: string;
+  source_app: string;
   status: "emerging" | "validated" | "declining";
   applies_to_icp: string | null;
   confidence_score: number;
   observation_count: number;
+  sample_size: number;
   primary_metric: { name: string; value: number; unit: string } | null;
+  lift_ratio: number | null;
   summary: string;
 }
 
