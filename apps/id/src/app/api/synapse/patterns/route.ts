@@ -168,29 +168,37 @@ export async function POST(request: Request) {
   }
 
   // ── 3. Synapse active for the source app ─────────────────────
-  const { data: synapse, error: synapseError } = await admin
-    .from("kinetiks_synapses")
-    .select("status")
-    .eq("account_id", accountId)
-    .eq("app_name", sourceApp)
-    .maybeSingle();
-  if (synapseError) {
-    console.error(
-      `pattern emission synapse lookup failed account=${accountId} app=${sourceApp}: ${synapseError.message}`,
-    );
-    return apiError("Failed to verify synapse", 500);
-  }
-  if (!synapse) {
-    return apiSuccess<PatternEmissionResult>({
-      outcome: "rejected_inactive_synapse",
-      reason: `No Synapse found for app '${String(sourceApp)}' on this account`,
-    });
-  }
-  if (synapse.status !== "active") {
-    return apiSuccess<PatternEmissionResult>({
-      outcome: "rejected_inactive_synapse",
-      reason: `Synapse for '${String(sourceApp)}' is not active (status: ${String(synapse.status)})`,
-    });
+  // Real suite apps must have an active Synapse row. The
+  // "kinetiks_fixtures" sentinel bypasses this gate because it is
+  // substrate, not an app — no realistic customer ever activates a
+  // fixtures synapse. The Phase 1.5 fixture emitter relies on this
+  // exemption alongside the source_app relaxation below.
+  const FIXTURE_SOURCE_APP_CHECK = "kinetiks_fixtures";
+  if (sourceApp !== FIXTURE_SOURCE_APP_CHECK) {
+    const { data: synapse, error: synapseError } = await admin
+      .from("kinetiks_synapses")
+      .select("status")
+      .eq("account_id", accountId)
+      .eq("app_name", sourceApp)
+      .maybeSingle();
+    if (synapseError) {
+      console.error(
+        `pattern emission synapse lookup failed account=${accountId} app=${sourceApp}: ${synapseError.message}`,
+      );
+      return apiError("Failed to verify synapse", 500);
+    }
+    if (!synapse) {
+      return apiSuccess<PatternEmissionResult>({
+        outcome: "rejected_inactive_synapse",
+        reason: `No Synapse found for app '${String(sourceApp)}' on this account`,
+      });
+    }
+    if (synapse.status !== "active") {
+      return apiSuccess<PatternEmissionResult>({
+        outcome: "rejected_inactive_synapse",
+        reason: `Synapse for '${String(sourceApp)}' is not active (status: ${String(synapse.status)})`,
+      });
+    }
   }
 
   // ── 4. Pattern Type Registry lookup ──────────────────────────
@@ -203,7 +211,14 @@ export async function POST(request: Request) {
   }
 
   // ── 5. source_app gate ───────────────────────────────────────
-  if (descriptor.source_app !== sourceApp) {
+  // Real suite apps must match the descriptor's source_app exactly. The
+  // "kinetiks_fixtures" sentinel is the one admitted alternate, used by
+  // the Phase 1.5 fixture emitter to seed substrate without any
+  // suite-app implementation. Downstream arbitration / read paths still
+  // treat every row identically — only the admission gate recognizes
+  // the fixture label.
+  const FIXTURE_SOURCE_APP = "kinetiks_fixtures";
+  if (descriptor.source_app !== sourceApp && sourceApp !== FIXTURE_SOURCE_APP) {
     return apiSuccess<PatternEmissionResult>({
       outcome: "rejected_source_app",
       reason: `App '${sourceApp}' is not the source_app for ${descriptor.pattern_type} (expected '${descriptor.source_app}')`,
