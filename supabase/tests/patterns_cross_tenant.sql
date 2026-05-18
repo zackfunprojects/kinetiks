@@ -25,13 +25,18 @@ BEGIN
   -- Insert one pattern per account as the postgres role (mimics
   -- service-role Archivist writes; user tokens cannot do this).
   INSERT INTO kinetiks_pattern_library
-    (id, account_id, pattern_type, emitting_app, fingerprint, dimensions,
+    (id, account_id, pattern_type, source_app, fingerprint, dimensions,
+     outcome_metric, outcome_value, outcome_direction,
      effective_decay_days, decay_at)
   VALUES
-    ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', alice_account, 'harvest.outreach_angle_performance',
-     'harvest', 'fp-alice-1', '{"a":1}'::jsonb, 30, now() + interval '30 days'),
-    ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', bob_account,   'harvest.outreach_angle_performance',
-     'harvest', 'fp-bob-1',   '{"a":2}'::jsonb, 30, now() + interval '30 days');
+    ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', alice_account, 'harvest.outreach_angle_performance.reply_rate',
+     'harvest', 'fp-alice-1', '{"a":1}'::jsonb,
+     'reply_rate', 0.12, 'higher_is_better',
+     30, now() + interval '30 days'),
+    ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', bob_account,   'harvest.outreach_angle_performance.reply_rate',
+     'harvest', 'fp-bob-1',   '{"a":2}'::jsonb,
+     'reply_rate', 0.14, 'higher_is_better',
+     30, now() + interval '30 days');
 END $$;
 
 -- ── alice sees only her own pattern ─────────────────────────

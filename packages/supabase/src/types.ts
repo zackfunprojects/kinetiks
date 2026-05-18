@@ -3559,21 +3559,29 @@ export type Database = {
           account_id: string
           applies_to_icp: string | null
           archived_at: string | null
+          baseline_value: number | null
           confidence_score: number
           created_at: string
           decay_at: string
           declining_at: string | null
           dimensions: Json
           effective_decay_days: number
-          emitting_app: string
           evidence_summary: Json
           fingerprint: string
           first_observed_at: string
           id: string
+          imported: boolean
+          imported_from: Json | null
           last_observed_at: string
+          lift_ratio: number | null
           observation_count: number
-          outcome_metrics: Json
+          outcome_direction: string
+          outcome_metric: string
+          outcome_value: number
           pattern_type: string
+          sample_size: number
+          source_app: string
+          source_workflow_id: string | null
           status: string
           team_scope_id: string | null
           updated_at: string
@@ -3581,26 +3589,35 @@ export type Database = {
           user_starred: boolean
           user_suppressed: boolean
           validated_at: string | null
+          variance: number | null
         }
         Insert: {
           account_id: string
           applies_to_icp?: string | null
           archived_at?: string | null
+          baseline_value?: number | null
           confidence_score?: number
           created_at?: string
           decay_at: string
           declining_at?: string | null
           dimensions: Json
           effective_decay_days: number
-          emitting_app: string
           evidence_summary?: Json
           fingerprint: string
           first_observed_at?: string
           id?: string
+          imported?: boolean
+          imported_from?: Json | null
           last_observed_at?: string
+          lift_ratio?: number | null
           observation_count?: number
-          outcome_metrics?: Json
+          outcome_direction: string
+          outcome_metric: string
+          outcome_value: number
           pattern_type: string
+          sample_size?: number
+          source_app: string
+          source_workflow_id?: string | null
           status?: string
           team_scope_id?: string | null
           updated_at?: string
@@ -3608,26 +3625,35 @@ export type Database = {
           user_starred?: boolean
           user_suppressed?: boolean
           validated_at?: string | null
+          variance?: number | null
         }
         Update: {
           account_id?: string
           applies_to_icp?: string | null
           archived_at?: string | null
+          baseline_value?: number | null
           confidence_score?: number
           created_at?: string
           decay_at?: string
           declining_at?: string | null
           dimensions?: Json
           effective_decay_days?: number
-          emitting_app?: string
           evidence_summary?: Json
           fingerprint?: string
           first_observed_at?: string
           id?: string
+          imported?: boolean
+          imported_from?: Json | null
           last_observed_at?: string
+          lift_ratio?: number | null
           observation_count?: number
-          outcome_metrics?: Json
+          outcome_direction?: string
+          outcome_metric?: string
+          outcome_value?: number
           pattern_type?: string
+          sample_size?: number
+          source_app?: string
+          source_workflow_id?: string | null
           status?: string
           team_scope_id?: string | null
           updated_at?: string
@@ -3635,6 +3661,7 @@ export type Database = {
           user_starred?: boolean
           user_suppressed?: boolean
           validated_at?: string | null
+          variance?: number | null
         }
         Relationships: [
           {

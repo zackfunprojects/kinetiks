@@ -1,7 +1,7 @@
 -- ============================================================
 -- State-machine enforcement: kinetiks_pattern_library
 --
--- Validates the L1a trigger in 00040_kinetiks_pattern_library.sql:
+-- Validates the lifecycle trigger in 00041_pattern_library_canonical_shape.sql:
 --   emerging  → validated | archived
 --   validated → declining | archived
 --   declining → validated | archived
@@ -21,19 +21,19 @@ DECLARE
 BEGIN
   alice_account := _kt_test_seed_account(alice_user, 'copper-fox-pat-sm');
   INSERT INTO kinetiks_pattern_library
-    (id, account_id, pattern_type, emitting_app, fingerprint, dimensions,
+    (id, account_id, pattern_type, source_app, fingerprint, dimensions, outcome_metric, outcome_value, outcome_direction,
      effective_decay_days, decay_at, status)
   VALUES
-    ('c1111111-0000-0000-0000-aaaaaaaaaaaa', alice_account, 'harvest.outreach_angle_performance', 'harvest',
-     'fp-sm-emerging-1',  '{"a":1}'::jsonb, 30, now() + interval '30 days', 'emerging'),
-    ('c1111111-0000-0000-0000-bbbbbbbbbbbb', alice_account, 'harvest.outreach_angle_performance', 'harvest',
-     'fp-sm-validated-1', '{"a":2}'::jsonb, 30, now() + interval '30 days', 'validated'),
-    ('c1111111-0000-0000-0000-cccccccccccc', alice_account, 'harvest.outreach_angle_performance', 'harvest',
-     'fp-sm-declining-1', '{"a":3}'::jsonb, 30, now() + interval '30 days', 'declining'),
-    ('c1111111-0000-0000-0000-dddddddddddd', alice_account, 'harvest.outreach_angle_performance', 'harvest',
-     'fp-sm-archived-1',  '{"a":4}'::jsonb, 30, now() + interval '30 days', 'archived'),
-    ('c1111111-0000-0000-0000-eeeeeeeeeeee', alice_account, 'harvest.outreach_angle_performance', 'harvest',
-     'fp-sm-archive-from-emerging', '{"a":5}'::jsonb, 30, now() + interval '30 days', 'emerging');
+    ('c1111111-0000-0000-0000-aaaaaaaaaaaa', alice_account, 'harvest.outreach_angle_performance.reply_rate', 'harvest',
+     'fp-sm-emerging-1',  '{"a":1}'::jsonb, 'reply_rate', 0.10, 'higher_is_better', 30, now() + interval '30 days', 'emerging'),
+    ('c1111111-0000-0000-0000-bbbbbbbbbbbb', alice_account, 'harvest.outreach_angle_performance.reply_rate', 'harvest',
+     'fp-sm-validated-1', '{"a":2}'::jsonb, 'reply_rate', 0.15, 'higher_is_better', 30, now() + interval '30 days', 'validated'),
+    ('c1111111-0000-0000-0000-cccccccccccc', alice_account, 'harvest.outreach_angle_performance.reply_rate', 'harvest',
+     'fp-sm-declining-1', '{"a":3}'::jsonb, 'reply_rate', 0.05, 'higher_is_better', 30, now() + interval '30 days', 'declining'),
+    ('c1111111-0000-0000-0000-dddddddddddd', alice_account, 'harvest.outreach_angle_performance.reply_rate', 'harvest',
+     'fp-sm-archived-1',  '{"a":4}'::jsonb, 'reply_rate', 0.02, 'higher_is_better', 30, now() + interval '30 days', 'archived'),
+    ('c1111111-0000-0000-0000-eeeeeeeeeeee', alice_account, 'harvest.outreach_angle_performance.reply_rate', 'harvest',
+     'fp-sm-archive-from-emerging', '{"a":5}'::jsonb, 'reply_rate', 0.05, 'higher_is_better', 30, now() + interval '30 days', 'emerging');
 END $$;
 
 -- ── allowed: emerging → validated ───────────────────────────
@@ -97,11 +97,11 @@ DECLARE
   alice_account uuid := (SELECT id FROM kinetiks_accounts WHERE user_id = '11111111-1111-1111-1111-111111111111');
 BEGIN
   INSERT INTO kinetiks_pattern_library
-    (id, account_id, pattern_type, emitting_app, fingerprint, dimensions,
+    (id, account_id, pattern_type, source_app, fingerprint, dimensions, outcome_metric, outcome_value, outcome_direction,
      effective_decay_days, decay_at, status)
   VALUES
-    ('c1111111-1111-1111-1111-aaaaaaaaaaaa', alice_account, 'harvest.outreach_angle_performance', 'harvest',
-     'fp-sm-skip-1', '{"a":6}'::jsonb, 30, now() + interval '30 days', 'emerging');
+    ('c1111111-1111-1111-1111-aaaaaaaaaaaa', alice_account, 'harvest.outreach_angle_performance.reply_rate', 'harvest',
+     'fp-sm-skip-1', '{"a":6}'::jsonb, 'reply_rate', 0.05, 'higher_is_better', 30, now() + interval '30 days', 'emerging');
 END $$;
 
 SELECT throws_ok(
@@ -116,11 +116,11 @@ DECLARE
   alice_account uuid := (SELECT id FROM kinetiks_accounts WHERE user_id = '11111111-1111-1111-1111-111111111111');
 BEGIN
   INSERT INTO kinetiks_pattern_library
-    (id, account_id, pattern_type, emitting_app, fingerprint, dimensions,
+    (id, account_id, pattern_type, source_app, fingerprint, dimensions, outcome_metric, outcome_value, outcome_direction,
      effective_decay_days, decay_at, status)
   VALUES
-    ('c1111111-2222-2222-2222-aaaaaaaaaaaa', alice_account, 'harvest.outreach_angle_performance', 'harvest',
-     'fp-sm-backward-1', '{"a":7}'::jsonb, 30, now() + interval '30 days', 'validated');
+    ('c1111111-2222-2222-2222-aaaaaaaaaaaa', alice_account, 'harvest.outreach_angle_performance.reply_rate', 'harvest',
+     'fp-sm-backward-1', '{"a":7}'::jsonb, 'reply_rate', 0.20, 'higher_is_better', 30, now() + interval '30 days', 'validated');
 END $$;
 
 SELECT throws_ok(
@@ -135,11 +135,11 @@ DECLARE
   alice_account uuid := (SELECT id FROM kinetiks_accounts WHERE user_id = '11111111-1111-1111-1111-111111111111');
 BEGIN
   INSERT INTO kinetiks_pattern_library
-    (id, account_id, pattern_type, emitting_app, fingerprint, dimensions,
+    (id, account_id, pattern_type, source_app, fingerprint, dimensions, outcome_metric, outcome_value, outcome_direction,
      effective_decay_days, decay_at, status)
   VALUES
-    ('c1111111-3333-3333-3333-aaaaaaaaaaaa', alice_account, 'harvest.outreach_angle_performance', 'harvest',
-     'fp-sm-decline-to-archive', '{"a":8}'::jsonb, 30, now() + interval '30 days', 'declining');
+    ('c1111111-3333-3333-3333-aaaaaaaaaaaa', alice_account, 'harvest.outreach_angle_performance.reply_rate', 'harvest',
+     'fp-sm-decline-to-archive', '{"a":8}'::jsonb, 'reply_rate', 0.05, 'higher_is_better', 30, now() + interval '30 days', 'declining');
 END $$;
 
 SELECT lives_ok(
