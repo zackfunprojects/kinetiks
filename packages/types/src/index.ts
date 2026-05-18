@@ -104,13 +104,16 @@ export type {
 export type {
   Pattern,
   PatternLifecycleStatus,
-  PatternOutcomeMetric,
+  PatternOutcomeDirection,
   PatternEvidenceSummary,
+  PatternImportedFrom,
   PatternEmissionPayload,
   PatternEmissionResult,
   PatternExportSchemaVersion,
+  PatternExportRequest,
   PatternExportEntry,
   PatternExportPayload,
+  PatternTypeDescriptorSnapshot,
   PatternImportResult,
 } from "./patterns";
 export type {
