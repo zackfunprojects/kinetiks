@@ -9,6 +9,7 @@ import "server-only";
 
 import { z } from "zod";
 import { defineTool } from "@kinetiks/tools";
+import { serverEnv } from "@kinetiks/lib/env";
 import { getMetricsByApp } from "@/lib/oracle/metric-schema";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
@@ -63,7 +64,7 @@ const Output = z.discriminatedUnion("status", [
   }),
 ]);
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://kinetiks.ai";
+const APP_URL = serverEnv().NEXT_PUBLIC_APP_URL ?? "https://kinetiks.ai";
 
 export const metaAdsQueryTool = defineTool({
   name: "meta_ads_query",
@@ -75,6 +76,24 @@ export const metaAdsQueryTool = defineTool({
   autoApproveThreshold: null,
   availability: { kind: "always" },
   execute: async (input, ctx) => {
+    // Per-campaign breakdown is only stamped into cache for 7d/28d — the
+    // sync explicitly skips 90d for cardinality reasons. Reject the
+    // unsupported combination at the tool boundary so the tool's
+    // documentation matches its behavior, instead of silently returning
+    // no_data.
+    if (
+      input.dimensions &&
+      input.dimensions.length > 0 &&
+      input.date_range === "last_90_days"
+    ) {
+      return {
+        status: "error" as const,
+        error_class: "query_failed" as const,
+        message:
+          "Per-campaign breakdown for Meta Ads is only available for last_7_days or last_28_days. Drop the dimensions or pick a shorter window.",
+      };
+    }
+
     const admin = createAdminClient();
 
     const { data: connection } = await admin

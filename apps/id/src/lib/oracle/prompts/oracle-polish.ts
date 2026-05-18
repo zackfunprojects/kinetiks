@@ -89,10 +89,14 @@ export function parseOraclePolishResponse(
       ) {
         return null;
       }
-      if (item.summary.length === 0) return null;
+      // Both fields must be non-empty after trim — the prompt contract
+      // requires a usable summary AND a usable action label.
+      if (item.summary.trim().length === 0) return null;
+      if (item.suggested_action_label.trim().length === 0) return null;
     }
     return parsed.map((item: PolishedSignal) => ({
-      summary: item.summary.slice(0, 200),  // hard cap on returned length
+      // Hard cap matches the prompt contract (140 chars per summary).
+      summary: item.summary.slice(0, 140),
       suggested_action_label: item.suggested_action_label.slice(0, 100),
     }));
   } catch {

@@ -10,6 +10,7 @@ import "server-only";
 
 import { z } from "zod";
 import { defineTool } from "@kinetiks/tools";
+import { serverEnv } from "@kinetiks/lib/env";
 import { getMetricsByApp } from "@/lib/oracle/metric-schema";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
@@ -55,7 +56,7 @@ const Output = z.discriminatedUnion("status", [
   }),
 ]);
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://kinetiks.ai";
+const APP_URL = serverEnv().NEXT_PUBLIC_APP_URL ?? "https://kinetiks.ai";
 
 export const stripeQueryTool = defineTool({
   name: "stripe_query",

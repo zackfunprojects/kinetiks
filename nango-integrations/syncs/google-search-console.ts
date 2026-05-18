@@ -108,8 +108,19 @@ async function fetchSlice(
   const points: GscPerformancePoint[] = [];
 
   for (const row of rows) {
+    // Defensive: GSC consistently puts `date` at keys[0] but a malformed
+    // response (empty keys, single-element keys when we asked for two
+    // dims, API change) would crash on the non-null assertion below.
+    // Skip cleanly and let the log capture the shape mismatch.
+    if (!row.keys || row.keys.length === 0) {
+      await nango.log(
+        `gsc-daily-performance: skipping row with missing keys (slice=${slice.dimension})`
+      );
+      continue;
+    }
     const date = row.keys[0]!;
-    const dimValue = slice.dimension === "overall" ? "" : (row.keys[1] ?? "");
+    const dimValue =
+      slice.dimension === "overall" ? "" : (row.keys[1] ?? "");
     points.push({
       id: `${slice.dimension}::${dimValue}::${date}`,
       date,

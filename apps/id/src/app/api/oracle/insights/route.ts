@@ -78,13 +78,19 @@ export async function PATCH(request: Request) {
   }
 
   const admin = createAdminClient();
-  const { error: updateError } = await admin
+  const { data, error: updateError } = await admin
     .from("kinetiks_insights")
     .update(updates)
     .eq("id", body.id)
-    .eq("account_id", auth.account_id);
+    .eq("account_id", auth.account_id)
+    .select("id")
+    .maybeSingle();
 
   if (updateError) return apiError(`Failed to update insight: ${updateError.message}`, 500);
+  // 0 rows updated means the id wasn't found OR didn't belong to this
+  // account. Either way the customer-facing answer is "Insight not found"
+  // (cross-tenant probes don't leak which case it is).
+  if (!data) return apiError("Insight not found", 404);
 
   return apiSuccess({ updated: true });
 }

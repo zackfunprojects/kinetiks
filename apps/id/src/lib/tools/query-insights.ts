@@ -37,7 +37,25 @@ const Input = z.object({
       ])
     )
     .optional(),
-  source_apps: z.array(z.string()).optional(),
+  // Allowlist parity with kinetiks_insights.source_app values + the
+  // "cross" sentinel used by cross-source detectors. Anything else is
+  // user input we don't want to filter on.
+  source_apps: z
+    .array(
+      z.enum([
+        "ga4",
+        "gsc",
+        "stripe",
+        "meta_ads",
+        "google_ads",
+        "hubspot",
+        "cross",
+        "kinetiks_id",
+        "harvest",
+        "dark_madder",
+      ])
+    )
+    .optional(),
   since_hours: z.number().int().min(1).max(168).default(72),
   include_delivered: z.boolean().default(false),
   limit: z.number().int().min(1).max(10).default(5),

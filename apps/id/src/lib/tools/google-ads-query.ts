@@ -8,6 +8,7 @@ import "server-only";
 
 import { z } from "zod";
 import { defineTool } from "@kinetiks/tools";
+import { serverEnv } from "@kinetiks/lib/env";
 import { getMetricsByApp } from "@/lib/oracle/metric-schema";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
@@ -62,7 +63,7 @@ const Output = z.discriminatedUnion("status", [
   }),
 ]);
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://kinetiks.ai";
+const APP_URL = serverEnv().NEXT_PUBLIC_APP_URL ?? "https://kinetiks.ai";
 
 export const googleAdsQueryTool = defineTool({
   name: "google_ads_query",
@@ -74,6 +75,22 @@ export const googleAdsQueryTool = defineTool({
   autoApproveThreshold: null,
   availability: { kind: "always" },
   execute: async (input, ctx) => {
+    // Per-campaign breakdown only exists in cache for 7d/28d (sync
+    // skips 90d for cardinality). Reject the unsupported combination at
+    // the tool boundary; documentation matches behavior.
+    if (
+      input.dimensions &&
+      input.dimensions.length > 0 &&
+      input.date_range === "last_90_days"
+    ) {
+      return {
+        status: "error" as const,
+        error_class: "query_failed" as const,
+        message:
+          "Per-campaign breakdown for Google Ads is only available for last_7_days or last_28_days. Drop the dimensions or pick a shorter window.",
+      };
+    }
+
     const admin = createAdminClient();
 
     const { data: connection } = await admin

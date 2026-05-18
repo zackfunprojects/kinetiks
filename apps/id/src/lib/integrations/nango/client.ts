@@ -112,6 +112,10 @@ export async function fetchAllRecords<T = Record<string, unknown>>(
   let cursor: string | null | undefined = undefined;
   let totalRecords = 0;
   let pages = 0;
+  // Distinguishes "we hit MAX_PAGES with more records still available"
+  // from "we hit MAX_PAGES on the natural last page". The latter is not
+  // truncation and should not be reported as such.
+  let capReached = false;
 
   while (pages < MAX_PAGES) {
     const page: FetchRecordsPage<T> = await fetchRecordsPage<T>({
@@ -124,12 +128,14 @@ export async function fetchAllRecords<T = Record<string, unknown>>(
     }
     pages += 1;
     if (!page.nextCursor) break;
+    if (pages >= MAX_PAGES) {
+      // We exhausted the budget AND there is more data the cursor would
+      // have fetched. This is real truncation.
+      capReached = true;
+      break;
+    }
     cursor = page.nextCursor;
   }
 
-  return {
-    totalRecords,
-    pages,
-    capReached: pages >= MAX_PAGES,
-  };
+  return { totalRecords, pages, capReached };
 }

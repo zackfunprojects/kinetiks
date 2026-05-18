@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { useRouter } from "next/navigation";
 
 export interface InsightCardData {
@@ -126,15 +126,14 @@ export function InsightCard({ insight, onDismiss, onActedOn }: Props) {
             color: "var(--kt-fg-2)",
           }}
         >
-          {insight.evidence_highlights.map((h) => (
-            <>
-              <dt key={`l-${h.label}`} style={{ color: "var(--kt-fg-3)" }}>
-                {h.label}
-              </dt>
-              <dd key={`v-${h.label}`} style={{ margin: 0 }}>
-                {h.value}
-              </dd>
-            </>
+          {insight.evidence_highlights.map((h, i) => (
+            // Fragment must carry the key — React's list-key check looks
+            // at the immediate child of .map(), and bare <></> can't hold
+            // one. The inner dt/dd no longer need keys.
+            <Fragment key={`${h.label}:${i}`}>
+              <dt style={{ color: "var(--kt-fg-3)" }}>{h.label}</dt>
+              <dd style={{ margin: 0 }}>{h.value}</dd>
+            </Fragment>
           ))}
         </dl>
       )}

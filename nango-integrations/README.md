@@ -6,7 +6,7 @@ on Vercel.
 
 ## What lives here
 
-```
+```text
 nango-integrations/
 ├── nango.yaml              # Integration + sync declarations (deploy contract)
 ├── syncs/
@@ -45,7 +45,7 @@ NANGO_SECRET_KEY=$NANGO_PROD_SECRET npx nango deploy prod
 
 ## Data flow
 
-```
+```text
 Provider API ──► Nango runtime ──► Nango records store
                                     │
                                     │  webhook (HMAC-SHA256 signed)

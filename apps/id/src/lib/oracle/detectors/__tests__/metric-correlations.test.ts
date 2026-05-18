@@ -85,15 +85,17 @@ describe("detectMetricCorrelations", () => {
   });
 
   it("assigns notable severity at |r| >= 0.75", () => {
+    // Strictly monotone increasing series for both, sessions paired
+    // against bounce_rate (opposite metric directions). Perfect r=1
+    // exceeds the 0.75 threshold so severity must be notable.
     const a = Array.from({ length: 20 }, (_, i) => i + 1);
-    const b = a.map((v) => v + (Math.sin(v) * 0.5));
     const signals = detectMetricCorrelations({
       source_app: "ga4",
-      series: [series("ga4_sessions", a), series("ga4_bounce_rate", b)],
+      series: [series("ga4_sessions", a), series("ga4_bounce_rate", a)],
       today: TODAY,
     });
-    if (signals.length > 0) {
-      expect(["info", "notable"]).toContain(signals[0]!.severity);
-    }
+    expect(signals).toHaveLength(1);
+    expect(signals[0]!.severity).toBe("notable");
+    expect(signals[0]!.type).toBe("risk");
   });
 });

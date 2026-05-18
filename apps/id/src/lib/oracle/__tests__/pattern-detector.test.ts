@@ -34,12 +34,13 @@ describe("detectAnomalies", () => {
   });
 
   it("flags severity=low when 2 <= |z| < 2.5", () => {
-    // Latest is moderately anomalous
-    const values = series([5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6, 8, 5, 5, 5, 5, 5, 12]);
+    // 10 alternating 5/6 baseline → mean=5.5, stdDev=0.5.
+    // Latest = 6.5 → z = (6.5 - 5.5) / 0.5 = exactly 2.0.
+    const values = series([5, 6, 5, 6, 5, 6, 5, 6, 5, 6, 6.5]);
     const out = detectAnomalies(values, "ga4_sessions");
-    if (out.length > 0) {
-      expect(["low", "medium", "high"]).toContain(out[0]!.severity);
-    }
+    expect(out).toHaveLength(1);
+    expect(out[0]!.severity).toBe("low");
+    expect(out[0]!.z_score).toBe(2);
   });
 
   it("flags severity=high when |z| >= 3.5", () => {

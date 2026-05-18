@@ -46,7 +46,11 @@ export function detectRoasByChannel(input: RoasByChannelInput): OracleSignal[] {
   const signals: OracleSignal[] = [];
 
   for (const ch of input.channels) {
+    // Two guards: caller's spend floor (default $500) AND a hard
+    // positive-spend check so a 0 (or negative) override of minSpend
+    // never produces Infinity ROAS.
     if (ch.spend_28d < minSpend) continue;
+    if (ch.spend_28d <= 0) continue;
     const roas = ch.revenue_28d / ch.spend_28d;
 
     const dedup_key = `roas-channel:${ch.channel}:${week}`;

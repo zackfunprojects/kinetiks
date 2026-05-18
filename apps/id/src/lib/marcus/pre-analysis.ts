@@ -114,6 +114,14 @@ export async function buildPreAnalysisBrief(
           : c.connected ? 'Connected but unhealthy' : 'Not connected',
       })),
     };
+    // Preserve recently-loaded insights + patterns even in the fallback
+    // path — Sonnet loses graceful-degradation context otherwise.
+    if (recentInsights && recentInsights.length > 0) {
+      fallbackBrief.recent_insights = recentInsights;
+    }
+    if (recentPatterns && recentPatterns.length > 0) {
+      fallbackBrief.recent_patterns = recentPatterns;
+    }
     return { brief: fallbackBrief, formatted: formatBriefForSonnet(fallbackBrief, toolInventory) };
   }
 }

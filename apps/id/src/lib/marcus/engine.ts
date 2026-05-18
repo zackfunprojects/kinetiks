@@ -434,6 +434,19 @@ export async function streamMarcusMessage(
         // Save complete response (before action footer)
         const savedMessage = await addMessage(admin, thread.id, "marcus", fullResponse, channel);
 
+        // Stamp delivered=true on any Oracle insights Sonnet cited in
+        // the streamed response. Parity with processMarcusMessage; an
+        // insight without this stamp would resurface on the next turn.
+        if (briefInsights.length > 0) {
+          stampDeliveredFromResponse(
+            admin,
+            fullResponse,
+            briefInsights.map((i) => i.insight_id),
+          ).catch((err) =>
+            console.error("[ENGINE/stream] insight delivery stamping failed:", err),
+          );
+        }
+
         // Post-stream: action generation (Haiku)
         const conversationSummary = recentMessages;
         const actionResult = await generateActions(message, fullResponse, manifest, conversationSummary, haikuFor("marcus.action_generate"));
