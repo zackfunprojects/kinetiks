@@ -114,6 +114,23 @@ keep compiling. `LedgerEventType` is derived from the map keys
 `kinetiks_ledger.event_type` enforcing the union at the DB layer
 (audited 38 event types currently written across the codebase).
 
+**Caveat:** the CHECK was applied with `NOT VALID` because production
+already contained `kinetiks_ledger` rows with `event_type` values
+outside the union (their identities are not in the transcript per the
+production-read safety gate). NOT VALID enforces the constraint on
+all future INSERTs and UPDATEs while grandfathering existing rows. A
+follow-up pass should:
+
+  1. Query `SELECT DISTINCT event_type FROM kinetiks_ledger WHERE event_type NOT IN (...)`
+     to identify the legacy values.
+  2. Either map them to canonical names via UPDATE statements, or
+     extend the union (and the CHECK) to include them.
+  3. Run `ALTER TABLE kinetiks_ledger VALIDATE CONSTRAINT kinetiks_ledger_event_type_valid`
+     to mark the constraint fully enforced.
+
+Until step 3, the DB-layer guarantee is "future writes only." Codebase
+writes already conform to the union (commit "feat(types+tools)" audit).
+
 ### Confidence formula constants — HELD for 14-day acceptance
 
 Phase 1 pinned constants (w_obs=0.5, w_recency=0.2, w_stability=0.3,

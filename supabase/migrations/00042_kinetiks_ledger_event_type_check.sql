@@ -30,6 +30,12 @@
 -- catch the same divergence.
 -- ============================================================
 
+-- NOT VALID grandfathers existing rows: the constraint is added to the
+-- table and enforced for all future INSERTs and UPDATEs, but existing
+-- rows are not checked. A follow-up pass can ALTER TABLE ... VALIDATE
+-- CONSTRAINT once production rows have been audited and reconciled.
+-- This is the conservative path when applying a strict invariant to a
+-- live table with historical data the developer cannot read directly.
 ALTER TABLE kinetiks_ledger
   ADD CONSTRAINT kinetiks_ledger_event_type_valid
   CHECK (event_type IN (
@@ -84,7 +90,7 @@ ALTER TABLE kinetiks_ledger
     'pattern_exported',
     'pattern_imported',
     'pattern_archived'
-  ));
+  )) NOT VALID;
 
 COMMENT ON COLUMN kinetiks_ledger.event_type IS
   'LedgerEventType per @kinetiks/types/billing.ts. CHECK constraint enforces the union; adding a new event type requires updating both the TS LedgerEventDetailMap and dropping+recreating this constraint with the new value.';
