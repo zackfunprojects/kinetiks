@@ -208,6 +208,25 @@ export function LedgerViewer({
                         via {entry.source_app.replace("_", " ")}
                       </span>
                     )}
+                    {(entry.source_app === "kinetiks_fixtures" ||
+                      (entry.detail as Record<string, unknown>)?.is_fixture === true) && (
+                      <span
+                        title="Fixture-emitter substrate (KINETIKS_FIXTURES_ENABLED=true). Not real customer signal."
+                        style={{
+                          fontSize: 10,
+                          fontWeight: 500,
+                          letterSpacing: 0.4,
+                          textTransform: "uppercase",
+                          color: "var(--kt-fg-3)",
+                          border: "1px solid var(--kt-border-2)",
+                          borderRadius: 4,
+                          padding: "1px 6px",
+                          fontFamily: "var(--font-mono), monospace",
+                        }}
+                      >
+                        Fixture
+                      </span>
+                    )}
                   </div>
                   <p style={{ margin: 0, fontSize: 13, color: "var(--kt-fg-2)", lineHeight: 1.4 }}>
                     {getEventDescription(entry)}
