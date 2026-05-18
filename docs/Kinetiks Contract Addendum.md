@@ -115,7 +115,9 @@ interface Pattern {
 }
 ```
 
-Patterns are stored in `kinetiks_pattern_library`. The same shape as every other `kinetiks_*` context table: payload in `data` jsonb with sibling `confidence_score` column, RLS scoped to `account_id`. The `team_scope_id` placeholder is described in §4.
+Patterns are stored in `kinetiks_pattern_library`. The table is **hybrid**: every field declared on the `Pattern` interface above is a top-level column (lifecycle fields, outcome fields, evidence fields, override fields, provenance fields, the source attribution). The variable-shape payload — `dimensions` and `evidence_summary` — lives in jsonb columns on the same row. RLS is account-scoped; `team_scope_id` is described in §4.
+
+The hybrid shape is a deliberate divergence from the pure `(account_id, data jsonb, confidence_score)` posture of the `kinetiks_context_*` tables. The Pattern Library read path filters and ranks on `(pattern_type, status, applies_to_icp, confidence_score, lift_ratio, decay_at)` — those need to be indexed B-tree columns, not jsonb fields. The same hybrid pattern is used by `kinetiks_authority_grants` (§2.3) for the same reason: identity-shaped data uses `data` jsonb; evidence/lifecycle/authority data uses top-level columns.
 
 ### 1.3 The Pattern Type Registry
 
@@ -125,23 +127,43 @@ Every `pattern_type` value is registered in a global Pattern Type Registry, anal
 interface PatternTypeDescriptor {
   pattern_type: string;
   source_app: string;                    // Which app owns this type
-  dimensions_schema: JSONSchema;         // Zod-validated shape of the dimensions field
-  outcome_metrics: string[];             // Which metrics are valid outcome_metric values for this type
-  read_apps: string[];                   // Which apps may read this pattern type; '*' for all
   description: string;                   // LLM-readable: what this pattern represents
-  example: Record<string, unknown>;      // Example dimensions block for LLM grounding
+  example?: Record<string, unknown>;     // Example dimensions block for LLM grounding
+
+  // Identity and read scope
+  dimensions_schema: JSONSchema;         // Zod-validated shape of the dimensions field
+  fingerprint_dimensions: string[];      // Declared identity-relevant dims in canonical order; identity is the tuple of these values
+  read_apps: string[];                   // Which apps may read this pattern type; '*' for all
+  customer_visible: boolean;             // Whether this type appears in the Cortex Patterns sub-tab (orthogonal to read_apps)
+
+  // Outcome (canonical single-primary; one outcome per pattern type)
+  outcome_metric: string;                // e.g. 'reply_rate', 'meeting_book_rate', 'deal_close_rate'
+  outcome_unit: string;                  // e.g. 'ratio_0_1', 'count', 'seconds', 'currency_usd'
+  outcome_direction: 'higher_is_better' | 'lower_is_better';
+
+  // Cardinality discipline (see §1.14 below)
+  bucketize?: (raw: Record<string, unknown>) => Dimensions;  // Optional but REQUIRED for high-cardinality dimensions
+  expected_max_fingerprints_per_account?: number;            // Cardinality intent; warns if absent, fails if absurdly high
 
   // Decay (see §1.6)
   initial_decay_days: number;            // Seed value used until the system has enough evidence to learn
   decay_floor_days: number;              // Minimum decay; empirical calibration cannot go below this
   decay_ceiling_days: number;            // Maximum decay; empirical calibration cannot go above this
   calibration_sample_threshold: number;  // How many pattern uses before learned decay takes over from seed
+
+  // Confidence thresholds for the lifecycle state machine
+  confidence_thresholds: {
+    validate_at: number;                 // emerging → validated when confidence crosses this
+    decline_at: number;                  // validated → declining when confidence falls below this
+  };
 }
 ```
 
-The registry serves four purposes. First, it validates pattern shape on write - an app cannot emit a malformed pattern. Second, it makes patterns discoverable - Marcus and other agents can list available pattern types and reason about which ones are relevant. Third, it documents the cross-app contract - Dark Madder explicitly declares which pattern types from which apps it reads, auditable. Fourth, it bounds the empirical decay calibration (§1.6) so the system cannot diverge wildly from the app's understanding of its own domain.
+The registry serves five purposes. First, it validates pattern shape on write — an app cannot emit a malformed pattern. Second, it makes patterns discoverable — Marcus and other agents can list available pattern types and reason about which ones are relevant. Third, it documents the cross-app contract — Dark Madder explicitly declares which pattern types from which apps it reads, auditable. Fourth, it bounds the empirical decay calibration (§1.6) so the system cannot diverge wildly from the app's understanding of its own domain. Fifth, it enforces **cardinality discipline** via `bucketize` and `expected_max_fingerprints_per_account` — the single biggest failure mode of the Pattern Library is pattern type explosion (dimensions too narrow to ever validate). The descriptor's `bucketize` function is run server-side BEFORE canonicalization and fingerprinting, collapsing high-cardinality raw inputs (free-text industries, granular titles, continuous numerics) to coarse buckets (~15 NAICS-L2 industries, ~12 title families, ~10 employee-count bands). Without it, every minor variation becomes a new fingerprint and confidence never accumulates.
 
-Pattern types are registered at app boot, the same way tools and capabilities are. A pattern type whose `source_app` is unregistered, whose schema is invalid, or whose decay bounds are inconsistent does not load.
+`expected_max_fingerprints_per_account` declares cardinality intent at registration. Registration warns when absent on a non-trivial descriptor and fails when declared above a hard ceiling (1000 default soft / 100,000 hard). A pattern type that violates the soft ceiling is signaling its bucketization may be insufficient; one above the hard ceiling cannot register at all.
+
+Pattern types are registered at app boot, the same way tools and capabilities are. A pattern type whose `source_app` is unregistered, whose schema is invalid, whose decay bounds are inconsistent, whose `confidence_thresholds.validate_at <= decline_at`, or whose `expected_max_fingerprints_per_account` exceeds the hard ceiling does not load.
 
 ### 1.4 Write Path
 

@@ -2,14 +2,14 @@
  * Cross-registry boot validation.
  *
  * Called once at app startup, after every `registerTool`,
- * `registerActionClass`, and `registerOperators` has run. Catches the
- * kind of inconsistency that's costly to discover at runtime:
+ * `registerActionClass`, `registerOperators`, and `registerPatternType`
+ * has run. Catches the kind of inconsistency that is costly to discover
+ * at runtime:
  *
  *  - A consequential tool references an unregistered action_class
  *  - An operator's required_tools contain an unregistered tool
  *  - An operator's action_classes contain an unregistered class
- *
- * `required_patterns` validation defers to L1a (Pattern Type Registry).
+ *  - An operator's required_patterns contain an unregistered pattern type
  *
  * Returns a structured report. Throws on failure so apps fail at boot
  * rather than at runtime.
@@ -17,6 +17,7 @@
 
 import { listActionClasses, getActionClass } from "./action-class-registry";
 import { listAllOperators } from "./operator-registry";
+import { getPatternType, listPatternTypes } from "./pattern-type-registry";
 import { listTools, getTool } from "./tool-registry";
 import { ToolError } from "./types";
 
@@ -28,6 +29,7 @@ export interface ValidationReport {
     tools: number;
     actionClasses: number;
     operators: number;
+    patternTypes: number;
   };
 }
 
@@ -38,6 +40,7 @@ export function validateRegistries(): ValidationReport {
   const tools = listTools();
   const actionClasses = listActionClasses();
   const operators = listAllOperators();
+  const patternTypes = listPatternTypes();
 
   // 1. Every consequential tool that declares an actionClass must reference a registered class.
   for (const tool of tools) {
@@ -52,6 +55,7 @@ export function validateRegistries(): ValidationReport {
 
   // 2. Every operator's required_tools must be registered.
   // 3. Every operator's action_classes must be registered.
+  // 4. Every operator's required_patterns must be in the Pattern Type Registry (L1a).
   for (const { app, descriptor } of operators) {
     for (const t of descriptor.required_tools) {
       if (!getTool(t)) {
@@ -67,15 +71,16 @@ export function validateRegistries(): ValidationReport {
         );
       }
     }
-    if (descriptor.required_patterns.length > 0) {
-      // Pattern Type Registry lands in L1a; warn for now.
-      warnings.push(
-        `Operator "${app}.${descriptor.key}" declares required_patterns but the Pattern Type Registry is not active yet (L1a)`,
-      );
+    for (const pt of descriptor.required_patterns) {
+      if (!getPatternType(pt)) {
+        errors.push(
+          `Operator "${app}.${descriptor.key}" references unregistered pattern_type "${pt}"`,
+        );
+      }
     }
   }
 
-  // 4. Action class `source_app` must match the app prefix of at least one tool
+  // 5. Action class `source_app` must match the app prefix of at least one tool
   //    that references the class — i.e., we don't have orphan classes.
   for (const ac of actionClasses) {
     const referenced = tools.some((t) => t.actionClass === ac.action_class);
@@ -94,6 +99,7 @@ export function validateRegistries(): ValidationReport {
       tools: tools.length,
       actionClasses: actionClasses.length,
       operators: operators.length,
+      patternTypes: patternTypes.length,
     },
   };
 }

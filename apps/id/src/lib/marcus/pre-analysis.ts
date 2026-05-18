@@ -40,6 +40,8 @@ export async function buildPreAnalysisBrief(
   recentMessages: string,
   claudeHaiku: (prompt: string) => Promise<any>,
   toolInventory?: string,
+  recentInsights?: import('./types').InsightForBrief[],
+  recentPatterns?: import('./types').PatternForBrief[],
 ): Promise<{ brief: PreAnalysisBrief; formatted: string }> {
   const memoryFacts = formatMemoriesForContext(memories);
 
@@ -74,6 +76,12 @@ export async function buildPreAnalysisBrief(
       };
     }
     if (!brief.action_availability) brief.action_availability = [];
+    if (recentInsights && recentInsights.length > 0) {
+      brief.recent_insights = recentInsights;
+    }
+    if (recentPatterns && recentPatterns.length > 0) {
+      brief.recent_patterns = recentPatterns;
+    }
 
     const formatted = formatBriefForSonnet(brief, toolInventory);
     return { brief, formatted };
@@ -106,6 +114,14 @@ export async function buildPreAnalysisBrief(
           : c.connected ? 'Connected but unhealthy' : 'Not connected',
       })),
     };
+    // Preserve recently-loaded insights + patterns even in the fallback
+    // path — Sonnet loses graceful-degradation context otherwise.
+    if (recentInsights && recentInsights.length > 0) {
+      fallbackBrief.recent_insights = recentInsights;
+    }
+    if (recentPatterns && recentPatterns.length > 0) {
+      fallbackBrief.recent_patterns = recentPatterns;
+    }
     return { brief: fallbackBrief, formatted: formatBriefForSonnet(fallbackBrief, toolInventory) };
   }
 }
@@ -150,6 +166,33 @@ export function formatBriefForSonnet(
     ? `\n\n[TOOL OBSERVATIONS - returned by ${toolObservations.tool_name}; cite ONLY the values below verbatim; do not extrapolate]\n${formatToolObservations(toolObservations)}`
     : '';
 
+  // D2 Slice 11 — recent Oracle insights. Sonnet may cite by insight_id
+  // (UUID); the engine post-processes the response to stamp delivered.
+  const insightsBlock =
+    brief.recent_insights && brief.recent_insights.length > 0
+      ? `\n\n[RECENT INSIGHTS - undelivered, last 72h, severity ≥ notable; cite by insight_id (UUID), do not paraphrase severity or type. Use only when the user's question makes this evidence relevant.]\n${brief.recent_insights
+          .map(
+            (i) =>
+              `- [insight_id=${i.insight_id}] [severity=${i.severity}] [type=${i.type}] [source_app=${i.source_app}] ${i.summary}`,
+          )
+          .join('\n')}`
+      : '';
+
+  // L1a (Kinetiks Contract Addendum §1.10) — high-confidence patterns the system has
+  // observed about this customer's business. EVIDENCE, not statistics:
+  // weave the implication into the response. The response body never
+  // dumps raw pattern fingerprints, dimension blobs, or metric tables.
+  // Cite by pattern_id when referencing.
+  const patternsBlock =
+    brief.recent_patterns && brief.recent_patterns.length > 0
+      ? `\n\n[RELEVANT PATTERNS - empirically validated signatures observed for THIS account; treat as evidence to weave into the recommendation's implication, NOT as statistics to recite. Do not paste raw dimension blobs or metric tables in your response. Cite by pattern_id when relevant.]\n${brief.recent_patterns
+          .map(
+            (p) =>
+              `- [pattern_id=${p.pattern_id}] [${p.status}] [source_app=${p.source_app}] ${p.summary}`,
+          )
+          .join('\n')}`
+      : '';
+
   return `[EVIDENCE BRIEF - use ONLY this evidence in your response]
 Available data you CAN cite:
 ${evidence}
@@ -158,7 +201,7 @@ Data you DO NOT have (do not fabricate):
 ${notAvailable}
 
 [CONVERSATION MEMORY - these are decisions/corrections from this thread, honor them]
-${memory}${platformBlock}${observationsBlock}
+${memory}${platformBlock}${observationsBlock}${insightsBlock}${patternsBlock}
 
 [RESPONSE CONSTRAINTS]
 - Maximum ${brief.response_shape.max_sentences} sentences

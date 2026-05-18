@@ -34,6 +34,9 @@ yarn-error.log*
 
 # supabase
 supabase/.temp/
+# Catch the same state dir wherever the CLI gets invoked from
+# (e.g. apps/id/supabase/.temp/ if a command runs in a subtree).
+**/supabase/.temp/
 
 # claude code
 .claude/

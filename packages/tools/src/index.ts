@@ -46,6 +46,21 @@ export {
   _resetOperatorRegistryForTests,
 } from "./operator-registry";
 
+// Pattern Type Registry (Kinetiks Contract Addendum §1.3)
+export {
+  definePatternType,
+  registerPatternType,
+  getPatternType,
+  assertPatternType,
+  listPatternTypes,
+  listPatternTypesForSourceApp,
+  /** @deprecated alias for listPatternTypesForSourceApp; will be removed */
+  listPatternTypesForEmittingApp,
+  listPatternTypesForReadingApp,
+  listCustomerVisiblePatternTypes,
+  _resetPatternTypeRegistryForTests,
+} from "./pattern-type-registry";
+
 // Customer template renderer
 export {
   renderCustomerSentence,

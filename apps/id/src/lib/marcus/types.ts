@@ -80,6 +80,46 @@ export interface PreAnalysisBrief {
   memory_facts: string[];
   response_shape: ResponseShape;
   action_availability: ActionAvailability[];
+  /**
+   * D2 Slice 11 — recent undelivered Oracle insights for this account.
+   * Sonnet may cite by `insight_id` (UUID); the engine post-processes the
+   * response and stamps delivered=true only on cited ids.
+   */
+  recent_insights?: InsightForBrief[];
+  /**
+   * L1a (Kinetiks Contract Addendum §1.10) — top-N high-confidence patterns for
+   * this account. Pre-fetched passively (NOT a tool result); Marcus
+   * weaves the implication into the response. The response body never
+   * dumps raw statistics.
+   */
+  recent_patterns?: PatternForBrief[];
+}
+
+export interface InsightForBrief {
+  insight_id: string;
+  type: string;
+  severity: "info" | "notable" | "urgent";
+  source_app: string;
+  summary: string;
+}
+
+/**
+ * Pattern projection injected into the brief. Same shape as the
+ * helper in patterns-for-brief.ts; declared here so types.ts stays
+ * the canonical brief contract.
+ */
+export interface PatternForBrief {
+  pattern_id: string;
+  pattern_type: string;
+  source_app: string;
+  status: "emerging" | "validated" | "declining";
+  applies_to_icp: string | null;
+  confidence_score: number;
+  observation_count: number;
+  sample_size: number;
+  primary_metric: { name: string; value: number; unit: string } | null;
+  lift_ratio: number | null;
+  summary: string;
 }
 
 export interface EvidencePoint {

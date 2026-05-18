@@ -14,6 +14,9 @@ import {
 } from "./thread-manager";
 import { loadThreadMemories, extractAndPersistMemories } from "./memory";
 import { buildPreAnalysisBrief, formatBriefForSonnet } from "./pre-analysis";
+import { loadInsightsForBrief } from "@/lib/oracle/insights/reader";
+import { loadPatternsForBrief } from "./patterns-for-brief";
+import { stampDeliveredFromResponse } from "@/lib/oracle/insights/delivery";
 import { buildPersonaPrompt } from "./prompts/marcus-persona";
 import { generateActions } from "./action-generator";
 import { assembleResponse } from "./response-assembler";
@@ -109,6 +112,25 @@ export async function processMarcusMessage(
   const toolInventory = await buildToolInventoryForBrief({ accountId }).catch(
     () => undefined,
   );
+  // D2 Slice 11 — recent undelivered Oracle insights so Sonnet can weave
+  // them into the response. Engine post-processes the response text to
+  // stamp delivered=true on cited insight_ids (see step 11.5).
+  const insightProjections = await loadInsightsForBrief({
+    admin,
+    accountId,
+  }).catch(() => []);
+  const briefInsights = insightProjections.map((p) => ({
+    insight_id: p.insight_id,
+    type: p.type,
+    severity: p.severity,
+    source_app: p.source_app,
+    summary: p.summary,
+  }));
+  // L1a — passive Pattern Library pre-fetch per Kinetiks Contract Addendum §1.10.
+  const briefPatterns = await loadPatternsForBrief({
+    admin,
+    account_id: accountId,
+  });
   const { brief, formatted: briefText } = await buildPreAnalysisBrief(
     message,
     manifest,
@@ -117,6 +139,8 @@ export async function processMarcusMessage(
     recentMessages,
     haikuFor("marcus.pre_analysis"),
     toolInventory,
+    briefInsights,
+    briefPatterns,
   );
   console.log("[ENGINE] brief evidence count:", brief.available_evidence.length);
   console.log("[ENGINE] brief must_not:", brief.response_shape.must_not);
@@ -170,6 +194,19 @@ export async function processMarcusMessage(
 
   // 11. Save Marcus response BEFORE mutating thread memory
   await addMessage(admin, thread.id, "marcus", finalResponse, channel);
+
+  // 11.5. D2 Slice 11 — stamp delivered=true on insights Sonnet cited.
+  // Fire and forget; allowlist is bounded by the ids we surfaced in the
+  // brief, so there's no risk of false-positive stamping.
+  if (briefInsights.length > 0) {
+    stampDeliveredFromResponse(
+      admin,
+      responseText,
+      briefInsights.map((i) => i.insight_id),
+    ).catch((err) =>
+      console.error("[ENGINE] insight delivery stamping failed:", err),
+    );
+  }
 
   // 12. Memory update (Haiku) - non-blocking, after response is persisted
   extractAndPersistMemories(
@@ -290,6 +327,25 @@ export async function streamMarcusMessage(
   const toolInventory = await buildToolInventoryForBrief({ accountId }).catch(
     () => undefined,
   );
+  // D2 Slice 11 — recent undelivered Oracle insights so Sonnet can weave
+  // them into the response. Engine post-processes the response text to
+  // stamp delivered=true on cited insight_ids (see step 11.5).
+  const insightProjections = await loadInsightsForBrief({
+    admin,
+    accountId,
+  }).catch(() => []);
+  const briefInsights = insightProjections.map((p) => ({
+    insight_id: p.insight_id,
+    type: p.type,
+    severity: p.severity,
+    source_app: p.source_app,
+    summary: p.summary,
+  }));
+  // L1a — passive Pattern Library pre-fetch per Kinetiks Contract Addendum §1.10.
+  const briefPatterns = await loadPatternsForBrief({
+    admin,
+    account_id: accountId,
+  });
   const { brief, formatted: briefText } = await buildPreAnalysisBrief(
     message,
     manifest,
@@ -298,6 +354,8 @@ export async function streamMarcusMessage(
     recentMessages,
     haikuFor("marcus.pre_analysis"),
     toolInventory,
+    briefInsights,
+    briefPatterns,
   );
 
   // 7.5. Tool decision + invocation (D1). See processMarcusMessage for
@@ -375,6 +433,19 @@ export async function streamMarcusMessage(
 
         // Save complete response (before action footer)
         const savedMessage = await addMessage(admin, thread.id, "marcus", fullResponse, channel);
+
+        // Stamp delivered=true on any Oracle insights Sonnet cited in
+        // the streamed response. Parity with processMarcusMessage; an
+        // insight without this stamp would resurface on the next turn.
+        if (briefInsights.length > 0) {
+          stampDeliveredFromResponse(
+            admin,
+            fullResponse,
+            briefInsights.map((i) => i.insight_id),
+          ).catch((err) =>
+            console.error("[ENGINE/stream] insight delivery stamping failed:", err),
+          );
+        }
 
         // Post-stream: action generation (Haiku)
         const conversationSummary = recentMessages;

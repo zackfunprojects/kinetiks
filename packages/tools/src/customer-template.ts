@@ -1,7 +1,7 @@
 /**
  * Customer-facing plain-language renderer for action class constraints.
  *
- * Per the 2027 addendum §2.14: constraints are rendered as sentences
+ * Per the Kinetiks Contract Addendum §2.14: constraints are rendered as sentences
  * via each Action Class's `customer_template`, never as raw field
  * labels. The literal phrase "Authority Grant" never appears in
  * customer-facing copy.
@@ -17,7 +17,7 @@ import { assertActionClass, getActionClass } from "./action-class-registry";
 
 /**
  * Customer templates use single-brace `{var}` placeholders for plain
- * readability (the 2027 addendum's chosen syntax). Prompts elsewhere
+ * readability (the Kinetiks Contract Addendum's chosen syntax). Prompts elsewhere
  * use double-brace `{{var}}` via `@kinetiks/lib/template-vars`. These
  * are deliberately different so customer sentences and agent prompts
  * never collide.

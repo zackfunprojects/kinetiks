@@ -2,7 +2,7 @@
  * Operator Registry — per-app inventory of every Operator that may be
  * addressed by a `WorkflowTask` with `target_type: "internal_operator"`.
  *
- * Per the 2027 addendum §3.3. Apps without internal Workflows omit the
+ * Per the Kinetiks Contract Addendum §3.3. Apps without internal Workflows omit the
  * `operator_registry` field on their manifest entirely; they make no
  * call to `registerOperators` and pay no cost.
  *

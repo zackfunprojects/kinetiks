@@ -21,6 +21,7 @@ import { configureAICallLogger } from "@kinetiks/ai";
 import { supabaseAICallLogger } from "./lib/ai/logger";
 import { registerKinetiksPromptTasks } from "./lib/ai/task-registry";
 import { registerKinetiksStateMachines } from "./lib/state-machines-init";
+import { bootPatternTypeRegistry } from "./lib/patterns/registry-boot";
 import { bootToolRegistry } from "./lib/tools/registry-boot";
 import "./lib/connections/extractors";
 
@@ -28,5 +29,9 @@ export function bootNodeInstrumentation(): void {
   configureAICallLogger(supabaseAICallLogger);
   registerKinetiksPromptTasks();
   registerKinetiksStateMachines();
+  // Pattern Type Registry MUST boot before the Tool Registry boot's
+  // cross-registry validator, which now requires required_patterns
+  // references to resolve to registered descriptors (L1a).
+  bootPatternTypeRegistry();
   bootToolRegistry();
 }

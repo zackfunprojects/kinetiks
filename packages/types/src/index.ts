@@ -68,6 +68,7 @@ export type {
   ImportStatus,
   ImportRecord,
   LedgerEventType,
+  LedgerEventDetailMap,
   LedgerEntry,
 } from "./billing";
 export type {
@@ -96,7 +97,25 @@ export type {
   LLMJudgmentModel,
   LLMJudgmentFallback,
   LLMJudgmentBudget,
+  PatternTypeDescriptor,
+  PatternDecayBounds,
+  PatternConfidenceThresholds,
 } from "./descriptors";
+export type {
+  Pattern,
+  PatternLifecycleStatus,
+  PatternOutcomeDirection,
+  PatternEvidenceSummary,
+  PatternImportedFrom,
+  PatternEmissionPayload,
+  PatternEmissionResult,
+  PatternExportSchemaVersion,
+  PatternExportRequest,
+  PatternExportEntry,
+  PatternExportPayload,
+  PatternTypeDescriptorSnapshot,
+  PatternImportResult,
+} from "./patterns";
 export type {
   SentinelVerdict,
   ReviewResolution,

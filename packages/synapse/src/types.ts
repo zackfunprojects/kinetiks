@@ -13,7 +13,11 @@ import type {
   ComplianceCheckResult,
   ReviewRequest,
   ReviewResponse,
+  PatternEmissionPayload,
+  PatternEmissionResult,
 } from "@kinetiks/types";
+
+export type { PatternEmissionPayload, PatternEmissionResult };
 
 /**
  * Auth configuration for Synapse-to-Cortex communication.
@@ -142,6 +146,18 @@ export interface SynapseInstance {
     accountId: string,
     input: SynapseReviewInput
   ) => Promise<ReviewResponse>;
+  /**
+   * Emit a Pattern to the Library per the Kinetiks Contract Addendum §1.4. The
+   * server validates the pattern_type against the Pattern Type Registry,
+   * verifies emitting_apps, applies bucketize, validates dimensions,
+   * checks outcome_metrics names + units, computes fingerprint, and
+   * runs the Archivist write path synchronously. Returns the
+   * discriminated PatternEmissionResult.
+   */
+  emitPattern: (
+    accountId: string,
+    payload: PatternEmissionPayload
+  ) => Promise<PatternEmissionResult>;
   /** Subscribe to Realtime routing events from the Cortex */
   subscribeToRouting: (
     supabaseClient: RealtimeClient,

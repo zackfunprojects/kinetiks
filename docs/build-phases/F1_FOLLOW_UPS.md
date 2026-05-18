@@ -8,8 +8,8 @@ production build are all green.
 
 ### Platform contract types (`@kinetiks/types`)
 - [x] `ToolDescriptor` — metadata side of an `AgentTool` (no execute).
-- [x] `ActionClassDescriptor` — per 2027 addendum §2.4. constraint_schema, customer_template, llm_judgment_budget, eligibility flags.
-- [x] `OperatorDescriptor` — per 2027 addendum §3.3. inputs/outputs schemas, required_tools, required_patterns, action_classes.
+- [x] `ActionClassDescriptor` — per Kinetiks Contract Addendum §2.4. constraint_schema, customer_template, llm_judgment_budget, eligibility flags.
+- [x] `OperatorDescriptor` — per Kinetiks Contract Addendum §3.3. inputs/outputs schemas, required_tools, required_patterns, action_classes.
 - [x] `AvailabilityPredicate`, `RateLimitConfig`, `LLMJudgmentBudget`.
 
 ### `@kinetiks/tools` workspace (new)

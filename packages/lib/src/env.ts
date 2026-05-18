@@ -95,6 +95,15 @@ export const kinetiksServerEnvSchema = z.object({
   INTERNAL_SERVICE_SECRET: z.string().optional(),
   // Where Edge Functions reach the Node API. Defaults at the call site.
   IDENTITY_API_URL: envFragments.optionalUrl,
+
+  // Nango (D2 — integration platform for GA4/GSC/Stripe/Meta Ads/Google Ads/HubSpot).
+  // Optional during the D2 migration; once Slice 5 (GA4 migration) lands the
+  // first three become effectively required for any account that wants live
+  // metrics. NANGO_HOST defaults to Nango Cloud at the call site.
+  NANGO_SECRET_KEY: z.string().optional(),
+  NANGO_PUBLIC_KEY: z.string().optional(),
+  NANGO_WEBHOOK_SECRET: z.string().optional(),
+  NANGO_HOST: envFragments.optionalUrl,
 });
 
 export type KinetiksServerEnv = z.infer<typeof kinetiksServerEnvSchema>;

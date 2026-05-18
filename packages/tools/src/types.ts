@@ -80,6 +80,7 @@ export type ToolErrorClass =
   | "invalid_output"          // execute returned data that failed outputSchema
   | "unavailable"             // availability predicate denied
   | "missing_action_class"    // consequential tool referenced an unregistered class
+  | "missing_pattern_type"    // emission/read referenced an unregistered pattern type (L1a)
   | "denied_by_authority"     // authority resolution refused (F2 fills this in)
   | "queued_for_approval"     // surfaced; not really an error, but execute did not run
   | "rate_limited"            // rate limit hit (F2 fills this in)
@@ -123,6 +124,7 @@ function defaultUserMessage(c: ToolErrorClass): string {
     case "unavailable":
       return "That capability isn't available on your account.";
     case "missing_action_class":
+    case "missing_pattern_type":
     case "configuration_error":
       return "Something is misconfigured on our end. We've been notified.";
     case "denied_by_authority":
@@ -156,6 +158,7 @@ function defaultStatus(c: ToolErrorClass): number {
     case "timeout":
       return 504;
     case "missing_action_class":
+    case "missing_pattern_type":
     case "configuration_error":
       return 500;
     case "transient":
