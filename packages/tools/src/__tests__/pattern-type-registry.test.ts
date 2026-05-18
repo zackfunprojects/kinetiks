@@ -19,10 +19,10 @@ afterEach(() => {
 });
 
 const validDescriptor = (): PatternTypeDescriptor => ({
-  pattern_type: "harvest.outreach_angle_performance",
+  pattern_type: "harvest.outreach_angle_performance.reply_rate",
+  source_app: "harvest",
   description:
-    "Outreach angle x industry-bucket x seniority-tier signature mapped to reply rate and meeting book rate.",
-  emitting_apps: ["harvest"],
+    "Outreach angle x industry-bucket x seniority-tier signature mapped to reply rate.",
   read_apps: ["marcus", "oracle", "harvest"],
   customer_visible: true,
   dimensions_schema: z.object({
@@ -31,10 +31,9 @@ const validDescriptor = (): PatternTypeDescriptor => ({
     seniority_tier: z.string(),
   }),
   fingerprint_dimensions: ["angle_kind", "industry_bucket", "seniority_tier"],
-  valid_outcome_metrics: [
-    { name: "reply_rate", description: "Replies divided by sends, [0,1] ratio.", unit: "ratio_0_1" },
-    { name: "meeting_book_rate", description: "Meetings booked divided by sends.", unit: "ratio_0_1" },
-  ],
+  outcome_metric: "reply_rate",
+  outcome_unit: "ratio_0_1",
+  outcome_direction: "higher_is_better",
   decay_bounds: {
     initial_decay_days: 60,
     decay_floor_days: 30,
@@ -48,14 +47,14 @@ const validDescriptor = (): PatternTypeDescriptor => ({
 describe("definePatternType helper", () => {
   it("returns the descriptor untouched (sugar for inference)", () => {
     const d = definePatternType(validDescriptor());
-    expect(d.pattern_type).toBe("harvest.outreach_angle_performance");
+    expect(d.pattern_type).toBe("harvest.outreach_angle_performance.reply_rate");
   });
 });
 
 describe("pattern type registry", () => {
   it("registers and looks up a pattern type", () => {
     registerPatternType(validDescriptor());
-    const got = getPatternType("harvest.outreach_angle_performance");
+    const got = getPatternType("harvest.outreach_angle_performance.reply_rate");
     expect(got).toBeDefined();
     expect(got?.customer_visible).toBe(true);
   });
@@ -86,19 +85,19 @@ describe("pattern type registry", () => {
   it("rejects pattern_type without app.snake_case shape", () => {
     expect(() =>
       registerPatternType({ ...validDescriptor(), pattern_type: "BadShape" }),
-    ).toThrow(/<app>\.<snake_case_name>/);
+    ).toThrow(/<app>\.<snake_case_segment>/);
   });
 
-  it("rejects pattern_type whose prefix is not in emitting_apps", () => {
+  it("rejects pattern_type whose prefix does not match source_app", () => {
     expect(() =>
       registerPatternType({
         ...validDescriptor(),
-        pattern_type: "dark_madder.content_resonance",
-        emitting_apps: ["harvest"],
+        pattern_type: "dark_madder.content_resonance.engagement",
+        source_app: "harvest",
         dimensions_schema: z.object({ a: z.string() }),
         fingerprint_dimensions: ["a"],
       }),
-    ).toThrow(/prefix "dark_madder" must be in emitting_apps/);
+    ).toThrow(/prefix "dark_madder" must equal source_app "harvest"/);
   });
 
   it("rejects empty read_apps", () => {
@@ -145,33 +144,25 @@ describe("pattern type registry", () => {
     ).toThrow(/bucketize must be a function/);
   });
 
-  it("rejects empty valid_outcome_metrics", () => {
+  it("rejects empty outcome_metric", () => {
     expect(() =>
-      registerPatternType({ ...validDescriptor(), valid_outcome_metrics: [] }),
-    ).toThrow(/at least one outcome metric/);
+      registerPatternType({ ...validDescriptor(), outcome_metric: "" }),
+    ).toThrow(/non-empty outcome_metric/);
   });
 
-  it("rejects duplicate outcome metric names", () => {
+  it("rejects empty outcome_unit", () => {
+    expect(() =>
+      registerPatternType({ ...validDescriptor(), outcome_unit: "" }),
+    ).toThrow(/non-empty outcome_unit/);
+  });
+
+  it("rejects outcome_direction outside the closed enum", () => {
     expect(() =>
       registerPatternType({
         ...validDescriptor(),
-        valid_outcome_metrics: [
-          { name: "reply_rate", description: "Replies / sends.", unit: "ratio_0_1" },
-          { name: "reply_rate", description: "Another reply_rate definition.", unit: "count" },
-        ],
+        outcome_direction: "sideways" as unknown as "higher_is_better",
       }),
-    ).toThrow(/outcome_metrics names must be unique/);
-  });
-
-  it("rejects outcome metric missing unit", () => {
-    expect(() =>
-      registerPatternType({
-        ...validDescriptor(),
-        valid_outcome_metrics: [
-          { name: "reply_rate", description: "Replies / sends ratio.", unit: "" },
-        ],
-      }),
-    ).toThrow(/must declare a unit/);
+    ).toThrow(/outcome_direction must be 'higher_is_better' or 'lower_is_better'/);
   });
 
   it("rejects decay_bounds where floor > initial", () => {
@@ -264,11 +255,11 @@ describe("pattern type registry", () => {
     expect(warn).toHaveBeenCalledWith(expect.stringContaining("above the soft ceiling"));
   });
 
-  it("filters by emitting app", () => {
+  it("filters by source app", () => {
     registerPatternType(validDescriptor());
     registerPatternType({
       ...validDescriptor(),
-      pattern_type: "harvest.sequence_step_conversion",
+      pattern_type: "harvest.sequence_step_conversion.open_rate",
       dimensions_schema: z.object({ step: z.number() }),
       fingerprint_dimensions: ["step"],
     });
@@ -280,7 +271,7 @@ describe("pattern type registry", () => {
     registerPatternType(validDescriptor());
     registerPatternType({
       ...validDescriptor(),
-      pattern_type: "harvest.sequence_step_conversion",
+      pattern_type: "harvest.sequence_step_conversion.open_rate",
       dimensions_schema: z.object({ step: z.number() }),
       fingerprint_dimensions: ["step"],
       read_apps: ["marcus"],
@@ -294,13 +285,13 @@ describe("pattern type registry", () => {
     registerPatternType(validDescriptor());
     registerPatternType({
       ...validDescriptor(),
-      pattern_type: "harvest.sequence_step_conversion",
+      pattern_type: "harvest.sequence_step_conversion.open_rate",
       dimensions_schema: z.object({ step: z.number() }),
       fingerprint_dimensions: ["step"],
       customer_visible: false,
     });
     const visible = listCustomerVisiblePatternTypes();
     expect(visible).toHaveLength(1);
-    expect(visible[0]?.pattern_type).toBe("harvest.outreach_angle_performance");
+    expect(visible[0]?.pattern_type).toBe("harvest.outreach_angle_performance.reply_rate");
   });
 });

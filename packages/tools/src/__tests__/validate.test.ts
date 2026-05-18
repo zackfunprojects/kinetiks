@@ -25,17 +25,17 @@ afterEach(() => {
 
 function patternType(over: Partial<PatternTypeDescriptor> = {}): PatternTypeDescriptor {
   return {
-    pattern_type: "noop.test_signature",
+    pattern_type: "noop.test_signature.rate",
+    source_app: "noop",
     description:
       "A test fixture pattern type used by the cross-registry validator suite.",
-    emitting_apps: ["noop"],
     read_apps: ["noop"],
     customer_visible: false,
     dimensions_schema: z.object({ x: z.string() }),
     fingerprint_dimensions: ["x"],
-    valid_outcome_metrics: [
-      { name: "rate", description: "Test outcome rate metric.", unit: "ratio_0_1" },
-    ],
+    outcome_metric: "rate",
+    outcome_unit: "ratio_0_1",
+    outcome_direction: "higher_is_better",
     decay_bounds: {
       initial_decay_days: 30,
       decay_floor_days: 14,
@@ -176,7 +176,7 @@ describe("cross-registry validation", () => {
         inputs_schema: z.object({}),
         outputs_schema: z.object({}),
         required_tools: [],
-        required_patterns: ["noop.test_signature"],
+        required_patterns: ["noop.test_signature.rate"],
         action_classes: [],
       },
     ]);

@@ -15,6 +15,7 @@
  */
 
 import type { ZodSchema } from "zod";
+import type { PatternOutcomeDirection } from "./patterns";
 
 // ============================================================
 // Common helpers
@@ -170,20 +171,6 @@ export interface OperatorDescriptor {
 // Pattern Type Descriptor (per the Kinetiks Contract Addendum §1.3)
 // ============================================================
 
-/** A registered outcome metric an emission may carry. */
-export interface PatternOutcomeMetricDescriptor {
-  /** Identifier, e.g. "reply_rate", "meeting_book_rate". */
-  readonly name: string;
-  /** LLM-readable summary of what the metric measures and how it's computed. */
-  readonly description: string;
-  /**
-   * Unit string. Emissions MUST submit `unit` matching this exactly, or
-   * the whole emission is rejected. Use a small closed vocabulary:
-   * "ratio_0_1", "count", "seconds", "currency_usd", etc.
-   */
-  readonly unit: string;
-}
-
 /**
  * Decay bounds the calibration job (Phase 2) is allowed to operate
  * inside. Phase 1 reads `initial_decay_days` only.
@@ -211,12 +198,19 @@ export interface PatternConfidenceThresholds {
 }
 
 /**
- * Per the Kinetiks Contract Addendum §1.3. A `pattern_type` is the registered shape
- * an app may emit to the Pattern Library. Every dimension of identity
- * (the fingerprint), every legal outcome metric, every read-side
- * boundary, and the lifecycle thresholds are declared here.
+ * Per the Kinetiks Contract Addendum §1.3. A `pattern_type` is the
+ * registered shape an app may emit to the Pattern Library. Every
+ * dimension of identity (the fingerprint), the single primary outcome
+ * metric, every read-side boundary, and the lifecycle thresholds are
+ * declared here.
  *
- * Read scoping has two orthogonal axes:
+ * Canonical L1b shape: SINGLE primary outcome per pattern type (no
+ * outcome_metrics array). Multi-outcome insights are modeled as
+ * separate pattern types sharing fingerprint dimensions (e.g.
+ * harvest.icp_resonance.reply_rate vs harvest.icp_resonance.deal_close_rate).
+ *
+ * Source attribution is single-app (one pattern_type belongs to one
+ * source app). Read scoping has two orthogonal axes:
  *  - `read_apps`: runtime trust boundary; which agent apps may see this
  *    type via `query_patterns`.
  *  - `customer_visible`: UI exposure; whether this type appears in the
@@ -225,20 +219,26 @@ export interface PatternConfidenceThresholds {
  * Bucketization is mandatory for high-cardinality dimensions. The
  * single biggest failure mode of the Pattern Library is pattern type
  * explosion, prevented by bucketing raw inputs to coarse identity
- * before fingerprinting. See Kinetiks Contract Addendum §1.3 (cardinality intent in the registry).
+ * before fingerprinting.
  */
 export interface PatternTypeDescriptor<
   TDimensions extends Record<string, unknown> = Record<string, unknown>,
 > {
   /**
    * Globally unique key, app-prefixed. e.g.
-   * "harvest.outreach_angle_performance", "dark_madder.content_resonance".
+   * "harvest.outreach_angle_performance.reply_rate".
    */
   readonly pattern_type: string;
+  /**
+   * The app that owns this pattern type. Patterns of this type can
+   * only be emitted by this app. Pattern row's `source_app` equals
+   * this value.
+   */
+  readonly source_app: string;
   /** LLM-readable summary of what the pattern represents and when to trust it. */
   readonly description: string;
-  /** Apps that may emit this pattern type via Synapse. */
-  readonly emitting_apps: readonly string[];
+  /** Optional example dimensions block for LLM grounding. */
+  readonly example?: Record<string, unknown>;
   /**
    * Agent apps that may read patterns of this type via `query_patterns`.
    * Enforced at the tool execute() layer.
@@ -274,15 +274,19 @@ export interface PatternTypeDescriptor<
    * by the caller after bucketize runs).
    */
   readonly bucketize?: (raw: Record<string, unknown>) => TDimensions;
+
+  // ── Outcome (canonical single-primary) ──────────────────────
+  /** The single outcome metric this pattern tracks. e.g. "reply_rate". */
+  readonly outcome_metric: string;
   /**
-   * Outcome metrics the descriptor accepts. Emissions whose
-   * `outcome_metrics[i].metric_name` is absent from this list, OR whose
-   * `outcome_metrics[i].unit` does not match this list's declared unit
-   * for that name, are rejected. The FIRST entry by convention is the
-   * "primary metric" used for stability calculation in the confidence
-   * formula (§1.6).
+   * Unit string. Emissions MUST submit a payload whose `outcome_metric`
+   * matches and whose semantic unit matches. Use a small closed
+   * vocabulary: "ratio_0_1", "count", "seconds", "currency_usd", etc.
    */
-  readonly valid_outcome_metrics: readonly PatternOutcomeMetricDescriptor[];
+  readonly outcome_unit: string;
+  /** Whether higher or lower outcome_value is better. Drives lift interpretation. */
+  readonly outcome_direction: PatternOutcomeDirection;
+
   /** Bounds within which Phase 2 calibration may adjust effective decay. */
   readonly decay_bounds: PatternDecayBounds;
   /** Confidence thresholds for lifecycle transitions. `validate_at > decline_at`. */

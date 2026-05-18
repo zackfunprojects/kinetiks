@@ -9,11 +9,12 @@
  *
  * Registration validates structural invariants:
  *   - pattern_type is "<app>.<snake_case>" with a single dot
- *   - emitting_apps and read_apps are non-empty
+ *   - source_app non-empty; pattern_type prefix equals source_app
+ *   - read_apps non-empty
  *   - dimensions_schema is a Zod schema
  *   - fingerprint_dimensions are non-empty and unique
- *   - valid_outcome_metrics are non-empty with unique names and
- *     non-empty units
+ *   - outcome_metric, outcome_unit, outcome_direction declared
+ *     (canonical single-primary outcome shape)
  *   - decay_bounds are consistent (floor <= initial <= ceiling, all positive)
  *   - confidence_thresholds.validate_at > confidence_thresholds.decline_at
  *   - expected_max_fingerprints_per_account, if declared, is reasonable
@@ -98,12 +99,19 @@ export function listPatternTypes(): PatternTypeDescriptor[] {
     .map((e) => e.descriptor);
 }
 
-/** Filtered list: pattern types this app is allowed to emit. */
-export function listPatternTypesForEmittingApp(
+/** Filtered list: pattern types whose `source_app` matches. */
+export function listPatternTypesForSourceApp(
   app: string,
 ): PatternTypeDescriptor[] {
-  return listPatternTypes().filter((d) => d.emitting_apps.includes(app));
+  return listPatternTypes().filter((d) => d.source_app === app);
 }
+
+/**
+ * @deprecated Use `listPatternTypesForSourceApp` (canonical naming per
+ * the Kinetiks Contract Addendum §1.3). Kept as a thin alias during
+ * the L1b alignment so call-site renames can land separately.
+ */
+export const listPatternTypesForEmittingApp = listPatternTypesForSourceApp;
 
 /** Filtered list: pattern types this app is allowed to read. */
 export function listPatternTypesForReadingApp(
@@ -129,10 +137,13 @@ function assertPatternTypeDescriptor(d: PatternTypeDescriptor): void {
       {},
     );
   }
-  if (!/^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$/.test(d.pattern_type)) {
+  // Canonical L1b: allow multi-segment pattern types like
+  // "harvest.icp_resonance.reply_rate" — first segment is the app prefix,
+  // remaining segments are the pattern_type name (snake_case, dot-separated).
+  if (!/^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/.test(d.pattern_type)) {
     throw new ToolError(
       "configuration_error",
-      `Pattern type "${d.pattern_type}" must match "<app>.<snake_case_name>" (single dot, lowercase)`,
+      `Pattern type "${d.pattern_type}" must match "<app>.<snake_case_segment>[.<snake_case_segment>...]" (lowercase, dot-separated)`,
       { context: { pattern_type: d.pattern_type } },
     );
   }
@@ -143,24 +154,23 @@ function assertPatternTypeDescriptor(d: PatternTypeDescriptor): void {
       { context: { pattern_type: d.pattern_type } },
     );
   }
-  if (!Array.isArray(d.emitting_apps) || d.emitting_apps.length === 0) {
+  if (!d.source_app || typeof d.source_app !== "string") {
     throw new ToolError(
       "configuration_error",
-      `Pattern type "${d.pattern_type}" must declare at least one emitting_app`,
+      `Pattern type "${d.pattern_type}" must declare a source_app`,
       { context: { pattern_type: d.pattern_type } },
     );
   }
-  // The pattern_type prefix must be in emitting_apps (the originating app
-  // is always allowed to emit its own types).
-  const [prefix] = d.pattern_type.split(".");
-  if (!d.emitting_apps.includes(prefix)) {
+  // The pattern_type prefix must equal source_app.
+  const prefix = d.pattern_type.split(".")[0];
+  if (prefix !== d.source_app) {
     throw new ToolError(
       "configuration_error",
-      `Pattern type "${d.pattern_type}" prefix "${prefix}" must be in emitting_apps`,
+      `Pattern type "${d.pattern_type}" prefix "${prefix}" must equal source_app "${d.source_app}"`,
       {
         context: {
           pattern_type: d.pattern_type,
-          emitting_apps: [...d.emitting_apps],
+          source_app: d.source_app,
         },
       },
     );
@@ -212,46 +222,30 @@ function assertPatternTypeDescriptor(d: PatternTypeDescriptor): void {
       { context: { pattern_type: d.pattern_type } },
     );
   }
-  if (
-    !Array.isArray(d.valid_outcome_metrics) ||
-    d.valid_outcome_metrics.length === 0
-  ) {
+  // Canonical L1b: single primary outcome per descriptor.
+  if (!d.outcome_metric || typeof d.outcome_metric !== "string") {
     throw new ToolError(
       "configuration_error",
-      `Pattern type "${d.pattern_type}" must declare at least one outcome metric in valid_outcome_metrics`,
+      `Pattern type "${d.pattern_type}" must declare a non-empty outcome_metric string`,
       { context: { pattern_type: d.pattern_type } },
     );
   }
-  const metricNames = d.valid_outcome_metrics.map((m) => m.name);
-  if (new Set(metricNames).size !== metricNames.length) {
+  if (!d.outcome_unit || typeof d.outcome_unit !== "string") {
     throw new ToolError(
       "configuration_error",
-      `Pattern type "${d.pattern_type}" valid_outcome_metrics names must be unique`,
-      { context: { pattern_type: d.pattern_type, metrics: metricNames } },
+      `Pattern type "${d.pattern_type}" must declare a non-empty outcome_unit string`,
+      { context: { pattern_type: d.pattern_type } },
     );
   }
-  for (const m of d.valid_outcome_metrics) {
-    if (!m.name || typeof m.name !== "string") {
-      throw new ToolError(
-        "configuration_error",
-        `Pattern type "${d.pattern_type}" outcome metric must declare a name`,
-        { context: { pattern_type: d.pattern_type } },
-      );
-    }
-    if (!m.unit || typeof m.unit !== "string") {
-      throw new ToolError(
-        "configuration_error",
-        `Pattern type "${d.pattern_type}" outcome metric "${m.name}" must declare a unit`,
-        { context: { pattern_type: d.pattern_type, metric: m.name } },
-      );
-    }
-    if (!m.description || m.description.trim().length < 12) {
-      throw new ToolError(
-        "configuration_error",
-        `Pattern type "${d.pattern_type}" outcome metric "${m.name}" needs a description of at least 12 chars`,
-        { context: { pattern_type: d.pattern_type, metric: m.name } },
-      );
-    }
+  if (
+    d.outcome_direction !== "higher_is_better" &&
+    d.outcome_direction !== "lower_is_better"
+  ) {
+    throw new ToolError(
+      "configuration_error",
+      `Pattern type "${d.pattern_type}" outcome_direction must be 'higher_is_better' or 'lower_is_better'`,
+      { context: { pattern_type: d.pattern_type } },
+    );
   }
   // decay_bounds
   const db = d.decay_bounds;
@@ -388,16 +382,16 @@ function descriptorsMatch(
 ): boolean {
   return (
     a.pattern_type === b.pattern_type &&
+    a.source_app === b.source_app &&
     a.description === b.description &&
     a.customer_visible === b.customer_visible &&
-    JSON.stringify([...a.emitting_apps].sort()) ===
-      JSON.stringify([...b.emitting_apps].sort()) &&
     JSON.stringify([...a.read_apps].sort()) ===
       JSON.stringify([...b.read_apps].sort()) &&
     JSON.stringify(a.fingerprint_dimensions.map(String)) ===
       JSON.stringify(b.fingerprint_dimensions.map(String)) &&
-    JSON.stringify(a.valid_outcome_metrics) ===
-      JSON.stringify(b.valid_outcome_metrics) &&
+    a.outcome_metric === b.outcome_metric &&
+    a.outcome_unit === b.outcome_unit &&
+    a.outcome_direction === b.outcome_direction &&
     JSON.stringify(a.decay_bounds) === JSON.stringify(b.decay_bounds) &&
     JSON.stringify(a.confidence_thresholds) ===
       JSON.stringify(b.confidence_thresholds) &&
