@@ -4,7 +4,6 @@ import { redirect } from "next/navigation";
 import { AppsManager } from "@/components/dashboard/AppsManager";
 import { ConnectionsManager } from "@/components/connections/ConnectionsManager";
 import { ImportsManager } from "@/components/dashboard/ImportsManager";
-import { BudgetManager } from "@/components/cortex/BudgetManager";
 import { SystemConnectionCard } from "@/components/cortex/SystemConnectionCard";
 import { listProviders } from "@/lib/connections/providers";
 import type { AppActivation, SynapseRecord, ConnectionPublic, ImportRecord } from "@kinetiks/types";
@@ -138,7 +137,7 @@ export default async function IntegrationsPage() {
       </section>
 
       {/* Data Imports */}
-      <section style={{ marginBottom: 40 }}>
+      <section>
         <h2
           style={{
             fontSize: 16,
@@ -151,22 +150,6 @@ export default async function IntegrationsPage() {
           Imports
         </h2>
         <ImportsManager initialImports={(imports ?? []) as ImportRecord[]} />
-      </section>
-
-      {/* Budget */}
-      <section>
-        <h2
-          style={{
-            fontSize: 16,
-            fontWeight: 600,
-            color: "var(--kt-fg-1)",
-            margin: "0 0 16px",
-            fontFamily: "var(--font-mono), monospace",
-          }}
-        >
-          Budget
-        </h2>
-        <BudgetManager />
       </section>
     </div>
   );
