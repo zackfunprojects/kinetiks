@@ -50,7 +50,7 @@ export default function AuthorityPage() {
         <p
           style={{
             fontSize: "var(--kt-fs-14)",
-            lineHeight: 1.55,
+            lineHeight: "var(--kt-lh-body)",
             color: "var(--kt-fg-2)",
             margin: "0 0 var(--kt-s-3)",
           }}
@@ -62,7 +62,7 @@ export default function AuthorityPage() {
         <p
           style={{
             fontSize: "var(--kt-fs-14)",
-            lineHeight: 1.55,
+            lineHeight: "var(--kt-lh-body)",
             color: "var(--kt-fg-2)",
             margin: 0,
           }}
