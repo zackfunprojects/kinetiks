@@ -159,12 +159,35 @@ Deno.serve(async () => {
     if (!ok) {
       deferredSweepErrors += batchIds.length;
     } else {
-      const env = body as { data?: { accounts_processed?: number } };
+      // Read both the success and failure counts from the body. The
+      // sweep route can return 200 while still reporting per-account
+      // failures under data.failed / data.per_account[*].error — those
+      // must show up in the cron summary so a clean transport run
+      // doesn't mask a sweep that actually skipped observations.
+      const env = body as {
+        data?: {
+          accounts_processed?: number;
+          failed?: number;
+          per_account?: Record<string, { error?: string } | unknown>;
+        };
+      };
       const count =
         typeof env?.data?.accounts_processed === "number"
           ? env.data.accounts_processed
           : batchIds.length;
       deferredSweepProcessed += count;
+      // In-band failures: data.failed is the total emission/update
+      // failure count across this batch, plus any per-account .error
+      // entries (transport-level failure inside the route, not the
+      // outer postInternal).
+      const inBandFailed =
+        typeof env?.data?.failed === "number" ? env.data.failed : 0;
+      const perAccountErrors = env?.data?.per_account
+        ? Object.values(env.data.per_account).filter(
+            (v) => v && typeof v === "object" && "error" in (v as object),
+          ).length
+        : 0;
+      deferredSweepErrors += inBandFailed + perAccountErrors;
     }
     if (i + API_BATCH_SIZE < allIds.length) {
       await new Promise((resolve) => setTimeout(resolve, BATCH_DELAY_MS));

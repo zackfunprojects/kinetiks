@@ -47,7 +47,13 @@ CREATE TABLE kinetiks_pattern_pending_observations (
 );
 
 -- Lookup path for close(): account + type + key.
-CREATE INDEX idx_pending_obs_lookup
+-- UNIQUE because closeDeferredObservation uses .maybeSingle() on the
+-- same predicate. Two pending rows for the same correlation key would
+-- either fail .maybeSingle() or — worse — let two concurrent writers
+-- both close the same logical observation with different outcomes.
+-- The partial UNIQUE constraint enforces "at most one pending row per
+-- (account, type, key)" at the DB layer.
+CREATE UNIQUE INDEX idx_pending_obs_lookup
   ON kinetiks_pattern_pending_observations
   (account_id, pattern_type, observation_key)
   WHERE status = 'pending';

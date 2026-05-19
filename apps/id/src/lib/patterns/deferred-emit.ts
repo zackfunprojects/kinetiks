@@ -145,21 +145,35 @@ export async function closeDeferredObservation(
   }
 
   // Flip status to closed BEFORE emitting so a slow synapse POST can't
-  // cause a duplicate emission on retry.
-  const { error: updateError } = await admin
+  // cause a duplicate emission on retry. The .eq("status", "pending")
+  // guard prevents two concurrent close paths from both writing
+  // outcome to the same row — whichever loses the race sees zero
+  // affected rows and bails.
+  const { data: updated, error: updateError } = await admin
     .from(PENDING_OBS_TABLE)
     .update({
       status: "closed",
       closed_outcome_value: args.outcome_value,
       closed_at: new Date().toISOString(),
     })
-    .eq("id", pending.id);
+    .eq("id", pending.id)
+    .eq("status", "pending")
+    .select("id")
+    .maybeSingle();
   if (updateError) {
     return {
       closed: false,
       pattern_id: null,
       outcome: null,
       reason: `update_failed: ${updateError.message}`,
+    };
+  }
+  if (!updated) {
+    return {
+      closed: false,
+      pattern_id: null,
+      outcome: null,
+      reason: "race_lost",
     };
   }
 
@@ -240,20 +254,32 @@ export async function sweepExpiredDeferredObservations(
 
   let emitted = 0;
   let failed = 0;
+  let scanned = 0;
   for (const row of rows) {
     // Flip first so a slow synapse POST doesn't cause a duplicate.
-    const { error: updateError } = await admin
+    // The .eq("status", "pending") guard means a concurrent close path
+    // that won the race leaves this row alone and we skip emission.
+    const { data: updated, error: updateError } = await admin
       .from(PENDING_OBS_TABLE)
       .update({
         status: "expired",
         closed_outcome_value: outcomeValue,
         closed_at: new Date().toISOString(),
       })
-      .eq("id", row.id);
+      .eq("id", row.id)
+      .eq("status", "pending")
+      .select("id")
+      .maybeSingle();
     if (updateError) {
       failed++;
       continue;
     }
+    if (!updated) {
+      // Race lost — another path (close or another sweep) already
+      // transitioned this row. Not a failure; not an emission either.
+      continue;
+    }
+    scanned++;
 
     try {
       const emit = await emitPattern({
@@ -275,7 +301,7 @@ export async function sweepExpiredDeferredObservations(
 
   return {
     scanned: rows.length,
-    expired_count: rows.length,
+    expired_count: scanned,
     emitted_count: emitted,
     failed_count: failed,
   };
@@ -284,6 +310,9 @@ export async function sweepExpiredDeferredObservations(
 // ─────────────────────────────────────────────
 // Internal: emit a pattern via /api/synapse/patterns
 // ─────────────────────────────────────────────
+
+/** Timeout for the deferred-emit POST to /api/synapse/patterns. */
+const EMIT_FETCH_TIMEOUT_MS = 10_000;
 
 interface EmitPatternArgs {
   account_id: string;
@@ -339,6 +368,10 @@ async function emitPattern(args: EmitPatternArgs): Promise<{
         Authorization: `Bearer ${args.internalSecret}`,
       },
       body: JSON.stringify(payload),
+      // Bound the close + sweep latency under degraded network. The
+      // archivist sweep iterates many rows; one stalled fetch must not
+      // hang the whole pass.
+      signal: AbortSignal.timeout(EMIT_FETCH_TIMEOUT_MS),
     });
     if (!response.ok) {
       return { ok: false, outcome: `http_${response.status}`, pattern_id: null };

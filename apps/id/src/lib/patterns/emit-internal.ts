@@ -20,6 +20,7 @@
 
 import "server-only";
 
+import * as Sentry from "@sentry/nextjs";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { serverEnv } from "@kinetiks/lib/env";
 import {
@@ -27,6 +28,25 @@ import {
   closeDeferredObservation,
   type DeferredObservationInput,
 } from "./deferred-emit";
+
+/**
+ * Timeout for the synchronous onboarding emission. Best-effort
+ * fire-and-forget — must not hang the user-facing operation.
+ */
+const ONBOARDING_EMIT_FETCH_TIMEOUT_MS = 10_000;
+
+/**
+ * Best-effort error capture for the kinetiks_id emission helpers.
+ * Patterns emission must never block the user-facing operation, so
+ * we route failures through Sentry with structured tags rather than
+ * bubbling them up.
+ */
+function captureEmissionError(action: string, err: unknown, extra: Record<string, unknown> = {}): void {
+  Sentry.captureException(err, {
+    tags: { route: "emit-internal", action, stage: "emission", app: "id" },
+    extra,
+  });
+}
 
 const KINETIKS_ID_SOURCE_APP = "kinetiks_id" as const;
 const PENDING_OBS_TABLE = "kinetiks_pattern_pending_observations" as const;
@@ -94,10 +114,11 @@ export async function recordMarcusTurnObservation(
     };
     await recordDeferredObservation(obs, admin);
   } catch (err) {
-    console.error(
-      "[emit-internal] recordMarcusTurnObservation failed:",
-      err instanceof Error ? err.message : err,
-    );
+    captureEmissionError("recordMarcusTurnObservation", err, {
+      account_id: input.account_id,
+      thread_id: input.thread_id,
+      message_id: input.message_id,
+    });
   }
 }
 
@@ -144,10 +165,10 @@ export async function closeMarcusTurnObservationForThread(
       admin,
     );
   } catch (err) {
-    console.error(
-      "[emit-internal] closeMarcusTurnObservationForThread failed:",
-      err instanceof Error ? err.message : err,
-    );
+    captureEmissionError("closeMarcusTurnObservationForThread", err, {
+      account_id: args.account_id,
+      thread_id: args.thread_id,
+    });
   }
 }
 
@@ -192,10 +213,10 @@ export async function recordInsightDeliveryObservation(
     };
     await recordDeferredObservation(obs, admin);
   } catch (err) {
-    console.error(
-      "[emit-internal] recordInsightDeliveryObservation failed:",
-      err instanceof Error ? err.message : err,
-    );
+    captureEmissionError("recordInsightDeliveryObservation", err, {
+      account_id: input.account_id,
+      insight_id: input.insight_id,
+    });
   }
 }
 
@@ -256,17 +277,24 @@ export async function emitOnboardingQuestionValue(
         Authorization: `Bearer ${internalSecret}`,
       },
       body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(ONBOARDING_EMIT_FETCH_TIMEOUT_MS),
     });
     if (!response.ok) {
-      console.error(
-        `[emit-internal] emitOnboardingQuestionValue HTTP ${response.status}`,
+      captureEmissionError(
+        "emitOnboardingQuestionValue",
+        new Error(`HTTP ${response.status}`),
+        {
+          account_id: input.account_id,
+          question_id: input.question_id,
+          http_status: response.status,
+        },
       );
     }
   } catch (err) {
-    console.error(
-      "[emit-internal] emitOnboardingQuestionValue failed:",
-      err instanceof Error ? err.message : err,
-    );
+    captureEmissionError("emitOnboardingQuestionValue", err, {
+      account_id: input.account_id,
+      question_id: input.question_id,
+    });
   }
   // The unused 'admin' parameter is retained in the signature so callers
   // pass it consistently; emitOnboardingQuestionValue may later switch
@@ -311,9 +339,10 @@ export async function recordConnectionEvidenceObservation(
     };
     await recordDeferredObservation(obs, admin);
   } catch (err) {
-    console.error(
-      "[emit-internal] recordConnectionEvidenceObservation failed:",
-      err instanceof Error ? err.message : err,
-    );
+    captureEmissionError("recordConnectionEvidenceObservation", err, {
+      account_id: input.account_id,
+      provider: input.provider,
+      request_id: input.request_id,
+    });
   }
 }

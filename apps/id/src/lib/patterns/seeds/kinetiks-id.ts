@@ -155,9 +155,21 @@ const insightActionSchema = z.object({
 });
 
 function bucketInsightAction(raw: Record<string, unknown>) {
+  // Defensive casts: callers may pass partially-shaped insights, so
+  // validate against the enums and fall back to safe defaults instead
+  // of propagating bad strings into the dimensions blob. Matches the
+  // pattern in bucketConnectionValue below.
+  const rawCategory = String(raw.insight_category ?? "");
+  const insight_category = (INSIGHT_CATEGORIES as ReadonlyArray<string>).includes(rawCategory)
+    ? (rawCategory as (typeof INSIGHT_CATEGORIES)[number])
+    : "recommendation";
+  const rawSeverity = String(raw.severity ?? "");
+  const severity = (SEVERITIES as ReadonlyArray<string>).includes(rawSeverity)
+    ? (rawSeverity as (typeof SEVERITIES)[number])
+    : "low";
   return {
-    insight_category: raw.insight_category as (typeof INSIGHT_CATEGORIES)[number],
-    severity: raw.severity as (typeof SEVERITIES)[number],
+    insight_category,
+    severity,
     urgency_bucket: bucketUrgency(String(raw.urgency ?? raw.urgency_bucket ?? "")),
   };
 }
