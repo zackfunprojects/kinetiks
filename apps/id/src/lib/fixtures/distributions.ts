@@ -41,6 +41,12 @@ export function uniform(min: number, max: number): number {
 
 /** Inclusive uniform integer sample in [min, max]. */
 export function uniformInt(min: number, max: number): number {
+  if (!Number.isInteger(min) || !Number.isInteger(max)) {
+    throw new Error(`uniformInt: min/max must be integers (got min=${min}, max=${max})`);
+  }
+  if (min > max) {
+    throw new Error(`uniformInt: min (${min}) must be <= max (${max})`);
+  }
   return Math.floor(min + Math.random() * (max - min + 1));
 }
 
@@ -75,6 +81,9 @@ export function pickWeighted<T>(
   }
   if (total === 0) {
     throw new Error("pickWeighted: all weights are zero");
+  }
+  if (!Number.isFinite(total)) {
+    throw new Error(`pickWeighted: accumulated weight is not finite (${total})`);
   }
   let r = Math.random() * total;
   for (let i = 0; i < choices.length; i++) {

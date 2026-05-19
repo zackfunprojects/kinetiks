@@ -23,6 +23,7 @@
 
 import "server-only";
 
+import * as Sentry from "@sentry/nextjs";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { serverEnv } from "@kinetiks/lib/env";
@@ -107,8 +108,31 @@ export async function POST(request: Request) {
   let failedCount = 0;
   let ledgerWriteFailures = 0;
 
+  let generatorFailures = 0;
   for (const generator of generators) {
-    const emissions = generator.generate({ account_id: parsed.account_id });
+    // Isolate per-generator failures: a single bad generator must not
+    // abort the whole run after earlier emissions + ledger writes have
+    // already landed. We capture the failure and continue with the
+    // remaining generators.
+    let emissions: ReturnType<typeof generator.generate>;
+    try {
+      emissions = generator.generate({ account_id: parsed.account_id });
+    } catch (err) {
+      generatorFailures++;
+      Sentry.captureException(err, {
+        tags: {
+          route: "fixtures/emit",
+          action: "generator_run",
+          stage: "generate",
+          app: "id",
+        },
+        extra: {
+          account_id: parsed.account_id,
+          pattern_type: generator.pattern_type,
+        },
+      });
+      continue;
+    }
     for (const emission of emissions) {
       const result = await emitOne(patternsUrl, secret, emission);
       results.push(result);
@@ -134,9 +158,18 @@ export async function POST(request: Request) {
           },
         });
         if (ledgerError) {
-          console.error(
-            `[fixtures/emit] ledger insert failed account=${parsed.account_id} pattern_type=${emission.pattern_type}: ${ledgerError.message}`,
-          );
+          Sentry.captureException(ledgerError, {
+            tags: {
+              route: "fixtures/emit",
+              action: "ledger_insert",
+              stage: "post_emission",
+              app: "id",
+            },
+            extra: {
+              account_id: parsed.account_id,
+              pattern_type: emission.pattern_type,
+            },
+          });
           ledgerWriteFailures++;
         }
       } else {
@@ -146,9 +179,10 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json({
-    status: ledgerWriteFailures > 0 ? "partial" : "ok",
+    status: ledgerWriteFailures > 0 || generatorFailures > 0 ? "partial" : "ok",
     account_id: parsed.account_id,
     generators: generators.length,
+    generator_failures: generatorFailures,
     emitted: emittedCount,
     failed: failedCount,
     ledger_write_failures: ledgerWriteFailures,

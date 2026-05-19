@@ -72,15 +72,23 @@ Deno.serve(async () => {
 
   // Iterate every account. Production runs with FIXTURES_ENABLED=false
   // so production never reaches this point; in dev/staging, fixtures
-  // run for every account in scope.
+  // run for every account in scope. Order by created_at DESC and use a
+  // bounded LIMIT for fairness — without an ORDER BY, repeated runs
+  // can keep processing the same arbitrary slice. Newest-first means
+  // newly-created accounts get fixture coverage immediately. v1 is
+  // fine without keyset cursors since the dev/staging account count
+  // is well under BATCH_LIMIT; revisit if that changes.
   const { data: accounts, error } = await admin
     .from("kinetiks_accounts")
     .select("id")
+    .order("created_at", { ascending: false })
     .limit(BATCH_LIMIT);
 
   if (error) {
+    // Don't leak raw PostgREST error text over the network. Server
+    // logs keep the detail; the response stays generic.
     console.error("[fixture-emitter-cron] Failed to query accounts:", error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify({ error: "accounts_query_failed" }), {
       status: 500,
       headers: { "Content-Type": "application/json" },
     });
