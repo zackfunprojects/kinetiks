@@ -7,19 +7,19 @@ export default function BudgetPage() {
     <div>
       <h1
         style={{
-          fontSize: 24,
-          fontWeight: 700,
+          fontSize: "var(--kt-fs-24)",
+          fontWeight: "var(--kt-fw-bold)",
           color: "var(--kt-fg-1)",
-          margin: "0 0 8px",
+          margin: "0 0 var(--kt-s-2)",
         }}
       >
         Budget
       </h1>
       <p
         style={{
-          fontSize: 14,
+          fontSize: "var(--kt-fs-14)",
           color: "var(--kt-fg-2)",
-          margin: "0 0 32px",
+          margin: "0 0 var(--kt-s-6)",
         }}
       >
         Spend allocation and tracking across categories

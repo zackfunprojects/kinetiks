@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Pill } from "@kinetiks/ui";
 
 // Canonical seven-section Cortex sub-nav per CLAUDE.md and the Kinetiks
 // Contract Addendum §1.8 / §2.13: Identity → Goals → Budget → Patterns →
@@ -80,20 +81,7 @@ export function CortexNav() {
               <path d={item.icon} />
             </svg>
             <span style={{ flex: 1 }}>{item.label}</span>
-            {item.comingSoon ? (
-              <span
-                style={{
-                  fontSize: 10,
-                  fontWeight: 500,
-                  color: "var(--kt-fg-3)",
-                  letterSpacing: 0.4,
-                  textTransform: "uppercase",
-                  fontFamily: "var(--font-mono), monospace",
-                }}
-              >
-                Soon
-              </span>
-            ) : null}
+            {item.comingSoon ? <Pill tone="neutral">Soon</Pill> : null}
           </Link>
         );
       })}

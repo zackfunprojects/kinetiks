@@ -1,3 +1,5 @@
+import { Pill } from "@kinetiks/ui";
+
 export const dynamic = "force-dynamic";
 
 export default function AuthorityPage() {
@@ -5,19 +7,19 @@ export default function AuthorityPage() {
     <div>
       <h1
         style={{
-          fontSize: 24,
-          fontWeight: 700,
+          fontSize: "var(--kt-fs-24)",
+          fontWeight: "var(--kt-fw-bold)",
           color: "var(--kt-fg-1)",
-          margin: "0 0 8px",
+          margin: "0 0 var(--kt-s-2)",
         }}
       >
         Authority
       </h1>
       <p
         style={{
-          fontSize: 14,
+          fontSize: "var(--kt-fs-14)",
           color: "var(--kt-fg-2)",
-          margin: "0 0 32px",
+          margin: "0 0 var(--kt-s-6)",
         }}
       >
         Review and approve what your system can do on your behalf
@@ -26,54 +28,40 @@ export default function AuthorityPage() {
       <div
         style={{
           border: "1px solid var(--kt-border-2)",
-          borderRadius: 8,
-          padding: "24px 28px",
+          borderRadius: "var(--kt-radius-2)",
+          padding: "var(--kt-s-5)",
           background: "var(--kt-bg-subtle)",
           maxWidth: 720,
         }}
       >
-        <div
-          style={{
-            display: "inline-block",
-            fontSize: 10,
-            fontWeight: 500,
-            letterSpacing: 0.4,
-            textTransform: "uppercase",
-            color: "var(--kt-fg-3)",
-            fontFamily: "var(--font-mono), monospace",
-            border: "1px solid var(--kt-border-2)",
-            borderRadius: 4,
-            padding: "2px 8px",
-            marginBottom: 14,
-          }}
-        >
-          Coming in Phase 4
+        <div style={{ marginBottom: "var(--kt-s-3)" }}>
+          <Pill tone="neutral">Coming in Phase 4</Pill>
         </div>
         <h2
           style={{
-            fontSize: 16,
-            fontWeight: 600,
+            fontSize: "var(--kt-fs-17)",
+            fontWeight: "var(--kt-fw-semi)",
             color: "var(--kt-fg-1)",
-            margin: "0 0 10px",
+            margin: "0 0 var(--kt-s-2)",
           }}
         >
           Scoped, time-bounded permissions
         </h2>
         <p
           style={{
-            fontSize: 14,
+            fontSize: "var(--kt-fs-14)",
             lineHeight: 1.55,
             color: "var(--kt-fg-2)",
-            margin: "0 0 12px",
+            margin: "0 0 var(--kt-s-3)",
           }}
         >
-          This is where you&apos;ll review and approve what your system can do for you &mdash; which actions, in
+          This is where you&apos;ll review and approve what your system can do for you: which actions, in
           what context, against which limits, and for how long. Every proposal is written in plain language and
           backed by the evidence your system has gathered about your operation.
         </p>
         <p
           style={{
-            fontSize: 14,
+            fontSize: "var(--kt-fs-14)",
             lineHeight: 1.55,
             color: "var(--kt-fg-2)",
             margin: 0,
