@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import type { LedgerEntry, ContextLayer, LedgerEventType } from "@kinetiks/types";
+import { Pill } from "@kinetiks/ui";
 import { Badge } from "@/components/ui/Badge";
 import { Pagination } from "@/components/ui/Pagination";
 import { LAYER_DISPLAY_NAMES } from "@/lib/utils/layer-display";
@@ -210,22 +211,12 @@ export function LedgerViewer({
                     )}
                     {(entry.source_app === "kinetiks_fixtures" ||
                       (entry.detail as Record<string, unknown>)?.is_fixture === true) && (
-                      <span
+                      <Pill
+                        tone="neutral"
                         title="Fixture-emitter substrate (KINETIKS_FIXTURES_ENABLED=true). Not real customer signal."
-                        style={{
-                          fontSize: 10,
-                          fontWeight: 500,
-                          letterSpacing: 0.4,
-                          textTransform: "uppercase",
-                          color: "var(--kt-fg-3)",
-                          border: "1px solid var(--kt-border-2)",
-                          borderRadius: 4,
-                          padding: "1px 6px",
-                          fontFamily: "var(--font-mono), monospace",
-                        }}
                       >
                         Fixture
-                      </span>
+                      </Pill>
                     )}
                   </div>
                   <p style={{ margin: 0, fontSize: 13, color: "var(--kt-fg-2)", lineHeight: 1.4 }}>

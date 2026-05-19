@@ -77,8 +77,11 @@ export async function POST(request: Request) {
   }
   const { data: rows, error: selectError } = await query;
   if (selectError) {
+    console.error(
+      `[fixtures/cleanup] select failed account=${parsed.account_id ?? "all"}: ${selectError.message}`,
+    );
     return NextResponse.json(
-      { error: "select_failed", message: selectError.message },
+      { error: "select_failed" },
       { status: 500 },
     );
   }
@@ -97,8 +100,11 @@ export async function POST(request: Request) {
     .update({ status: "archived" })
     .in("id", ids);
   if (updateError) {
+    console.error(
+      `[fixtures/cleanup] update failed (${ids.length} ids): ${updateError.message}`,
+    );
     return NextResponse.json(
-      { error: "update_failed", message: updateError.message },
+      { error: "update_failed" },
       { status: 500 },
     );
   }
@@ -110,8 +116,9 @@ export async function POST(request: Request) {
     perAccount[aid] = (perAccount[aid] ?? 0) + 1;
   }
 
+  let ledgerWriteFailures = 0;
   for (const [account_id, archived_count] of Object.entries(perAccount)) {
-    await admin.from("kinetiks_ledger").insert({
+    const { error: ledgerError } = await admin.from("kinetiks_ledger").insert({
       account_id,
       event_type: "fixture_cleanup",
       source_app: FIXTURE_SOURCE_APP,
@@ -122,11 +129,18 @@ export async function POST(request: Request) {
         is_fixture: true,
       },
     });
+    if (ledgerError) {
+      console.error(
+        `[fixtures/cleanup] ledger insert failed account=${account_id}: ${ledgerError.message}`,
+      );
+      ledgerWriteFailures++;
+    }
   }
 
   return NextResponse.json({
-    status: "ok",
+    status: ledgerWriteFailures > 0 ? "partial" : "ok",
     archived: rows.length,
     accounts: Object.keys(perAccount).length,
+    ledger_write_failures: ledgerWriteFailures,
   });
 }

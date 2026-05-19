@@ -119,6 +119,19 @@ export function sampleRatioOutcome(args: {
 }): SampledOutcome {
   const min = args.min ?? 0;
   const max = args.max ?? 1;
+  if (!Number.isFinite(args.mean) || !Number.isFinite(min) || !Number.isFinite(max)) {
+    throw new Error(
+      `sampleRatioOutcome: mean/min/max must be finite (got mean=${args.mean}, min=${min}, max=${max})`,
+    );
+  }
+  if (min >= max) {
+    throw new Error(`sampleRatioOutcome: min (${min}) must be less than max (${max})`);
+  }
+  if (args.mean < min || args.mean > max) {
+    throw new Error(
+      `sampleRatioOutcome: mean (${args.mean}) must lie within [${min}, ${max}]`,
+    );
+  }
   // Spread distance is from the mean to the nearer bound (floor or ceiling),
   // so very-near-zero rates don't get huge stdDev.
   const room = Math.min(args.mean - min, max - args.mean);

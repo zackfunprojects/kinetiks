@@ -105,6 +105,7 @@ export async function POST(request: Request) {
   const results: EmissionAttemptResult[] = [];
   let emittedCount = 0;
   let failedCount = 0;
+  let ledgerWriteFailures = 0;
 
   for (const generator of generators) {
     const emissions = generator.generate({ account_id: parsed.account_id });
@@ -116,7 +117,7 @@ export async function POST(request: Request) {
         // Write the fixture_emission Ledger entry alongside the real
         // pattern_observed entry the synapse write path emits. RLS is
         // bypassed via admin; we scope by account_id explicitly.
-        await admin.from("kinetiks_ledger").insert({
+        const { error: ledgerError } = await admin.from("kinetiks_ledger").insert({
           account_id: parsed.account_id,
           event_type: "fixture_emission",
           source_app: FIXTURE_SOURCE_APP,
@@ -132,6 +133,12 @@ export async function POST(request: Request) {
             is_fixture: true,
           },
         });
+        if (ledgerError) {
+          console.error(
+            `[fixtures/emit] ledger insert failed account=${parsed.account_id} pattern_type=${emission.pattern_type}: ${ledgerError.message}`,
+          );
+          ledgerWriteFailures++;
+        }
       } else {
         failedCount++;
       }
@@ -139,14 +146,18 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json({
-    status: "ok",
+    status: ledgerWriteFailures > 0 ? "partial" : "ok",
     account_id: parsed.account_id,
     generators: generators.length,
     emitted: emittedCount,
     failed: failedCount,
+    ledger_write_failures: ledgerWriteFailures,
     results,
   });
 }
+
+/** Timeout for the per-emission POST to /api/synapse/patterns. */
+const EMIT_FETCH_TIMEOUT_MS = 5000;
 
 async function emitOne(
   patternsUrl: string,
@@ -161,6 +172,7 @@ async function emitOne(
         Authorization: `Bearer ${secret}`,
       },
       body: JSON.stringify(emission),
+      signal: AbortSignal.timeout(EMIT_FETCH_TIMEOUT_MS),
     });
     if (!response.ok) {
       return {

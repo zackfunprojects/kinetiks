@@ -25,8 +25,10 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const INTERNAL_SERVICE_SECRET = Deno.env.get("INTERNAL_SERVICE_SECRET");
 const FIXTURES_ENABLED = Deno.env.get("KINETIKS_FIXTURES_ENABLED");
-const IDENTITY_API_URL =
-  Deno.env.get("IDENTITY_API_URL") || "https://kinetiks.ai";
+// IDENTITY_API_URL is required (no default). Defaulting to production
+// would make a misconfigured staging deploy silently emit fixtures
+// into prod. The cron fails closed if the env var is missing.
+const IDENTITY_API_URL = Deno.env.get("IDENTITY_API_URL");
 
 /** Maximum accounts to emit fixtures for in a single CRON run. */
 const BATCH_LIMIT = 50;
@@ -51,8 +53,15 @@ Deno.serve(async () => {
     );
   }
 
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !INTERNAL_SERVICE_SECRET) {
-    console.error("[fixture-emitter-cron] Missing required environment variables");
+  if (
+    !SUPABASE_URL ||
+    !SUPABASE_SERVICE_ROLE_KEY ||
+    !INTERNAL_SERVICE_SECRET ||
+    !IDENTITY_API_URL
+  ) {
+    console.error(
+      "[fixture-emitter-cron] Missing required environment variables (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, INTERNAL_SERVICE_SECRET, IDENTITY_API_URL)",
+    );
     return new Response(JSON.stringify({ error: "Missing env vars" }), {
       status: 500,
       headers: { "Content-Type": "application/json" },
@@ -88,11 +97,17 @@ Deno.serve(async () => {
   let totalEmitted = 0;
   let totalFailed = 0;
   let totalProcessed = 0;
+  // When the Node side reports KINETIKS_FIXTURES_ENABLED=false, we
+  // stop processing further accounts. Otherwise every account in the
+  // batch list still gets a fetch, even though all of them no-op.
+  let nodeSideDisabled = false;
 
   for (let i = 0; i < accountIds.length; i += API_BATCH_SIZE) {
+    if (nodeSideDisabled) break;
     const batch = accountIds.slice(i, i + API_BATCH_SIZE);
 
     const promises = batch.map(async (accountId) => {
+      if (nodeSideDisabled) return;
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
@@ -117,10 +132,13 @@ Deno.serve(async () => {
 
         const result = (await response.json()) as EmitResponse;
         if (result.status === "disabled") {
-          // Node side disagreed about the flag — bail out of the loop.
+          // Node side disagrees about the flag — bail out of the
+          // entire run rather than continuing to fetch for every
+          // remaining account.
           console.log(
-            `[fixture-emitter-cron] Node side reports KINETIKS_FIXTURES_ENABLED=false; skipping account ${accountId}`,
+            `[fixture-emitter-cron] Node side reports KINETIKS_FIXTURES_ENABLED=false; aborting remaining batches`,
           );
+          nodeSideDisabled = true;
           return;
         }
         totalEmitted += result.emitted ?? 0;

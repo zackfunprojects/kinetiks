@@ -15,6 +15,14 @@ import { pickWeighted, sampleRatioOutcome, uniformInt } from "./distributions";
 const CHANNELS = ["email", "linkedin_inmail", "linkedin_connection", "phone", "video"] as const;
 const CHANNEL_WEIGHTS = [10, 3, 2, 1, 0.5];
 
+// Channels that meaningfully track open_rate per the descriptor. Phone /
+// video / linkedin_connection emit 0 for open_rate; we restrict the
+// fixture pick to email and inmail so we don't fabricate non-zero
+// open-rate evidence for channels that physically have no concept of an
+// open event.
+const OPEN_RATE_CHANNELS = ["email", "linkedin_inmail"] as const;
+const OPEN_RATE_CHANNEL_WEIGHTS = [10, 3];
+
 /** Plausible day offsets (raw days). bucketDayOffset maps to the 5 buckets. */
 const DAY_OFFSETS = [0, 1, 2, 3, 5, 7, 10, 14, 21];
 
@@ -44,14 +52,14 @@ function buildSequenceEmission(args: {
 }): FixtureEmission {
   const step_index = uniformInt(1, 8);
   const day_offset = DAY_OFFSETS[Math.floor(Math.random() * DAY_OFFSETS.length)] as number;
-  const channel = pickWeighted(CHANNELS, CHANNEL_WEIGHTS);
-  // open_rate is conceptually email-only; non-email channels would emit
-  // 0. Bias the channel pick toward email when emitting open_rate so
-  // the resulting patterns are interesting (not just zeros).
+  // Per the harvest descriptor: open_rate is "email/inmail open rate.
+  // Other channels emit 0." For open_rate fixtures we restrict the
+  // channel pick to that subset (no coercion of phone/video → email).
+  // reply_rate is valid on every channel.
   const effectiveChannel =
-    args.outcome_metric === "open_rate" && channel !== "email" && channel !== "linkedin_inmail"
-      ? "email"
-      : channel;
+    args.outcome_metric === "open_rate"
+      ? pickWeighted(OPEN_RATE_CHANNELS, OPEN_RATE_CHANNEL_WEIGHTS)
+      : pickWeighted(CHANNELS, CHANNEL_WEIGHTS);
   const mean = meanForStep(args.outcome_metric, step_index);
   const sampled = sampleRatioOutcome({ mean, profile: args.profile });
 
