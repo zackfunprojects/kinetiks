@@ -6,14 +6,21 @@
  * vars are a startup failure, not a runtime surprise.
  */
 
-import { z, type ZodSchema } from "zod";
+import { z, type ZodTypeAny } from "zod";
 
 /**
  * Parse process.env against a Zod schema. On failure, throws a single
  * combined error so the app refuses to boot rather than partially
  * succeeding.
+ *
+ * The generic is `ZodTypeAny` (not `ZodSchema<T>`) so callers can use
+ * schemas with transforms — input type may differ from output type —
+ * such as boolean feature flags parsed from `"true"`/`"false"` strings.
  */
-export function parseEnv<T>(schema: ZodSchema<T>, source: NodeJS.ProcessEnv = process.env): T {
+export function parseEnv<S extends ZodTypeAny>(
+  schema: S,
+  source: NodeJS.ProcessEnv = process.env,
+): z.infer<S> {
   const result = schema.safeParse(source);
   if (!result.success) {
     const issues = result.error.issues
@@ -104,6 +111,19 @@ export const kinetiksServerEnvSchema = z.object({
   NANGO_PUBLIC_KEY: z.string().optional(),
   NANGO_WEBHOOK_SECRET: z.string().optional(),
   NANGO_HOST: envFragments.optionalUrl,
+
+  // Phase 1.5 — Fixture emitter feature flag. When true, the fixture
+  // cron POSTs synthetic Harvest-shaped pattern emissions to
+  // /api/synapse/patterns so downstream Pattern Library calibration,
+  // Marcus brief inclusion, and Ledger writes have substrate to run
+  // against without real suite apps. Default false; production should
+  // explicitly set true only for staging/demo accounts. Every row
+  // emitted carries `source_app: "kinetiks_fixtures"` and every Ledger
+  // entry carries `detail.is_fixture: true`.
+  KINETIKS_FIXTURES_ENABLED: z
+    .union([z.literal("true"), z.literal("false"), z.literal("1"), z.literal("0")])
+    .optional()
+    .transform((v) => v === "true" || v === "1"),
 });
 
 export type KinetiksServerEnv = z.infer<typeof kinetiksServerEnvSchema>;

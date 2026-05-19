@@ -233,6 +233,28 @@ export interface LedgerEventDetailMap {
     from: PatternLifecycleStatus;
     reason: "time_decay" | "customer_archive" | "icp_removed";
   };
+
+  // ── Fixture substrate (Phase 1.5) ─────────────────────────
+  // Emitted by the fixture-emitter-cron substrate inside apps/id when
+  // KINETIKS_FIXTURES_ENABLED=true. Every fixture-driven write to
+  // kinetiks_pattern_library produces both a real `pattern_observed`
+  // entry (via the normal write path) and a `fixture_emission` entry
+  // (provenance marker for demo honesty). On cleanup, a single
+  // `fixture_cleanup` entry records the archive-on-demand batch.
+  fixture_emission: {
+    pattern_type: string;
+    pattern_id: string | null;
+    /** The arbitration outcome returned by /api/synapse/patterns. */
+    outcome: string;
+    outcome_metric: string;
+    outcome_value: number;
+    sample_size: number;
+    is_fixture: true;
+  };
+  fixture_cleanup: {
+    archived_count: number;
+    is_fixture: true;
+  };
 }
 
 /**
