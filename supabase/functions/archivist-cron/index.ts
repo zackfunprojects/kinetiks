@@ -1,6 +1,6 @@
 // Archivist CRON Edge Function
 //
-// Runs every 6 hours. Two passes per onboarded account:
+// Runs every 6 hours. Three passes per onboarded account:
 //   1. /api/archivist/clean — deduplication, normalization, gap detection,
 //      quality scoring on Cortex context layers.
 //   2. /api/archivist/patterns/sweep (L1a, per Kinetiks Contract Addendum §1.9) —
@@ -8,6 +8,11 @@
 //      now - last_observed_at > effective_decay_days * 0.7, and
 //      declining → archived when now > decay_at. User-starred patterns
 //      are exempt.
+//   3. /api/archivist/patterns/sweep-deferred (Phase 1.7) — closes
+//      kinetiks_pattern_pending_observations rows whose
+//      outcome_window_expires_at has elapsed, emits each through
+//      /api/synapse/patterns with outcome_value=0 (window expired, no
+//      follow-up / no action observed).
 //
 // CRON schedule: every 6 hours ("0 */6 * * *")
 
@@ -69,6 +74,8 @@ Deno.serve(async () => {
   let totalErrors = 0;
   let patternSweepProcessed = 0;
   let patternSweepErrors = 0;
+  let deferredSweepProcessed = 0;
+  let deferredSweepErrors = 0;
 
   // Helper: POST to an internal endpoint with timeout + service auth.
   async function postInternal(path: string, batchIds: string[]): Promise<{ ok: boolean; body: unknown }> {
@@ -142,6 +149,28 @@ Deno.serve(async () => {
     }
   }
 
+  // Pass 3: Deferred-emit pending observations sweep (Phase 1.7).
+  for (let i = 0; i < allIds.length; i += API_BATCH_SIZE) {
+    const batchIds = allIds.slice(i, i + API_BATCH_SIZE);
+    const { ok, body } = await postInternal(
+      "/api/archivist/patterns/sweep-deferred",
+      batchIds,
+    );
+    if (!ok) {
+      deferredSweepErrors += batchIds.length;
+    } else {
+      const env = body as { data?: { accounts_processed?: number } };
+      const count =
+        typeof env?.data?.accounts_processed === "number"
+          ? env.data.accounts_processed
+          : batchIds.length;
+      deferredSweepProcessed += count;
+    }
+    if (i + API_BATCH_SIZE < allIds.length) {
+      await new Promise((resolve) => setTimeout(resolve, BATCH_DELAY_MS));
+    }
+  }
+
   // Log summary to ledger
   const { error: ledgerErr } = await admin.from("kinetiks_ledger").insert({
     account_id: null,
@@ -153,6 +182,8 @@ Deno.serve(async () => {
       errors: totalErrors,
       pattern_sweep_processed: patternSweepProcessed,
       pattern_sweep_errors: patternSweepErrors,
+      deferred_sweep_processed: deferredSweepProcessed,
+      deferred_sweep_errors: deferredSweepErrors,
       timestamp: new Date().toISOString(),
     },
   });
@@ -166,6 +197,8 @@ Deno.serve(async () => {
     errors: totalErrors,
     pattern_sweep_processed: patternSweepProcessed,
     pattern_sweep_errors: patternSweepErrors,
+    deferred_sweep_processed: deferredSweepProcessed,
+    deferred_sweep_errors: deferredSweepErrors,
   };
 
   console.log("[archivist-cron] Run complete:", JSON.stringify(summary));
