@@ -3673,6 +3673,62 @@ export type Database = {
           },
         ]
       }
+      kinetiks_pattern_pending_observations: {
+        Row: {
+          account_id: string
+          closed_at: string | null
+          closed_outcome_value: number | null
+          created_at: string
+          dimensions: Json
+          id: string
+          observation_key: string
+          observed_at: string
+          outcome_window_expires_at: string
+          pattern_type: string
+          status: string
+          team_scope_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          account_id: string
+          closed_at?: string | null
+          closed_outcome_value?: number | null
+          created_at?: string
+          dimensions: Json
+          id?: string
+          observation_key: string
+          observed_at?: string
+          outcome_window_expires_at: string
+          pattern_type: string
+          status?: string
+          team_scope_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          account_id?: string
+          closed_at?: string | null
+          closed_outcome_value?: number | null
+          created_at?: string
+          dimensions?: Json
+          id?: string
+          observation_key?: string
+          observed_at?: string
+          outcome_window_expires_at?: string
+          pattern_type?: string
+          status?: string
+          team_scope_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kinetiks_pattern_pending_observations_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "kinetiks_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       kinetiks_proposals: {
         Row: {
           account_id: string
