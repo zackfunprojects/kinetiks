@@ -3,6 +3,7 @@ import "server-only";
 import { registerPatternType } from "@kinetiks/tools";
 import { harvestDescriptors } from "./seeds/harvest";
 import { darkMadderDescriptors } from "./seeds/dark-madder";
+import { kinetiksIdDescriptors } from "./seeds/kinetiks-id";
 
 let _booted = false;
 
@@ -22,6 +23,7 @@ export function bootPatternTypeRegistry(): void {
   if (_booted) return;
   for (const d of harvestDescriptors) registerPatternType(d);
   for (const d of darkMadderDescriptors) registerPatternType(d);
+  for (const d of kinetiksIdDescriptors) registerPatternType(d);
   _booted = true;
 }
 
