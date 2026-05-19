@@ -17,6 +17,11 @@ import { buildPreAnalysisBrief, formatBriefForSonnet } from "./pre-analysis";
 import { loadInsightsForBrief } from "@/lib/oracle/insights/reader";
 import { loadPatternsForBrief } from "./patterns-for-brief";
 import { stampDeliveredFromResponse } from "@/lib/oracle/insights/delivery";
+import {
+  closeMarcusTurnObservationForThread,
+  recordInsightDeliveryObservation,
+  recordMarcusTurnObservation,
+} from "@/lib/patterns/emit-internal";
 import { buildPersonaPrompt } from "./prompts/marcus-persona";
 import { generateActions } from "./action-generator";
 import { assembleResponse } from "./response-assembler";
@@ -92,6 +97,14 @@ export async function processMarcusMessage(
   // 4. Save user message (after history fetch to prevent it appearing in history)
   await addMessage(admin, thread.id, "user", message, channel);
 
+  // Phase 1.7 — close any prior pending kinetiks_id.marcus_question_resonance
+  // observation for this thread with outcome=1 (the user followed up).
+  // Fire and forget; never blocks the response.
+  closeMarcusTurnObservationForThread(
+    { account_id: accountId, thread_id: thread.id },
+    admin,
+  ).catch(() => undefined);
+
   // 5. Build data availability manifest
   console.log("[ENGINE] accountId passed to manifest:", accountId);
   const manifest = await buildDataAvailabilityManifest(accountId, admin);
@@ -126,6 +139,22 @@ export async function processMarcusMessage(
     source_app: p.source_app,
     summary: p.summary,
   }));
+
+  // Phase 1.7 — kinetiks_id.insight_action_rate observation per surfaced
+  // insight. See the streaming path for the full rationale.
+  for (const bi of briefInsights) {
+    recordInsightDeliveryObservation(
+      {
+        account_id: accountId,
+        insight_id: bi.insight_id,
+        insight_category: bi.type ?? "recommendation",
+        severity: bi.severity ?? "low",
+        urgency_hint: "this_week",
+      },
+      admin,
+    ).catch(() => undefined);
+  }
+
   // L1a — passive Pattern Library pre-fetch per Kinetiks Contract Addendum §1.10.
   const briefPatterns = await loadPatternsForBrief({
     admin,
@@ -193,7 +222,23 @@ export async function processMarcusMessage(
   const finalResponse = assembleResponse(responseText, actionResult);
 
   // 11. Save Marcus response BEFORE mutating thread memory
-  await addMessage(admin, thread.id, "marcus", finalResponse, channel);
+  const marcusMessage = await addMessage(admin, thread.id, "marcus", finalResponse, channel);
+
+  // Phase 1.7 — record kinetiks_id.marcus_question_resonance observation.
+  // The next user turn in this thread (within the configured window)
+  // closes it with outcome=1; otherwise the archivist sweep closes with
+  // outcome=0. Fire and forget.
+  recordMarcusTurnObservation(
+    {
+      account_id: accountId,
+      thread_id: thread.id,
+      message_id: marcusMessage.id,
+      topic_hint: message,
+      intent_hint: intent,
+      icp_hint: "unknown",
+    },
+    admin,
+  ).catch(() => undefined);
 
   // 11.5. D2 Slice 11 — stamp delivered=true on insights Sonnet cited.
   // Fire and forget; allowlist is bounded by the ids we surfaced in the
@@ -310,6 +355,13 @@ export async function streamMarcusMessage(
   // 4. Save user message
   await addMessage(admin, thread.id, "user", message, channel);
 
+  // Phase 1.7 — close any prior pending kinetiks_id.marcus_question_resonance
+  // observation for this thread with outcome=1 (the user followed up).
+  closeMarcusTurnObservationForThread(
+    { account_id: accountId, thread_id: thread.id },
+    admin,
+  ).catch(() => undefined);
+
   // 5. Build data availability manifest
   const manifest = await buildDataAvailabilityManifest(accountId, admin);
 
@@ -341,6 +393,28 @@ export async function streamMarcusMessage(
     source_app: p.source_app,
     summary: p.summary,
   }));
+
+  // Phase 1.7 — kinetiks_id.insight_action_rate observation per surfaced
+  // insight. The brief is the surfacing moment: insights here are
+  // presented to Marcus and (via the response) to the user. A user
+  // accepting an action linked to the insight closes outcome=1; the
+  // archivist sweep closes outcome=0 after the action window. Note:
+  // the "action accepted for insight X" close signal is not yet wired
+  // through the approval pipeline; v1 emits every observation with
+  // outcome=0 via the sweep, exercising the lifecycle.
+  for (const bi of briefInsights) {
+    recordInsightDeliveryObservation(
+      {
+        account_id: accountId,
+        insight_id: bi.insight_id,
+        insight_category: bi.type ?? "recommendation",
+        severity: bi.severity ?? "low",
+        urgency_hint: "this_week",
+      },
+      admin,
+    ).catch(() => undefined);
+  }
+
   // L1a — passive Pattern Library pre-fetch per Kinetiks Contract Addendum §1.10.
   const briefPatterns = await loadPatternsForBrief({
     admin,
@@ -433,6 +507,19 @@ export async function streamMarcusMessage(
 
         // Save complete response (before action footer)
         const savedMessage = await addMessage(admin, thread.id, "marcus", fullResponse, channel);
+
+        // Phase 1.7 — record kinetiks_id.marcus_question_resonance observation.
+        recordMarcusTurnObservation(
+          {
+            account_id: accountId,
+            thread_id: thread.id,
+            message_id: savedMessage.id,
+            topic_hint: message,
+            intent_hint: intent,
+            icp_hint: "unknown",
+          },
+          admin,
+        ).catch(() => undefined);
 
         // Stamp delivered=true on any Oracle insights Sonnet cited in
         // the streamed response. Parity with processMarcusMessage; an

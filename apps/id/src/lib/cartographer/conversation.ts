@@ -18,6 +18,8 @@ import {
   buildContextSummaryForQuestions,
 } from "@/lib/ai/prompts/conversation";
 import { submitProposal, logToLedger } from "./submit";
+import { emitOnboardingQuestionValue } from "@/lib/patterns/emit-internal";
+import { createHash } from "node:crypto";
 import { buildProposal } from "./crawl";
 import type { ProposalInsert } from "./types";
 
@@ -305,6 +307,36 @@ export async function processAnswer(
     layers_updated: updatedLayers,
     proposals_submitted: submittedIds.length,
   });
+
+  // Phase 1.7 — emit kinetiks_id.onboarding_question_value.
+  // question_id is a stable hash of the question text (truncated) so
+  // repeat-asks of the same question aggregate, while different
+  // questions produce different fingerprints. Outcome is a z-score-ish
+  // signal derived from layers updated vs proposals submitted; v1 uses
+  // a simple ratio mapped to [-1, +1]. Refines once a longer history
+  // exists.
+  const questionId = createHash("sha256")
+    .update(question)
+    .digest("hex")
+    .slice(0, 16);
+  const submittedCount = submittedIds.length;
+  const updatedCount = updatedLayers.length;
+  let outcomeZ = 0;
+  if (submittedCount === 0) {
+    outcomeZ = -1;
+  } else {
+    // Ratio of successful layer updates -> [-1, +1]
+    outcomeZ = (updatedCount / submittedCount) * 2 - 1;
+  }
+  await emitOnboardingQuestionValue(
+    {
+      account_id: accountId,
+      question_id: questionId,
+      icp_hint: "unknown",
+      outcome_z_score: outcomeZ,
+    },
+    admin,
+  );
 
   const summary =
     updatedLayers.length > 0

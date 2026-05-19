@@ -141,6 +141,8 @@ export interface LedgerEventDetailMap {
     errors?: number;
     pattern_sweep_processed?: number;
     pattern_sweep_errors?: number;
+    deferred_sweep_processed?: number;
+    deferred_sweep_errors?: number;
     timestamp?: string;
   };
 
