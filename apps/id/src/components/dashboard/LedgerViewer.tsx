@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import type { LedgerEntry, ContextLayer, LedgerEventType } from "@kinetiks/types";
+import { Pill } from "@kinetiks/ui";
 import { Badge } from "@/components/ui/Badge";
 import { Pagination } from "@/components/ui/Pagination";
 import { LAYER_DISPLAY_NAMES } from "@/lib/utils/layer-display";
@@ -207,6 +208,15 @@ export function LedgerViewer({
                       <span style={{ fontSize: 11, color: "var(--kt-fg-3)" }}>
                         via {entry.source_app.replace("_", " ")}
                       </span>
+                    )}
+                    {(entry.source_app === "kinetiks_fixtures" ||
+                      (entry.detail as Record<string, unknown>)?.is_fixture === true) && (
+                      <Pill
+                        tone="neutral"
+                        title="Fixture-emitter substrate (KINETIKS_FIXTURES_ENABLED=true). Not real customer signal."
+                      >
+                        Fixture
+                      </Pill>
                     )}
                   </div>
                   <p style={{ margin: 0, fontSize: 13, color: "var(--kt-fg-2)", lineHeight: 1.4 }}>

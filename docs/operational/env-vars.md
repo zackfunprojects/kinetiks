@@ -64,6 +64,12 @@ rest of the app keeps running. Order roughly by importance.
 | `SENTRY_DSN` | yes | no | Error capture. Project: kinetiks-id. |
 | `POSTHOG_API_KEY` | yes | no | Product analytics. |
 
+## Feature flags
+
+| Variable | Vercel | Supabase | Notes |
+| --- | --- | --- | --- |
+| `KINETIKS_FIXTURES_ENABLED` | yes (dev/staging only) | yes (dev/staging only) | Phase 1.5 fixture emitter switch. When `true`, `fixture-emitter-cron` runs every 2 hours and `/api/internal/fixtures/emit` POSTs Harvest-shaped pattern emissions to `/api/synapse/patterns` with `source_app: "kinetiks_fixtures"`. **Never set to `true` in production.** Both surfaces must agree; the Node route re-checks the flag so a one-sided enable still no-ops. Cleanup: POST `/api/internal/fixtures/cleanup` to archive all fixture-sourced patterns (status flips to `archived`, no DELETE). |
+
 ## How to generate values that have to be matched across both surfaces
 
 `INTERNAL_SERVICE_SECRET` and `KINETIKS_ENCRYPTION_KEY` are shared
