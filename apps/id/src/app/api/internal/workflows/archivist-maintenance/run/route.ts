@@ -27,6 +27,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { serverEnv } from "@kinetiks/lib/env";
 
 import { runWorkflow, type DispatchDeps } from "@kinetiks/runtime";
 import type {
@@ -40,14 +41,19 @@ import { resolveKinetiksOperator } from "@/lib/operators/registry-boot";
 import { archivistMaintenance } from "@/lib/workflows/archivist-maintenance";
 
 const Body = z.object({
-  account_ids: z.array(z.string().uuid()).min(0),
+  // Fail fast at the boundary — an empty batch always means an upstream
+  // caller bug (the cron only POSTs when it has accounts queued), and a
+  // workflow run with zero work returns a misleading "ok" summary.
+  account_ids: z.array(z.string().uuid()).min(1),
 });
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
-  const secret = process.env.INTERNAL_SERVICE_SECRET;
+  // Use the Zod-validated env loader so a missing INTERNAL_SERVICE_SECRET
+  // is a startup-time failure, not a first-request 500.
+  const { INTERNAL_SERVICE_SECRET: secret } = serverEnv();
   if (!secret) {
     return NextResponse.json(
       { error: "missing_internal_secret" },
