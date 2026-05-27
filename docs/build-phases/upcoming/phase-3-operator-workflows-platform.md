@@ -19,7 +19,7 @@ When Implosion lands later, it slots in as the second consumer of this platform 
 
 | Path | Purpose |
 |---|---|
-| `packages/types/src/workflows.ts` | `WorkflowTask`, `WorkflowDefinition`, `WorkflowDispatchContext`, `WorkflowTaskResult`, `WorkflowRunSummary`. `target_type: "cross_app" | "internal_operator"` is the new addressing mode per Addendum §3.2. |
+| `packages/types/src/workflows.ts` | `WorkflowTask`, `WorkflowDefinition`, `WorkflowDispatchContext`, `WorkflowTaskResult`, `WorkflowRunSummary`. `target_type: "cross_app" \| "internal_operator"` is the new addressing mode per Addendum §3.2. |
 | `packages/types/src/manifests.ts` | `KineticsAppManifest` — first declaration of the manifest contract type, with `operator_registry?: OperatorDescriptor[]` (Addendum §3.3) and a forward-compat `default_standing_grants?` slot for Phase 5. |
 | `packages/types/src/billing.ts` (extended) | Three new `LedgerEventDetailMap` entries: `workflow_task_dispatched`, `workflow_task_completed`, `workflow_task_failed`. PII-safe shape (counts, ids, error classes only). |
 | `packages/runtime/src/workflow-dispatch.ts` | `dispatchWorkflowTask` + `runWorkflow`. Cross-app branch inserts a `kinetiks_routing_events` row via host-injected deps; internal branch calls `assertOperator`, validates input/output against the descriptor's Zod schemas, then invokes the host's `resolveOperator`-returned executor. Per-task Ledger writes; first-failure stops the run. |
