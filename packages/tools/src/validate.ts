@@ -72,6 +72,15 @@ export function validateRegistries(): ValidationReport {
       }
     }
     for (const pt of descriptor.required_patterns) {
+      // Wildcard sentinel per Phase 4 / Kinetiks Contract Addendum §2.5 D3:
+      // operators that read every pattern type their source_app is
+      // allowed to read (e.g. the Authority Agent reading the whole
+      // Pattern Library to scope a proposed grant) declare
+      // `required_patterns: ["*"]`. The actual read-time allowlist
+      // enforcement happens inside `listPatterns()` / `query_patterns`
+      // via PatternTypeDescriptor.read_apps; the sentinel here is a
+      // boot-time pass-through, not an authorization decision.
+      if (pt === "*") continue;
       if (!getPatternType(pt)) {
         errors.push(
           `Operator "${app}.${descriptor.key}" references unregistered pattern_type "${pt}"`,

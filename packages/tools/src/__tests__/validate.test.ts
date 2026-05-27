@@ -185,4 +185,45 @@ describe("cross-registry validation", () => {
     expect(report.counts.patternTypes).toBe(1);
     warn.mockRestore();
   });
+
+  // Phase 4 — Authority Agent wildcard sentinel.
+  it("succeeds when an operator declares required_patterns: ['*']", () => {
+    // No patterns registered at all — sentinel passes regardless.
+    registerOperators("noop", [
+      {
+        key: "authority_agent",
+        description:
+          "Test fixture: the Authority Agent reads every pattern type allowed for its source_app via the * sentinel",
+        inputs_schema: z.object({}),
+        outputs_schema: z.object({}),
+        required_tools: [],
+        required_patterns: ["*"],
+        action_classes: [],
+      },
+    ]);
+    const report = validateRegistries();
+    expect(report.ok).toBe(true);
+  });
+
+  it("'*' sentinel does not mask a sibling missing pattern_type", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    registerOperators("noop", [
+      {
+        key: "mixed",
+        description:
+          "Operator with both the wildcard and a specific (but unregistered) pattern type — only the specific entry should fail",
+        inputs_schema: z.object({}),
+        outputs_schema: z.object({}),
+        required_tools: [],
+        required_patterns: ["*", "noop.ghost_signature"],
+        action_classes: [],
+      },
+    ]);
+    const report = validateRegistries();
+    expect(report.ok).toBe(false);
+    expect(report.errors.join("\n")).toMatch(
+      /unregistered pattern_type "noop.ghost_signature"/,
+    );
+    warn.mockRestore();
+  });
 });
