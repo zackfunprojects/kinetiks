@@ -16,7 +16,7 @@
  */
 
 import { z } from "zod";
-import { defineTool } from "@kinetiks/tools";
+import { defineTool, ToolError } from "@kinetiks/tools";
 
 import { dispatchSlackMessage } from "@/lib/slack/dispatch";
 
@@ -77,6 +77,28 @@ export const sendSlackNotificationTool = defineTool({
     // the full body into the key.
     `${input.channel}:${input.message_length}:${input.body.slice(0, 32)}`,
   execute: async (input) => {
+    // SECURITY: validate the caller's `message_length` against the
+    // actual body length. The grant's max_message_length constraint
+    // gates message_length at the resolver layer; if the caller
+    // under-reports the length, they would slip a longer body past
+    // the cap. The server-side check makes that impossible. Per
+    // CLAUDE.md "Never trust client input."
+    const actualLength = input.body.length;
+    if (actualLength !== input.message_length) {
+      throw new ToolError(
+        "permanent",
+        "send_slack_notification: message_length does not match body length",
+        {
+          context: {
+            tool: "send_slack_notification",
+            channel: input.channel,
+            declared_message_length: input.message_length,
+            actual_length: actualLength,
+          },
+        },
+      );
+    }
+
     // Dispatcher takes `channel`; the action_input field name aligns.
     // The constraint-narrowing path on the resolver compares the
     // grant's `channels` allowlist against action_input.channels —

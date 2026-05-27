@@ -33,6 +33,22 @@ import {
 
 const GMAIL_DRAFTS_URL = "https://gmail.googleapis.com/gmail/v1/users/me/drafts";
 
+/**
+ * Strip CR/LF and other control characters from header values before
+ * MIME composition. Header injection is a classic email-tool attack:
+ * a carefully-crafted subject like `"hi\r\nBcc: attacker@x"` would
+ * otherwise inject an extra header into the outgoing draft. Collapse
+ * any control char to nothing and trim — RFC 2822 header values
+ * forbid bare CR/LF entirely, so this is lossless for legitimate
+ * input.
+ */
+function sanitizeHeaderValue(value: string): string {
+  return value
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\x00-\x1F\x7F]+/g, " ")
+    .trim();
+}
+
 export interface DraftEmailInput {
   account_id: string;
   /** Each recipient address; the dispatcher RFC-2822-encodes them. */
@@ -67,14 +83,20 @@ export async function draftEmailViaGoogle(
   // Build an RFC 2822 MIME message and base64url-encode it for the
   // Gmail API. Plain text only for v1; HTML / attachments are
   // follow-ups.
+  //
+  // SECURITY: every header value is sanitized before composition.
+  // CR/LF in subject/to/cc/from would otherwise let a caller inject
+  // additional headers (BCC: attacker@..., or full body splicing).
+  // Strip control chars + collapse newlines to spaces; this is the
+  // defense per CLAUDE.md "Never trust client input."
   const headers: string[] = [
-    `From: ${token.connected_email}`,
-    `To: ${input.to.join(", ")}`,
+    `From: ${sanitizeHeaderValue(token.connected_email)}`,
+    `To: ${input.to.map(sanitizeHeaderValue).join(", ")}`,
   ];
   if (input.cc && input.cc.length > 0) {
-    headers.push(`Cc: ${input.cc.join(", ")}`);
+    headers.push(`Cc: ${input.cc.map(sanitizeHeaderValue).join(", ")}`);
   }
-  headers.push(`Subject: ${input.subject}`);
+  headers.push(`Subject: ${sanitizeHeaderValue(input.subject)}`);
   headers.push("MIME-Version: 1.0");
   headers.push("Content-Type: text/plain; charset=utf-8");
   const raw = `${headers.join("\r\n")}\r\n\r\n${input.body}`;

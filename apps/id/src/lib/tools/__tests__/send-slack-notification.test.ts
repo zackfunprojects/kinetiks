@@ -65,11 +65,12 @@ describe("send_slack_notification tool", () => {
       ts: "1700000000.000100",
     });
 
+    const body = "Dashboard updated.";
     const result = await sendSlackNotificationTool.execute(
       {
         channel: "C-acme",
-        message_length: 42,
-        body: "Dashboard updated.",
+        message_length: body.length,
+        body,
       },
       ctx,
     );
@@ -91,9 +92,30 @@ describe("send_slack_notification tool", () => {
     );
     await expect(
       sendSlackNotificationTool.execute(
-        { channel: "C-bogus", message_length: 10, body: "ping" },
+        { channel: "C-bogus", message_length: 4, body: "ping" },
         ctx,
       ),
     ).rejects.toBeInstanceOf(ToolError);
+  });
+
+  it("rejects when message_length does not match the actual body length", async () => {
+    // The grant's max_message_length constraint gates the declared
+    // message_length at the resolver layer. If a caller could
+    // under-report length, they would slip a longer body past the
+    // cap. This server-side check makes that impossible.
+    await expect(
+      sendSlackNotificationTool.execute(
+        {
+          channel: "C-acme",
+          message_length: 5, // lie: actual body is 19 chars
+          body: "Dashboard updated.",
+        },
+        ctx,
+      ),
+    ).rejects.toMatchObject({
+      name: "ToolError",
+      errorClass: "permanent",
+    });
+    expect(dispatchSlackMessageMock).not.toHaveBeenCalled();
   });
 });
