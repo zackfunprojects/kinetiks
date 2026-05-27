@@ -1,6 +1,7 @@
 // Archivist CRON Edge Function
 //
-// Runs every 6 hours. Three passes per onboarded account:
+// Runs every 6 hours. Three passes per onboarded account, plus one
+// nightly pass at the 00:00 UTC tick:
 //   1. /api/archivist/clean — deduplication, normalization, gap detection,
 //      quality scoring on Cortex context layers.
 //   2. /api/archivist/patterns/sweep (L1a, per Kinetiks Contract Addendum §1.9) —
@@ -13,6 +14,13 @@
 //      outcome_window_expires_at has elapsed, emits each through
 //      /api/synapse/patterns with outcome_value=0 (window expired, no
 //      follow-up / no action observed).
+//   4. /api/archivist/patterns/calibrate (Phase 2, per Kinetiks Contract
+//      Addendum §1.6) — empirical decay calibration. Runs only at the
+//      00:00 UTC tick of the day (one of the four 6h ticks). Adjusts
+//      each eligible pattern's effective_decay_days within the
+//      registered decay_bounds, based on observed variance and recent
+//      declining transitions. Writes pattern_decay_calibrated Ledger
+//      entries on every extend/shorten move.
 //
 // CRON schedule: every 6 hours ("0 */6 * * *")
 
@@ -76,6 +84,11 @@ Deno.serve(async () => {
   let patternSweepErrors = 0;
   let deferredSweepProcessed = 0;
   let deferredSweepErrors = 0;
+  // Phase 2: populated only on the 00:00 UTC tick.
+  let calibrationProcessed = 0;
+  let calibrationErrors = 0;
+  const runHourUTC = new Date().getUTCHours();
+  const isCalibrationTick = runHourUTC === 0;
 
   // Helper: POST to an internal endpoint with timeout + service auth.
   async function postInternal(path: string, batchIds: string[]): Promise<{ ok: boolean; body: unknown }> {
@@ -194,6 +207,54 @@ Deno.serve(async () => {
     }
   }
 
+  // Pass 4: Phase 2 empirical decay calibration. Runs only on the
+  // 00:00 UTC tick of the day (one of the four 6h ticks). Same
+  // batching as the other passes. Mirrors the deferred-sweep
+  // pattern: a 200 from the route can still report per-account
+  // in-band failures via data.failed + data.per_account[*].error;
+  // those must roll into calibration_errors so a clean transport
+  // run doesn't mask a calibration pass that actually failed for
+  // half the batch.
+  if (isCalibrationTick) {
+    for (let i = 0; i < allIds.length; i += API_BATCH_SIZE) {
+      const batchIds = allIds.slice(i, i + API_BATCH_SIZE);
+      const { ok, body } = await postInternal(
+        "/api/archivist/patterns/calibrate",
+        batchIds,
+      );
+      if (!ok) {
+        calibrationErrors += batchIds.length;
+      } else {
+        const env = body as {
+          data?: {
+            accounts_processed?: number;
+            failed?: number;
+            per_account?: Record<string, { error?: string } | unknown>;
+          };
+        };
+        const count =
+          typeof env?.data?.accounts_processed === "number"
+            ? env.data.accounts_processed
+            : batchIds.length;
+        calibrationProcessed += count;
+        // In-band failures: data.failed is the route's aggregate
+        // (sum of per-account errors.length); per_account[*].error
+        // captures transport-style failures inside the route loop.
+        const inBandFailed =
+          typeof env?.data?.failed === "number" ? env.data.failed : 0;
+        const perAccountErrors = env?.data?.per_account
+          ? Object.values(env.data.per_account).filter(
+              (v) => v && typeof v === "object" && "error" in (v as object),
+            ).length
+          : 0;
+        calibrationErrors += inBandFailed + perAccountErrors;
+      }
+      if (i + API_BATCH_SIZE < allIds.length) {
+        await new Promise((resolve) => setTimeout(resolve, BATCH_DELAY_MS));
+      }
+    }
+  }
+
   // Log summary to ledger
   const { error: ledgerErr } = await admin.from("kinetiks_ledger").insert({
     account_id: null,
@@ -207,6 +268,13 @@ Deno.serve(async () => {
       pattern_sweep_errors: patternSweepErrors,
       deferred_sweep_processed: deferredSweepProcessed,
       deferred_sweep_errors: deferredSweepErrors,
+      // Only present on the 00:00 UTC tick.
+      ...(isCalibrationTick
+        ? {
+            calibration_processed: calibrationProcessed,
+            calibration_errors: calibrationErrors,
+          }
+        : {}),
       timestamp: new Date().toISOString(),
     },
   });
@@ -222,6 +290,12 @@ Deno.serve(async () => {
     pattern_sweep_errors: patternSweepErrors,
     deferred_sweep_processed: deferredSweepProcessed,
     deferred_sweep_errors: deferredSweepErrors,
+    ...(isCalibrationTick
+      ? {
+          calibration_processed: calibrationProcessed,
+          calibration_errors: calibrationErrors,
+        }
+      : {}),
   };
 
   console.log("[archivist-cron] Run complete:", JSON.stringify(summary));

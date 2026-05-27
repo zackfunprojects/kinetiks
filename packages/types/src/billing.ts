@@ -143,6 +143,9 @@ export interface LedgerEventDetailMap {
     pattern_sweep_errors?: number;
     deferred_sweep_processed?: number;
     deferred_sweep_errors?: number;
+    /** Phase 2: only present on the 00:00 UTC calibration-pass tick. */
+    calibration_processed?: number;
+    calibration_errors?: number;
     timestamp?: string;
   };
 
@@ -232,6 +235,28 @@ export interface LedgerEventDetailMap {
     pattern_id: string;
     from: PatternLifecycleStatus;
     reason: "time_decay" | "customer_archive" | "icp_removed";
+  };
+  // Phase 2: nightly empirical decay calibration. The Archivist
+  // adjusts `effective_decay_days` within the descriptor's bounds
+  // based on observed outcome variance and lifecycle history. Per the
+  // Kinetiks Contract Addendum §1.6, with one acknowledged divergence:
+  // calibration is per-pattern (writes back to
+  // kinetiks_pattern_library.effective_decay_days) rather than via a
+  // separate per-(account, pattern_type) calibration table. Each move
+  // emits one of these entries; no-op decisions (no_move, skip) do
+  // NOT emit.
+  pattern_decay_calibrated: {
+    pattern_id: string;
+    pattern_type: string;
+    prior_effective_decay_days: number;
+    next_effective_decay_days: number;
+    prior_decay_at: string;
+    next_decay_at: string;
+    observed_variance: number;
+    observation_count: number;
+    declining_transitions_in_window: number;
+    decision: "extend" | "shorten";
+    rationale: string;
   };
 
   // ── Fixture substrate (Phase 1.5) ─────────────────────────
