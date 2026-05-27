@@ -149,4 +149,26 @@ export function registerKinetiksPromptTasks(): void {
     version: "v1-2026-05",
     defaultModel: "claude-haiku-4-5-20251001",
   });
+
+  // ── Authority Agent (Phase 4 — Kinetiks Contract Addendum §2.5) ──
+  // Evidence summarizer: a single Haiku call that compresses the
+  // Learning Ledger's authority-event history (last 90 days) into a
+  // short narrative of "what the customer keeps editing / rejecting,"
+  // fed into the proposal prompt's evidence block. Cheap; runs only
+  // when ledger events exist.
+  registerPromptTask({
+    task: "authority_agent.evidence_summarize",
+    version: "v1-2026-05",
+    defaultModel: "claude-haiku-4-5-20251001",
+  });
+  // Proposal generator: the structured Sonnet call that produces the
+  // GrantProposalEnvelope. Forced JSON output via prompt rules + a
+  // retry-on-validation-failure loop in the executor. The cost of a
+  // bad proposal is the customer losing trust in the proposal
+  // pipeline — exactly the case where the extra Sonnet $ pays off.
+  registerPromptTask({
+    task: "authority_agent.propose",
+    version: "v1-2026-05",
+    defaultModel: "claude-sonnet-4-20250514",
+  });
 }

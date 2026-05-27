@@ -6,7 +6,7 @@ import type { OperatorExecutor } from "@kinetiks/runtime";
 
 import {
   archivist,
-  authorityAgentStub,
+  authorityAgent,
   cartographer,
   marcus,
   oracle,
@@ -15,7 +15,7 @@ import { archivistExecute } from "./executors/archivist";
 import { cartographerExecute } from "./executors/cartographer";
 import { marcusExecute } from "./executors/marcus";
 import { oracleExecute } from "./executors/oracle";
-import { authorityAgentStubExecute } from "./executors/authority-agent-stub";
+import { authorityAgentExecute } from "./executors/authority-agent";
 
 /**
  * Kinetiks Core's app key. Used as the first dimension of the
@@ -29,7 +29,7 @@ const KINETIKS_ID_OPERATORS: readonly OperatorDescriptor[] = [
   archivist,
   marcus,
   oracle,
-  authorityAgentStub,
+  authorityAgent,
 ];
 
 /**
@@ -40,16 +40,17 @@ const KINETIKS_ID_OPERATORS: readonly OperatorDescriptor[] = [
  * `DispatchDeps.resolveOperator` and looks up the right function at
  * dispatch time.
  *
- * Phase 3 wires only the Archivist for real; the other four throw
- * `not_implemented` so a mistakenly-dispatched Workflow surfaces a
- * clear error instead of silently no-opping.
+ * Phase 3 wired the Archivist; Phase 4 — Chunk 5 wires the Authority
+ * Agent. The remaining three (Cartographer, Marcus, Oracle) still
+ * throw `not_implemented` so a mistakenly-dispatched Workflow
+ * surfaces a clear error rather than silently no-opping.
  */
 const EXECUTORS: Record<string, OperatorExecutor> = {
   [`${KINETIKS_ID_APP_KEY}.cartographer`]: cartographerExecute,
   [`${KINETIKS_ID_APP_KEY}.archivist`]: archivistExecute,
   [`${KINETIKS_ID_APP_KEY}.marcus`]: marcusExecute,
   [`${KINETIKS_ID_APP_KEY}.oracle`]: oracleExecute,
-  [`${KINETIKS_ID_APP_KEY}.authority_agent`]: authorityAgentStubExecute,
+  [`${KINETIKS_ID_APP_KEY}.authority_agent`]: authorityAgentExecute,
 };
 
 let _booted = false;

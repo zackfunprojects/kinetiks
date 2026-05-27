@@ -1,0 +1,189 @@
+/**
+ * Gmail draft dispatcher per Phase 4 — Chunk 6.
+ *
+ * Creates a draft email in the customer's Gmail account via the Gmail
+ * REST API (`users.drafts.create`). Draft NEVER sends — the customer
+ * must open Gmail and click Send. This is the safety property the
+ * Authority Agent leans on when proposing `draft_email` permissions:
+ * the customer always reviews the wording before any external
+ * communication leaves their domain.
+ *
+ * Microsoft 365 path is intentionally deferred. The plan notes both
+ * Gmail and Microsoft Graph as v1 targets, but Microsoft Graph
+ * requires a separate OAuth provider and token-refresh flow that is
+ * not yet wired into the connection framework. Phase 5 ships M365
+ * support alongside the standing-grants signup flow that exercises it.
+ *
+ * Per CLAUDE.md PII rules: the dispatcher does NOT log recipient
+ * addresses or body content. Errors carry the recipient COUNT and
+ * body LENGTH only. The Phase 4 runtime's PII-safe summarizer
+ * (`summarizeForLedger`) takes care of the Ledger write.
+ */
+
+import "server-only";
+
+import { ToolError } from "@kinetiks/tools";
+
+import { getGoogleWorkspaceAccessToken } from "@/lib/connections/google-workspace-token";
+import {
+  classifyHttpStatus,
+  fetchWithTimeout,
+  parseJsonOrToolError,
+} from "@/lib/dispatchers/fetch-with-timeout";
+
+const GMAIL_DRAFTS_URL = "https://gmail.googleapis.com/gmail/v1/users/me/drafts";
+
+/**
+ * Strip CR/LF and other control characters from header values before
+ * MIME composition. Header injection is a classic email-tool attack:
+ * a carefully-crafted subject like `"hi\r\nBcc: attacker@x"` would
+ * otherwise inject an extra header into the outgoing draft. Collapse
+ * any control char to nothing and trim — RFC 2822 header values
+ * forbid bare CR/LF entirely, so this is lossless for legitimate
+ * input.
+ */
+function sanitizeHeaderValue(value: string): string {
+  return value
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\x00-\x1F\x7F]+/g, " ")
+    .trim();
+}
+
+export interface DraftEmailInput {
+  account_id: string;
+  /** Each recipient address; the dispatcher RFC-2822-encodes them. */
+  to: string[];
+  /** Optional CC list. */
+  cc?: string[];
+  /** Plain-text subject line. */
+  subject: string;
+  /** Plain-text body. HTML body support is a follow-up. */
+  body: string;
+  /** Optional Gmail thread id when replying. */
+  reply_to_thread_id?: string;
+}
+
+export interface DraftEmailOutput {
+  /** Gmail's stable draft id. The customer's Gmail UI references it. */
+  draft_id: string;
+  /** Gmail's underlying message id (different from draft_id). */
+  message_id: string;
+  provider: "google";
+  /** Email address of the connected Gmail account, safe to log. */
+  from_email: string;
+}
+
+export async function draftEmailViaGoogle(
+  input: DraftEmailInput,
+): Promise<DraftEmailOutput> {
+  const token = await getGoogleWorkspaceAccessToken({
+    account_id: input.account_id,
+  });
+
+  // Build an RFC 2822 MIME message and base64url-encode it for the
+  // Gmail API. Plain text only for v1; HTML / attachments are
+  // follow-ups.
+  //
+  // SECURITY: every header value is sanitized before composition.
+  // CR/LF in subject/to/cc/from would otherwise let a caller inject
+  // additional headers (BCC: attacker@..., or full body splicing).
+  // Strip control chars + collapse newlines to spaces; this is the
+  // defense per CLAUDE.md "Never trust client input."
+  const headers: string[] = [
+    `From: ${sanitizeHeaderValue(token.connected_email)}`,
+    `To: ${input.to.map(sanitizeHeaderValue).join(", ")}`,
+  ];
+  if (input.cc && input.cc.length > 0) {
+    headers.push(`Cc: ${input.cc.map(sanitizeHeaderValue).join(", ")}`);
+  }
+  headers.push(`Subject: ${sanitizeHeaderValue(input.subject)}`);
+  headers.push("MIME-Version: 1.0");
+  headers.push("Content-Type: text/plain; charset=utf-8");
+  const raw = `${headers.join("\r\n")}\r\n\r\n${input.body}`;
+  const base64UrlRaw = Buffer.from(raw, "utf8")
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+
+  const response = await fetchWithTimeout({
+    url: GMAIL_DRAFTS_URL,
+    init: {
+      method: "POST",
+      headers: {
+        Authorization: `${token.token_type} ${token.access_token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        message: {
+          raw: base64UrlRaw,
+          ...(input.reply_to_thread_id
+            ? { threadId: input.reply_to_thread_id }
+            : {}),
+        },
+      }),
+    },
+    tool: "draft_email",
+    context: {
+      account_id: input.account_id,
+      to_count: input.to.length,
+      body_length: input.body.length,
+    },
+  });
+
+  if (!response.ok) {
+    let detail = `HTTP ${response.status}`;
+    try {
+      const errJson = (await response.json()) as {
+        error?: { message?: string; status?: string };
+      };
+      if (errJson?.error?.message) detail = errJson.error.message;
+    } catch {
+      // Body not JSON — keep the HTTP status as the detail.
+    }
+    const retryAfter = response.headers.get("retry-after") ?? "";
+    throw new ToolError(
+      classifyHttpStatus(response.status),
+      `Gmail drafts.create rejected: ${detail}`,
+      {
+        context: {
+          tool: "draft_email",
+          account_id: input.account_id,
+          to_count: input.to.length,
+          body_length: input.body.length,
+          http_status: response.status,
+          ...(retryAfter ? { retry_after: retryAfter } : {}),
+        },
+      },
+    );
+  }
+
+  const data = await parseJsonOrToolError<{
+    id?: string;
+    message?: { id?: string; threadId?: string };
+  }>(response, {
+    tool: "draft_email",
+    context: {
+      account_id: input.account_id,
+      to_count: input.to.length,
+    },
+  });
+  if (!data.id || !data.message?.id) {
+    throw new ToolError(
+      "permanent",
+      "Gmail drafts.create succeeded but returned no draft id",
+      {
+        context: {
+          tool: "draft_email",
+          account_id: input.account_id,
+        },
+      },
+    );
+  }
+  return {
+    draft_id: data.id,
+    message_id: data.message.id,
+    provider: "google",
+    from_email: token.connected_email,
+  };
+}

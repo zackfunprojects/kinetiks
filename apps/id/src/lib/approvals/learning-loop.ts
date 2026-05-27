@@ -1,11 +1,16 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveProposal } from "@kinetiks/cortex";
 import type { ApprovalRecord, ApprovalAction } from "./types";
-import type { ContextLayer } from "@kinetiks/types";
+import type { ContextLayer, GrantProposalEnvelopeMember } from "@kinetiks/types";
 import { calibrateThreshold } from "./threshold";
 import { analyzeEdits } from "./edit-analyzer";
 import { emitApprovalEvent } from "./events";
 import { emitInsight } from "@/lib/insights";
+import {
+  applyAuthorityGrantApprove,
+  applyAuthorityGrantReject,
+} from "./authority-grant";
+import { proposedGrantPayloadSchema } from "@/lib/operators/descriptors";
 
 /**
  * For context_edit approvals, resolve the linked Proposal so the merge
@@ -51,6 +56,86 @@ export async function processApprovalDecision(
 ): Promise<void> {
   const admin = createAdminClient();
   const now = new Date().toISOString();
+
+  // Phase 4 — Chunk 7: authority_grant_proposal approvals carry a
+  // distinct side-effect chain (grant lifecycle transition + authority
+  // ledger events + optional successor-grant proposal via RPC on
+  // edit-and-approve). Delegate to the dedicated handler; do NOT run
+  // the brand/quality/threshold logic which doesn't apply here.
+  //
+  // The standard approval row update + standard approval Ledger entry
+  // still fire below for the audit trail, so the customer's approval
+  // queue shows the action as approved/rejected normally; the
+  // authority handler is purely the lifecycle side-effect.
+  const approvalClass = (
+    approval as ApprovalRecord & { approval_class?: string }
+  ).approval_class;
+  if (approvalClass === "authority_grant_proposal") {
+    if (action.action === "approve") {
+      // Validate edits with Zod before they reach the authority
+      // handlers. CLAUDE.md: never trust client input. The edits
+      // payload is the customer's replacement grant; reject the
+      // entire approval action if the shape doesn't satisfy
+      // proposedGrantPayloadSchema (the same shape the Authority
+      // Agent's structural validator runs against).
+      let edits:
+        | { grant: GrantProposalEnvelopeMember["grant"] }
+        | null = null;
+      const editsCandidate =
+        action.edits && (action.edits as { grant?: unknown }).grant
+          ? (action.edits as { grant: unknown })
+          : null;
+      if (editsCandidate) {
+        const parsed = proposedGrantPayloadSchema.safeParse(editsCandidate.grant);
+        if (!parsed.success) {
+          throw new Error(
+            `Invalid edits payload for authority_grant_proposal: ${parsed.error.issues
+              .map(
+                (iss) => `${iss.path.join(".") || "(root)"}: ${iss.message}`,
+              )
+              .join("; ")}`,
+          );
+        }
+        edits = { grant: parsed.data as GrantProposalEnvelopeMember["grant"] };
+      }
+      await applyAuthorityGrantApprove(admin, approval, { edits });
+    } else {
+      await applyAuthorityGrantReject(admin, approval, {
+        rejection_reason: action.rejection_reason ?? "user_rejected",
+      });
+    }
+    // Always update the approval row's status + acted_at so the
+    // queue surface mirrors the lifecycle outcome. Scope by
+    // account_id too — CLAUDE.md: always scope by kinetiks_accounts.id.
+    const updates =
+      action.action === "approve"
+        ? { status: "approved", acted_at: now }
+        : {
+            status: "rejected",
+            rejection_reason: action.rejection_reason,
+            acted_at: now,
+          };
+    const { error: updateErr } = await admin
+      .from("kinetiks_approvals")
+      .update(updates)
+      .eq("id", approval.id)
+      .eq("account_id", approval.account_id);
+    if (updateErr) {
+      throw new Error(
+        `Failed to update authority_grant_proposal approval: ${updateErr.message}`,
+      );
+    }
+    // Emit the standard approval event so dashboards / activity
+    // surfaces pick it up alongside other approvals.
+    await emitApprovalEvent(
+      action.action === "approve" ? "approval_approved" : "approval_rejected",
+      approval.id,
+      approval.account_id,
+      approval.action_category,
+      { approval_class: "authority_grant_proposal" },
+    );
+    return;
+  }
 
   if (action.action === "approve") {
     const hasEdits = action.edits !== null && Object.keys(action.edits).length > 0;

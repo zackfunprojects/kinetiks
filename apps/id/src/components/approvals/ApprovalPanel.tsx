@@ -99,6 +99,46 @@ export function ApprovalPanel({ systemName }: ApprovalPanelProps) {
     }
   };
 
+  /**
+   * Phase 4 — Chunk 7: inline-reason reject used by the
+   * AuthorityGrantProposalCard (the card captures the reason itself
+   * so no RejectModal is opened). Mirrors handleReject without the
+   * modal-state plumbing.
+   *
+   * Gates local-state pruning on res.ok so a 4xx/5xx response does
+   * not optimistically hide the approval — the customer sees it
+   * still in the queue until Realtime catches up, which surfaces the
+   * failure rather than silently swallowing it.
+   */
+  const rejectWithReason = async (id: string, reason: string) => {
+    try {
+      const res = await fetch("/api/approvals/action", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          approval_id: id,
+          action: "reject",
+          edits: null,
+          rejection_reason: reason,
+        }),
+      });
+      if (!res.ok) {
+        // eslint-disable-next-line no-console
+        console.error(
+          `[ApprovalPanel] inline reject failed for ${id}: HTTP ${res.status}`,
+        );
+        return; // leave the approval in local state; user can retry
+      }
+      setApprovals((prev) => prev.filter((a) => a.id !== id));
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error(
+        `[ApprovalPanel] inline reject network error for ${id}:`,
+        err,
+      );
+    }
+  };
+
   const handleBatchApprove = async () => {
     setBatchLoading(true);
     try {
@@ -138,7 +178,18 @@ export function ApprovalPanel({ systemName }: ApprovalPanelProps) {
           key={approval.id}
           approval={approval}
           onApprove={handleApprove}
-          onReject={(id) => setRejectingId(id)}
+          onReject={(id, reason) => {
+            // Phase 4 — Chunk 7: authority_grant_proposal cards
+            // capture the rejection reason inline, so they pass one
+            // through; we POST directly without opening RejectModal.
+            // Other approval types still funnel through RejectModal
+            // for the reason capture step.
+            if (reason !== undefined) {
+              void rejectWithReason(id, reason);
+              return;
+            }
+            setRejectingId(id);
+          }}
           systemName={systemName}
         />
       ))}
