@@ -19,7 +19,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { serverEnv } from "@kinetiks/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { sweepExpiredDeferredObservations } from "@/lib/patterns/deferred-emit";
+import { runArchivistDeferredSweepForAccount } from "@/lib/archivist/run-deferred-sweep";
 
 const Body = z.object({
   account_ids: z.array(z.string().uuid()).min(1),
@@ -76,26 +76,25 @@ export async function POST(request: Request) {
   const perAccount: Record<string, unknown> = {};
 
   for (const account_id of parsed.account_ids) {
-    try {
-      const result = await sweepExpiredDeferredObservations(
-        {
-          patternsUrl,
-          internalSecret: secret,
-          account_id,
-        },
-        admin,
-      );
-      totalScanned += result.scanned;
-      totalExpired += result.expired_count;
-      totalEmitted += result.emitted_count;
-      totalFailed += result.failed_count;
-      perAccount[account_id] = result;
-    } catch (err) {
-      totalFailed++;
-      perAccount[account_id] = {
-        error: err instanceof Error ? err.message : "unknown error",
-      };
-    }
+    const result = await runArchivistDeferredSweepForAccount(admin, account_id, {
+      patternsUrl,
+      internalSecret: secret,
+    });
+    totalScanned += result.scanned;
+    totalExpired += result.expired_count;
+    totalEmitted += result.emitted_count;
+    totalFailed += result.failed_count;
+    // If the helper hit an unrecoverable error, surface it in the
+    // per-account map exactly as the legacy route did.
+    perAccount[account_id] = result.error
+      ? { error: result.error }
+      : {
+          scanned: result.scanned,
+          expired_count: result.expired_count,
+          emitted_count: result.emitted_count,
+          failed_count: result.failed_count,
+        };
+    if (result.error) totalFailed++;
   }
 
   return NextResponse.json({

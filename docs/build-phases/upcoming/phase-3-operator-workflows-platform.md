@@ -1,96 +1,134 @@
-# Phase 3: Operator Workflows Platform — Implementation Plan
+# Phase 3 — Operator Workflows Platform
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans` to implement this plan task-by-task.
+> Move this file to `docs/build-phases/built/` when the PR merges and the DoD is fully satisfied in production.
 
-**Goal.** Schema + runtime support for internal Operator Workflows inside an app, distinguishing cross-app dispatch (Synapse Routing Event) from internal dispatch (executing app's Operator registry). Build the platform layer in Kinetiks Core; validate it by registering Kinetiks Core's own Operators and converting one existing direct invocation (daily brief assembly) into a multi-step internal Workflow.
+**Goal.** Ship the platform layer for internal Operator Workflows per the Kinetiks Contract Addendum §3, and validate it by registering Kinetiks Core's five operators (Cartographer, Archivist, Marcus, Oracle, Authority Agent stub) and converting the 6-hour `archivist-cron`'s four sequential HTTP calls into one `WorkflowDefinition` dispatched through the new runtime.
 
-**Why now.** The addendum §3 gates Implosion. Under the apps/id-only scope, build the platform layer regardless and validate it against Kinetiks Core's own Operators (Cartographer, Archivist, Marcus, Oracle, Authority Agent stub). When Implosion eventually lands, it slots in as the second consumer with zero platform changes.
+When Implosion lands later, it slots in as the second consumer of this platform with zero platform changes.
 
 **Spec references**
 - `docs/Kinetiks Contract Addendum.md` §3 (Operator Workflows)
-- `packages/types/src/workflows.ts` (current `WorkflowTask` shape)
-- `packages/types/src/synapse.ts` (current `KineticsAppManifest` shape)
-- The Three-Layer communication rules in `CLAUDE.md` (Operators in app A cannot talk to Operators in app B)
+- `docs/platform-contract.md` (App Manifest, Synapse Routing Event)
+- `CLAUDE.md` — Three-Layer agent rules, Lesson #8 (deployed-state verification), Lesson #9 (instrumentation runtime split)
 
 ---
 
-## Schema changes
+## What this phase actually ships
 
-`WorkflowTask` gains two fields:
+### New platform primitives
 
-```ts
-type WorkflowTask = /* existing fields */ & {
-  target_type: 'cross_app' | 'internal_operator';
-  target_app: string; // app key (e.g. 'kinetiks_id', 'im', 'hv')
-};
-```
-
-`KineticsAppManifest` gains:
-
-```ts
-type KineticsAppManifest = /* existing fields */ & {
-  operator_registry?: OperatorDescriptor[]; // present iff the app uses internal Workflows
-};
-```
-
-`OperatorDescriptor` (new or extend existing):
-
-```ts
-type OperatorDescriptor = {
-  key: string;            // e.g. 'marcus', 'archivist', 'cartographer'
-  description: string;    // LLM-readable
-  inputs_schema: ZodSchema;
-  outputs_schema: ZodSchema;
-  required_tools: string[];
-  required_pattern_types: string[];
-  allowed_action_classes: string[]; // referenced action classes must be in Action Class Registry (Phase 4)
-};
-```
-
-## Files to change / create
-
-| Path | Change |
+| Path | Purpose |
 |---|---|
-| `packages/types/src/workflows.ts` | Add `target_type` and `target_app` to `WorkflowTask` |
-| `packages/types/src/synapse.ts` | Extend `KineticsAppManifest` with optional `operator_registry` |
-| `packages/types/src/operators.ts` | **New** (or extend existing): `OperatorDescriptor` type |
-| `packages/runtime/src/workflow-dispatch.ts` | **New**. `dispatchTask(task, context)` resolves target_type, dispatches via Synapse Routing Event for `cross_app` or directly invokes the operator from the executing app's registry for `internal_operator`. Single entry point for both modes |
-| `apps/id/src/lib/operators/registry-boot.ts` | **New**. Registers Kinetiks Core operators: Cartographer, Archivist, Marcus, Oracle, Authority Agent (Authority Agent is a declared-only stub here — Phase 4 replaces the stub with the real implementation) |
-| `apps/id/src/lib/operators/cartographer.ts` etc. | Refactor existing operator code to register itself via the new descriptor pattern (if not already structured this way) |
-| `apps/id/src/lib/workflows/daily-brief-assembly.ts` | **New** (or refactor existing). Multi-step internal Workflow that orchestrates: Marcus.gatherEvidence → Oracle.computeInsights → Marcus.composeBrief. Uses the new `dispatchTask` for each step |
-| `supabase/migrations/0004X_workflow_task_target_columns.sql` | Migration adding `target_type` and `target_app` columns to whatever table stores WorkflowTasks (typically `kinetiks_workflow_tasks`); default existing rows to `'cross_app'` to preserve current behavior |
-| `packages/runtime/src/workflow-dispatch.test.ts` | **New** unit tests: cross_app routes through Synapse Routing Event helper; internal_operator routes through registry; missing operator throws |
-| `supabase/tests/workflow_task_target.sql` | **New** pgTAP. CHECK constraint on `target_type`; cross-tenant isolation on workflow tasks |
+| `packages/types/src/workflows.ts` | `WorkflowTask`, `WorkflowDefinition`, `WorkflowDispatchContext`, `WorkflowTaskResult`, `WorkflowRunSummary`. `target_type: "cross_app" | "internal_operator"` is the new addressing mode per Addendum §3.2. |
+| `packages/types/src/manifests.ts` | `KineticsAppManifest` — first declaration of the manifest contract type, with `operator_registry?: OperatorDescriptor[]` (Addendum §3.3) and a forward-compat `default_standing_grants?` slot for Phase 5. |
+| `packages/types/src/billing.ts` (extended) | Three new `LedgerEventDetailMap` entries: `workflow_task_dispatched`, `workflow_task_completed`, `workflow_task_failed`. PII-safe shape (counts, ids, error classes only). |
+| `packages/runtime/src/workflow-dispatch.ts` | `dispatchWorkflowTask` + `runWorkflow`. Cross-app branch inserts a `kinetiks_routing_events` row via host-injected deps; internal branch calls `assertOperator`, validates input/output against the descriptor's Zod schemas, then invokes the host's `resolveOperator`-returned executor. Per-task Ledger writes; first-failure stops the run. |
+| `supabase/migrations/00049_workflow_task_ledger_event_types.sql` | Drop + recreate `kinetiks_ledger_event_type_valid` CHECK with the three new event types. `NOT VALID` (Phase 4.5 closes the VALIDATE pass). |
 
-## Communication rules (preserved)
+### Kinetiks Core operator wiring
 
-- Operators in app A cannot talk to Operators in app B. If an internal Workflow needs a cross-app capability, the task must be `target_type: 'cross_app'` and go through a Routing Event. The dispatcher enforces this — there is no path to invoke another app's operator directly.
+| Path | Purpose |
+|---|---|
+| `apps/id/src/lib/operators/descriptors.ts` | Five `OperatorDescriptor`s for `kinetiks_id`. Marcus's `required_tools` mirrors the real Tool Registry boot list; Oracle's matches its analytics tools; Cartographer / Archivist / Authority-Agent stay empty until later phases wire them through the runtime. |
+| `apps/id/src/lib/operators/executors/{cartographer,marcus,oracle,authority-agent-stub}.ts` | Stubs that throw `not_implemented` with a clear message naming the phase that lands them. |
+| `apps/id/src/lib/operators/executors/archivist.ts` | Real executor. Validates input against `archivistInputsSchema`, branches on `step`, calls the matching `runArchivist*ForAccount` helper for each account in the batch, returns aggregated counts. `only_at_utc_hour` short-circuits at the operator boundary (the calibrate step no-ops outside 00:00 UTC). |
+| `apps/id/src/lib/operators/registry-boot.ts` | `bootOperatorRegistry()` (idempotent) + `resolveKinetiksOperator(app, key)`. Wired into `instrumentation-node.ts` between `bootPatternTypeRegistry()` and `bootToolRegistry()` so `assertRegistriesValid()` (already invoked at the end of `bootToolRegistry()`) catches any `required_tools` / `required_patterns` / `action_classes` references that don't resolve. |
+
+### Archivist refactor (no behavior change for direct callers)
+
+| Path | Purpose |
+|---|---|
+| `apps/id/src/lib/archivist/run-clean.ts` | Extracted from `clean/route.ts`. `runArchivistCleanForAccount(admin, accountId)`. |
+| `apps/id/src/lib/archivist/run-pattern-sweep.ts` | Extracted from `patterns/sweep/route.ts`. `runArchivistPatternSweepForAccount(admin, accountId)`. |
+| `apps/id/src/lib/archivist/run-deferred-sweep.ts` | Extracted from `patterns/sweep-deferred/route.ts`. `runArchivistDeferredSweepForAccount(admin, accountId, deps)`. |
+| `apps/id/src/lib/archivist/run-calibrate.ts` | Extracted from `patterns/calibrate/route.ts`. `runArchivistCalibrateForAccount(admin, accountId, now)`. |
+| `apps/id/src/app/api/archivist/clean/route.ts`, `patterns/sweep/route.ts`, `patterns/sweep-deferred/route.ts`, `patterns/calibrate/route.ts` | All four routes now delegate to their respective `runArchivist*ForAccount` helper. Response shapes are byte-identical to prior behavior. |
+
+### Workflow + new internal route + cron switch
+
+| Path | Purpose |
+|---|---|
+| `apps/id/src/lib/workflows/archivist-maintenance.ts` | The first `WorkflowDefinition`: four `target_type: "internal_operator"` tasks (`clean → sweep → sweep_deferred → calibrate`), each addressing `kinetiks_id.archivist` with a different `step` input derived from the dispatch context's `metadata.account_ids`. |
+| `apps/id/src/app/api/internal/workflows/archivist-maintenance/run/route.ts` | Service-secret-auth Node route. POST `{ account_ids: string[] }` → builds `WorkflowDispatchContext` with a fresh `correlation_id` and `invoked_by: "cron:archivist-maintenance"`, calls `runWorkflow(archivistMaintenance, ctx, deps)`, returns `{ summary, archivist_cron_summary }`. The `archivist_cron_summary` block matches the legacy per-step counters the cron used to write into the `archivist_cron_run` Ledger entry, so any dashboards reading that detail keep working. |
+| `supabase/functions/archivist-cron/index.ts` | Now POSTs once per account batch to the new workflow runner route. Reads `archivist_cron_summary` and writes the existing `archivist_cron_run` Ledger summary with the same field shape. Treats HTTP 207 (Multi-Status, partial success) the same as 200 for accounting. |
+
+### Tests
+
+| Path | Purpose |
+|---|---|
+| `packages/runtime/src/__tests__/workflow-dispatch.test.ts` | 9 unit tests: internal_operator happy path, unregistered operator, no-executor-wired, invalid_input, invalid_output, cross_app routing event insertion, multi-task upstream propagation, first-failure-stops, Ledger-failure tolerance. |
+| `packages/tools/src/__tests__/validate.test.ts` (already existed) | Existing test `"fails when an operator references an unregistered tool"` covers the validation case the plan called for. No new test needed there. |
+| `apps/id/src/lib/workflows/__tests__/archivist-maintenance.test.ts` | 3 integration tests: four steps fire in order with the right account batch into each helper; correct Ledger trail (4 dispatched + 4 completed); calibrate short-circuits outside the 00:00 UTC tick. |
+
+---
+
+## Communication rules preserved
+
+Per the Three-Layer Agent System (CLAUDE.md):
+
+- Operators in app A still cannot call operators in app B. The dispatcher's internal-operator branch only resolves operators inside the host app's executor map.
+- Cross-app coordination still flows through Synapse Routing Events (`kinetiks_routing_events`). The new dispatcher's `cross_app` branch writes a row to that same table — it is a new addressing mode for an existing primitive, not a new communication path.
 - Synapses still do not talk to other Synapses.
-- The new `dispatchTask` is one new addressing mode for the existing Workflow primitive; it is not a new communication path.
+
+---
+
+## Scope locks (decided before the build)
+
+- **No new tables.** Workflows are typed code constants; observability is per-task Ledger entries.
+- **No `kinetiks_programs`, `kinetiks_workflows`, `kinetiks_workflow_runs`, `kinetiks_tasks`.** Programs from `programs-spec.md` are out of scope. The Workflow primitive stands alone here.
+- **No persistence, pause/resume, parallel tasks, conditional branches, approval checkpoints.** Additive when Implosion needs them.
+- **The four existing `/api/archivist/*` routes stay intact** as the customer-direct path; the cron simply no longer drives them.
+- **Authority resolution at task dispatch is NOT here.** Phase 4 layers it in; the `authority` stub in `packages/runtime/src/authority.ts` continues to fire from `run.invokeTool` for tool calls.
+- **No suite-app operators.** Implosion's eight operators, Harvest's scout/composer/sender — out of scope until those apps come off pause.
+
+---
 
 ## Definition of Done
 
-- `WorkflowTask` schema change applied; migration safe against existing rows.
-- `KineticsAppManifest` extension compiles; existing apps without `operator_registry` are unaffected.
-- `apps/id/src/lib/operators/registry-boot.ts` registers five Kinetiks Core operators at app boot.
-- The daily-brief-assembly internal Workflow runs end-to-end in dev; each step dispatches via `target_type: 'internal_operator'`.
-- A contract test verifies the cross-app dispatch path still works (using the existing Routing Event mechanism).
-- `OperatorDescriptor` registration fails at boot if a referenced `action_class` is not in the Action Class Registry (Phase 4 will exercise this; for Phase 3, the Authority Agent stub's allowed_action_classes is empty array).
-- Internal dispatch fails cleanly when an Operator key is not registered (no silent fallback to cross-app).
-- pgTAP cross-tenant isolation test on workflow tasks.
+- [x] Types compile workspace-wide (`pnpm type-check` clean across all 14 packages).
+- [x] `packages/runtime` tests pass: 9 new workflow-dispatch tests + 9 existing runtime tests = 18/18.
+- [x] `packages/tools` tests pass: 71/71 (existing cross-registry validation tests already cover operator → tool / pattern / action class references).
+- [x] `apps/id` tests pass: 374/375 (1 pre-existing skipped GA4 smoke test). 3 new workflow integration tests included.
+- [x] `apps/id` builds: `pnpm build` produces the new `/api/internal/workflows/archivist-maintenance/run` route alongside every existing route.
+- [x] `pnpm functions:check` reports `OK: 14 functions in repo, all deployed, all scheduled.`
+- [x] `bootOperatorRegistry()` wired into `apps/id/src/instrumentation-node.ts` between pattern and tool boots, so `assertRegistriesValid()` validates every operator reference at startup.
+- [x] PII rules respected: the three new Ledger event types carry counts, ids, latency, and error classes only — never raw task input/output payloads or prompt text.
+- [x] Migration `00049_workflow_task_ledger_event_types.sql` lands `NOT VALID` (Phase 4.5 closes the VALIDATE pass alongside the other deferred constraints).
+- [x] `LedgerEventDetailMap` extended with typed entries matching the CHECK constraint exactly.
+- [x] The phase-3 doc (this file) updated to reflect what actually shipped.
+- [ ] **Manual production verification (post-deploy):** the next 6-hour `archivist-cron` tick produces 4 dispatched + 4 completed Ledger entries per batch sharing one `correlation_id`, plus the existing `archivist_cron_run` summary entry. Run-time spread across the four steps matches the old cron's spread within an order of magnitude.
+- [ ] **Move this file to `docs/build-phases/built/`** as part of the merge that lands Phase 3.
 
-## Verification
+The first two unchecked items are post-merge operational verifications, not gating for the PR.
 
-1. Boot apps/id in dev. Check logs for the operator registry registering five operators.
-2. Trigger the daily-brief assembly Workflow (e.g. via the existing scheduled cron, or a manual API endpoint). Confirm three steps execute in sequence with `target_type: 'internal_operator'`.
-3. Inspect `kinetiks_workflow_tasks` (or wherever tasks persist). Confirm `target_type` and `target_app` columns are populated correctly per task.
-4. Try a Workflow that targets a cross-app capability (e.g. routing to a Harvest operator if one is mocked). Confirm the dispatcher uses the cross-app path.
-5. Try to register an Operator with `allowed_action_classes: ['nonexistent.action_class']` — confirm registration fails at boot with a clear error.
-6. Try to dispatch an internal task targeting an unregistered Operator key — confirm dispatch fails cleanly.
+---
 
-## Out of scope
+## Verification commands
 
-- Implosion's eight Operators or any other suite-app internal Workflows. Implosion is paused.
-- Workflow visualization in the Cortex UI. Workflows remain internal infrastructure for now.
-- Cross-account or cross-Workflow nesting. Each Workflow scope is its own account/program/operator triangle.
-- Authority resolution at task dispatch — Phase 4 layers that in.
+```sh
+# Types + tests (used during build)
+pnpm -w type-check
+( cd packages/runtime && pnpm test )
+( cd packages/tools && pnpm test )
+( cd apps/id && pnpm test )
+
+# Build the app (catches bundler issues in the new instrumentation wiring)
+( cd apps/id && pnpm build )
+
+# Edge Function drift check
+pnpm functions:check
+
+# Direct workflow invocation (local dev)
+curl -X POST http://localhost:3000/api/internal/workflows/archivist-maintenance/run \
+  -H "Authorization: Bearer $INTERNAL_SERVICE_SECRET" \
+  -H "Content-Type: application/json" \
+  -d '{ "account_ids": ["<one-real-account-id>"] }'
+
+# Ledger trail (run the SQL after the curl above completes)
+select event_type, source_operator, detail->>'task_key', detail->>'correlation_id'
+  from kinetiks_ledger
+ where (detail->>'correlation_id') = '<correlation_id from the response>'
+ order by created_at;
+```
+
+Expected after the SQL: 4 `workflow_task_dispatched` + 4 `workflow_task_completed` entries, all sharing one `correlation_id`, with `source_operator = "cron:archivist-maintenance"`. Add the existing `archivist_cron_run` summary entry once the cron actually drives the route in production.

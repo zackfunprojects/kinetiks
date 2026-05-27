@@ -280,6 +280,51 @@ export interface LedgerEventDetailMap {
     archived_count: number;
     is_fixture: true;
   };
+
+  // ── Phase 3: Operator Workflows ────────────────────────────
+  // Emitted by the workflow dispatcher in @kinetiks/runtime. Three
+  // events per task — one on dispatch and one on outcome. The
+  // correlation_id threads through all entries in a single Workflow
+  // run, so a SQL filter on detail->>'correlation_id' reconstructs
+  // the full trace. PII rules apply: detail carries counts, ids, and
+  // error classes only — never full task input/output payloads or
+  // prompt text.
+  workflow_task_dispatched: {
+    workflow_key: string;
+    task_key: string;
+    target_type: "cross_app" | "internal_operator";
+    target_app: string;
+    target_capability: string;
+    correlation_id: string;
+  };
+  workflow_task_completed: {
+    workflow_key: string;
+    task_key: string;
+    target_type: "cross_app" | "internal_operator";
+    target_app: string;
+    target_capability: string;
+    correlation_id: string;
+    latency_ms: number;
+    /**
+     * Tiny, PII-safe summary of the task output. For cross_app this
+     * is typically `{ routed: true }`; for internal_operator, the
+     * operator's executor is responsible for returning summary-safe
+     * fields (counts, ids, error codes — no raw payloads).
+     */
+    output_summary?: Record<string, unknown>;
+  };
+  workflow_task_failed: {
+    workflow_key: string;
+    task_key: string;
+    target_type: "cross_app" | "internal_operator";
+    target_app: string;
+    target_capability: string;
+    correlation_id: string;
+    latency_ms: number;
+    error_class: string;
+    /** Generic error message; safe to surface. No stack, no PII. */
+    error_message: string;
+  };
 }
 
 /**

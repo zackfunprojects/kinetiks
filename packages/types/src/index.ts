@@ -102,6 +102,14 @@ export type {
   PatternConfidenceThresholds,
 } from "./descriptors";
 export type {
+  WorkflowTask,
+  WorkflowDefinition,
+  WorkflowDispatchContext,
+  WorkflowTaskResult,
+  WorkflowRunSummary,
+} from "./workflows";
+export type { KineticsAppManifest } from "./manifests";
+export type {
   Pattern,
   PatternLifecycleStatus,
   PatternOutcomeDirection,

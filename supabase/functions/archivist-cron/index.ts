@@ -1,26 +1,28 @@
 // Archivist CRON Edge Function
 //
-// Runs every 6 hours. Three passes per onboarded account, plus one
-// nightly pass at the 00:00 UTC tick:
-//   1. /api/archivist/clean — deduplication, normalization, gap detection,
-//      quality scoring on Cortex context layers.
-//   2. /api/archivist/patterns/sweep (L1a, per Kinetiks Contract Addendum §1.9) —
-//      time-based Pattern Library decay: validated → declining when
-//      now - last_observed_at > effective_decay_days * 0.7, and
-//      declining → archived when now > decay_at. User-starred patterns
-//      are exempt.
-//   3. /api/archivist/patterns/sweep-deferred (Phase 1.7) — closes
-//      kinetiks_pattern_pending_observations rows whose
-//      outcome_window_expires_at has elapsed, emits each through
-//      /api/synapse/patterns with outcome_value=0 (window expired, no
-//      follow-up / no action observed).
-//   4. /api/archivist/patterns/calibrate (Phase 2, per Kinetiks Contract
-//      Addendum §1.6) — empirical decay calibration. Runs only at the
-//      00:00 UTC tick of the day (one of the four 6h ticks). Adjusts
-//      each eligible pattern's effective_decay_days within the
-//      registered decay_bounds, based on observed variance and recent
-//      declining transitions. Writes pattern_decay_calibrated Ledger
-//      entries on every extend/shorten move.
+// Runs every 6 hours. Used to make four sequential POSTs per account
+// batch to /api/archivist/clean, /api/archivist/patterns/sweep,
+// /api/archivist/patterns/sweep-deferred, and (on the 00:00 UTC tick)
+// /api/archivist/patterns/calibrate.
+//
+// Phase 3 — the cron now calls a single Workflow-runner route per
+// account batch:
+//
+//   POST /api/internal/workflows/archivist-maintenance/run
+//        body: { account_ids: string[] }
+//
+// The Node-side runner dispatches the four-step
+// `kinetiks_id.archivist_maintenance` Workflow through
+// `@kinetiks/runtime`'s Workflow dispatcher, which writes per-task
+// Ledger entries (`workflow_task_dispatched` + `workflow_task_completed`
+// / `workflow_task_failed`). The runner's response includes an
+// `archivist_cron_summary` block in the same shape this function used
+// to build itself; we read those counts and continue to write the
+// existing `archivist_cron_run` Ledger summary so any downstream
+// dashboards keep working.
+//
+// The four original /api/archivist/* routes remain in place for
+// customer-direct calls; this cron simply no longer drives them.
 //
 // CRON schedule: every 6 hours ("0 */6 * * *")
 
@@ -35,14 +37,26 @@ const APP_URL =
 /** Maximum accounts to process per CRON run. */
 const ACCOUNT_LIMIT = 200;
 
-/** Accounts per API call (clean pass is heavier than evaluate). */
+/** Accounts per workflow-runner call. */
 const API_BATCH_SIZE = 5;
 
-/** Timeout for each clean API call in milliseconds. */
+/** Timeout for each workflow-runner call in milliseconds. */
 const FETCH_TIMEOUT_MS = 60_000;
 
 /** Delay between batches in milliseconds to avoid overwhelming the endpoint. */
 const BATCH_DELAY_MS = 2_000;
+
+interface ArchivistCronSummaryBatch {
+  accounts_queued?: number;
+  accounts_processed?: number;
+  errors?: number;
+  pattern_sweep_processed?: number;
+  pattern_sweep_errors?: number;
+  deferred_sweep_processed?: number;
+  deferred_sweep_errors?: number;
+  calibration_processed?: number;
+  calibration_errors?: number;
+}
 
 Deno.serve(async () => {
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !INTERNAL_SERVICE_SECRET) {
@@ -78,64 +92,91 @@ Deno.serve(async () => {
   }
 
   const allIds = accounts.map((a) => a.id as string);
+
+  // Per-step rollups across all batches, matching the legacy summary
+  // shape so anything reading the `archivist_cron_run` Ledger detail
+  // continues to find the same keys.
   let accountsProcessed = 0;
   let totalErrors = 0;
   let patternSweepProcessed = 0;
   let patternSweepErrors = 0;
   let deferredSweepProcessed = 0;
   let deferredSweepErrors = 0;
-  // Phase 2: populated only on the 00:00 UTC tick.
   let calibrationProcessed = 0;
   let calibrationErrors = 0;
-  const runHourUTC = new Date().getUTCHours();
-  const isCalibrationTick = runHourUTC === 0;
+  const isCalibrationTick = new Date().getUTCHours() === 0;
 
-  // Helper: POST to an internal endpoint with timeout + service auth.
-  async function postInternal(path: string, batchIds: string[]): Promise<{ ok: boolean; body: unknown }> {
+  async function postWorkflowRun(
+    batchIds: string[],
+  ): Promise<{ ok: boolean; summary: ArchivistCronSummaryBatch | null }> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
     try {
-      const response = await fetch(`${APP_URL}${path}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${INTERNAL_SERVICE_SECRET}`,
+      const response = await fetch(
+        `${APP_URL}/api/internal/workflows/archivist-maintenance/run`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${INTERNAL_SERVICE_SECRET}`,
+          },
+          body: JSON.stringify({ account_ids: batchIds }),
+          signal: controller.signal,
         },
-        body: JSON.stringify({ account_ids: batchIds }),
-        signal: controller.signal,
-      });
-      if (!response.ok) return { ok: false, body: { status: response.status } };
-      const json = await response.json();
-      return { ok: true, body: json };
+      );
+      // 207 (Multi-Status) means the workflow ran but at least one
+      // step failed; we still want the per-step counts so we treat
+      // both 200 and 207 as "transport ok" and rely on the summary's
+      // own error fields for accounting.
+      if (response.status !== 200 && response.status !== 207) {
+        console.error(
+          `[archivist-cron] workflow run returned status ${response.status} for batch ${batchIds.join(",")}`,
+        );
+        return { ok: false, summary: null };
+      }
+      const json = (await response.json()) as {
+        archivist_cron_summary?: ArchivistCronSummaryBatch;
+      };
+      return { ok: true, summary: json?.archivist_cron_summary ?? null };
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") {
-        console.error(`[archivist-cron] ${path} timed out after ${FETCH_TIMEOUT_MS}ms`);
+        console.error(
+          `[archivist-cron] workflow run timed out after ${FETCH_TIMEOUT_MS}ms for batch ${batchIds.join(",")}`,
+        );
       } else {
-        console.error(`[archivist-cron] ${path} failed:`, err);
+        console.error(`[archivist-cron] workflow run failed:`, err);
       }
-      return { ok: false, body: { error: String(err) } };
+      return { ok: false, summary: null };
     } finally {
       clearTimeout(timer);
     }
   }
 
-  // Pass 1: clean Cortex layers. Process in batches.
   for (let i = 0; i < allIds.length; i += API_BATCH_SIZE) {
     const batchIds = allIds.slice(i, i + API_BATCH_SIZE);
-    const { ok, body } = await postInternal("/api/archivist/clean", batchIds);
-    if (!ok) {
+    const { ok, summary } = await postWorkflowRun(batchIds);
+
+    if (!ok || !summary) {
+      // Transport-level failure: every account in this batch counts
+      // as an error for the legacy `errors` field, matching the old
+      // cron's behaviour when a single route POST failed wholesale.
       totalErrors += batchIds.length;
     } else {
-      const result = body as { accounts_processed?: number; results?: unknown[] };
-      let resultCount: number;
-      if (typeof result.accounts_processed === "number") {
-        resultCount = result.accounts_processed;
-      } else if (Array.isArray(result.results)) {
-        resultCount = result.results.length;
-      } else {
-        resultCount = 1;
+      accountsProcessed += summary.accounts_processed ?? 0;
+      totalErrors += summary.errors ?? 0;
+      patternSweepProcessed += summary.pattern_sweep_processed ?? 0;
+      patternSweepErrors += summary.pattern_sweep_errors ?? 0;
+      deferredSweepProcessed += summary.deferred_sweep_processed ?? 0;
+      deferredSweepErrors += summary.deferred_sweep_errors ?? 0;
+      // Calibration counts only appear when the workflow actually ran
+      // the calibrate step (the runner omits them on the
+      // `skipped: true` no-op tick).
+      if (typeof summary.calibration_processed === "number") {
+        calibrationProcessed += summary.calibration_processed;
       }
-      accountsProcessed += resultCount;
+      if (typeof summary.calibration_errors === "number") {
+        calibrationErrors += summary.calibration_errors;
+      }
     }
 
     if (i + API_BATCH_SIZE < allIds.length) {
@@ -143,119 +184,8 @@ Deno.serve(async () => {
     }
   }
 
-  // Pass 2: Pattern Library time-decay sweep. Same batching, same auth.
-  for (let i = 0; i < allIds.length; i += API_BATCH_SIZE) {
-    const batchIds = allIds.slice(i, i + API_BATCH_SIZE);
-    const { ok, body } = await postInternal("/api/archivist/patterns/sweep", batchIds);
-    if (!ok) {
-      patternSweepErrors += batchIds.length;
-    } else {
-      const env = body as { data?: { accounts_processed?: number } };
-      const count =
-        typeof env?.data?.accounts_processed === "number"
-          ? env.data.accounts_processed
-          : batchIds.length;
-      patternSweepProcessed += count;
-    }
-    if (i + API_BATCH_SIZE < allIds.length) {
-      await new Promise((resolve) => setTimeout(resolve, BATCH_DELAY_MS));
-    }
-  }
-
-  // Pass 3: Deferred-emit pending observations sweep (Phase 1.7).
-  for (let i = 0; i < allIds.length; i += API_BATCH_SIZE) {
-    const batchIds = allIds.slice(i, i + API_BATCH_SIZE);
-    const { ok, body } = await postInternal(
-      "/api/archivist/patterns/sweep-deferred",
-      batchIds,
-    );
-    if (!ok) {
-      deferredSweepErrors += batchIds.length;
-    } else {
-      // Read both the success and failure counts from the body. The
-      // sweep route can return 200 while still reporting per-account
-      // failures under data.failed / data.per_account[*].error — those
-      // must show up in the cron summary so a clean transport run
-      // doesn't mask a sweep that actually skipped observations.
-      const env = body as {
-        data?: {
-          accounts_processed?: number;
-          failed?: number;
-          per_account?: Record<string, { error?: string } | unknown>;
-        };
-      };
-      const count =
-        typeof env?.data?.accounts_processed === "number"
-          ? env.data.accounts_processed
-          : batchIds.length;
-      deferredSweepProcessed += count;
-      // In-band failures: data.failed is the total emission/update
-      // failure count across this batch, plus any per-account .error
-      // entries (transport-level failure inside the route, not the
-      // outer postInternal).
-      const inBandFailed =
-        typeof env?.data?.failed === "number" ? env.data.failed : 0;
-      const perAccountErrors = env?.data?.per_account
-        ? Object.values(env.data.per_account).filter(
-            (v) => v && typeof v === "object" && "error" in (v as object),
-          ).length
-        : 0;
-      deferredSweepErrors += inBandFailed + perAccountErrors;
-    }
-    if (i + API_BATCH_SIZE < allIds.length) {
-      await new Promise((resolve) => setTimeout(resolve, BATCH_DELAY_MS));
-    }
-  }
-
-  // Pass 4: Phase 2 empirical decay calibration. Runs only on the
-  // 00:00 UTC tick of the day (one of the four 6h ticks). Same
-  // batching as the other passes. Mirrors the deferred-sweep
-  // pattern: a 200 from the route can still report per-account
-  // in-band failures via data.failed + data.per_account[*].error;
-  // those must roll into calibration_errors so a clean transport
-  // run doesn't mask a calibration pass that actually failed for
-  // half the batch.
-  if (isCalibrationTick) {
-    for (let i = 0; i < allIds.length; i += API_BATCH_SIZE) {
-      const batchIds = allIds.slice(i, i + API_BATCH_SIZE);
-      const { ok, body } = await postInternal(
-        "/api/archivist/patterns/calibrate",
-        batchIds,
-      );
-      if (!ok) {
-        calibrationErrors += batchIds.length;
-      } else {
-        const env = body as {
-          data?: {
-            accounts_processed?: number;
-            failed?: number;
-            per_account?: Record<string, { error?: string } | unknown>;
-          };
-        };
-        const count =
-          typeof env?.data?.accounts_processed === "number"
-            ? env.data.accounts_processed
-            : batchIds.length;
-        calibrationProcessed += count;
-        // In-band failures: data.failed is the route's aggregate
-        // (sum of per-account errors.length); per_account[*].error
-        // captures transport-style failures inside the route loop.
-        const inBandFailed =
-          typeof env?.data?.failed === "number" ? env.data.failed : 0;
-        const perAccountErrors = env?.data?.per_account
-          ? Object.values(env.data.per_account).filter(
-              (v) => v && typeof v === "object" && "error" in (v as object),
-            ).length
-          : 0;
-        calibrationErrors += inBandFailed + perAccountErrors;
-      }
-      if (i + API_BATCH_SIZE < allIds.length) {
-        await new Promise((resolve) => setTimeout(resolve, BATCH_DELAY_MS));
-      }
-    }
-  }
-
-  // Log summary to ledger
+  // Log summary to ledger — same shape and key set as the legacy
+  // cron, so downstream consumers don't break.
   const { error: ledgerErr } = await admin.from("kinetiks_ledger").insert({
     account_id: null,
     event_type: "archivist_cron_run",
@@ -268,7 +198,6 @@ Deno.serve(async () => {
       pattern_sweep_errors: patternSweepErrors,
       deferred_sweep_processed: deferredSweepProcessed,
       deferred_sweep_errors: deferredSweepErrors,
-      // Only present on the 00:00 UTC tick.
       ...(isCalibrationTick
         ? {
             calibration_processed: calibrationProcessed,
