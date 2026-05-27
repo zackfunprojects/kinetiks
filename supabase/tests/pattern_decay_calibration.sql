@@ -15,7 +15,7 @@
 -- ============================================================
 
 BEGIN;
-SELECT plan(13);
+SELECT plan(14);
 
 -- ── Arrange: two seeded accounts + service-role-inserted patterns ──
 DO $$
