@@ -70,6 +70,9 @@ export type {
   LedgerEventType,
   LedgerEventDetailMap,
   LedgerEntry,
+  AuthorityRevocationReason,
+  AuthorityEscalationTriggerType,
+  AuthorityActionEscalatedDetail,
 } from "./billing";
 export type {
   ApiResponse,
@@ -135,6 +138,7 @@ export type {
   GrantProposalEnvelope,
   GrantProposalEnvelopeMember,
   GrantProposalEvidence,
+  ProposedGrantBundle,
 } from "./authority-grants";
 export type {
   ThresholdCondition,

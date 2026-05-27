@@ -37,18 +37,31 @@ afterEach(() => {
 // Fixtures
 // ─────────────────────────────────────────────
 
-function makeSlackTool(): AgentTool<{ message_length: number; channel: string }, { ok: boolean }> {
+function makeSlackTool(): AgentTool<
+  { message_length: number; channels: string[] },
+  { ok: boolean }
+> {
+  // Tool input fields match the action class constraint key names
+  // (`channels` plural, `message_length`). The grant's
+  // GrantedCapability.constraints uses the same field names, and the
+  // resolver compares constraint[key] to action_input[key]. Aligning
+  // the test fixture to the production-shape input avoids the false
+  // pass mode where the resolver finds no matching key and falls
+  // through to "grant_covers" without exercising the allowlist.
   const tool = defineTool({
     name: "send_slack_notification",
     description: "Send a Slack notification (test fixture)",
-    inputSchema: z.object({ message_length: z.number(), channel: z.string() }),
+    inputSchema: z.object({
+      message_length: z.number(),
+      channels: z.array(z.string()),
+    }),
     outputSchema: z.object({ ok: z.boolean() }),
     isConsequential: true,
     actionClass: "kinetiks_id.send_slack_notification",
     autoApproveThreshold: null,
     availability: { kind: "always" },
-    idempotencyKeyFrom: (input: { channel: string; message_length: number }) =>
-      `${input.channel}:${input.message_length}`,
+    idempotencyKeyFrom: (input: { channels: string[]; message_length: number }) =>
+      `${input.channels.join(",")}:${input.message_length}`,
     execute: async () => ({ ok: true }),
   });
   registerTool(tool);
@@ -103,7 +116,7 @@ function makeCtx(over: Partial<ResolveAuthorityCtx> = {}): ResolveAuthorityCtx {
     userId: "user_1",
     invokedByAgent: "marcus",
     threadId: null,
-    actionInput: { channel: "general", message_length: 1500 },
+    actionInput: { channels: ["general"], message_length: 1500 },
     scopeType: "standing",
     scopeId: null,
     ...over,

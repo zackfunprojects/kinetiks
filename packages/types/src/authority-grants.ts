@@ -316,6 +316,25 @@ export interface GrantProposalEvidence {
   identity_signals: string[];
 }
 
+/**
+ * Tuple union enforcing 1-3 envelope members at the type level (the
+ * Phase 4 v1 cap per the RPC at migration 00052). The Authority Agent
+ * either emits a single root grant or a bundle of 1 root + 1-2
+ * children. Cycling counts of members through the tuple guarantees
+ * the runtime RPC never receives an arbitrarily sized array.
+ *
+ * When constructing dynamically, narrow via `as ProposedGrantBundle`
+ * after asserting `members.length >= 1 && members.length <= 3`.
+ */
+export type ProposedGrantBundle =
+  | readonly [GrantProposalEnvelopeMember]
+  | readonly [GrantProposalEnvelopeMember, GrantProposalEnvelopeMember]
+  | readonly [
+      GrantProposalEnvelopeMember,
+      GrantProposalEnvelopeMember,
+      GrantProposalEnvelopeMember,
+    ];
+
 export interface GrantProposalEnvelope {
   invocation_id: string;
   request_type:
@@ -324,5 +343,5 @@ export interface GrantProposalEnvelope {
     | "standing_review"
     | "first_connect";
   /** 1-3 members; root first, children reference parent's grant_id. */
-  proposed_grants: GrantProposalEnvelopeMember[];
+  proposed_grants: ProposedGrantBundle;
 }

@@ -42,7 +42,6 @@ import {
   getLLMJudge,
   getMetricCacheReader,
   getRecentActionCounter,
-  getUsageSummaryReader,
 } from "./authority";
 import { checkLLMJudgmentBudget } from "./llm-judgment-budgets";
 
@@ -60,6 +59,17 @@ export interface EvaluationContext {
   action_class: string;
   action_input: Record<string, unknown>;
   grant_id: string;
+  /**
+   * Per-grant override of the LLM judgment budget from
+   * GrantedCapability.llm_judgment_budget_override, threaded through
+   * by the resolver. Additive expansion against the class-level cap
+   * (effective = max(class, override)) — bounded by parent grants at
+   * proposal time, not here.
+   */
+  llm_judgment_budget_override?: {
+    daily_usd?: number;
+    monthly_usd?: number;
+  };
 }
 
 export type TriggerEvaluationResult =
@@ -193,34 +203,24 @@ function evaluateThreshold(
 
 /**
  * Compare the recent action count under this grant to the trigger's
- * `max_actions`. For windows of `day`/`week`, prefers the rolled-up
- * usage_summary (faster + always available); for `minute`/`hour`, hits
- * the live recent-action counter (sub-day windows need fresh data).
+ * `max_actions`, always over the sliding `window` ending at `now()`.
  *
- * If both adapters are unconfigured, treat as not-fired.
+ * Always uses the live recent-action counter (kinetiks_ledger query
+ * filtered by grant_id + action_class + created_at), never the
+ * rolled-up usage_summary. The usage_summary is a LIFETIME aggregate
+ * since the grant's granted_at, so it never resets per window — using
+ * it for windowed pacing would lock out grants forever once they
+ * crossed the cap. The grant's `idx_ledger_grant_event_created` index
+ * makes the live query efficient at v1 volumes.
+ *
+ * If the counter adapter is unconfigured, treat as not-fired
+ * (graceful degradation; production callers wire the adapter).
  */
 async function evaluatePacing(
   condition: PacingCondition,
   ctx: EvaluationContext,
   trigger_index: number,
 ): Promise<TriggerEvaluationResult> {
-  if (condition.window === "day" || condition.window === "week") {
-    const usageReader = getUsageSummaryReader();
-    if (usageReader) {
-      const summary = await usageReader.fetchUsageSummary(ctx.grant_id);
-      const count = summary?.action_counts[ctx.action_class] ?? 0;
-      if (count >= condition.max_actions) {
-        return {
-          triggered: true,
-          type: "pacing",
-          trigger_index,
-          reason: `Pacing trigger: ${count} actions in current ${condition.window} (cap ${condition.max_actions})`,
-        };
-      }
-      return { triggered: false };
-    }
-  }
-  // Sub-day window or no usage summary: hit live counter.
   const counter = getRecentActionCounter();
   if (!counter) return { triggered: false };
   const windowMs = windowToMs(condition.window);
@@ -416,6 +416,7 @@ async function evaluateLLMJudged(
   const budget = await checkLLMJudgmentBudget({
     account_id: ctx.account_id,
     descriptor,
+    override: ctx.llm_judgment_budget_override,
   });
   if (!budget.allowed) {
     if (budget.fallback === "structured_only") return { triggered: false };

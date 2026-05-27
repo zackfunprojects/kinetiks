@@ -22,46 +22,32 @@ DECLARE
   default_caps jsonb := '[{"action_class":"kinetiks_id.send_slack_notification","description":"Send notifications","constraints":{"channels":"any","max_message_length":2000,"threading_allowed":true},"rate_limit":{"count":20,"window":"day"}}]'::jsonb;
 BEGIN
   alice_account := _kt_test_seed_account(alice_user, 'copper-fox-auth-sm');
+  -- INSERT supplies granted_at for active/paused rows and revoked_at
+  -- for revoked/expired rows so the lifecycle CHECK constraints
+  -- defined in 00050 are satisfied at INSERT time (cannot fix up
+  -- afterwards — CHECKs reject the row before any UPDATE could run).
   INSERT INTO kinetiks_authority_grants
     (id, account_id, granted_by, scope_type, scope_description,
-     status, granted_capabilities)
+     status, granted_at, revoked_at, granted_capabilities)
   VALUES
     ('a1111111-0000-0000-0000-aaaaaaaaaaaa', alice_account, alice_user,
-     'standing', 'Proposed standing slot', 'proposed', default_caps),
+     'standing', 'Proposed standing slot', 'proposed', NULL, NULL, default_caps),
     ('a1111111-0000-0000-0000-bbbbbbbbbbbb', alice_account, alice_user,
-     'standing', 'Active standing slot', 'active', default_caps),
+     'standing', 'Active standing slot', 'active', now(), NULL, default_caps),
     ('a1111111-0000-0000-0000-cccccccccccc', alice_account, alice_user,
-     'standing', 'Active for pause test', 'active', default_caps),
+     'standing', 'Active for pause test', 'active', now(), NULL, default_caps),
     ('a1111111-0000-0000-0000-dddddddddddd', alice_account, alice_user,
-     'standing', 'Paused for resume', 'paused', default_caps),
+     'standing', 'Paused for resume', 'paused', now(), NULL, default_caps),
     ('a1111111-0000-0000-0000-eeeeeeeeeeee', alice_account, alice_user,
-     'standing', 'Paused for revoke', 'paused', default_caps),
+     'standing', 'Paused for revoke', 'paused', now(), NULL, default_caps),
     ('a1111111-0000-0000-0000-ffffffffffff', alice_account, alice_user,
-     'standing', 'Revoked terminal', 'revoked', default_caps),
+     'standing', 'Revoked terminal', 'revoked', now(), now(), default_caps),
     ('a1111111-1111-0000-0000-111111111111', alice_account, alice_user,
-     'standing', 'Expired terminal', 'expired', default_caps),
+     'standing', 'Expired terminal', 'expired', now(), now(), default_caps),
     ('a1111111-1111-0000-0000-222222222222', alice_account, alice_user,
-     'standing', 'Active for expiry', 'active', default_caps),
+     'standing', 'Active for expiry', 'active', now(), NULL, default_caps),
     ('a1111111-1111-0000-0000-333333333333', alice_account, alice_user,
-     'standing', 'Paused for expiry', 'paused', default_caps);
-  -- Required by CHECK: granted_at must be set when status IN ('active','paused')
-  UPDATE kinetiks_authority_grants
-    SET granted_at = now()
-    WHERE id IN (
-      'a1111111-0000-0000-0000-bbbbbbbbbbbb',
-      'a1111111-0000-0000-0000-cccccccccccc',
-      'a1111111-0000-0000-0000-dddddddddddd',
-      'a1111111-0000-0000-0000-eeeeeeeeeeee',
-      'a1111111-1111-0000-0000-222222222222',
-      'a1111111-1111-0000-0000-333333333333'
-    );
-  -- Required by CHECK: revoked_at must be set when status IN ('revoked','expired')
-  UPDATE kinetiks_authority_grants
-    SET revoked_at = now()
-    WHERE id IN (
-      'a1111111-0000-0000-0000-ffffffffffff',
-      'a1111111-1111-0000-0000-111111111111'
-    );
+     'standing', 'Paused for expiry', 'paused', now(), NULL, default_caps);
 END $$;
 
 -- ── allowed: proposed → active ──────────────────────────────

@@ -80,6 +80,12 @@ CREATE TABLE kinetiks_authority_grants (
   CHECK (status NOT IN ('revoked','expired') OR revoked_at IS NOT NULL),
   -- An active grant must have granted_at set
   CHECK (status NOT IN ('active','paused') OR granted_at IS NOT NULL),
+  -- Scope/scope_id consistency per addendum §2.3: standing grants have
+  -- no scope target; all other scopes must reference one.
+  CHECK (
+    (scope_type = 'standing' AND scope_id IS NULL) OR
+    (scope_type IN ('campaign','workflow','program') AND scope_id IS NOT NULL)
+  ),
   -- granted_capabilities must be a non-empty JSON array
   CHECK (jsonb_typeof(granted_capabilities) = 'array' AND jsonb_array_length(granted_capabilities) > 0),
   -- escalation_triggers must be a JSON array (can be empty)

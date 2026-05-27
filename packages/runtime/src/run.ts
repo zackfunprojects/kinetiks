@@ -127,6 +127,11 @@ export class AgentRun {
     // covering grant exists but a check (constraint, rate limit, spend
     // envelope, or escalation trigger) failed.
     if (authority.outcome === "escalated") {
+      // handleEscalation MUST surface its own failures — without the
+      // approval row inserted, the customer never sees the escalation
+      // and the action is silently lost. Configuration errors and
+      // Supabase insert errors propagate up so the caller observes a
+      // hard failure rather than a silent drop.
       const approvalId = await this.handleEscalation(tool, input, authority);
       this.trace.push({
         toolName: tool.name,
@@ -152,7 +157,18 @@ export class AgentRun {
       );
     }
     if (authority.outcome === "denied") {
-      await this.recordDenial(tool, authority);
+      // For denied: the action is rejected regardless of the ledger
+      // write outcome. A ledger failure here is recorded but does not
+      // stop us from throwing denied_by_authority — the user-facing
+      // outcome is the same either way.
+      try {
+        await this.recordDenial(tool, authority);
+      } catch (ledgerErr) {
+        // eslint-disable-next-line no-console
+        console.error(
+          `[runtime/run] Ledger authority_action_escalated (denied) append failed for tool=${tool.name} grant=${authority.grantId ?? "none"}: ${(ledgerErr as Error)?.message ?? "unknown"}`,
+        );
+      }
       this.trace.push({
         toolName: tool.name,
         status: "denied",
@@ -223,12 +239,26 @@ export class AgentRun {
         // §2.9 this entry is the customer-visible audit trail; the
         // operational `tool_calls` row covers the operational log. PII
         // rules per CLAUDE.md: counts, ids, action class strings only.
+        //
+        // The external mutation already succeeded; a ledger write
+        // failure here must NOT propagate back as an error response.
+        // We log the failure and continue — the operational `tool_calls`
+        // row + the agent's success path keep the system observable.
+        // Audit drift here is a soft failure to escalate to ops, not a
+        // hard fault on the customer-visible action.
         if (
           authority.outcome === "grant_covers" &&
           authority.grantId &&
           tool.actionClass
         ) {
-          await this.recordActionTaken(tool, authority, input, output);
+          try {
+            await this.recordActionTaken(tool, authority, input, output);
+          } catch (ledgerErr) {
+            // eslint-disable-next-line no-console
+            console.error(
+              `[runtime/run] Ledger authority_action_taken append failed for tool=${tool.name} grant=${authority.grantId} action_class=${tool.actionClass}: ${(ledgerErr as Error)?.message ?? "unknown"}`,
+            );
+          }
         }
         return output;
       } catch (err) {
@@ -506,15 +536,21 @@ function statusFromErrorClass(c: ToolError["errorClass"]): TraceEntry["status"] 
  * PII-safe summarization of a tool input for the Learning Ledger
  * `authority_action_taken` entry. Per CLAUDE.md, never dump full
  * payloads, recipient emails, or message bodies into Ledger detail —
- * counts, lengths, and structural fingerprints only.
+ * counts, lengths, and one-way fingerprints only.
  *
  * Convention:
- *   - Top-level primitives (string|number|boolean) are passed through,
- *     except strings longer than 100 chars are replaced by `length:N`.
- *   - Arrays become `{ <key>_count: N }`.
- *   - Nested objects become `{ <key>_keys: [<top-level-key-names>] }`.
- *   - Email-shaped strings ("@") inside arrays are NOT enumerated;
- *     only the count.
+ *   - Numbers and booleans are passed through verbatim.
+ *   - Strings emit `${k}_hash` (sha256 truncated to 16 hex chars) and
+ *     `${k}_length`. The original string content is never written; the
+ *     hash is sufficient for cross-action equivalence checks without
+ *     leaking the content into the audit row.
+ *   - Arrays emit `${k}_count` only (no per-item enumeration).
+ *   - Nested objects emit `${k}_key_count` only (no key names — a
+ *     key name like `internal_password_hint` would itself leak intent).
+ *
+ * The hash is non-reversible. Customers reading the Ledger see action
+ * cadence, structural fingerprints, and counts — never original
+ * content.
  */
 function summarizeForLedger(
   input: unknown,
@@ -528,9 +564,8 @@ function summarizeForLedger(
       continue;
     }
     if (typeof v === "string") {
-      if (v.length > 100) out[`${k}_length`] = v.length;
-      else if (!v.includes("@")) out[k] = v;
-      else out[`${k}_length`] = v.length;
+      out[`${k}_length`] = v.length;
+      out[`${k}_hash`] = shortSha256(v);
       continue;
     }
     if (Array.isArray(v)) {
@@ -538,11 +573,26 @@ function summarizeForLedger(
       continue;
     }
     if (typeof v === "object") {
-      out[`${k}_keys`] = Object.keys(v as Record<string, unknown>);
+      out[`${k}_key_count`] = Object.keys(
+        v as Record<string, unknown>,
+      ).length;
       continue;
     }
   }
   return out;
+}
+
+/**
+ * sha256(value) → first 16 lowercase hex chars. Truncating preserves
+ * collision-equivalent identity for our use case (cross-action input
+ * fingerprinting) while keeping the audit row small. `node:crypto` is
+ * the only crypto provider; this module is server-only so it is always
+ * available.
+ */
+function shortSha256(value: string): string {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const crypto = require("node:crypto") as typeof import("node:crypto");
+  return crypto.createHash("sha256").update(value, "utf8").digest("hex").slice(0, 16);
 }
 
 /**

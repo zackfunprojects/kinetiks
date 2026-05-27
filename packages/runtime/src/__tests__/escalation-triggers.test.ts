@@ -12,7 +12,6 @@ import {
   configureLLMJudge,
   configureMetricCacheReader,
   configureRecentActionCounter,
-  configureUsageSummaryReader,
   evaluateEscalationTriggers,
 } from "../index";
 
@@ -84,13 +83,11 @@ describe("threshold trigger", () => {
 // ─────────────────────────────────────────────
 
 describe("pacing trigger", () => {
-  it("fires when usage_summary action count meets the day cap", async () => {
-    configureUsageSummaryReader({
-      async fetchUsageSummary() {
-        return {
-          action_counts: { "kinetiks_id.send_slack_notification": 25 },
-          last_computed_at: new Date().toISOString(),
-        };
+  it("fires when the live action count meets the cap (day window)", async () => {
+    configureRecentActionCounter({
+      async countRecent({ window_ms }) {
+        // 24h window expects 25 actions
+        return window_ms === 24 * 60 * 60 * 1000 ? 25 : 0;
       },
     });
     const triggers: EscalationTrigger[] = [
@@ -102,9 +99,10 @@ describe("pacing trigger", () => {
     ];
     const result = await evaluateEscalationTriggers(triggers, ctx);
     expect(result.triggered).toBe(true);
+    if (result.triggered) expect(result.type).toBe("pacing");
   });
 
-  it("falls back to live counter for sub-day windows", async () => {
+  it("fires for sub-day windows over the same live counter", async () => {
     configureRecentActionCounter({
       async countRecent({ window_ms }) {
         // 1-hour window → 100 actions

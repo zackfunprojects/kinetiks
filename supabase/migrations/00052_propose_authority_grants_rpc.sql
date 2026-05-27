@@ -65,13 +65,20 @@ DECLARE
   v_grant_id       uuid;
   v_approval_id    uuid;
   v_grant_payload  jsonb;
+  v_parent_ref     uuid;
+  v_known_ids      uuid[];
 BEGIN
-  -- Validate top-level inputs
+  -- Validate top-level inputs (explicit NULL guard before jsonb_typeof,
+  -- which returns NULL for SQL NULL and would short-circuit the rest of
+  -- the validation chain to a silent no-op).
   IF p_account_id IS NULL THEN
     RAISE EXCEPTION 'propose_authority_grants: p_account_id is required';
   END IF;
   IF p_granted_by IS NULL THEN
     RAISE EXCEPTION 'propose_authority_grants: p_granted_by is required';
+  END IF;
+  IF p_proposals IS NULL THEN
+    RAISE EXCEPTION 'propose_authority_grants: p_proposals must be provided and not NULL';
   END IF;
   IF jsonb_typeof(p_proposals) != 'array' THEN
     RAISE EXCEPTION 'propose_authority_grants: p_proposals must be a JSON array';
@@ -84,8 +91,20 @@ BEGIN
     RAISE EXCEPTION 'propose_authority_grants: p_proposals exceeds v1 cap of 3 members';
   END IF;
 
-  -- Iterate input order and insert each (grant, approval) pair.
-  FOR v_proposal IN SELECT jsonb_array_elements(p_proposals)
+  -- Iterate parent-first to satisfy the self-FK on parent_grant_id.
+  -- The bundle is small (≤3) so a sort with parent_grant_id NULLS FIRST
+  -- plus the inserted-ids tracking array is sufficient. Validation:
+  --   * every child's parent_grant_id must reference either NULL or a
+  --     grant_id already inserted in this batch (no forward refs);
+  --   * cycles are impossible because the constraint is checked at each
+  --     iteration and a cycle would never satisfy "parent already inserted".
+  v_known_ids := ARRAY[]::uuid[];
+
+  FOR v_proposal IN
+    SELECT proposal
+    FROM jsonb_array_elements(p_proposals) AS proposal
+    ORDER BY (proposal->'grant'->>'parent_grant_id') IS NOT NULL,
+             proposal->'grant'->>'parent_grant_id' NULLS FIRST
   LOOP
     v_grant_id := (v_proposal->>'grant_id')::uuid;
     IF v_grant_id IS NULL THEN
@@ -95,6 +114,23 @@ BEGIN
     v_grant_payload := v_proposal->'grant';
     IF v_grant_payload IS NULL OR jsonb_typeof(v_grant_payload) != 'object' THEN
       RAISE EXCEPTION 'propose_authority_grants: each proposal must carry a grant object';
+    END IF;
+
+    -- Forward-reference check: when a child names a parent_grant_id, the
+    -- parent must already be inserted in this batch (or pre-exist in the
+    -- table). The ORDER BY above guarantees parent-first within the
+    -- bundle; this guard catches the case where the bundle references a
+    -- non-existent parent or a cycle would otherwise be possible.
+    v_parent_ref := NULLIF(v_grant_payload->>'parent_grant_id', '')::uuid;
+    IF v_parent_ref IS NOT NULL
+       AND NOT (v_parent_ref = ANY(v_known_ids))
+       AND NOT EXISTS (
+         SELECT 1 FROM kinetiks_authority_grants WHERE id = v_parent_ref
+       )
+    THEN
+      RAISE EXCEPTION
+        'propose_authority_grants: parent_grant_id % is neither inserted in this batch nor present in the table (forward reference or cycle)',
+        v_parent_ref;
     END IF;
 
     -- Insert the proposed grant
@@ -167,6 +203,10 @@ BEGIN
       NULLIF(v_proposal->>'approval_expires_at', '')::timestamptz
     )
     RETURNING id INTO v_approval_id;
+
+    -- Track inserted ids so subsequent children in this batch can
+    -- reference them. Insertions happen parent-first per the ORDER BY.
+    v_known_ids := v_known_ids || v_grant_id;
 
     grant_id := v_grant_id;
     approval_id := v_approval_id;

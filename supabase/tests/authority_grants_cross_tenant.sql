@@ -9,7 +9,7 @@
 -- ============================================================
 
 BEGIN;
-SELECT plan(8);
+SELECT plan(11);
 
 -- ── Arrange: two seeded accounts + service-role-inserted grants ──
 DO $$
@@ -78,6 +78,51 @@ SELECT is(
   (SELECT status FROM kinetiks_authority_grants WHERE id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::uuid),
   'active',
   'alice''s own grant status remains active (no UPDATE policy for user tokens)'
+);
+
+-- ── User token cannot INSERT grants (no INSERT policy) ──────
+-- RLS default-deny: with no INSERT policy declared, any INSERT under a
+-- user token is rejected with `42501` (insufficient_privilege). Tested
+-- both directions: alice attempting to plant a grant on bob's account
+-- AND alice attempting to plant a grant on her own account. Service
+-- role is the canonical writer (Authority Agent persistence RPC +
+-- customer-action Server Actions).
+SELECT _kt_test_set_auth_user('11111111-1111-1111-1111-111111111111');
+
+SELECT throws_ok(
+  $$ INSERT INTO kinetiks_authority_grants
+       (id, account_id, granted_by, scope_type, scope_description, status, granted_capabilities)
+     VALUES
+       ('cccccccc-cccc-cccc-cccc-cccccccccccc',
+        (SELECT id FROM kinetiks_accounts WHERE user_id = '22222222-2222-2222-2222-222222222222'),
+        '22222222-2222-2222-2222-222222222222',
+        'standing', 'alice plants a grant on bob''s account', 'proposed',
+        '[{"action_class":"kinetiks_id.send_slack_notification","description":"x","constraints":{"channels":"any","max_message_length":2000,"threading_allowed":true},"rate_limit":null}]'::jsonb)
+  $$,
+  '42501', NULL,
+  'alice cannot INSERT a grant for bob''s account (RLS default-deny)'
+);
+
+SELECT throws_ok(
+  $$ INSERT INTO kinetiks_authority_grants
+       (id, account_id, granted_by, scope_type, scope_description, status, granted_capabilities)
+     VALUES
+       ('dddddddd-dddd-dddd-dddd-dddddddddddd',
+        (SELECT id FROM kinetiks_accounts WHERE user_id = '11111111-1111-1111-1111-111111111111'),
+        '11111111-1111-1111-1111-111111111111',
+        'standing', 'alice plants a grant on her own account', 'proposed',
+        '[{"action_class":"kinetiks_id.send_slack_notification","description":"x","constraints":{"channels":"any","max_message_length":2000,"threading_allowed":true},"rate_limit":null}]'::jsonb)
+  $$,
+  '42501', NULL,
+  'alice cannot INSERT a grant even on her own account (no INSERT policy for user tokens)'
+);
+
+SELECT _kt_test_clear_auth();
+
+SELECT is(
+  (SELECT count(*)::int FROM kinetiks_authority_grants WHERE id IN ('cccccccc-cccc-cccc-cccc-cccccccccccc'::uuid, 'dddddddd-dddd-dddd-dddd-dddddddddddd'::uuid)),
+  0,
+  'no rows were inserted by either alice INSERT attempt'
 );
 
 -- ── User token cannot DELETE grants ─────────────────────────

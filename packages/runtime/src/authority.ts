@@ -609,7 +609,11 @@ export const defaultAuthorityResolver: AuthorityResolver = async (tool, ctx) => 
     }
   }
 
-  // 7. Escalation triggers (delegated to evaluator).
+  // 7. Escalation triggers (delegated to evaluator). Thread the
+  //    grant capability's llm_judgment_budget_override so the
+  //    llm_judged trigger sees per-grant additive expansion of the
+  //    class-level budget (addendum §2.10; bounded by parent grant
+  //    at proposal time).
   if (grant.escalation_triggers.length > 0) {
     const { evaluateEscalationTriggers } = await import("./escalation-triggers");
     const triggerResult = await evaluateEscalationTriggers(
@@ -619,6 +623,8 @@ export const defaultAuthorityResolver: AuthorityResolver = async (tool, ctx) => 
         action_class: tool.actionClass,
         action_input: actionInputObj,
         grant_id: grant.id,
+        llm_judgment_budget_override:
+          grant.matched_capability.llm_judgment_budget_override,
       },
     );
     if (triggerResult.triggered) {

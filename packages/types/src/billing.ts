@@ -376,9 +376,13 @@ export interface LedgerEventDetailMap {
   };
   authority_grant_revoked: {
     grant_id: string;
-    /** "customer_revoked" | "customer_narrowed" | "customer_edited" | "fixture_cleanup". */
-    revocation_reason: string;
-    /** Optional plain-language explanation. */
+    /**
+     * The canonical revocation reason. Surfaced verbatim in the
+     * Authority tab history view; `customer_note` carries any
+     * additional free-text explanation.
+     */
+    revocation_reason: AuthorityRevocationReason;
+    /** Optional plain-language explanation supplied by the customer. */
     customer_note?: string;
   };
   authority_grant_expired: {
@@ -400,31 +404,61 @@ export interface LedgerEventDetailMap {
     /** Optional outcome the tool reported (e.g. event_id, draft_id). */
     outcome_ref?: string;
   };
-  authority_action_escalated: {
-    grant_id: string;
-    action_class: string;
-    tool_name: string;
-    /** Which check failed: constraint_failed | rate_limited | envelope_exceeded | trigger_fired. */
-    reason_code:
-      | "constraint_failed"
-      | "rate_limited"
-      | "envelope_exceeded"
-      | "trigger_fired";
-    /** When `reason_code === 'trigger_fired'`, which trigger type fired. */
-    trigger_type?:
-      | "anomaly"
-      | "novelty"
-      | "pacing"
-      | "threshold"
-      | "llm_judged";
-    /** When trigger_fired, the index of the trigger in the grant's list. */
-    trigger_index?: number;
-    /** Plain-language explanation; safe to surface in the approval card. */
-    detail: string;
-    /** Approval ID created to surface the action for per-action review. */
-    approval_id: string;
-  };
+  authority_action_escalated: AuthorityActionEscalatedDetail;
 }
+
+/** Canonical revocation reasons recorded on `authority_grant_revoked`. */
+export type AuthorityRevocationReason =
+  | "customer_revoked"
+  | "customer_narrowed"
+  | "customer_edited"
+  | "fixture_cleanup";
+
+/** Trigger types referenced by `authority_action_escalated` when a trigger fires. */
+export type AuthorityEscalationTriggerType =
+  | "anomaly"
+  | "novelty"
+  | "pacing"
+  | "threshold"
+  | "llm_judged";
+
+/**
+ * Discriminated union for the `authority_action_escalated` Ledger
+ * detail per Kinetiks Contract Addendum §2.10. Only the
+ * `trigger_fired` variant carries `trigger_type` and `trigger_index`;
+ * structural failures (constraint, rate, envelope) do not.
+ *
+ * Common fields live on `AuthorityActionEscalatedBase` and every
+ * variant intersects them.
+ */
+interface AuthorityActionEscalatedBase {
+  grant_id: string;
+  action_class: string;
+  tool_name: string;
+  /** Plain-language explanation; safe to surface in the approval card. */
+  detail: string;
+  /** Approval ID created to surface the action for per-action review.
+   *  Null when the action was denied outright (no approval enqueued). */
+  approval_id: string | null;
+  /** True when the resolver returned `denied` instead of `escalated`. */
+  denied?: boolean;
+}
+
+export type AuthorityActionEscalatedDetail =
+  | (AuthorityActionEscalatedBase & {
+      reason_code: "trigger_fired";
+      trigger_type: AuthorityEscalationTriggerType;
+      trigger_index?: number;
+    })
+  | (AuthorityActionEscalatedBase & {
+      reason_code:
+        | "constraint_failed"
+        | "rate_limited"
+        | "envelope_exceeded"
+        | "missing_budget";
+      trigger_type?: never;
+      trigger_index?: never;
+    });
 
 /**
  * All legal `event_type` strings. Derived from the keys of

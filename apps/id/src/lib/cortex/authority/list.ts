@@ -7,11 +7,28 @@
  * differences at one place, mirroring the Pattern Library precedent
  * at `apps/id/src/lib/cortex/patterns/list.ts`.
  *
+ * Pagination: keyset (cursor) per CLAUDE.md — offset/range is forbidden
+ * because it drifts as rows shift and gets slower as offset grows.
+ * Authority grants are an unbounded list and explicitly named in the
+ * CLAUDE.md keyset-required list.
+ *
+ * Cursor shape: `{ proposed_at, id }`. Sort: `proposed_at DESC, id DESC`.
+ * `proposed_at` is always set (initial NOT NULL DEFAULT now() on the
+ * row) so the cursor never null-misses; tie-break on `id` keeps order
+ * stable across rows created in the same microsecond.
+ *
  * Server-side only: imports `server-only` so client bundles fail at
  * compile time on accidental import.
  */
 
 import "server-only";
+import {
+  buildPage,
+  clampLimit,
+  decodeCursor,
+  encodeCursor,
+  type Page,
+} from "@kinetiks/lib/pagination";
 import type {
   AuthorityGrant,
   AuthorityGrantStatus,
@@ -27,6 +44,11 @@ interface AdminLike {
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
 
+interface GrantCursor {
+  proposed_at: string;
+  id: string;
+}
+
 export interface ListGrantsInput {
   account_id: string;
   /** Filter by status. Default: all non-terminal (proposed, active, paused). */
@@ -39,15 +61,16 @@ export interface ListGrantsInput {
   parent_grant_id?: string | null;
   /** Filter for grants expiring within the next N days. */
   expiring_within_days?: number;
-  /** Pagination. */
+  /** Page size. Clamped to [1, 100]. Default 20. */
   limit?: number;
-  offset?: number;
+  /**
+   * Opaque cursor returned as `nextCursor` from a previous call.
+   * Undefined fetches the first page.
+   */
+  cursor?: string;
 }
 
-export interface ListGrantsResult {
-  grants: AuthorityGrant[];
-  total: number;
-}
+export type ListGrantsResult = Page<AuthorityGrant, string>;
 
 const NON_TERMINAL_STATUSES: ReadonlyArray<AuthorityGrantStatus> = [
   "proposed",
@@ -59,15 +82,14 @@ export async function listGrants(
   admin: AdminLike,
   input: ListGrantsInput,
 ): Promise<ListGrantsResult> {
-  const limit = Math.min(MAX_LIMIT, Math.max(1, input.limit ?? DEFAULT_LIMIT));
-  const offset = Math.max(0, input.offset ?? 0);
+  const limit = clampLimit(input.limit ?? DEFAULT_LIMIT, MAX_LIMIT, DEFAULT_LIMIT);
   const statusFilter = input.status_in
     ? [...input.status_in]
     : [...NON_TERMINAL_STATUSES];
 
   let query = admin
     .from("kinetiks_authority_grants")
-    .select("*", { count: "exact" })
+    .select("*")
     .eq("account_id", input.account_id)
     .in("status", statusFilter);
 
@@ -95,19 +117,30 @@ export async function listGrants(
     query = query.not("expires_at", "is", null).lte("expires_at", cutoff);
   }
 
-  query = query
-    .order("granted_at", { ascending: false, nullsFirst: false })
-    .order("proposed_at", { ascending: false })
-    .range(offset, offset + limit - 1);
+  // Keyset cursor: WHERE (proposed_at, id) < (cursor.proposed_at, cursor.id)
+  // expressed via OR composition for Supabase JS, then ORDER BY DESC for
+  // both columns so the strict-less-than walks the index forward.
+  const cursor = decodeCursor<GrantCursor>(input.cursor);
+  if (cursor) {
+    query = query.or(
+      `proposed_at.lt.${cursor.proposed_at},and(proposed_at.eq.${cursor.proposed_at},id.lt.${cursor.id})`,
+    );
+  }
 
-  const { data, error, count } = await query;
+  query = query
+    .order("proposed_at", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(limit + 1);
+
+  const { data, error } = await query;
   if (error) {
     throw new Error(`[authority/list] ${error.message ?? "query failed"}`);
   }
-  return {
-    grants: (data ?? []) as AuthorityGrant[],
-    total: count ?? 0,
-  };
+
+  const rows = (data ?? []) as AuthorityGrant[];
+  return buildPage<AuthorityGrant, string>(rows, limit, (row) =>
+    encodeCursor({ proposed_at: row.proposed_at, id: row.id } satisfies GrantCursor),
+  );
 }
 
 /**

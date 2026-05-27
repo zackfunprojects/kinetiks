@@ -102,9 +102,14 @@ const recentActionCounter: RecentActionCounter = {
       .gte("created_at", since)
       .contains("detail", { action_class });
     if (error) {
-      // eslint-disable-next-line no-console
-      console.warn(`[runtime-boot] recentActionCounter error: ${error.message}`);
-      return 0;
+      // Fail loud. Returning 0 on a Supabase outage would let pacing /
+      // rate-limit checks falsely report "under cap", silently opening
+      // the gate during an outage. The resolver translates this throw
+      // into an escalated outcome with detail "adapter error" so the
+      // action lands in per-action approval rather than auto-executing.
+      throw new Error(
+        `[runtime-boot] recentActionCounter Supabase error: ${error.message}`,
+      );
     }
     return count ?? 0;
   },
@@ -118,7 +123,15 @@ const usageSummaryReader: UsageSummaryReader = {
       .select("usage_summary")
       .eq("id", grant_id)
       .maybeSingle();
-    if (error || !data) return null;
+    if (error) {
+      // Fail loud per the same reasoning as recentActionCounter — null
+      // would let pacing/usage-driven decisions proceed on stale or
+      // empty assumptions during a transient Supabase outage.
+      throw new Error(
+        `[runtime-boot] usageSummaryReader Supabase error: ${error.message}`,
+      );
+    }
+    if (!data) return null; // legitimate "no row" — grant doesn't exist
     const summary = (data as { usage_summary: unknown }).usage_summary as {
       action_counts?: Record<string, number>;
       computed_at?: string | null;
@@ -166,12 +179,17 @@ const metricCacheReader: MetricCacheReader = {
 
 const llmJudgeStub: LLMJudge = {
   async judge() {
-    // v1 stub: the trigger evaluator warns and treats as not-fired when
-    // judge is unconfigured; here we DO configure a judge so we don't
-    // silently surface that warning, but the judge always returns max
-    // confidence so the trigger does not fire. Chunk 5 wires the real
-    // judge against @kinetiks/ai/router prompts.
-    return { confidence: 1.0 };
+    // TODO(Phase 4 — Chunk 5): replace this stub with the real judge
+    // that calls @kinetiks/ai/router with `authority.llm_judged.<action_class>`
+    // prompts. Until then, fail CLOSED: return confidence 0 so any
+    // grant whose escalation_triggers includes `llm_judged` lands the
+    // action in per-action approval instead of silently executing.
+    //
+    // Failing open (confidence 1.0) is the wrong v1 default — a grant
+    // explicitly opted into LLM judgment by including the trigger;
+    // bypassing the judgment because we haven't built it yet would
+    // violate the customer's stated intent.
+    return { confidence: 0.0 };
   },
 };
 
@@ -206,10 +224,14 @@ const ledgerAppender: LedgerAppender = {
       detail: input.detail,
     });
     if (error) {
-      // Append-only Ledger failures are loud — surface via console error
-      // (Sentry capture handled at the call site if needed).
-      // eslint-disable-next-line no-console
-      console.error(
+      // Fail loud. The caller (AgentRun.invokeTool) wraps this in
+      // try/catch for the post-mutation `authority_action_taken` case
+      // (a ledger failure must not undo a successful external mutation
+      // like a sent Slack message). For escalation enqueueing — which
+      // happens BEFORE the external mutation — the failure propagates
+      // up and the action is rejected. Silent console.error here would
+      // make audit drift invisible.
+      throw new Error(
         `[runtime-boot] ledgerAppender ${input.event_type} insert failed: ${error.message}`,
       );
     }

@@ -29,12 +29,18 @@
 -- ============================================================
 
 -- ── 1. grant_id column on kinetiks_ledger ───────────────────
+-- ON DELETE RESTRICT preserves grant attribution in the audit trail.
+-- CLAUDE.md treats the Ledger as append-only and forbids mutating
+-- entries in place; nulling grant_id on grant delete would silently
+-- break the trail. In practice grants are never hard-deleted (terminal
+-- states are `revoked` and `expired`), so RESTRICT is a structural
+-- guard, not an operational concern.
 ALTER TABLE kinetiks_ledger
   ADD COLUMN IF NOT EXISTS grant_id uuid
-    REFERENCES kinetiks_authority_grants(id) ON DELETE SET NULL;
+    REFERENCES kinetiks_authority_grants(id) ON DELETE RESTRICT;
 
 COMMENT ON COLUMN kinetiks_ledger.grant_id IS
-  'Set on every Ledger entry produced under an active Authority Grant (authority_action_taken, authority_action_escalated, authority_grant_* lifecycle events). Indexed for grant-trail reconstruction. The detail jsonb may carry the same id as a redundant mirror; the column is the indexed source of truth.';
+  'Set on every Ledger entry produced under an active Authority Grant (authority_action_taken, authority_action_escalated, authority_grant_* lifecycle events). FK ON DELETE RESTRICT — grants must transition to revoked/expired (terminal states), never hard-deleted, so audit attribution is preserved. The detail jsonb may carry the same id as a redundant mirror; the column is the indexed source of truth.';
 
 CREATE INDEX IF NOT EXISTS idx_ledger_grant_id
   ON kinetiks_ledger (grant_id, created_at DESC)
