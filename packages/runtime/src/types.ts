@@ -77,6 +77,17 @@ export interface InvokeToolOptions {
   patternId?: string;
   /** External AbortSignal override for this single call. */
   signal?: AbortSignal;
+
+  // ── Phase 4 (Kinetiks Contract Addendum §2.9) ──────────────
+  /**
+   * Scope of the calling context. Drives the resolver's narrowest-scope
+   * grant lookup. Defaults to `standing` when omitted.
+   */
+  scopeType?: "campaign" | "workflow" | "program" | "standing";
+  /** Target id (campaign_id / workflow_id / program_id); null for standing. */
+  scopeId?: string | null;
+  /** Optional Budget category id for spend envelope check. */
+  budgetCategoryId?: string | null;
 }
 
 export interface RunSummary {

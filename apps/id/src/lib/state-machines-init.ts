@@ -212,6 +212,87 @@ export function registerKinetiksStateMachines(): void {
       },
     ],
   });
+
+  // ── kinetiks_authority_grants ──────────────────────────────
+  // Kinetiks Contract Addendum §2.3 — Phase 4. The Authority Agent is
+  // the canonical writer for `proposed`; customer-action server routes
+  // are the canonical writers for `active`, `paused`, and `revoked`;
+  // the expiry CRON is the canonical writer for `expired`.
+  //
+  // Narrowing is NOT a state transition — it produces a new `proposed`
+  // grant; on its acceptance, the predecessor is `revoked` with
+  // reason `customer_narrowed`. Re-validation in-flight under the new
+  // shape happens at resolver time, not as part of the state change.
+  registerStateMachine({
+    entity: "kinetiks_authority_grants",
+    states: ["proposed", "active", "paused", "revoked", "expired"] as const,
+    initial: "proposed",
+    terminal: ["revoked", "expired"] as const,
+    transitions: [
+      // Customer approves a proposed grant via the Approval System
+      {
+        from: "proposed",
+        to: "active",
+        allow: (actor) => actor.kind === "user",
+        reason: "Only the customer can approve a proposed grant",
+      },
+      // Customer rejects a proposed grant (revoke before active)
+      {
+        from: "proposed",
+        to: "revoked",
+        allow: (actor) =>
+          actor.kind === "user" || actor.kind === "system",
+        reason:
+          "Customer rejects a proposed grant, or system revokes during fixture cleanup",
+      },
+      // Customer pauses an active grant from the Cortex Authority tab
+      {
+        from: "active",
+        to: "paused",
+        allow: (actor) => actor.kind === "user",
+        reason: "Only the customer can pause an active grant",
+      },
+      // Customer revokes an active grant from the Cortex Authority tab
+      {
+        from: "active",
+        to: "revoked",
+        allow: (actor) =>
+          actor.kind === "user" || actor.kind === "system",
+        reason:
+          "Customer revokes an active grant; system revokes for fixture cleanup",
+      },
+      // Expiry CRON moves an active grant to terminal expired
+      {
+        from: "active",
+        to: "expired",
+        allow: (actor) => actor.kind === "system",
+        reason: "Only the expiry CRON marks an active grant expired",
+      },
+      // Customer resumes a paused grant
+      {
+        from: "paused",
+        to: "active",
+        allow: (actor) => actor.kind === "user",
+        reason: "Only the customer can resume a paused grant",
+      },
+      // Customer revokes a paused grant
+      {
+        from: "paused",
+        to: "revoked",
+        allow: (actor) =>
+          actor.kind === "user" || actor.kind === "system",
+        reason:
+          "Customer revokes a paused grant; system revokes for fixture cleanup",
+      },
+      // Expiry CRON moves a paused grant to terminal expired
+      {
+        from: "paused",
+        to: "expired",
+        allow: (actor) => actor.kind === "system",
+        reason: "Only the expiry CRON marks a paused grant expired",
+      },
+    ],
+  });
 }
 
 /** Test-only escape hatch. */
