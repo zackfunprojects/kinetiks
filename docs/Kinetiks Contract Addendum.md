@@ -802,6 +802,8 @@ These structures do not all ship together. The dependency order:
 
 The Pattern Library does not wait for Implosion. The Authority Grants system does not ship before the Agent Runtime extensions it depends on. Multi-user placeholders are added to every table from the moment that table is created; no follow-up migrations.
 
+**Implementation note (build queue under the apps/id-only scope constraint).** With suite-app work paused, the dependency order above remains canonical, but the queue is no longer gated on suite-app readiness. A feature-flagged fixture emitter inside `apps/id` (`KINETIKS_FIXTURES_ENABLED=true`) supplies the volume that Harvest, Dark Madder, Implosion and others would otherwise produce. Fixtures flow through `/api/synapse/patterns` and `/api/synapse/propose` exactly as real Synapse clients will; the platform code never branches on "is this dummy." This is an implementation detail of Kinetiks Core, not an addendum revision: schemas, registries, lifecycle rules, customer-facing language rules, and the contract itself are unchanged. See `CLAUDE.md` (Fixtures Patterns section) and `docs/build-phases/upcoming/phase-1.5-fixture-emitter.md` for the rules and spec. When real apps land, the flag flips off and fixture rows auto-archive without losing Ledger history.
+
 ---
 
 ## §7. Customer Trust Architecture
