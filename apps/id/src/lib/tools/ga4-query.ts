@@ -137,6 +137,11 @@ export const ga4QueryTool = defineTool({
   isConsequential: false,
   autoApproveThreshold: null,
   availability: { kind: "always" },
+  // Phase 1.7.1 — connection-evidence attribution. Successful invocations
+  // produce a kinetiks_id.connection_value_per_source observation that
+  // closes with outcome=1 when the result is included in Marcus's brief.
+  connection_provider: "ga4",
+  cortex_layer: "market",
   execute: async (input, ctx) => {
     const admin = createAdminClient();
 
