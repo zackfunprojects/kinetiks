@@ -1,12 +1,8 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAuth } from "@/lib/auth/require-auth";
-import { deduplicateAllLayers } from "@/lib/archivist/dedup";
-import { normalizeAllLayers } from "@/lib/archivist/normalize";
-import { detectGaps } from "@/lib/archivist/gap-detect";
-import { scoreAllQuality } from "@/lib/archivist/quality-score";
-import { recalculateConfidence } from "@/lib/cortex";
 import { apiSuccess, apiError } from "@/lib/utils/api-response";
 import type { CleanPassResult } from "@/lib/archivist/types";
+import { runArchivistCleanForAccount } from "@/lib/archivist/run-clean";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -54,7 +50,7 @@ export async function POST(request: Request) {
 
   for (const accountId of accountIds) {
     try {
-      const result = await runCleanPass(admin, accountId);
+      const result = await runArchivistCleanForAccount(admin, accountId);
       results.push(result);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown error";
@@ -81,42 +77,4 @@ export async function POST(request: Request) {
     results,
     accounts_processed: results.length,
   });
-}
-
-/**
- * Run the full clean pass for a single account:
- * dedup -> normalize -> gap detect -> quality score -> recalculate confidence.
- */
-async function runCleanPass(
-  admin: ReturnType<typeof createAdminClient>,
-  accountId: string
-): Promise<CleanPassResult> {
-  // Run dedup and normalize (these mutate data)
-  const dedup = await deduplicateAllLayers(admin, accountId);
-  const normalize = await normalizeAllLayers(admin, accountId);
-
-  // Run gap detection (may create escalate proposals)
-  const gaps = await detectGaps(admin, accountId);
-
-  // Run quality scoring (read-only)
-  const quality = await scoreAllQuality(admin, accountId);
-
-  // Recalculate confidence since data may have changed
-  const dataChanged =
-    dedup.some((d) => d.duplicates_removed > 0) ||
-    normalize.some((n) => n.changes_made > 0);
-
-  if (dataChanged) {
-    try {
-      await recalculateConfidence(admin, accountId);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Unknown error";
-      console.error(
-        `[archivist/clean] Confidence recalculation failed for ${accountId}:`,
-        message
-      );
-    }
-  }
-
-  return { account_id: accountId, dedup, normalize, gaps, quality };
 }

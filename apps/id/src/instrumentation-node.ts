@@ -22,6 +22,7 @@ import { supabaseAICallLogger } from "./lib/ai/logger";
 import { registerKinetiksPromptTasks } from "./lib/ai/task-registry";
 import { registerKinetiksStateMachines } from "./lib/state-machines-init";
 import { bootPatternTypeRegistry } from "./lib/patterns/registry-boot";
+import { bootOperatorRegistry } from "./lib/operators/registry-boot";
 import { bootToolRegistry } from "./lib/tools/registry-boot";
 import "./lib/connections/extractors";
 
@@ -33,5 +34,11 @@ export function bootNodeInstrumentation(): void {
   // cross-registry validator, which now requires required_patterns
   // references to resolve to registered descriptors (L1a).
   bootPatternTypeRegistry();
+  // Operator Registry (Phase 3) MUST boot before the Tool Registry
+  // boot too — `assertRegistriesValid()` (called at the end of
+  // bootToolRegistry) checks every operator's required_tools,
+  // required_patterns, and action_classes references resolve. Boot
+  // order: patterns → operators → tools.
+  bootOperatorRegistry();
   bootToolRegistry();
 }
