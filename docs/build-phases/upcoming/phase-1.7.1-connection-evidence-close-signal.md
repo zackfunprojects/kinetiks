@@ -52,7 +52,7 @@ Note this is the *broader* signal — citation in the response body would be tig
 ## Verification
 
 1. Local dev with a connected GA4 account. Run a Marcus turn that triggers `ga4_query` ("how's my traffic looking?").
-2. `SELECT * FROM kinetiks_pattern_pending_observations WHERE pattern_type='kinetiks_id.connection_value_per_source' ORDER BY created_at DESC LIMIT 5;` — confirm an observation appears with `provider='ga4'`, `layer='analytics'`, `query_class='ga4_query'`.
+2. `SELECT * FROM kinetiks_pattern_pending_observations WHERE pattern_type='kinetiks_id.connection_value_per_source' ORDER BY created_at DESC LIMIT 5;` — confirm an observation appears with `dimensions->>provider='ga4'`, `dimensions->>layer_touched='market'`, `dimensions->>query_class='ga4_query'`. (Note: the canonical dimension key is `layer_touched`, not `layer`; GA4 + GSC tools declare `cortex_layer: "market"` which maps onto the pattern type's `CONTEXT_LAYERS` enum.)
 3. After the turn completes, re-query the same table — row should be closed (deleted or marked closed depending on `closeDeferredObservation`'s semantics). Confirm by reading `deferred-emit.ts`.
 4. `SELECT * FROM kinetiks_pattern_library WHERE pattern_type='kinetiks_id.connection_value_per_source' AND account_id=$ACCOUNT;` — confirm the pattern row has incremented `sample_size` and a non-zero `outcome_value`.
 5. `SELECT * FROM kinetiks_ledger WHERE event_type='pattern_observation' AND detail->>'pattern_type'='kinetiks_id.connection_value_per_source' ORDER BY created_at DESC LIMIT 5;` — confirm Ledger entry fired with `outcome_recorded_via` in the detail.

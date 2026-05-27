@@ -48,6 +48,32 @@ function makeHaikuCaller(task: string, context: AICallContext) {
 }
 
 /**
+ * Phase 1.7.1 — type-narrow the discriminated-union output of
+ * connection-backed tools (ga4_query, gsc_query). Both return
+ * { status: "ok" | "not_connected" | "no_property" | "no_data" |
+ * "error"; ... }. Only "ok" represents evidence consumption; the other
+ * statuses are operational signals (provider not connected, no
+ * property picked, cache empty, upstream error) and must not count
+ * toward the kinetiks_id.connection_value_per_source usefulness rate.
+ *
+ * Returns the status string when the output is shaped that way, or
+ * undefined when the tool returned a non-discriminated value (or no
+ * tool was invoked). Other tools that don't follow the status union
+ * will return undefined and skip the connection-evidence path entirely.
+ */
+function readToolOutputStatus(
+  observation: { output: unknown } | null,
+): string | undefined {
+  if (!observation) return undefined;
+  const out = observation.output;
+  if (out && typeof out === "object" && "status" in out) {
+    const status = (out as { status: unknown }).status;
+    return typeof status === "string" ? status : undefined;
+  }
+  return undefined;
+}
+
+/**
  * Process a Marcus conversation message through the v2 pipeline.
  *
  * V2 Pipeline:
@@ -195,8 +221,19 @@ export async function processMarcusMessage(
   // connection-backed provider. Awaited so the close below finds the
   // row; the underlying record helper is itself try/catch-wrapped and
   // returns silently on failure.
+  //
+  // GATE on the tool output's status="ok". Connection-backed tools
+  // (ga4_query, gsc_query) return a discriminated union: "ok" is the
+  // only branch that actually carries evidence; "not_connected",
+  // "no_property", "no_data", "error" are operational signals. Counting
+  // those as outcome=1 would inflate the usefulness rate.
   let connectionEvidenceRequestId: string | null = null;
-  if (observation && observation.tool_name) {
+  const observedStatus = readToolOutputStatus(observation);
+  if (
+    observation &&
+    observation.tool_name &&
+    observedStatus === "ok"
+  ) {
     const invokedTool = getTool(observation.tool_name);
     if (invokedTool?.connection_provider) {
       connectionEvidenceRequestId = crypto.randomUUID();
@@ -489,9 +526,16 @@ export async function streamMarcusMessage(
   // Phase 1.7.1 — open + close connection_value_per_source observation
   // for tools that surface evidence from a connection-backed provider.
   // Mirror of processMarcusMessage above; brief inclusion is the
-  // deterministic outcome=1 signal.
+  // deterministic outcome=1 signal. Same status="ok" gate to keep
+  // non-evidence outputs (not_connected, error, etc.) from inflating
+  // the usefulness rate.
   let streamConnectionEvidenceRequestId: string | null = null;
-  if (observation && observation.tool_name) {
+  const streamObservedStatus = readToolOutputStatus(observation);
+  if (
+    observation &&
+    observation.tool_name &&
+    streamObservedStatus === "ok"
+  ) {
     const invokedTool = getTool(observation.tool_name);
     if (invokedTool?.connection_provider) {
       streamConnectionEvidenceRequestId = crypto.randomUUID();

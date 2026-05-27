@@ -42,8 +42,44 @@ vi.mock("../deferred-emit", () => ({
 
 import {
   closeConnectionEvidenceObservation,
+  closeMostRecentConnectionEvidenceForProvider,
   recordConnectionEvidenceObservation,
 } from "../emit-internal";
+
+/**
+ * Build a Supabase admin client stub for the fuzzy-match close path.
+ * The helper does:
+ *   admin.from(TABLE).select(...).eq().eq().eq().filter().order().limit().maybeSingle()
+ * Every chain method returns the same proxy until maybeSingle resolves.
+ *
+ * Pass the response maybeSingle should resolve to.
+ */
+function buildSupabaseAdminStub(
+  maybeSingleResponse:
+    | { data: { observation_key: string; dimensions: Record<string, unknown> } | null; error: null }
+    | { data: null; error: { message: string } },
+) {
+  const eqCalls: Array<[string, unknown]> = [];
+  const filterCalls: Array<[string, string, unknown]> = [];
+  const maybeSingle = vi.fn(async () => maybeSingleResponse);
+  const chain = {
+    select: vi.fn(function (this: unknown) { return chain; }),
+    eq: vi.fn(function (this: unknown, col: string, val: unknown) {
+      eqCalls.push([col, val]);
+      return chain;
+    }),
+    filter: vi.fn(function (this: unknown, col: string, op: string, val: unknown) {
+      filterCalls.push([col, op, val]);
+      return chain;
+    }),
+    order: vi.fn(function (this: unknown) { return chain; }),
+    limit: vi.fn(function (this: unknown) { return chain; }),
+    maybeSingle,
+  };
+  const from = vi.fn(() => chain);
+  const adminStub = { from } as unknown as SupabaseClient;
+  return { adminStub, from, chain, eqCalls, filterCalls, maybeSingle };
+}
 
 const ACCOUNT_ID = "00000000-0000-0000-0000-000000000001";
 
@@ -166,6 +202,91 @@ describe("closeConnectionEvidenceObservation", () => {
         admin,
       ),
     ).resolves.toBeUndefined();
+  });
+});
+
+describe("closeMostRecentConnectionEvidenceForProvider", () => {
+  it("filters by dimensions->>provider and closes the matching pending row with outcome=1", async () => {
+    const { adminStub, from, eqCalls, filterCalls } = buildSupabaseAdminStub({
+      data: {
+        observation_key: "req-alice-ga4",
+        dimensions: {
+          provider: "ga4",
+          layer_touched: "market",
+          query_class: "ga4_query",
+        },
+      },
+      error: null,
+    });
+
+    await closeMostRecentConnectionEvidenceForProvider(
+      {
+        account_id: ACCOUNT_ID,
+        provider: "ga4",
+        outcome_recorded_via: "oracle_insight_citation",
+      },
+      adminStub,
+    );
+
+    // Verify the helper queried the pending-observations table with the
+    // right eq() guards (account, pattern_type, status) and that the
+    // jsonb provider filter was passed correctly. These together are
+    // the bug shape that would silently no-op if the syntax drifts.
+    expect(from).toHaveBeenCalledWith("kinetiks_pattern_pending_observations");
+    expect(eqCalls).toEqual(
+      expect.arrayContaining([
+        ["account_id", ACCOUNT_ID],
+        ["pattern_type", "kinetiks_id.connection_value_per_source"],
+        ["status", "pending"],
+      ]),
+    );
+    expect(filterCalls).toEqual([["dimensions->>provider", "eq", "ga4"]]);
+
+    // And the resolved pending row was closed via the deferred-emit
+    // helper with outcome=1 and the canonical pattern_type.
+    expect(closeDeferredObservation).toHaveBeenCalledTimes(1);
+    const call = closeDeferredObservation.mock.calls[0]?.[0];
+    if (!call) throw new Error("expected closeDeferredObservation to have been called");
+    expect(call.pattern_type).toBe("kinetiks_id.connection_value_per_source");
+    expect(call.observation_key).toBe("req-alice-ga4");
+    expect(call.outcome_value).toBe(1);
+  });
+
+  it("is a no-op when no pending observation matches the provider", async () => {
+    const { adminStub } = buildSupabaseAdminStub({ data: null, error: null });
+
+    await closeMostRecentConnectionEvidenceForProvider(
+      {
+        account_id: ACCOUNT_ID,
+        provider: "stripe", // provider with nothing pending
+        outcome_recorded_via: "oracle_insight_citation",
+      },
+      adminStub,
+    );
+
+    // No pending row → no underlying close call. Critical: an
+    // overzealous close on the no-match branch would close someone
+    // else's observation by accident.
+    expect(closeDeferredObservation).not.toHaveBeenCalled();
+  });
+
+  it("does not throw when the lookup query returns an error", async () => {
+    const { adminStub } = buildSupabaseAdminStub({
+      data: null,
+      error: { message: "rls denied" },
+    });
+
+    await expect(
+      closeMostRecentConnectionEvidenceForProvider(
+        {
+          account_id: ACCOUNT_ID,
+          provider: "ga4",
+          outcome_recorded_via: "oracle_insight_citation",
+        },
+        adminStub,
+      ),
+    ).resolves.toBeUndefined();
+    expect(closeDeferredObservation).not.toHaveBeenCalled();
   });
 });
 

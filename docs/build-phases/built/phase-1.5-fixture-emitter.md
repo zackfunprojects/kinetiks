@@ -9,7 +9,6 @@
 **Spec references**
 - `docs/Kinetiks Contract Addendum.md` §1 (Pattern Library), §1.4 (Write Path), §1.6 (Lifecycle and Decay)
 - `CLAUDE.md` — Fixtures Patterns section (seven rules); Pattern Library Patterns (write/read rules); Lessons #7 (Cron + Node API split)
-- The master plan at `/Users/zackhollandsmacbookpro/.claude/plans/we-need-to-update-synthetic-pretzel.md`
 
 ---
 
@@ -17,7 +16,7 @@
 
 Same shape as `gmail-sync-cron` (Deno Edge Function → Node API): a Deno cron loops over active accounts and POSTs to a new internal Node route. The Node route checks `KINETIKS_FIXTURES_ENABLED`, dispatches per-pattern-type generators, and emits each generated pattern through `/api/synapse/patterns` internally (same payload shape as a real Synapse client). The Deno layer stays thin; all generator logic lives in Node where it can import from `packages/types` and use existing helpers.
 
-```
+```text
 supabase/functions/fixture-emitter-cron (Deno)
   → POST /api/internal/fixtures/emit (Node, INTERNAL_SERVICE_SECRET)
      → dispatches generators in apps/id/src/lib/fixtures/
