@@ -29,9 +29,10 @@ Older files are kept under `docs/archive/` (superseded but referenced from curre
 - `design/kinetiks-design-spec.md`
 - `packages/ui/styles/kinetiks-tokens.css`
 - `docs/Kinetiks Contract Addendum.md`
-- `packages/lib/` (the `@kinetiks/lib` workspace - explicitly marked TBD below)
 
 If any of these paths do not yet exist at the start of a session, the first task is to create the file as a stub at the named path and surface a question to Zack rather than silently working around the absence. Do not invent design rules, token values, or contract content; bootstrap stubs are placeholders that say "this file is canonical, contents to follow."
+
+(`packages/lib/` was previously listed here as TBD; the workspace now exists with `serverEnv()`, state machines, and template-var helpers wired in. Anything that should live in `@kinetiks/lib` goes there directly; no bootstrap stubbing needed.)
 
 ---
 
@@ -77,7 +78,7 @@ Kinetiks AI is a GTM operating system. The product is the Kinetiks core app (web
 | **Authority Grants** | Phase 4 of the Kinetiks Contract Addendum. New table `kinetiks_authority_grants`, Action Class Registry, new Authority Agent Operator, new `authority_grant_proposal` approval class, authority resolution flow in the Agent Runtime, per-class LLM judgment budgets. Ships closer to Implosion launch. |
 | **Operator Workflows extension** | Phase 3 of the Kinetiks Contract Addendum. `WorkflowTask` gains `target_type` and `target_app`, optional `operator_registry` on app manifests, runtime distinction between cross-app and internal dispatch. Ships when Implosion is being scoped. |
 | **Integration extractors** | Connection framework exists (9 providers, OAuth, encryption) but zero actual data flows |
-| **`@kinetiks/lib`** | Shared utilities home (state machines, env, pagination, format helpers, template vars). Does not exist yet; create as the first task that needs it. |
+| **`@kinetiks/lib`** | Shared utilities home (state machines, env, pagination, format helpers, template vars). Exists at `packages/lib/`. `serverEnv()` is the canonical Zod env loader; add new env vars there. |
 
 ### The Critical Gap
 
@@ -127,7 +128,7 @@ kinetiks/
     mcp/                         # @kinetiks/mcp - MCP server for Claude Code integration
     sentinel/                    # @kinetiks/sentinel - Content review, brand safety
     cortex/                      # @kinetiks/cortex - Operators, Context Structure, Proposals, state machines, registries
-    lib/                         # @kinetiks/lib - Pure utilities (env, pagination, state machines, format, template vars) [TBD]
+    lib/                         # @kinetiks/lib - Pure utilities (env, pagination, state machines, format, template vars)
   supabase/
     migrations/                  # ALL database migrations (single shared DB)
     seed.sql
@@ -529,6 +530,20 @@ See `docs/Kinetiks Contract Addendum.md` §1 for the canonical spec.
 
 ---
 
+## Fixtures Patterns
+
+Under the current scope constraint (`apps/id` only; no suite-app work), a fixture emitter inside Kinetiks Core stands in for the volume real apps would produce. Fixtures unblock every downstream addendum phase. See `docs/build-phases/upcoming/phase-1.5-fixture-emitter.md` for the implementation.
+
+- **One environment variable gates everything.** `KINETIKS_FIXTURES_ENABLED=true` in dev/staging; `false` in prod unless explicitly demoing. Read via `serverEnv()`. The Edge Function cron and the internal Node route both honor the same flag.
+- **Fixtures flow through the same APIs real apps will use.** `/api/synapse/patterns` for emissions; `/api/synapse/propose` for proposals. No fixture-specific read paths, no fixture-specific arbitration. The platform code never branches on "is this dummy."
+- **Every fixture row is labeled.** `source_app: "kinetiks_fixtures"` on Pattern emissions. `detail.is_fixture: true` on Ledger entries. UI surfaces (Patterns, Approvals, Ledger) render a small "fixture" tag wherever the source matches. The label is the demo-honesty contract.
+- **Fixtures live in `apps/id/src/lib/fixtures/`** — never in `packages/*`. Packages stay suite-app-agnostic; only `apps/id` knows fixtures exist.
+- **Statistical plausibility, not realism.** Distributions land in plausible B2B SaaS ranges (e.g. reply rates 2-12%, meeting book rates 5-25% of replies). Not synthetic copies of real customer data. Variance and sample sizes are realistic enough that Welford's algorithm in `writePatternEmission()` produces sensible confidence trajectories.
+- **Auto-archivable.** `/api/internal/fixtures/cleanup` flips all `source_app = 'kinetiks_fixtures'` patterns to `status='archived'` without deleting. Ledger history is preserved. When real apps come online, this is the one switch that retires the substrate.
+- **Fixtures DO emit Ledger entries.** Every fixture-driven pattern observation, arbitration, action proposal, grant proposal, etc. writes a Ledger entry with `detail.is_fixture: true`. The 14-day acceptance criterion for confidence-constant recalibration becomes measurable against fixture data with full provenance.
+
+---
+
 ## Authority Grants Patterns
 
 See `docs/Kinetiks Contract Addendum.md` §2 for the canonical spec.
@@ -861,8 +876,21 @@ Per-app `CLAUDE.md` files at `apps/{code}/CLAUDE.md` document each app's interna
 
 ## Current Phase
 
-Check the active milestone or ask Zack. Work the phase tasks in order. Cross-phase work needs explicit approval.
+Check the active milestone or ask Zack. Work the phase tasks in order. Cross-phase work needs explicit approval. Phase plans for the active queue live in `docs/build-phases/upcoming/`; mark each phase complete by moving its plan to `docs/build-phases/built/` when its DoD is satisfied.
 
-The current focus is the 2026 platform layer: Tool Registry, Agent Runtime, Metric Cache, Insight Store, and the first real integration (GA4) end-to-end. Marcus answering "how is my traffic?" with real data through tools is the proof point. Everything else queues behind it.
+**Scope constraint.** Build is `apps/id` (Kinetiks Core) only. No work on `apps/hv`, `apps/dm`, `apps/ht`, `apps/im`, `apps/lt`, or `apps/av` until further notice. The 2026 platform layer (Tool Registry, Agent Runtime, Metric Cache, Insight Store, and the first real integration) remains the parallel track; Marcus answering "how is my traffic?" through real tools is still the proof point for that track.
 
-The Kinetiks Contract Addendum subsystems queue behind that work in dependency order: Pattern Type Registry + Pattern Library tables (Phase 1, ships before Implosion - Harvest and Dark Madder can emit on existing data), Empirical Decay Calibration (Phase 2, ~90 days after first patterns emerge), Operator Workflows extension (Phase 3, in time for Implosion scoping), Authority Grants + Authority Agent (Phase 4, closer to Implosion launch), Default Standing Grants and signup flow (Phase 5, with Phase 4).
+**Substrate principle: fixtures unblock the queue.** The Kinetiks Contract Addendum subsystems no longer queue behind suite-app readiness. A feature-flagged fixture emitter inside `apps/id` (`KINETIKS_FIXTURES_ENABLED=true`) emits dummy-but-plausible patterns through the same Synapse APIs real suite apps will eventually use. Same code paths, same arbitration, same Ledger writes. When real apps land later, the flag flips off and fixture rows auto-archive. **Suite apps replace fixtures additively when they exist; the platform code never branches on "is this dummy."** See the Fixtures Patterns section below for the seven rules and `docs/build-phases/upcoming/phase-1.5-fixture-emitter.md` for the emitter spec.
+
+The queue, in order:
+
+1. **Phase 1.6** — Budget Cortex sub-tab + Authority placeholder. Promotes `BudgetManager` out of Integrations into its own sub-tab and adds a disabled Authority nav item so the canonical seven-section spec is visually complete on day one.
+2. **Phase 1.5** — Fixture Emitter for the seven Harvest pattern types. Unblocks every downstream phase.
+3. **Phase 1.7** — Kinetiks-internal pattern types (`kinetiks_id.marcus_question_resonance`, `kinetiks_id.insight_action_rate`, `kinetiks_id.onboarding_question_value`, `kinetiks_id.connection_value_per_source`). Real (non-fixture) emissions from observed customer behavior inside Kinetiks Core.
+4. **Phase 2** — Empirical Decay Calibration. Built and validated against the fixture stream; the math is the deliverable.
+5. **Phase 3** — Operator Workflows platform. `WorkflowTask.target_type`/`target_app`, optional `operator_registry` on app manifests, runtime distinction between cross-app and internal dispatch. Validated by registering Kinetiks Core's own Operators and building one Kinetiks-internal Workflow (daily brief assembly).
+6. **Phase 4** — Marcus action-bearing tools + Authority Grants + Authority Agent (bundled). First action classes defined for Marcus's own tools (`kinetiks_id.send_slack_notification`, `kinetiks_id.draft_email`, `kinetiks_id.add_calendar_event`); Phase 4 builds those tools alongside the Authority machinery.
+7. **Phase 5** — Default Standing Grants + signup flow. Ships with Phase 4.
+8. **Phase 4.5** (requires prod-read approval; runs after Phase 4 + 5) — `kinetiks_ledger_event_type_valid` `VALIDATE CONSTRAINT` pass. Closes the standing `NOT VALID` debt accumulated across Phases 1.5, 2, and 4 in a single audit + VALIDATE pass.
+
+Phase 4.5 was previously labelled "2.5" but its actual prerequisite is Phase 4 (every phase that adds Ledger event types re-adds the CHECK constraint `NOT VALID`; running VALIDATE before Phase 4 ships would require re-running it after).

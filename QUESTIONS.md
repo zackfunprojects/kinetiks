@@ -20,15 +20,15 @@ The column is currently unconstrained. Tightening it to match the TS union would
 
 ### Confidence formula constants
 
-Phase 1 ships pinned constants (`w_obs=0.5`, `w_recency=0.2`, `w_stability=0.3`, `k_obs=8`, `k_recency=effective_decay_days/2`) in the Kinetiks Contract Addendum §1.6. These were chosen for shipping; they will likely be revisited once the 14-day acceptance criterion produces real signal. Phase 2 calibration adjusts `effective_decay_days` within bounds; the formula weights themselves may also be tuned.
+Phase 1 ships pinned constants (`w_obs=0.5`, `w_recency=0.2`, `w_stability=0.3`, `k_obs=8`, `k_recency=effective_decay_days/2`) in the Kinetiks Contract Addendum §1.6. These were chosen for shipping; they will likely be revisited once enough emissions produce real signal. Phase 2 calibration adjusts `effective_decay_days` within bounds; the formula weights themselves may also be tuned.
 
-Track outcomes from the first two weeks of real Harvest emissions and revise here.
+**Update (apps/id-only scope, fixture substrate).** Originally gated on the first two weeks of real Harvest emissions. With suite-app work paused, this signal is now measurable against the Phase 1.5 fixture stream — fixtures emit through the same Synapse path and write Ledger entries with full provenance, so the 14-day window can run against fixture data. **Caveat:** when real suite apps eventually land, recalibrate against a blended window of fixture + first real emissions before pinning new constants. Fixtures are designed for statistical plausibility, not realism, so leaning on them alone for final weight tuning risks fitting to the generator distributions rather than the customer distributions.
 
 ### Cortex Patterns UI: Budget tab inclusion
 
-CLAUDE.md (§ UI quality) declares the seven-section Cortex sub-nav: Identity → Goals → Budget → Patterns → Authority → Integrations → Ledger. Phase 1 ships only Patterns and the four pre-existing tabs (Identity, Goals, Integrations, Ledger). Budget and Authority join in their respective phases.
+CLAUDE.md declares the seven-section Cortex sub-nav: Identity → Goals → Budget → Patterns → Authority → Integrations → Ledger. Phase 1 shipped Patterns alongside the four pre-existing tabs (Identity, Goals, Integrations, Ledger). Budget and Authority are queued.
 
-Decision: leave Budget for its own phase. `BudgetManager.tsx` exists today but is referenced from elsewhere; the dedicated tab is a separate scope decision.
+**Update (Phase 1.6 scheduled).** Budget is the next phase — `apps/id/src/components/cortex/BudgetManager.tsx` is currently rendered inside the Integrations tab and gets promoted to its own sub-tab at `/cortex/budget`. Authority gets a disabled placeholder nav item in the same phase to complete the visual seven-section spec; the real Authority sub-tab ships in Phase 4. See `docs/build-phases/upcoming/phase-1.6-budget-and-authority-nav.md`.
 
 ### State machines module location drift (now resolved)
 
@@ -131,32 +131,57 @@ follow-up pass should:
 Until step 3, the DB-layer guarantee is "future writes only." Codebase
 writes already conform to the union (commit "feat(types+tools)" audit).
 
-### Confidence formula constants — HELD for 14-day acceptance
+**Status (open — scheduled as Phase 2.5).** The follow-up pass is
+tracked in `docs/build-phases/upcoming/phase-2.5-ledger-check-validate.md`.
+Runs in parallel with the main queue any time a prod-read window
+opens. Phases 1.5, 2, and 4 each add new event types to the union;
+Phase 2.5 should wait until after the last of those lands so the
+`VALIDATE` pass clears every type in one shot.
+
+### Confidence formula constants — HELD; measurable against fixtures
 
 Phase 1 pinned constants (w_obs=0.5, w_recency=0.2, w_stability=0.3,
-k_obs=8, k_recency=effective_decay_days/2) per canonical §1.6. Held
-until two weeks of real Harvest emissions produce signal.
+k_obs=8, k_recency=effective_decay_days/2) per canonical §1.6.
 
-### Cortex Patterns UI: Budget tab — DEFERRED
+**Update (apps/id-only scope).** Originally held until two weeks of
+real Harvest emissions. With suite apps paused and the Phase 1.5
+fixture stream supplying volume, the 14-day window is now measurable
+against fixture data with full Ledger provenance. Recalibrate weights
+once the fixture run produces signal across all seven Harvest types.
+When real suite apps eventually land, do a second recalibration
+against a blended window of fixture + first real emissions before
+pinning final constants — fixtures are designed for plausibility, not
+realism, so weight tuning on fixtures alone risks fitting the
+generator distributions instead of the customer distributions.
 
-Phase 1 ships Patterns only. Budget tab joins in its own phase.
+### Cortex Patterns UI: Budget tab — SCHEDULED (Phase 1.6)
+
+Phase 1 shipped Patterns only. Phase 1.6 promotes `BudgetManager` out
+of the Integrations tab to its own sub-tab at `/cortex/budget` and
+adds a disabled Authority placeholder nav item. See
+`docs/build-phases/upcoming/phase-1.6-budget-and-authority-nav.md`.
 
 ---
 
 ## L1b: acceptance criteria
 
-The Pattern Library is now canonical-aligned. Going into the 14-day
-acceptance window:
+The Pattern Library is now canonical-aligned. Original gating was the
+14-day window on real Harvest emissions. Under the current apps/id-only
+scope, the same criteria are measured against the Phase 1.5 fixture
+stream:
 
-1. Within 14 days of the first real Harvest emissions, at least one
-   pattern of each of the seven registered Harvest pattern types must
-   reach `validated` status. If none do, the descriptor's
-   bucketization is too narrow — revisit before adding pattern types.
+1. Within 14 days of fixture emissions ramping (or, when suite apps
+   land, the first real Harvest emissions), at least one pattern of
+   each of the seven registered Harvest pattern types must reach
+   `validated` status. If none do, the descriptor's bucketization is
+   too narrow OR the fixture generator's variance is too high —
+   revisit before adding pattern types.
 2. Marcus's evidence brief should include a `[RELEVANT PATTERNS]`
    block for any chat turn where at least one validated pattern
    exists for the customer's ICP. Verify the response weaves the
    implication into the recommendation rather than dumping raw
-   statistics.
+   statistics. Fixture-sourced patterns count for this check; the
+   evidence brief reads `source_app`-agnostically by design.
 3. The export/import round-trip should preserve the `dimensions`
    blob and the canonical outcome shape verbatim, halve the
    confidence on import, and emit a `pattern_imported` Ledger entry
@@ -166,5 +191,6 @@ acceptance window:
    * 0.7` to `declining`, and any `declining` pattern past `decay_at`
    to `archived`. User-starred patterns remain exempt.
 
-If any of these fail in production, surface in this file as a new
-open question; do not paper over with looser thresholds.
+If any of these fail (against either fixtures or real emissions),
+surface in this file as a new open question; do not paper over with
+looser thresholds.
