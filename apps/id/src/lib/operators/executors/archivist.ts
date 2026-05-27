@@ -7,6 +7,7 @@ import { runArchivistCleanForAccount } from "@/lib/archivist/run-clean";
 import { runArchivistPatternSweepForAccount } from "@/lib/archivist/run-pattern-sweep";
 import { runArchivistDeferredSweepForAccount } from "@/lib/archivist/run-deferred-sweep";
 import { runArchivistCalibrateForAccount } from "@/lib/archivist/run-calibrate";
+import { captureException } from "@/lib/observability/sentry";
 import {
   ARCHIVIST_STEP_VALUES,
   archivistInputsSchema,
@@ -71,11 +72,19 @@ export const archivistExecute: OperatorExecutor = async (rawInput) => {
           accountsProcessed += 1;
         } catch (err) {
           errors += 1;
-          // eslint-disable-next-line no-console
-          console.error(
-            `[operator] archivist.clean failed for ${accountId}:`,
-            err instanceof Error ? err.message : err,
-          );
+          // Surface to Sentry via the canonical capture shape so
+          // production traces show the failure with structured tags;
+          // the helper falls back to a dev console.error when
+          // SENTRY_DSN is unset.
+          await captureException(err, {
+            tags: {
+              route: "operator/archivist",
+              action: "clean",
+              stage: "execute",
+              app: "id",
+            },
+            extra: { account_id: accountId },
+          });
         }
       }
       return {

@@ -7,6 +7,7 @@ import { detectGaps } from "@/lib/archivist/gap-detect";
 import { scoreAllQuality } from "@/lib/archivist/quality-score";
 import { recalculateConfidence } from "@/lib/cortex";
 import type { CleanPassResult } from "@/lib/archivist/types";
+import { captureException } from "@/lib/observability/sentry";
 
 /**
  * Per-account clean pass: dedup → normalize → gap detect →
@@ -35,12 +36,19 @@ export async function runArchivistCleanForAccount(
     try {
       await recalculateConfidence(admin, accountId);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Unknown error";
-      // eslint-disable-next-line no-console
-      console.error(
-        `[archivist/clean] Confidence recalculation failed for ${accountId}:`,
-        message,
-      );
+      // Route through the canonical Sentry capture so production sees
+      // the failure with structured tags; the helper falls back to a
+      // dev-only console.error when SENTRY_DSN is unset (no
+      // unconditional console.error noise in prod).
+      await captureException(err, {
+        tags: {
+          route: "archivist/clean",
+          action: "recalculate_confidence",
+          stage: "execute",
+          app: "id",
+        },
+        extra: { account_id: accountId },
+      });
     }
   }
 
