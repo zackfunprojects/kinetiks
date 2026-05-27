@@ -6,7 +6,7 @@ import type { OperatorExecutor } from "@kinetiks/runtime";
 
 import {
   archivist,
-  authorityAgentStub,
+  authorityAgent,
   cartographer,
   marcus,
   oracle,
@@ -15,7 +15,7 @@ import { archivistExecute } from "./executors/archivist";
 import { cartographerExecute } from "./executors/cartographer";
 import { marcusExecute } from "./executors/marcus";
 import { oracleExecute } from "./executors/oracle";
-import { authorityAgentStubExecute } from "./executors/authority-agent-stub";
+import { authorityAgentExecute } from "./executors/authority-agent";
 
 /**
  * Kinetiks Core's app key. Used as the first dimension of the
@@ -29,7 +29,7 @@ const KINETIKS_ID_OPERATORS: readonly OperatorDescriptor[] = [
   archivist,
   marcus,
   oracle,
-  authorityAgentStub,
+  authorityAgent,
 ];
 
 /**
@@ -49,7 +49,7 @@ const EXECUTORS: Record<string, OperatorExecutor> = {
   [`${KINETIKS_ID_APP_KEY}.archivist`]: archivistExecute,
   [`${KINETIKS_ID_APP_KEY}.marcus`]: marcusExecute,
   [`${KINETIKS_ID_APP_KEY}.oracle`]: oracleExecute,
-  [`${KINETIKS_ID_APP_KEY}.authority_agent`]: authorityAgentStubExecute,
+  [`${KINETIKS_ID_APP_KEY}.authority_agent`]: authorityAgentExecute,
 };
 
 let _booted = false;
