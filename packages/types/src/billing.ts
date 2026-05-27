@@ -325,6 +325,105 @@ export interface LedgerEventDetailMap {
     /** Generic error message; safe to surface. No stack, no PII. */
     error_message: string;
   };
+
+  // ── Phase 4: Authority Grants (Kinetiks Contract Addendum §2) ──
+  // Every authority-related event carries `grant_id` so a SQL filter
+  // on detail->>'grant_id' reconstructs the full grant audit trail.
+  // The `kinetiks_ledger.grant_id` column added in migration 00052 is
+  // the indexed equivalent; detail.grant_id is the typed mirror.
+  //
+  // PII rules per CLAUDE.md: detail carries IDs, counts, action class
+  // strings, and structured summaries only. Never full action_input
+  // payloads, recipient emails, or prompt text.
+  authority_grant_proposed: {
+    grant_id: string;
+    /** The Authority Agent invocation that produced the proposal. */
+    invocation_id: string;
+    request_type:
+      | "campaign_launch"
+      | "workflow_start"
+      | "standing_review"
+      | "first_connect";
+    /** Lookup tag for fixture filtering; "kinetiks_fixtures" for fixture flows. */
+    source_label: string;
+    /** Action classes the proposed grant covers. */
+    action_classes: string[];
+    scope_type: "campaign" | "workflow" | "program" | "standing";
+    /** For nested-bundle proposals; null for root proposals. */
+    parent_grant_id: string | null;
+  };
+  authority_grant_approved: {
+    grant_id: string;
+    /** The approval row that recorded the customer decision. */
+    approval_id: string;
+    /** True when the customer edited before approving. */
+    edits_applied: boolean;
+    /** Plain-language edit categories the customer changed (≤ 8). */
+    edit_categories?: string[];
+  };
+  authority_grant_paused: {
+    grant_id: string;
+    /** Optional reason the customer typed when pausing. */
+    pause_reason: string | null;
+  };
+  authority_grant_narrowed: {
+    grant_id: string;
+    /** The new (tighter) grant proposed for re-approval; the original is
+     *  revoked with reason `customer_narrowed` when the new one approves. */
+    successor_grant_id: string;
+    /** Plain-language summary of what changed (≤ 8 entries). */
+    changes_summary: string[];
+  };
+  authority_grant_revoked: {
+    grant_id: string;
+    /** "customer_revoked" | "customer_narrowed" | "customer_edited" | "fixture_cleanup". */
+    revocation_reason: string;
+    /** Optional plain-language explanation. */
+    customer_note?: string;
+  };
+  authority_grant_expired: {
+    grant_id: string;
+    /** Grant's expires_at as it was at the time of expiry. */
+    expired_at: string;
+    /** Aggregate count of actions taken before expiry. */
+    actions_taken_under_grant: number;
+  };
+  authority_action_taken: {
+    grant_id: string;
+    /** Action class the grant covered for this action. */
+    action_class: string;
+    /** Tool name that executed. */
+    tool_name: string;
+    /** PII-safe summary of the action input (IDs, counts, lengths — never
+     *  full content, recipient emails, or message bodies). */
+    action_input_summary: Record<string, string | number | boolean | string[]>;
+    /** Optional outcome the tool reported (e.g. event_id, draft_id). */
+    outcome_ref?: string;
+  };
+  authority_action_escalated: {
+    grant_id: string;
+    action_class: string;
+    tool_name: string;
+    /** Which check failed: constraint_failed | rate_limited | envelope_exceeded | trigger_fired. */
+    reason_code:
+      | "constraint_failed"
+      | "rate_limited"
+      | "envelope_exceeded"
+      | "trigger_fired";
+    /** When `reason_code === 'trigger_fired'`, which trigger type fired. */
+    trigger_type?:
+      | "anomaly"
+      | "novelty"
+      | "pacing"
+      | "threshold"
+      | "llm_judged";
+    /** When trigger_fired, the index of the trigger in the grant's list. */
+    trigger_index?: number;
+    /** Plain-language explanation; safe to surface in the approval card. */
+    detail: string;
+    /** Approval ID created to surface the action for per-action review. */
+    approval_id: string;
+  };
 }
 
 /**

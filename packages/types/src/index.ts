@@ -125,6 +125,34 @@ export type {
   PatternImportResult,
 } from "./patterns";
 export type {
+  AuthorityGrant,
+  AuthorityGrantStatus,
+  AuthorityGrantScopeType,
+  GrantedCapability,
+  EscalationTrigger,
+  EscalationTriggerType,
+  AuthorityUsageSummary,
+  GrantProposalEnvelope,
+  GrantProposalEnvelopeMember,
+  GrantProposalEvidence,
+} from "./authority-grants";
+export type {
+  ThresholdCondition,
+  PacingCondition,
+  NoveltyCondition,
+  AnomalyCondition,
+  LLMJudgedCondition,
+} from "./authority-triggers";
+export {
+  thresholdConditionSchema,
+  pacingConditionSchema,
+  noveltyConditionSchema,
+  anomalyConditionSchema,
+  llmJudgedConditionSchema,
+  ESCALATION_TRIGGER_CONDITION_SCHEMAS,
+  parseEscalationCondition,
+} from "./authority-triggers";
+export type {
   SentinelVerdict,
   ReviewResolution,
   SentinelContentType,
