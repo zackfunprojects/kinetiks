@@ -142,16 +142,7 @@ export async function dispatchWorkflowTask<TInput = unknown>(
 ): Promise<WorkflowTaskResult> {
   const started = performance.now();
 
-  // 1. Resolve input (no validation here yet; cross_app passes through opaquely).
-  const resolvedInput =
-    typeof task.input === "function"
-      ? (task.input as (
-          u: Record<string, unknown>,
-          c: WorkflowDispatchContext,
-        ) => TInput)(upstream, ctx)
-      : task.input;
-
-  // 2. Dispatched Ledger entry (intent) — fire-and-await; never blocks flow on Ledger failure.
+  // 1. Dispatched Ledger entry (intent) — fire-and-await; never blocks flow on Ledger failure.
   await safeLedger(deps, {
     event_type: "workflow_task_dispatched",
     account_id: ctx.account_id,
@@ -167,6 +158,17 @@ export async function dispatchWorkflowTask<TInput = unknown>(
   });
 
   try {
+    // 2. Resolve input INSIDE the failure-path try so a throwing input
+    // derivation still emits workflow_task_failed (cross_app passes
+    // through opaquely; internal_operator schema-validates downstream).
+    const resolvedInput =
+      typeof task.input === "function"
+        ? (task.input as (
+            u: Record<string, unknown>,
+            c: WorkflowDispatchContext,
+          ) => TInput)(upstream, ctx)
+        : task.input;
+
     let output: unknown;
 
     if (task.target_type === "cross_app") {
@@ -427,10 +429,17 @@ function workflowKeyForCtx(ctx: WorkflowDispatchContext): string {
 /**
  * Produce a tiny, PII-safe summary of the task output for the
  * `workflow_task_completed` Ledger entry. We err on the side of
- * including very little: top-level scalar fields and array lengths.
- * Operators that want richer summaries should return purpose-built
- * summary fields themselves (the executor is the right layer for
- * domain-specific decisions about what's safe to log).
+ * including very little: top-level numeric/boolean scalars, array
+ * lengths, and object key counts. Raw strings are NEVER persisted —
+ * even with truncation, a top-level string field could be a name,
+ * email address, OAuth token fragment, or prompt text. Operators
+ * that want a string surfaced in Ledger should return it in a
+ * purpose-named field and the executor itself is the right layer to
+ * sanitize it (per CLAUDE.md PII rules).
+ *
+ * String fields are recorded as a sibling `<key>_chars` length-only
+ * hint so the trace still shows that the field was returned and
+ * roughly how big it was.
  */
 function summarize(output: unknown): Record<string, unknown> {
   if (output === null || output === undefined) return {};
@@ -439,9 +448,13 @@ function summarize(output: unknown): Record<string, unknown> {
   for (const [k, v] of Object.entries(output as Record<string, unknown>)) {
     if (v === null) {
       out[k] = null;
-    } else if (typeof v === "number" || typeof v === "boolean" || typeof v === "string") {
-      // Truncate any string defensively — Ledger detail is not the place for prose.
-      out[k] = typeof v === "string" && v.length > 200 ? `${v.slice(0, 200)}…` : v;
+    } else if (typeof v === "number" || typeof v === "boolean") {
+      out[k] = v;
+    } else if (typeof v === "string") {
+      // PII-safe: never persist the raw string in Ledger detail.
+      // Surface a length hint so the operator's contract is visible
+      // without leaking the value.
+      out[`${k}_chars`] = v.length;
     } else if (Array.isArray(v)) {
       out[`${k}_count`] = v.length;
     } else if (typeof v === "object") {

@@ -461,6 +461,61 @@ describe("runWorkflow", () => {
     expect(dispatched.map((d) => d.detail.task_key)).toEqual(["t1", "t2"]);
   });
 
+  it("emits workflow_task_failed when the task.input derivation function throws", async () => {
+    registerOperators("test_app", [
+      {
+        key: "never_invoked",
+        description: "Executor never runs because input derivation throws first",
+        inputs_schema: z.object({ n: z.number() }),
+        outputs_schema: z.object({ ok: z.boolean() }),
+        required_tools: [],
+        required_patterns: [],
+        action_classes: [],
+      },
+    ]);
+
+    const harness = makeHarness();
+    const executor = vi.fn(async () => ({ ok: true }));
+    harness.installExecutor("test_app", "never_invoked", executor);
+
+    const workflow: WorkflowDefinition = {
+      key: "test_app.input_throws",
+      description: "Input derivation throws synchronously",
+      tasks: [
+        {
+          key: "t1",
+          label: "input-throws",
+          target_type: "internal_operator",
+          target_app: "test_app",
+          target_capability: "never_invoked",
+          input: () => {
+            throw new Error("input boom");
+          },
+        },
+      ],
+    };
+
+    const summary = await runWorkflow(workflow, makeCtx(), harness.deps);
+
+    expect(summary.ok).toBe(false);
+    expect(summary.tasks).toHaveLength(1);
+    expect(summary.tasks[0]).toMatchObject({
+      task_key: "t1",
+      status: "failed",
+      error: { class: "internal_error", message: "input boom" },
+    });
+    expect(executor).not.toHaveBeenCalled();
+
+    // The dispatched + failed pair both fire — the failure path runs
+    // even though the throw is inside the input derivation, not the
+    // executor itself.
+    expect(harness.ledger.map((e) => e.event_type)).toEqual([
+      "workflow_task_dispatched",
+      "workflow_task_failed",
+    ]);
+    expect(harness.ledger[1].detail.error_message).toBe("input boom");
+  });
+
   it("does NOT halt the workflow when writeLedger fails (observability is best-effort)", async () => {
     registerOperators("test_app", [
       {
