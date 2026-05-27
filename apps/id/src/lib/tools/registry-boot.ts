@@ -60,9 +60,13 @@ export function bootToolRegistry(): void {
   registerTool(sendSlackNotificationTool);
   registerTool(draftEmailTool);
   registerTool(addCalendarEventTool);
-  // Cross-registry validation — fails the boot if anything is inconsistent.
-  // At F1/F2 we register no consequential tools and no operators, so this
-  // is a no-op safety pass; L2a will add real entries here.
+  // Cross-registry validation — fails the boot if anything is
+  // inconsistent. Phase 4 — Chunk 6 introduced the first consequential
+  // tools (send_slack_notification, draft_email, add_calendar_event);
+  // every tool's actionClass must resolve in the Action Class
+  // Registry, and every operator's required_tools / required_patterns
+  // / action_classes must resolve too. assertRegistriesValid catches
+  // any mismatch at boot rather than at runtime.
   assertRegistriesValid();
   _booted = true;
 }

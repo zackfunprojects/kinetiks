@@ -20,6 +20,11 @@ import "server-only";
 import { ToolError } from "@kinetiks/tools";
 
 import { getGoogleWorkspaceAccessToken } from "@/lib/connections/google-workspace-token";
+import {
+  classifyHttpStatus,
+  fetchWithTimeout,
+  parseJsonOrToolError,
+} from "@/lib/dispatchers/fetch-with-timeout";
 
 interface CalendarUrlInput {
   calendar_id: string;
@@ -82,29 +87,22 @@ export async function createCalendarEventViaGoogle(
     attendees: (input.attendees ?? []).map((email) => ({ email })),
   };
 
-  let response: Response;
-  try {
-    response = await fetch(url, {
+  const response = await fetchWithTimeout({
+    url,
+    init: {
       method: "POST",
       headers: {
         Authorization: `${token.token_type} ${token.access_token}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify(body),
-    });
-  } catch (err) {
-    throw new ToolError(
-      "transient",
-      `Calendar events.insert network failure: ${(err as Error)?.message ?? "unknown"}`,
-      {
-        context: {
-          tool: "add_calendar_event",
-          account_id: input.account_id,
-          attendee_count: input.attendees?.length ?? 0,
-        },
-      },
-    );
-  }
+    },
+    tool: "add_calendar_event",
+    context: {
+      account_id: input.account_id,
+      attendee_count: input.attendees?.length ?? 0,
+    },
+  });
 
   if (!response.ok) {
     let detail = `HTTP ${response.status}`;
@@ -116,8 +114,9 @@ export async function createCalendarEventViaGoogle(
     } catch {
       // body not JSON
     }
+    const retryAfter = response.headers.get("retry-after") ?? "";
     throw new ToolError(
-      response.status >= 500 ? "transient" : "permanent",
+      classifyHttpStatus(response.status),
       `Calendar events.insert rejected: ${detail}`,
       {
         context: {
@@ -125,15 +124,22 @@ export async function createCalendarEventViaGoogle(
           account_id: input.account_id,
           attendee_count: input.attendees?.length ?? 0,
           http_status: response.status,
+          ...(retryAfter ? { retry_after: retryAfter } : {}),
         },
       },
     );
   }
 
-  const data = (await response.json()) as {
+  const data = await parseJsonOrToolError<{
     id?: string;
     htmlLink?: string;
-  };
+  }>(response, {
+    tool: "add_calendar_event",
+    context: {
+      account_id: input.account_id,
+      attendee_count: input.attendees?.length ?? 0,
+    },
+  });
   if (!data.id) {
     throw new ToolError(
       "permanent",

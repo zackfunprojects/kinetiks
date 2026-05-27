@@ -118,7 +118,7 @@ export const authorityAgentExecute: OperatorExecutor = async (rawInput) => {
       },
     );
 
-    const parsed = parseEnvelope(raw, input.invocation_id);
+    const parsed = parseEnvelope(raw, input.invocation_id, input.type);
     if (!parsed.ok) {
       lastErrors = parsed.errors;
       continue;
@@ -154,11 +154,19 @@ export const authorityAgentExecute: OperatorExecutor = async (rawInput) => {
         },
       });
     } catch (ledgerErr) {
-      // eslint-disable-next-line no-console
-      console.error(
-        "[authority-agent] failed to write failure marker to ledger",
-        ledgerErr,
-      );
+      await captureException(ledgerErr, {
+        tags: {
+          route: "/api/internal/operators/authority-agent/invoke",
+          action: "authority_agent.failure_marker_ledger",
+          stage: "persist",
+          app: "id",
+        },
+        user: { id: input.account_id },
+        extra: {
+          invocation_id: input.invocation_id,
+          request_type: input.type,
+        },
+      });
     }
     await captureException(
       new Error("Authority Agent proposal exhausted retries"),
@@ -184,13 +192,26 @@ export const authorityAgentExecute: OperatorExecutor = async (rawInput) => {
     );
   }
 
-  // 5. Persist (atomic via RPC).
-  const persisted = await persistProposals({
-    account_id: input.account_id,
-    granted_by: input.user_id,
-    proposed_by_agent: `authority_agent:${input.invocation_id}`,
-    envelope,
-  });
+  // 5. Persist (atomic via RPC). Map any RPC failure to the canonical
+  //    AuthorityProposalError("persistence_failed") so the route
+  //    surface returns the correct status and Sentry captures with
+  //    the canonical tag shape.
+  let persisted: Awaited<ReturnType<typeof persistProposals>>;
+  try {
+    persisted = await persistProposals({
+      account_id: input.account_id,
+      granted_by: input.user_id,
+      proposed_by_agent: `authority_agent:${input.invocation_id}`,
+      envelope,
+    });
+  } catch (persistErr) {
+    throw new AuthorityProposalError(
+      "persistence_failed",
+      persistErr instanceof Error
+        ? persistErr.message
+        : "Authority Agent proposal persistence failed",
+    );
+  }
 
   // 6. One authority_grant_proposed Ledger entry per grant.
   await emitProposedLedgerEntries({
@@ -248,6 +269,7 @@ function summarizeConstraintSchema(d: ActionClassDescriptor): string {
 function parseEnvelope(
   raw: string,
   expected_invocation_id: string,
+  expected_request_type: AuthorityAgentInput["type"],
 ):
   | { ok: true; envelope: ReturnType<typeof grantProposalEnvelopeSchema.parse> }
   | { ok: false; errors: string[] } {
@@ -276,16 +298,22 @@ function parseEnvelope(
       ),
     };
   }
-  // Cross-check the envelope's invocation_id matches the request's —
-  // the model can hallucinate; we lock it down here.
+  // Cross-check the envelope's invocation_id AND request_type against
+  // the request — the model can hallucinate either; lock both down so
+  // a successful envelope for a different campaign or a different
+  // request type cannot leak through.
+  const errors: string[] = [];
   if (parsed.data.invocation_id !== expected_invocation_id) {
-    return {
-      ok: false,
-      errors: [
-        `envelope.invocation_id must equal the request invocation_id "${expected_invocation_id}" (received "${parsed.data.invocation_id}")`,
-      ],
-    };
+    errors.push(
+      `envelope.invocation_id must equal the request invocation_id "${expected_invocation_id}" (received "${parsed.data.invocation_id}")`,
+    );
   }
+  if (parsed.data.request_type !== expected_request_type) {
+    errors.push(
+      `envelope.request_type must equal the request request_type "${expected_request_type}" (received "${parsed.data.request_type}")`,
+    );
+  }
+  if (errors.length > 0) return { ok: false, errors };
   return { ok: true, envelope: parsed.data };
 }
 
@@ -328,10 +356,6 @@ async function emitProposedLedgerEntries(args: {
         },
       });
       if (error) {
-        // eslint-disable-next-line no-console
-        console.error(
-          `[authority-agent] authority_grant_proposed ledger insert failed for grant=${grant_id}: ${error.message}`,
-        );
         await captureException(new Error(error.message), {
           tags: {
             route: "/api/internal/operators/authority-agent/invoke",
@@ -344,12 +368,19 @@ async function emitProposedLedgerEntries(args: {
         });
       }
     } catch (err) {
-      // Same fallthrough: ledger is best-effort post-RPC.
-      // eslint-disable-next-line no-console
-      console.error(
-        `[authority-agent] ledger insert threw for grant=${grant_id}`,
-        err,
-      );
+      // Same fallthrough: ledger is best-effort post-RPC. Capture so
+      // the failure shows up in Sentry with the canonical tag shape
+      // rather than only in dev logs.
+      await captureException(err, {
+        tags: {
+          route: "/api/internal/operators/authority-agent/invoke",
+          action: "authority_agent.ledger_proposed",
+          stage: "persist",
+          app: "id",
+        },
+        user: { id: args.account_id },
+        extra: { grant_id, invocation_id: args.invocation_id },
+      });
     }
   }
 }

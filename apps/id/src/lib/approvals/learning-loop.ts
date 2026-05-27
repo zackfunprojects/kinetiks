@@ -10,6 +10,7 @@ import {
   applyAuthorityGrantApprove,
   applyAuthorityGrantReject,
 } from "./authority-grant";
+import { proposedGrantPayloadSchema } from "@/lib/operators/descriptors";
 
 /**
  * For context_edit approvals, resolve the linked Proposal so the merge
@@ -71,13 +72,32 @@ export async function processApprovalDecision(
   ).approval_class;
   if (approvalClass === "authority_grant_proposal") {
     if (action.action === "approve") {
-      const edits =
+      // Validate edits with Zod before they reach the authority
+      // handlers. CLAUDE.md: never trust client input. The edits
+      // payload is the customer's replacement grant; reject the
+      // entire approval action if the shape doesn't satisfy
+      // proposedGrantPayloadSchema (the same shape the Authority
+      // Agent's structural validator runs against).
+      let edits:
+        | { grant: GrantProposalEnvelopeMember["grant"] }
+        | null = null;
+      const editsCandidate =
         action.edits && (action.edits as { grant?: unknown }).grant
-          ? {
-              grant: (action.edits as { grant: GrantProposalEnvelopeMember["grant"] })
-                .grant,
-            }
+          ? (action.edits as { grant: unknown })
           : null;
+      if (editsCandidate) {
+        const parsed = proposedGrantPayloadSchema.safeParse(editsCandidate.grant);
+        if (!parsed.success) {
+          throw new Error(
+            `Invalid edits payload for authority_grant_proposal: ${parsed.error.issues
+              .map(
+                (iss) => `${iss.path.join(".") || "(root)"}: ${iss.message}`,
+              )
+              .join("; ")}`,
+          );
+        }
+        edits = { grant: parsed.data as GrantProposalEnvelopeMember["grant"] };
+      }
       await applyAuthorityGrantApprove(admin, approval, { edits });
     } else {
       await applyAuthorityGrantReject(admin, approval, {
@@ -85,7 +105,8 @@ export async function processApprovalDecision(
       });
     }
     // Always update the approval row's status + acted_at so the
-    // queue surface mirrors the lifecycle outcome.
+    // queue surface mirrors the lifecycle outcome. Scope by
+    // account_id too — CLAUDE.md: always scope by kinetiks_accounts.id.
     const updates =
       action.action === "approve"
         ? { status: "approved", acted_at: now }
@@ -97,7 +118,8 @@ export async function processApprovalDecision(
     const { error: updateErr } = await admin
       .from("kinetiks_approvals")
       .update(updates)
-      .eq("id", approval.id);
+      .eq("id", approval.id)
+      .eq("account_id", approval.account_id);
     if (updateErr) {
       throw new Error(
         `Failed to update authority_grant_proposal approval: ${updateErr.message}`,

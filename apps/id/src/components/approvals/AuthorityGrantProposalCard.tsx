@@ -72,6 +72,9 @@ export function AuthorityGrantProposalCard({
 
   const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
+  const [editOpen, setEditOpen] = useState(false);
+  const [editJson, setEditJson] = useState("");
+  const [editParseError, setEditParseError] = useState<string | null>(null);
 
   if (!grant) {
     return (
@@ -116,11 +119,12 @@ export function AuthorityGrantProposalCard({
           style={{
             fontSize: "var(--kt-fs-10)",
             fontWeight: "var(--kt-fw-semi)",
-            padding: "2px 6px",
+            padding: "var(--kt-s-1) var(--kt-s-2)",
             borderRadius: "var(--kt-radius-1)",
             background: "var(--kt-accent-soft)",
             color: "var(--kt-accent)",
             textTransform: "uppercase",
+            letterSpacing: "var(--kt-tr-eyebrow)",
           }}
         >
           Permission
@@ -157,7 +161,7 @@ export function AuthorityGrantProposalCard({
             fontSize: "var(--kt-fs-11)",
             color: "var(--kt-fg-3)",
             textTransform: "uppercase",
-            letterSpacing: "0.04em",
+            letterSpacing: "var(--kt-tr-eyebrow)",
             marginBottom: "var(--kt-s-2)",
           }}
         >
@@ -200,7 +204,7 @@ export function AuthorityGrantProposalCard({
               fontSize: "var(--kt-fs-11)",
               color: "var(--kt-fg-3)",
               textTransform: "uppercase",
-              letterSpacing: "0.04em",
+              letterSpacing: "var(--kt-tr-eyebrow)",
               marginBottom: "var(--kt-s-2)",
             }}
           >
@@ -302,6 +306,59 @@ export function AuthorityGrantProposalCard({
         </details>
       )}
 
+      {/* Edit form */}
+      {editOpen && (
+        <div
+          style={{
+            marginBottom: "var(--kt-s-3)",
+            display: "flex",
+            flexDirection: "column",
+            gap: "var(--kt-s-2)",
+          }}
+        >
+          <label
+            htmlFor={`edit-grant-${approval.id}`}
+            style={{ fontSize: "var(--kt-fs-12)", color: "var(--kt-fg-2)" }}
+          >
+            Edit the proposed permission below, then click Save & approve. The
+            successor lands as a new proposal in your queue.
+          </label>
+          <textarea
+            id={`edit-grant-${approval.id}`}
+            value={editJson}
+            onChange={(e) => {
+              setEditJson(e.target.value);
+              setEditParseError(null);
+            }}
+            rows={14}
+            spellCheck={false}
+            style={{
+              padding: "var(--kt-s-2)",
+              borderRadius: "var(--kt-radius-1)",
+              border: editParseError
+                ? "1px solid var(--kt-danger)"
+                : "1px solid var(--kt-border-2)",
+              background: "var(--kt-bg-base)",
+              color: "var(--kt-fg-1)",
+              fontFamily: "var(--kt-ff-mono)",
+              fontSize: "var(--kt-fs-12)",
+              resize: "vertical",
+              minHeight: "var(--kt-s-8)",
+            }}
+          />
+          {editParseError && (
+            <div
+              style={{
+                fontSize: "var(--kt-fs-11)",
+                color: "var(--kt-danger)",
+              }}
+            >
+              {editParseError}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Reject form */}
       {rejectOpen && (
         <div
@@ -344,7 +401,57 @@ export function AuthorityGrantProposalCard({
           justifyContent: "flex-end",
         }}
       >
-        {!rejectOpen ? (
+        {editOpen ? (
+          <>
+            <button
+              type="button"
+              onClick={() => {
+                setEditOpen(false);
+                setEditJson("");
+                setEditParseError(null);
+              }}
+              style={{
+                padding: "var(--kt-s-2) var(--kt-s-3)",
+                borderRadius: "var(--kt-radius-1)",
+                border: "1px solid var(--kt-border-2)",
+                background: "var(--kt-bg-base)",
+                color: "var(--kt-fg-2)",
+                cursor: "pointer",
+                fontSize: "var(--kt-fs-12)",
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                let parsed: GrantProposalEnvelopeMember["grant"];
+                try {
+                  parsed = JSON.parse(editJson) as GrantProposalEnvelopeMember["grant"];
+                } catch (err) {
+                  setEditParseError(
+                    `Cannot parse JSON: ${(err as Error)?.message ?? "unknown"}`,
+                  );
+                  return;
+                }
+                onApprove(approval.id, { grant: parsed });
+                setEditOpen(false);
+              }}
+              style={{
+                padding: "var(--kt-s-2) var(--kt-s-3)",
+                borderRadius: "var(--kt-radius-1)",
+                border: "1px solid var(--kt-accent)",
+                background: "var(--kt-accent)",
+                color: "var(--kt-bg-base)",
+                cursor: "pointer",
+                fontSize: "var(--kt-fs-12)",
+                fontWeight: "var(--kt-fw-semi)",
+              }}
+            >
+              Save & approve
+            </button>
+          </>
+        ) : !rejectOpen ? (
           <>
             <button
               type="button"
@@ -360,6 +467,26 @@ export function AuthorityGrantProposalCard({
               }}
             >
               Reject
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setEditJson(JSON.stringify(grant, null, 2));
+                setEditParseError(null);
+                setEditOpen(true);
+              }}
+              style={{
+                padding: "var(--kt-s-2) var(--kt-s-3)",
+                borderRadius: "var(--kt-radius-1)",
+                border: "1px solid var(--kt-border-2)",
+                background: "var(--kt-bg-base)",
+                color: "var(--kt-fg-2)",
+                cursor: "pointer",
+                fontSize: "var(--kt-fs-12)",
+              }}
+              aria-label="Edit permission before approving"
+            >
+              Edit
             </button>
             <button
               type="button"

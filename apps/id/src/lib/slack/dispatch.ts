@@ -23,6 +23,12 @@ import "server-only";
 import { ToolError } from "@kinetiks/tools";
 import { serverEnv } from "@kinetiks/lib/env";
 
+import {
+  classifyHttpStatus,
+  fetchWithTimeout,
+  parseJsonOrToolError,
+} from "@/lib/dispatchers/fetch-with-timeout";
+
 export interface SlackSendInput {
   /** Channel id OR user id (Slack accepts user_id for DM-as-channel). */
   channel: string;
@@ -52,9 +58,9 @@ export async function dispatchSlackMessage(
     );
   }
 
-  let response: Response;
-  try {
-    response = await fetch(SLACK_POST_URL, {
+  const response = await fetchWithTimeout({
+    url: SLACK_POST_URL,
+    init: {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -65,35 +71,41 @@ export async function dispatchSlackMessage(
         text: input.body,
         ...(input.thread_ts ? { thread_ts: input.thread_ts } : {}),
       }),
-    });
-  } catch (err) {
-    throw new ToolError(
-      "transient",
-      `Slack chat.postMessage network failure: ${(err as Error)?.message ?? "unknown"}`,
-      { context: { tool: "send_slack_notification", channel: input.channel } },
-    );
-  }
+    },
+    tool: "send_slack_notification",
+    context: { channel: input.channel },
+  });
 
   if (!response.ok) {
+    // Classify: 429 (rate limited) and 5xx are transient; other 4xx
+    // are permanent (auth, bad channel, etc.). Surface Retry-After
+    // when Slack provides it so callers can honor the cool-down.
+    const retryAfter = response.headers.get("retry-after") ?? "";
     throw new ToolError(
-      response.status >= 500 ? "transient" : "permanent",
+      classifyHttpStatus(response.status),
       `Slack chat.postMessage returned HTTP ${response.status}`,
       {
         context: {
           tool: "send_slack_notification",
           channel: input.channel,
           http_status: response.status,
+          ...(retryAfter ? { retry_after: retryAfter } : {}),
         },
       },
     );
   }
 
-  const data = (await response.json()) as {
+  // Guard against non-JSON success bodies (rare but possible during
+  // upstream outages); parseJsonOrToolError throws the right shape.
+  const data = await parseJsonOrToolError<{
     ok: boolean;
     ts?: string;
     channel?: string;
     error?: string;
-  };
+  }>(response, {
+    tool: "send_slack_notification",
+    context: { channel: input.channel },
+  });
 
   if (!data.ok) {
     // Slack `error` strings are well-known tags (`channel_not_found`,

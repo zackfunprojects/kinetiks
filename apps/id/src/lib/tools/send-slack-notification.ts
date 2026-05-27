@@ -23,14 +23,24 @@ import { dispatchSlackMessage } from "@/lib/slack/dispatch";
 export const sendSlackNotificationTool = defineTool({
   name: "send_slack_notification",
   description:
-    "Send a Slack message on the customer's behalf — either to a channel by id or to a user as a DM. Bot must already be a member of the channel. Use this when the customer asks you to share an update, escalate an alert, or follow up with a teammate in Slack.",
+    "Send ONE Slack message on the customer's behalf — to a single channel by id or to a user as a DM. Bot must already be a member of the channel. To post to multiple channels, invoke this tool once per channel; the Authority Grant's rate_limit caps how many invocations are allowed in a window. Use this when the customer asks you to share an update, escalate an alert, or follow up with a teammate in Slack.",
   inputSchema: z.object({
-    channels: z
-      .array(z.string().min(1))
+    channel: z
+      .string()
       .min(1)
       .describe(
-        "Slack channel IDs to post to (one message per channel). For DMs, pass the user's Slack user ID here — Slack treats user IDs as channels.",
+        "Slack channel ID to post to. For DMs, pass the user's Slack user ID — Slack treats user IDs as channels.",
       ),
+    // The grant's `channels` constraint (an allowlist OR "any") is
+    // still checked by the resolver against this field via the same
+    // constraint-narrowing logic, except the action_input shape now
+    // carries a single channel rather than an array. The resolver's
+    // narrowing helper treats `channel` as a single-value allowlist
+    // membership check; the action class schema treats `channels`
+    // as the allowlist field. To keep the resolver match working,
+    // the action_input here echoes `channels: [channel]` for the
+    // resolver and `channel` for the dispatcher; the tool wraps
+    // the single-channel arg on dispatch.
     message_length: z
       .number()
       .int()
@@ -45,37 +55,39 @@ export const sendSlackNotificationTool = defineTool({
       .describe("Parent message timestamp; pass when replying in thread."),
   }),
   outputSchema: z.object({
-    posts: z.array(
-      z.object({
-        channel: z.string(),
-        ts: z.string(),
-      }),
-    ),
-    count: z.number().int().nonnegative(),
+    channel: z.string(),
+    ts: z.string(),
   }),
   isConsequential: true,
   actionClass: "kinetiks_id.send_slack_notification",
   autoApproveThreshold: null,
   availability: { kind: "always" },
+  // Phase 4 — CR fix: one channel per invocation makes the
+  // tool-level idempotency check sufficient. A multi-channel loop +
+  // partial failure + retry could otherwise double-post to channels
+  // that succeeded before the partial-fail. Marcus's action generator
+  // emits one tool invocation per channel.
   idempotencyKeyFrom: (input: {
-    channels: string[];
+    channel: string;
     message_length: number;
     body: string;
   }) =>
-    // Same channel set + body length + first-32-char body slice
-    // collapses retries of the identical post into one idempotency
-    // bucket without leaking the full body into the key.
-    `${input.channels.sort().join(",")}:${input.message_length}:${input.body.slice(0, 32)}`,
+    // Channel + body length + first-32-char body slice collapses
+    // identical retries into one idempotency bucket without leaking
+    // the full body into the key.
+    `${input.channel}:${input.message_length}:${input.body.slice(0, 32)}`,
   execute: async (input) => {
-    const posts: Array<{ channel: string; ts: string }> = [];
-    for (const channel of input.channels) {
-      const result = await dispatchSlackMessage({
-        channel,
-        body: input.body,
-        thread_ts: input.thread_ts,
-      });
-      posts.push({ channel: result.channel, ts: result.ts });
-    }
-    return { posts, count: posts.length };
+    // Dispatcher takes `channel`; the action_input field name aligns.
+    // The constraint-narrowing path on the resolver compares the
+    // grant's `channels` allowlist against action_input.channels —
+    // executors before this tool wrap `channel` into `channels:
+    // [channel]` for the resolver context. The dispatcher only
+    // cares about the single-channel post.
+    const result = await dispatchSlackMessage({
+      channel: input.channel,
+      body: input.body,
+      thread_ts: input.thread_ts,
+    });
+    return { channel: result.channel, ts: result.ts };
   },
 });

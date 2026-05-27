@@ -34,6 +34,11 @@ import { serverEnv } from "@kinetiks/lib/env";
 
 import { decryptCredentials } from "@/lib/connections/encryption";
 import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  classifyHttpStatus,
+  fetchWithTimeout,
+  parseJsonOrToolError,
+} from "@/lib/dispatchers/fetch-with-timeout";
 
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 
@@ -136,38 +141,51 @@ export async function getGoogleWorkspaceAccessToken(args: {
     grant_type: "refresh_token",
     refresh_token: creds.refresh_token,
   });
-  let response: Response;
-  try {
-    response = await fetch(GOOGLE_TOKEN_URL, {
+  const response = await fetchWithTimeout({
+    url: GOOGLE_TOKEN_URL,
+    init: {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: body.toString(),
-    });
-  } catch (err) {
-    throw new ToolError(
-      "transient",
-      `Google OAuth token refresh network failure: ${(err as Error)?.message ?? "unknown"}`,
-      { context: { account_id: args.account_id } },
-    );
-  }
-  const json = (await response.json()) as
+    },
+    tool: "google_workspace_token_refresh",
+    context: { account_id: args.account_id },
+  });
+
+  const json = await parseJsonOrToolError<
     | {
         access_token: string;
         token_type: string;
         expires_in: number;
       }
-    | { error: string; error_description?: string };
+    | { error: string; error_description?: string }
+  >(response, {
+    tool: "google_workspace_token_refresh",
+    context: { account_id: args.account_id },
+  });
+
   if (!response.ok || "error" in json) {
     const code = "error" in json ? json.error : `http_${response.status}`;
-    // invalid_grant means the refresh_token is no longer valid; tell
-    // the customer to reconnect.
+    // Classification:
+    //   - invalid_grant → unavailable (customer revoked Google access; reconnect needed)
+    //   - HTTP 5xx / 429 → transient (Google had a hiccup; retry)
+    //   - everything else → permanent (misconfig, scope issue, etc.)
+    let errorClass: "unavailable" | "transient" | "permanent";
+    if (code === "invalid_grant") {
+      errorClass = "unavailable";
+    } else if (classifyHttpStatus(response.status) === "transient") {
+      errorClass = "transient";
+    } else {
+      errorClass = "permanent";
+    }
     throw new ToolError(
-      code === "invalid_grant" ? "unavailable" : "permanent",
+      errorClass,
       `Google OAuth refresh failed (${code}). ${"error_description" in json && json.error_description ? json.error_description : "Ask the customer to reconnect Google Workspace."}`,
       {
         context: {
           account_id: args.account_id,
           oauth_error: code,
+          http_status: response.status,
         },
       },
     );

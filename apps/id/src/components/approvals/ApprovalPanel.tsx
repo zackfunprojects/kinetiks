@@ -104,10 +104,15 @@ export function ApprovalPanel({ systemName }: ApprovalPanelProps) {
    * AuthorityGrantProposalCard (the card captures the reason itself
    * so no RejectModal is opened). Mirrors handleReject without the
    * modal-state plumbing.
+   *
+   * Gates local-state pruning on res.ok so a 4xx/5xx response does
+   * not optimistically hide the approval — the customer sees it
+   * still in the queue until Realtime catches up, which surfaces the
+   * failure rather than silently swallowing it.
    */
   const rejectWithReason = async (id: string, reason: string) => {
     try {
-      await fetch("/api/approvals/action", {
+      const res = await fetch("/api/approvals/action", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -117,9 +122,20 @@ export function ApprovalPanel({ systemName }: ApprovalPanelProps) {
           rejection_reason: reason,
         }),
       });
+      if (!res.ok) {
+        // eslint-disable-next-line no-console
+        console.error(
+          `[ApprovalPanel] inline reject failed for ${id}: HTTP ${res.status}`,
+        );
+        return; // leave the approval in local state; user can retry
+      }
       setApprovals((prev) => prev.filter((a) => a.id !== id));
-    } catch {
-      // Will be refreshed by Realtime
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error(
+        `[ApprovalPanel] inline reject network error for ${id}:`,
+        err,
+      );
     }
   };
 

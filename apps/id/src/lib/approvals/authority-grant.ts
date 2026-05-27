@@ -47,8 +47,14 @@ export interface AuthorityGrantApproveInput {
 
 export interface AuthorityGrantApproveResult {
   outcome: "approved_as_proposed" | "approved_with_edits";
-  /** The grant that's now active (either the original or the new one). */
-  active_grant_id: string;
+  /**
+   * The grant that is now `active` as a direct result of this call.
+   * - `approved_as_proposed`: the original grant_id (transitioned
+   *   `proposed → active`).
+   * - `approved_with_edits`: `null`. The successor is `proposed`
+   *   pending a second customer approval; nothing is active yet.
+   */
+  active_grant_id: string | null;
   /** Set on Edit & Approve: the new proposed grant awaiting approval. */
   successor_grant_id?: string;
   /** Set on Edit & Approve: the matching approval row id. */
@@ -88,15 +94,26 @@ export async function applyAuthorityGrantApprove(
     actor: { kind: "user", userId: approval.account_id, accountId: approval.account_id },
   });
   const nowIso = new Date().toISOString();
-  const { error: updateErr } = await admin
+  const { data: activated, error: updateErr } = await admin
     .from("kinetiks_authority_grants")
     .update({ status: "active", granted_at: nowIso })
     .eq("id", grant_id)
     .eq("account_id", approval.account_id)
-    .eq("status", "proposed");
+    .eq("status", "proposed")
+    .select("id")
+    .maybeSingle();
   if (updateErr) {
     throw new Error(
       `[authority-grant approval] failed to activate grant ${grant_id}: ${updateErr.message}`,
+    );
+  }
+  if (!activated) {
+    // No row matched (id+account+status='proposed'). Either the grant
+    // was already actioned by a concurrent customer (race) or the
+    // status had drifted (stale approval). Throw rather than emit a
+    // false-positive ledger entry.
+    throw new Error(
+      `[authority-grant approval] no proposed grant matched for activation: ${grant_id}`,
     );
   }
   await writeLedger(admin, {
@@ -130,7 +147,7 @@ export async function applyAuthorityGrantReject(
   });
   const nowIso = new Date().toISOString();
   const reason: AuthorityRevocationReason = "customer_revoked";
-  const { error: updateErr } = await admin
+  const { data: revoked, error: updateErr } = await admin
     .from("kinetiks_authority_grants")
     .update({
       status: "revoked",
@@ -139,10 +156,17 @@ export async function applyAuthorityGrantReject(
     })
     .eq("id", grant_id)
     .eq("account_id", approval.account_id)
-    .eq("status", "proposed");
+    .eq("status", "proposed")
+    .select("id")
+    .maybeSingle();
   if (updateErr) {
     throw new Error(
       `[authority-grant approval] failed to revoke grant ${grant_id}: ${updateErr.message}`,
+    );
+  }
+  if (!revoked) {
+    throw new Error(
+      `[authority-grant approval] no proposed grant matched for revocation: ${grant_id}`,
     );
   }
   await writeLedger(admin, {
@@ -173,7 +197,17 @@ interface EditAndApproveArgs {
 async function applyAuthorityGrantEditAndApprove(
   args: EditAndApproveArgs,
 ): Promise<AuthorityGrantApproveResult> {
-  // Revoke the original with reason customer_edited.
+  // ATOMICITY: insert the successor proposal FIRST, then revoke the
+  // original. If the RPC fails, the original is preserved (the
+  // customer can re-edit or reject). If the revoke fails after the
+  // successor lands, BOTH show up in the customer's queue — odd, but
+  // recoverable (the customer rejects whichever they don't want). A
+  // single all-or-nothing transactional RPC would be cleaner; track
+  // as a follow-up against the persist RPC if pairs-of-orphans become
+  // a real failure mode.
+  //
+  // Check transitions before any write so the state machine vetoes
+  // any obviously-invalid attempt early.
   assertTransition({
     entity: "kinetiks_authority_grants",
     from: "proposed",
@@ -186,21 +220,6 @@ async function applyAuthorityGrantEditAndApprove(
   });
   const nowIso = new Date().toISOString();
   const reason: AuthorityRevocationReason = "customer_edited";
-  const { error: revokeErr } = await args.admin
-    .from("kinetiks_authority_grants")
-    .update({
-      status: "revoked",
-      revoked_at: nowIso,
-      revocation_reason: reason,
-    })
-    .eq("id", args.grant_id)
-    .eq("account_id", args.approval.account_id)
-    .eq("status", "proposed");
-  if (revokeErr) {
-    throw new Error(
-      `[authority-grant approval] failed to revoke original grant ${args.grant_id} for edit-and-approve: ${revokeErr.message}`,
-    );
-  }
 
   // Read the original approval's preview to pull the original
   // reasoning + evidence so the successor proposal carries them
@@ -253,6 +272,7 @@ async function applyAuthorityGrantEditAndApprove(
       evidence: original_evidence,
     },
   ];
+  // 1. Insert successor proposal via RPC FIRST (atomicity-by-ordering).
   const { data, error: rpcErr } = await args.admin.rpc(
     "propose_authority_grants",
     {
@@ -274,7 +294,36 @@ async function applyAuthorityGrantEditAndApprove(
   }
   const successor_approval_id = (data as Array<{ approval_id: string }>)[0].approval_id;
 
-  // Ledger: revoked event + a narrowed marker pointing at the successor.
+  // 2. Revoke original. If this fails the customer ends up with two
+  //    proposed grants in their queue; the audit trail in the ledger
+  //    explains why (the narrowed entry below references the
+  //    successor). Log the revoke failure but do not undo the
+  //    successor RPC — the customer's intent (edit-and-approve)
+  //    landed; we just have an orphan original they can reject.
+  const { data: revoked, error: revokeErr } = await args.admin
+    .from("kinetiks_authority_grants")
+    .update({
+      status: "revoked",
+      revoked_at: nowIso,
+      revocation_reason: reason,
+    })
+    .eq("id", args.grant_id)
+    .eq("account_id", args.approval.account_id)
+    .eq("status", "proposed")
+    .select("id")
+    .maybeSingle();
+  if (revokeErr) {
+    throw new Error(
+      `[authority-grant approval] successor proposed (${successor_grant_id}) but failed to revoke original grant ${args.grant_id}: ${revokeErr.message}`,
+    );
+  }
+  if (!revoked) {
+    throw new Error(
+      `[authority-grant approval] successor proposed (${successor_grant_id}) but no proposed original grant matched for revocation: ${args.grant_id}`,
+    );
+  }
+
+  // 3. Ledger: revoked event + a narrowed marker pointing at the successor.
   await writeLedger(args.admin, {
     account_id: args.approval.account_id,
     event_type: "authority_grant_narrowed",
@@ -296,10 +345,11 @@ async function applyAuthorityGrantEditAndApprove(
   });
 
   return {
-    // Note: the successor is `proposed`, not yet active. The customer
-    // must re-approve via the new authority_grant_proposal row.
     outcome: "approved_with_edits",
-    active_grant_id: successor_grant_id,
+    // Successor is `proposed`, not yet active — no grant is active
+    // as a direct result of this call. active_grant_id reports this
+    // honestly rather than misrepresenting the successor's status.
+    active_grant_id: null,
     successor_grant_id,
     successor_approval_id,
   };

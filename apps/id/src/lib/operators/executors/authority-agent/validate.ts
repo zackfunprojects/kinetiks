@@ -159,6 +159,25 @@ interface ParentSubsetArgs {
   parent: GrantProposalEnvelopeMember["grant"];
 }
 
+/**
+ * Convert a {count, window} rate limit to count-per-second so child
+ * vs parent comparisons stay meaningful across different windows.
+ * "Per minute / hour / day / week" are the only legal windows per the
+ * RateLimitConfig schema.
+ */
+function ratePerSecond(rate: {
+  count: number;
+  window: "minute" | "hour" | "day" | "week";
+}): number {
+  const secondsByWindow: Record<typeof rate.window, number> = {
+    minute: 60,
+    hour: 60 * 60,
+    day: 24 * 60 * 60,
+    week: 7 * 24 * 60 * 60,
+  };
+  return rate.count / secondsByWindow[rate.window];
+}
+
 function validateParentSubset(args: ParentSubsetArgs): string[] {
   const errors: string[] = [];
 
@@ -192,28 +211,47 @@ function validateParentSubset(args: ParentSubsetArgs): string[] {
         );
       }
     }
-    // Rate limit: child cannot loosen parent's rate.
-    if (cap.rate_limit && parentCap.rate_limit) {
-      if (
-        cap.rate_limit.window === parentCap.rate_limit.window &&
-        cap.rate_limit.count > parentCap.rate_limit.count
-      ) {
+    // Rate limit: child cannot loosen parent's rate. Compare via
+    // normalized (count per second) so a child using a different
+    // window (e.g. hour vs day) cannot accidentally exceed the
+    // parent's effective rate. If the parent has a rate_limit and
+    // the child omits one, the child is unbounded → loosening, flag.
+    if (parentCap.rate_limit) {
+      if (!cap.rate_limit) {
         errors.push(
-          `${path}.rate_limit (${cap.rate_limit.count}/${cap.rate_limit.window}) loosens parent (${parentCap.rate_limit.count}/${parentCap.rate_limit.window})`,
+          `${path}.rate_limit must be set when the parent declares one (${parentCap.rate_limit.count}/${parentCap.rate_limit.window})`,
         );
+      } else {
+        const childPerSec = ratePerSecond(cap.rate_limit);
+        const parentPerSec = ratePerSecond(parentCap.rate_limit);
+        if (childPerSec > parentPerSec) {
+          errors.push(
+            `${path}.rate_limit (${cap.rate_limit.count}/${cap.rate_limit.window}) exceeds parent's effective rate (${parentCap.rate_limit.count}/${parentCap.rate_limit.window})`,
+          );
+        }
       }
     }
     // LLM judgment budget override: child cannot exceed parent's
-    // override (if any).
-    if (
-      cap.llm_judgment_budget_override?.daily_usd !== undefined &&
-      parentCap.llm_judgment_budget_override?.daily_usd !== undefined &&
-      cap.llm_judgment_budget_override.daily_usd >
-        parentCap.llm_judgment_budget_override.daily_usd
-    ) {
-      errors.push(
-        `${path}.llm_judgment_budget_override.daily_usd exceeds parent override`,
-      );
+    // override on EITHER daily or monthly. If the parent declares an
+    // override and the child omits the matching period, that's a
+    // loosening (the child inherits the class-level cap, which may be
+    // higher than the parent's override).
+    const parentOverride = parentCap.llm_judgment_budget_override;
+    if (parentOverride) {
+      for (const period of ["daily_usd", "monthly_usd"] as const) {
+        const parentValue = parentOverride[period];
+        if (parentValue === undefined) continue;
+        const childValue = cap.llm_judgment_budget_override?.[period];
+        if (childValue === undefined) {
+          errors.push(
+            `${path}.llm_judgment_budget_override.${period} must be set when the parent declares one (${parentValue})`,
+          );
+        } else if (childValue > parentValue) {
+          errors.push(
+            `${path}.llm_judgment_budget_override.${period} (${childValue}) exceeds parent override (${parentValue})`,
+          );
+        }
+      }
     }
   }
 

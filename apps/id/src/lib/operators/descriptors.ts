@@ -214,7 +214,7 @@ const escalationTriggerInputSchema = z.object({
   condition: z.record(z.unknown()),
 });
 
-const proposedGrantPayloadSchema = z.object({
+export const proposedGrantPayloadSchema = z.object({
   scope_type: z.enum(["campaign", "workflow", "program", "standing"]),
   scope_id: z.string().nullable(),
   scope_description: z.string().min(1).max(200),

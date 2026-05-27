@@ -72,7 +72,9 @@ export const draftEmailTool = defineTool({
     subject: string;
     body: string;
   }) =>
-    `${input.to.sort().join(",")}:${input.subject.slice(0, 64)}:${input.body.length}`,
+    // [...input.to].sort() — copy first so the caller's recipient
+    // list isn't mutated as a hidden side effect.
+    `${[...input.to].sort().join(",")}:${input.subject.slice(0, 64)}:${input.body.length}`,
   execute: async (input, ctx) => {
     if (!ctx.accountId) {
       throw new Error("draft_email: ToolExecutionContext.accountId missing");

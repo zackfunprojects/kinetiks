@@ -25,6 +25,11 @@ import "server-only";
 import { ToolError } from "@kinetiks/tools";
 
 import { getGoogleWorkspaceAccessToken } from "@/lib/connections/google-workspace-token";
+import {
+  classifyHttpStatus,
+  fetchWithTimeout,
+  parseJsonOrToolError,
+} from "@/lib/dispatchers/fetch-with-timeout";
 
 const GMAIL_DRAFTS_URL = "https://gmail.googleapis.com/gmail/v1/users/me/drafts";
 
@@ -79,9 +84,9 @@ export async function draftEmailViaGoogle(
     .replace(/\//g, "_")
     .replace(/=+$/, "");
 
-  let response: Response;
-  try {
-    response = await fetch(GMAIL_DRAFTS_URL, {
+  const response = await fetchWithTimeout({
+    url: GMAIL_DRAFTS_URL,
+    init: {
       method: "POST",
       headers: {
         Authorization: `${token.token_type} ${token.access_token}`,
@@ -95,21 +100,14 @@ export async function draftEmailViaGoogle(
             : {}),
         },
       }),
-    });
-  } catch (err) {
-    throw new ToolError(
-      "transient",
-      `Gmail drafts.create network failure: ${(err as Error)?.message ?? "unknown"}`,
-      {
-        context: {
-          tool: "draft_email",
-          account_id: input.account_id,
-          to_count: input.to.length,
-          body_length: input.body.length,
-        },
-      },
-    );
-  }
+    },
+    tool: "draft_email",
+    context: {
+      account_id: input.account_id,
+      to_count: input.to.length,
+      body_length: input.body.length,
+    },
+  });
 
   if (!response.ok) {
     let detail = `HTTP ${response.status}`;
@@ -121,8 +119,9 @@ export async function draftEmailViaGoogle(
     } catch {
       // Body not JSON — keep the HTTP status as the detail.
     }
+    const retryAfter = response.headers.get("retry-after") ?? "";
     throw new ToolError(
-      response.status >= 500 ? "transient" : "permanent",
+      classifyHttpStatus(response.status),
       `Gmail drafts.create rejected: ${detail}`,
       {
         context: {
@@ -131,15 +130,22 @@ export async function draftEmailViaGoogle(
           to_count: input.to.length,
           body_length: input.body.length,
           http_status: response.status,
+          ...(retryAfter ? { retry_after: retryAfter } : {}),
         },
       },
     );
   }
 
-  const data = (await response.json()) as {
+  const data = await parseJsonOrToolError<{
     id?: string;
     message?: { id?: string; threadId?: string };
-  };
+  }>(response, {
+    tool: "draft_email",
+    context: {
+      account_id: input.account_id,
+      to_count: input.to.length,
+    },
+  });
   if (!data.id || !data.message?.id) {
     throw new ToolError(
       "permanent",

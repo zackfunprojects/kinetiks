@@ -19,13 +19,13 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { routeAskClaude } from "@kinetiks/ai";
+import { executeTool, getTool } from "@kinetiks/tools";
 import type { AuthorityRevocationReason } from "@kinetiks/types";
 
 import {
   AUTHORITY_AGENT_EVIDENCE_SYSTEM,
   buildAuthorityEvidenceUserPrompt,
 } from "@/lib/ai/prompts/authority-agent";
-import { listPatterns } from "@/lib/cortex/patterns/list";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export interface PatternReference {
@@ -112,25 +112,63 @@ export async function buildEvidenceBrief(
 // ─────────────────────────────────────────────
 
 async function fetchRelevantPatterns(
-  admin: SupabaseClient,
+  _admin: SupabaseClient,
   args: BuildEvidenceBriefArgs,
 ): Promise<PatternReference[]> {
-  // Read every pattern type kinetiks_id is allowed to consume. The
-  // wildcard sentinel on the operator descriptor (`required_patterns:
-  // ['*']`) maps to "read every type whose read_apps includes
-  // kinetiks_id" — listPatterns' caller_app filter does the work.
-  const page = await listPatterns(admin as never, {
-    account_id: args.account_id,
-    caller_app: args.caller_app ?? "kinetiks_id",
-    minimum_confidence: 0.4,
-    status_in: ["validated", "emerging"],
-    exclude_user_suppressed: true,
-    limit: DEFAULT_PATTERN_LIMIT,
-  });
-  return page.patterns.map((p) => ({
+  // Per CLAUDE.md: ALL agent pattern reads go through the query_patterns
+  // tool. The tool enforces the Pattern Type Registry's read_apps
+  // allowlist + projects user-suppressed confidence to zero at the
+  // boundary — centralizing the policy at the tool layer keeps every
+  // agent honest. The wildcard sentinel on the operator descriptor
+  // (required_patterns: ["*"]) authorizes the agent to consume every
+  // type whose read_apps includes its caller_app.
+  const callerApp = args.caller_app ?? "kinetiks_id";
+  const tool = getTool("query_patterns");
+  if (!tool) {
+    throw new Error(
+      "[authority-agent/evidence] query_patterns tool is not registered; cannot build pattern evidence",
+    );
+  }
+  const result = (await executeTool(
+    tool,
+    {
+      minimum_confidence: 0.4,
+      status_in: ["validated", "emerging"],
+      exclude_user_suppressed: true,
+      limit: DEFAULT_PATTERN_LIMIT,
+    },
+    {
+      accountId: args.account_id,
+      userId: null,
+      teamScopeId: null,
+      invokedByAgent: "authority_agent",
+      correlationId: null,
+      threadId: null,
+      agentRunId: `authority-agent:${args.account_id}`,
+      parentAiCallId: null,
+      proposalId: null,
+      approvalId: null,
+      grantId: null,
+      patternId: null,
+      metadata: { caller_app: callerApp },
+      signal: undefined,
+    },
+  )) as {
+    patterns: Array<{
+      id: string;
+      pattern_type: string;
+      lift_ratio: number | null;
+      outcome_metric: string;
+      outcome_value: number;
+      sample_size: number;
+      confidence_score: number;
+    }>;
+    total: number;
+  };
+  return result.patterns.map((p) => ({
     pattern_id: p.id,
     pattern_type: p.pattern_type,
-    lift_ratio: p.lift_ratio ?? null,
+    lift_ratio: p.lift_ratio,
     summary: `${p.outcome_metric}=${p.outcome_value.toFixed(2)} (n=${p.sample_size}, conf=${p.confidence_score.toFixed(2)})`,
   }));
 }

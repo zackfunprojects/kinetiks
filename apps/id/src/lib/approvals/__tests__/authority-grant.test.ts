@@ -67,32 +67,59 @@ function makeAdmin(initialGrants: StubGrant[]) {
 
 function makeGrantQuery(grants: Map<string, StubGrant>) {
   // A tiny chain that supports:
-  //   .update({...}).eq("id", x).eq("account_id", y).eq("status", z)
+  //   .update({...}).eq(...).eq(...).eq(...).select("id").maybeSingle()
+  //   .update({...}).eq(...).eq(...).eq(...)  (auto-executes on the 3rd .eq)
   interface Pending {
     type: "update";
     updates: Partial<StubGrant>;
     filters: Array<{ col: keyof StubGrant; val: string }>;
+    matched: StubGrant | null;
   }
-  const pending: Pending = { type: "update", updates: {}, filters: [] };
-  const chain = {
+  const pending: Pending = {
+    type: "update",
+    updates: {},
+    filters: [],
+    matched: null,
+  };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const chain: any = {
     update(u: Partial<StubGrant>) {
       pending.updates = u;
       return chain;
     },
     eq(col: keyof StubGrant, val: string) {
       pending.filters.push({ col, val });
-      // Auto-execute on the third filter (id + account_id + status).
       if (pending.filters.length >= 3) {
         const target = pending.filters.find((f) => f.col === "id");
         if (target) {
           const row = grants.get(target.val);
           if (row && pending.filters.every((f) => row[f.col] === f.val)) {
-            grants.set(target.val, { ...row, ...pending.updates });
+            const updated = { ...row, ...pending.updates };
+            grants.set(target.val, updated);
+            pending.matched = updated;
           }
         }
-        return Promise.resolve({ error: null });
       }
       return chain;
+    },
+    select(_cols: string) {
+      return chain;
+    },
+    maybeSingle() {
+      return Promise.resolve({
+        data: pending.matched ? { id: pending.matched.id } : null,
+        error: null,
+      });
+    },
+    // When the caller does not invoke .select().maybeSingle() — they
+    // just await the chain after the third .eq — we need to resolve
+    // to {error: null} like Supabase does for a fire-and-forget
+    // update. Implement by making the chain thenable.
+    then(
+      resolve: (value: { error: null }) => unknown,
+      _reject?: (reason: unknown) => unknown,
+    ) {
+      return Promise.resolve({ error: null }).then(resolve);
     },
   };
   return chain;
@@ -206,29 +233,27 @@ describe("applyAuthorityGrantApprove (no edits)", () => {
     });
   });
 
-  it("denies the state-machine transition for an invalid source state", async () => {
-    const { admin } = makeAdmin([
+  it("rejects when no proposed row matches (stale or already-actioned approval)", async () => {
+    // Stub returns an already-active grant. The matched-row check
+    // (added in CR fix) requires status='proposed' for the UPDATE to
+    // match; with no match, the handler throws rather than silently
+    // emit a ledger entry for a non-transition.
+    const { admin, ledger } = makeAdmin([
       {
         id: GRANT_ID,
         account_id: ACCOUNT_ID,
-        status: "active", // not proposed
+        status: "active",
         granted_at: new Date().toISOString(),
         revoked_at: null,
         revocation_reason: null,
       },
     ]);
     const approval = makeApproval(GRANT_ID, ACCOUNT_ID);
-    // assertTransition gets called with from='proposed' (hardcoded in
-    // the handler since the handler only services proposed grants).
-    // The state machine rejects active→active so this surfaces.
-    // Actually the handler hardcodes from='proposed' regardless of the
-    // actual row state — that's the contract: only proposed approvals
-    // reach this handler. The state-machine helper would only complain
-    // if proposed→active itself was illegal. So the success path here
-    // depends on the row's state, which our stub respects.
     await expect(
       applyAuthorityGrantApprove(admin as never, approval, { edits: null }),
-    ).resolves.toBeDefined();
+    ).rejects.toThrow(/no proposed grant matched/);
+    // No lifecycle ledger entry should have been emitted.
+    expect(ledger.filter((l) => l.event_type === "authority_grant_approved")).toHaveLength(0);
   });
 });
 
