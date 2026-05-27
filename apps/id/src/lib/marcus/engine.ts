@@ -18,10 +18,13 @@ import { loadInsightsForBrief } from "@/lib/oracle/insights/reader";
 import { loadPatternsForBrief } from "./patterns-for-brief";
 import { stampDeliveredFromResponse } from "@/lib/oracle/insights/delivery";
 import {
+  closeConnectionEvidenceObservation,
   closeMarcusTurnObservationForThread,
+  recordConnectionEvidenceObservation,
   recordInsightDeliveryObservation,
   recordMarcusTurnObservation,
 } from "@/lib/patterns/emit-internal";
+import { getTool } from "@kinetiks/tools";
 import { buildPersonaPrompt } from "./prompts/marcus-persona";
 import { generateActions } from "./action-generator";
 import { assembleResponse } from "./response-assembler";
@@ -186,9 +189,48 @@ export async function processMarcusMessage(
     agentRun: run,
     haikuCaller: haikuFor("marcus.tool_decision"),
   });
+
+  // Phase 1.7.1 — open a kinetiks_id.connection_value_per_source
+  // observation when the invoked tool surfaces evidence from a
+  // connection-backed provider. Awaited so the close below finds the
+  // row; the underlying record helper is itself try/catch-wrapped and
+  // returns silently on failure.
+  let connectionEvidenceRequestId: string | null = null;
+  if (observation && observation.tool_name) {
+    const invokedTool = getTool(observation.tool_name);
+    if (invokedTool?.connection_provider) {
+      connectionEvidenceRequestId = crypto.randomUUID();
+      await recordConnectionEvidenceObservation(
+        {
+          account_id: accountId,
+          provider: invokedTool.connection_provider,
+          layer: invokedTool.cortex_layer ?? "none",
+          query_class_hint: invokedTool.name,
+          request_id: connectionEvidenceRequestId,
+        },
+        admin,
+      );
+    }
+  }
+
   const augmentedBriefText = observation
     ? formatBriefForSonnet(brief, toolInventory, observation)
     : briefText;
+
+  // Phase 1.7.1 — brief inclusion is the deterministic outcome=1 signal
+  // for connection_value_per_source. The tool result has been rendered
+  // into the prompt above; by definition the data fed into Sonnet's
+  // reasoning context. Fire-and-forget; never blocks the response.
+  if (connectionEvidenceRequestId) {
+    closeConnectionEvidenceObservation(
+      {
+        account_id: accountId,
+        request_id: connectionEvidenceRequestId,
+        outcome_recorded_via: "marcus_brief_inclusion",
+      },
+      admin,
+    ).catch(() => undefined);
+  }
 
   // 8. Response generation (Sonnet) - short persona prompt + brief adjacent to question
   const systemPrompt = buildPersonaPrompt("Marcus");
@@ -443,9 +485,43 @@ export async function streamMarcusMessage(
     agentRun: run,
     haikuCaller: haikuFor("marcus.tool_decision"),
   });
+
+  // Phase 1.7.1 — open + close connection_value_per_source observation
+  // for tools that surface evidence from a connection-backed provider.
+  // Mirror of processMarcusMessage above; brief inclusion is the
+  // deterministic outcome=1 signal.
+  let streamConnectionEvidenceRequestId: string | null = null;
+  if (observation && observation.tool_name) {
+    const invokedTool = getTool(observation.tool_name);
+    if (invokedTool?.connection_provider) {
+      streamConnectionEvidenceRequestId = crypto.randomUUID();
+      await recordConnectionEvidenceObservation(
+        {
+          account_id: accountId,
+          provider: invokedTool.connection_provider,
+          layer: invokedTool.cortex_layer ?? "none",
+          query_class_hint: invokedTool.name,
+          request_id: streamConnectionEvidenceRequestId,
+        },
+        admin,
+      );
+    }
+  }
+
   const augmentedBriefText = observation
     ? formatBriefForSonnet(brief, toolInventory, observation)
     : briefText;
+
+  if (streamConnectionEvidenceRequestId) {
+    closeConnectionEvidenceObservation(
+      {
+        account_id: accountId,
+        request_id: streamConnectionEvidenceRequestId,
+        outcome_recorded_via: "marcus_brief_inclusion",
+      },
+      admin,
+    ).catch(() => undefined);
+  }
 
   // 8. Build messages with brief adjacent to question
   const systemPrompt = buildPersonaPrompt("Marcus");

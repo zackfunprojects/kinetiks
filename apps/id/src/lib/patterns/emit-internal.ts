@@ -8,7 +8,9 @@
  * Three of the four are deferred:
  *   - recordMarcusTurnObservation / closeMarcusTurnObservationForThread
  *   - recordInsightDeliveryObservation
- *   - recordConnectionEvidenceObservation
+ *   - recordConnectionEvidenceObservation /
+ *     closeConnectionEvidenceObservation (exact request_id match) /
+ *     closeMostRecentConnectionEvidenceForProvider (fuzzy provider match)
  *
  * One is synchronous (outcome known at emission time):
  *   - emitOnboardingQuestionValue
@@ -303,8 +305,30 @@ export async function emitOnboardingQuestionValue(
 }
 
 // ─────────────────────────────────────────────
-// 4. Connection value per source (full stub)
+// 4. Connection value per source
 // ─────────────────────────────────────────────
+//
+// Phase 1.7.1 — open/close contract for connection-evidence usefulness.
+//
+// Open (record):
+//   The Marcus tool-decision path opens an observation after a
+//   successful invocation of any tool whose ToolDescriptor declares a
+//   `connection_provider`. The `request_id` is generated at dispatch
+//   and is the observation_key.
+//
+// Close (outcome=1) — two paths:
+//   1. `closeConnectionEvidenceObservation(request_id, ...)` — exact
+//      match by request_id. Marcus engine fires this when the tool
+//      observation is rendered into the evidence brief. The brief
+//      inclusion is the deterministic event: the data fed into Sonnet's
+//      reasoning context, by definition.
+//   2. `closeMostRecentConnectionEvidenceForProvider(provider, ...)` —
+//      fuzzy match by provider (and account). Oracle fires this when
+//      an insight is written whose `source_app` matches a connection
+//      provider with a recent open observation. Pattern mirrors
+//      `closeMarcusTurnObservationForThread` above.
+//
+// Expired close (outcome=0): the archivist's deferred sweep, unchanged.
 
 export interface ConnectionEvidenceObservationInput {
   account_id: string;
@@ -315,11 +339,16 @@ export interface ConnectionEvidenceObservationInput {
   request_id: string;
 }
 
+/** Diagnostic marker for which close path fired. Telemetry only. */
+export type ConnectionEvidenceCloseVia =
+  | "marcus_brief_inclusion"
+  | "oracle_insight_citation";
+
 /**
- * STUB — records a pending observation. There is no "did Marcus/Oracle
- * use this evidence" close signal yet, so every observation closes as
- * expired with outcome=0 via the archivist sweep. Once the consumption
- * signal lands, add the close at the right hook and remove this note.
+ * Open a pending observation against
+ * `kinetiks_id.connection_value_per_source`. Best-effort: errors are
+ * captured via Sentry but never bubble — pattern emission must not
+ * block the user-facing tool call.
  */
 export async function recordConnectionEvidenceObservation(
   input: ConnectionEvidenceObservationInput,
@@ -331,7 +360,7 @@ export async function recordConnectionEvidenceObservation(
       pattern_type: "kinetiks_id.connection_value_per_source",
       dimensions: {
         provider: input.provider,
-        layer: input.layer,
+        layer_touched: input.layer,
         query_class: input.query_class_hint,
       },
       observation_key: input.request_id,
@@ -344,5 +373,112 @@ export async function recordConnectionEvidenceObservation(
       provider: input.provider,
       request_id: input.request_id,
     });
+  }
+}
+
+/**
+ * Close a pending observation by exact `request_id` match with
+ * outcome=1. Idempotent: a missing pending row returns silently (the
+ * archivist sweep may have already expired it, or another close path
+ * won the race).
+ */
+export async function closeConnectionEvidenceObservation(
+  args: {
+    account_id: string;
+    request_id: string;
+    /** Telemetry only — which downstream code path triggered the close. */
+    outcome_recorded_via: ConnectionEvidenceCloseVia;
+    origin?: string;
+  },
+  admin: SupabaseClient,
+): Promise<void> {
+  const patternsUrl = resolvePatternsUrl(args.origin);
+  const internalSecret = resolveInternalSecret();
+  if (!patternsUrl || !internalSecret) return;
+
+  try {
+    await closeDeferredObservation(
+      {
+        account_id: args.account_id,
+        pattern_type: "kinetiks_id.connection_value_per_source",
+        observation_key: args.request_id,
+        outcome_value: 1,
+        outcome_direction: "higher_is_better",
+        patternsUrl,
+        internalSecret,
+      },
+      admin,
+    );
+  } catch (err) {
+    captureEmissionError("closeConnectionEvidenceObservation", err, {
+      account_id: args.account_id,
+      request_id: args.request_id,
+      outcome_recorded_via: args.outcome_recorded_via,
+    });
+  }
+}
+
+/**
+ * Close the most recent pending observation matching
+ * (account_id, provider) with outcome=1. Used by the Oracle insight
+ * citation path where the Oracle doesn't have the original Marcus
+ * `request_id` but knows which connection provider the insight's
+ * evidence came from. Fuzzy match by provider dimension + window.
+ *
+ * Mirrors `closeMarcusTurnObservationForThread` — select the latest
+ * pending row, then call `closeDeferredObservation` by observation_key.
+ * No-op if nothing pending.
+ */
+export async function closeMostRecentConnectionEvidenceForProvider(
+  args: {
+    account_id: string;
+    provider: string;
+    outcome_recorded_via: ConnectionEvidenceCloseVia;
+    origin?: string;
+  },
+  admin: SupabaseClient,
+): Promise<void> {
+  const patternsUrl = resolvePatternsUrl(args.origin);
+  const internalSecret = resolveInternalSecret();
+  if (!patternsUrl || !internalSecret) return;
+
+  try {
+    // Select the most recent pending row for this provider. We can't
+    // .eq() into the dimensions jsonb cheaply via PostgREST, so filter
+    // server-side via ->>provider on the jsonb shape.
+    const { data, error } = await admin
+      .from(PENDING_OBS_TABLE)
+      .select("observation_key, dimensions")
+      .eq("account_id", args.account_id)
+      .eq("pattern_type", "kinetiks_id.connection_value_per_source")
+      .eq("status", "pending")
+      .filter("dimensions->>provider", "eq", args.provider)
+      .order("observed_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error || !data) return;
+
+    await closeDeferredObservation(
+      {
+        account_id: args.account_id,
+        pattern_type: "kinetiks_id.connection_value_per_source",
+        observation_key: data.observation_key as string,
+        outcome_value: 1,
+        outcome_direction: "higher_is_better",
+        patternsUrl,
+        internalSecret,
+      },
+      admin,
+    );
+  } catch (err) {
+    captureEmissionError(
+      "closeMostRecentConnectionEvidenceForProvider",
+      err,
+      {
+        account_id: args.account_id,
+        provider: args.provider,
+        outcome_recorded_via: args.outcome_recorded_via,
+      },
+    );
   }
 }
