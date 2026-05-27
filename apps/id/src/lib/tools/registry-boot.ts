@@ -16,6 +16,9 @@ import { stripeQueryTool } from "./stripe-query";
 import { metaAdsQueryTool } from "./meta-ads-query";
 import { googleAdsQueryTool } from "./google-ads-query";
 import { queryInsightsTool } from "./query-insights";
+import { sendSlackNotificationTool } from "./send-slack-notification";
+import { draftEmailTool } from "./draft-email";
+import { addCalendarEventTool } from "./add-calendar-event";
 
 let _booted = false;
 
@@ -51,6 +54,12 @@ export function bootToolRegistry(): void {
   // D2 Slice 11 — Oracle insights read tool. Marcus's step 7.5 picks
   // this for "what changed" / "any alerts" turns.
   registerTool(queryInsightsTool);
+  // Phase 4 — Chunk 6 — Marcus action-bearing tools. All three declare
+  // an actionClass so the authority resolver gates them; each ends in
+  // an external mutation (Slack post / Gmail draft / Calendar event).
+  registerTool(sendSlackNotificationTool);
+  registerTool(draftEmailTool);
+  registerTool(addCalendarEventTool);
   // Cross-registry validation — fails the boot if anything is inconsistent.
   // At F1/F2 we register no consequential tools and no operators, so this
   // is a no-op safety pass; L2a will add real entries here.
