@@ -84,6 +84,30 @@ export interface ToolDescriptor {
   autoApproveThreshold: number | null;
   /** Per-account availability declaration. */
   availability: AvailabilityPredicate;
+  /**
+   * Phase 1.7.1 — connection-evidence attribution.
+   *
+   * When set, every successful invocation of this tool produces an
+   * observation against `kinetiks_id.connection_value_per_source`. The
+   * Marcus tool-decision path opens the observation at dispatch and the
+   * brief-inclusion path closes it with outcome=1.
+   *
+   * `connection_provider` names the integration whose data this tool
+   * surfaces (matches the `provider` dimension on the pattern type's
+   * `CONNECTION_PROVIDERS` enum; bucketize coerces unknown values to
+   * "other").
+   *
+   * `cortex_layer` declares which Cortex context layer the evidence is
+   * relevant to (matches the pattern type's `CONTEXT_LAYERS` enum;
+   * bucketize coerces unknown values to "none"). For pure analytics
+   * tools (GA4 traffic, GSC search) the natural layer is "market".
+   *
+   * Both fields are optional. Tools without `connection_provider`
+   * declared (internal lookups, action tools, noop) do not produce
+   * connection-evidence observations.
+   */
+  connection_provider?: string;
+  cortex_layer?: string;
 }
 
 /** Per-account availability rule for a tool. */

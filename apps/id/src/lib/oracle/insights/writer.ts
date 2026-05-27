@@ -19,6 +19,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 
 import type { OracleSignal } from "./types";
+import { closeMostRecentConnectionEvidenceForProvider } from "@/lib/patterns/emit-internal";
 
 // PII guard: evidence keys are restricted to a known-safe set + a regex
 // fallback for legitimate dimension/metric names. NEVER allow contact_*,
@@ -119,5 +120,29 @@ export async function writeInsights(
   if (error) {
     throw new Error(`writeInsights failed: ${error.message}`);
   }
+
+  // Phase 1.7.1 — close the most recent pending
+  // kinetiks_id.connection_value_per_source observation for each
+  // distinct source_app among the written insights. Outcome=1 by
+  // definition: an insight got generated from that provider's
+  // evidence, so the connection produced something useful in the
+  // observation window. De-duped by provider so a batch of insights
+  // from the same source doesn't close multiple observations.
+  // Helper is a no-op when no pending row matches.
+  const closedProviders = new Set<string>();
+  for (const row of rows) {
+    const provider = row.source_app as string;
+    if (!provider || closedProviders.has(provider)) continue;
+    closedProviders.add(provider);
+    closeMostRecentConnectionEvidenceForProvider(
+      {
+        account_id: input.accountId,
+        provider,
+        outcome_recorded_via: "oracle_insight_citation",
+      },
+      admin,
+    ).catch(() => undefined);
+  }
+
   return { written: count ?? rows.length, rejected };
 }

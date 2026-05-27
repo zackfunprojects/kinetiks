@@ -9,7 +9,7 @@
 -- ============================================================
 
 BEGIN;
-SELECT plan(8);
+SELECT plan(11);
 
 DO $$
 DECLARE
@@ -154,6 +154,78 @@ SELECT results_eq(
        WHERE id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbb01'::uuid $$,
   $$ VALUES ('expired'::text) $$,
   'service-role can expire a pending observation'
+);
+
+-- ============================================================
+-- Phase 1.7.1: connection_value_per_source provider-filter +
+-- cross-tenant tests for closeMostRecentConnectionEvidenceForProvider.
+--
+-- The fuzzy-match close path filters pending observations by
+-- dimensions->>provider. Verify (a) the filter returns the right row
+-- under each provider value, (b) RLS still isolates accounts even when
+-- the provider matches across accounts (alice's ga4 invisible to bob's
+-- ga4 filter).
+-- ============================================================
+
+INSERT INTO kinetiks_pattern_pending_observations
+  (id, account_id, pattern_type, dimensions, observation_key,
+   outcome_window_expires_at, status)
+VALUES
+  -- alice: one ga4 + one gsc pending observation
+  ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeee01',
+   (SELECT id FROM kinetiks_accounts WHERE codename = 'kid-alice'),
+   'kinetiks_id.connection_value_per_source',
+   '{"provider":"ga4","layer_touched":"market","query_class":"ga4_query"}'::jsonb,
+   'req-alice-ga4',
+   now() + interval '24 hours', 'pending'),
+  ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeee02',
+   (SELECT id FROM kinetiks_accounts WHERE codename = 'kid-alice'),
+   'kinetiks_id.connection_value_per_source',
+   '{"provider":"gsc","layer_touched":"market","query_class":"gsc_query"}'::jsonb,
+   'req-alice-gsc',
+   now() + interval '24 hours', 'pending'),
+  -- bob: one ga4 pending observation. Same provider as alice's first;
+  -- RLS must keep alice from seeing it via the provider filter.
+  ('ffffffff-ffff-ffff-ffff-ffffffffff01',
+   (SELECT id FROM kinetiks_accounts WHERE codename = 'kid-bob'),
+   'kinetiks_id.connection_value_per_source',
+   '{"provider":"ga4","layer_touched":"market","query_class":"ga4_query"}'::jsonb,
+   'req-bob-ga4',
+   now() + interval '24 hours', 'pending');
+
+-- ── alice with provider='ga4' filter ─────────────────────────
+SELECT _kt_test_set_auth_user('11111111-1111-1111-1111-111111111111');
+
+SELECT results_eq(
+  $$ SELECT observation_key FROM kinetiks_pattern_pending_observations
+       WHERE pattern_type = 'kinetiks_id.connection_value_per_source'
+         AND status = 'pending'
+         AND dimensions->>'provider' = 'ga4'
+       ORDER BY observation_key $$,
+  $$ VALUES ('req-alice-ga4'::text) $$,
+  'alice with provider=ga4 filter sees only her own ga4 observation, not bob''s'
+);
+
+-- ── alice with provider='gsc' filter ─────────────────────────
+SELECT results_eq(
+  $$ SELECT observation_key FROM kinetiks_pattern_pending_observations
+       WHERE pattern_type = 'kinetiks_id.connection_value_per_source'
+         AND status = 'pending'
+         AND dimensions->>'provider' = 'gsc' $$,
+  $$ VALUES ('req-alice-gsc'::text) $$,
+  'alice with provider=gsc filter sees only her own gsc observation'
+);
+
+-- ── bob with provider='ga4' filter ───────────────────────────
+SELECT _kt_test_set_auth_user('22222222-2222-2222-2222-222222222222');
+
+SELECT results_eq(
+  $$ SELECT observation_key FROM kinetiks_pattern_pending_observations
+       WHERE pattern_type = 'kinetiks_id.connection_value_per_source'
+         AND status = 'pending'
+         AND dimensions->>'provider' = 'ga4' $$,
+  $$ VALUES ('req-bob-ga4'::text) $$,
+  'bob with provider=ga4 filter sees only his own ga4 observation, not alice''s'
 );
 
 SELECT * FROM finish();
