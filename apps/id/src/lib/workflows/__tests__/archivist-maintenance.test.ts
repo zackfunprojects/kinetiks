@@ -245,4 +245,57 @@ describe("archivist-maintenance workflow", () => {
     const calibrateResult = summary.tasks.find((t) => t.task_key === "calibrate");
     expect(calibrateResult?.output).toMatchObject({ skipped: true });
   });
+
+  it("stops dispatching subsequent steps when an operator step throws (fail-fast contract)", async () => {
+    // The workflow's first-failure-stops semantics is intentional —
+    // the spec calls it out because running sweep_deferred /
+    // calibrate after a sweep failure is unsafe (stale fingerprints,
+    // half-applied state). Lock that down so a future refactor can't
+    // loosen it.
+    //
+    // The `clean` step intentionally swallows per-account errors to
+    // match the legacy cron's behaviour, so we trigger fail-fast via
+    // the `sweep` step instead — which DOES propagate helper rejections
+    // up through the operator and into the dispatcher.
+    runArchivistPatternSweepForAccount.mockRejectedValueOnce(
+      new Error("sweep exploded"),
+    );
+
+    const harness = makeHarness();
+    const summary = await runWorkflow(
+      archivistMaintenance,
+      makeCtx(["cccccccc-cccc-cccc-cccc-cccccccccccc"]),
+      harness.deps,
+    );
+
+    expect(summary.ok).toBe(false);
+    expect(summary.tasks).toHaveLength(2);
+    expect(summary.tasks.map((t) => t.task_key)).toEqual(["clean", "sweep"]);
+    expect(summary.tasks[0].status).toBe("completed");
+    expect(summary.tasks[1]).toMatchObject({
+      task_key: "sweep",
+      status: "failed",
+      error: { class: "internal_error", message: "sweep exploded" },
+    });
+
+    // clean + sweep ran; nothing after sweep dispatched.
+    expect(runArchivistCleanForAccount).toHaveBeenCalledTimes(1);
+    expect(runArchivistPatternSweepForAccount).toHaveBeenCalledTimes(1);
+    expect(runArchivistDeferredSweepForAccount).not.toHaveBeenCalled();
+    expect(runArchivistCalibrateForAccount).not.toHaveBeenCalled();
+
+    // Ledger trail: clean dispatched+completed, sweep dispatched+failed,
+    // nothing after that.
+    const dispatched = harness.ledger.filter(
+      (e) => e.event_type === "workflow_task_dispatched",
+    );
+    expect(dispatched.map((d) => d.detail.task_key)).toEqual(["clean", "sweep"]);
+    expect(
+      harness.ledger.some(
+        (e) =>
+          e.event_type === "workflow_task_failed" &&
+          e.detail.task_key === "sweep",
+      ),
+    ).toBe(true);
+  });
 });
