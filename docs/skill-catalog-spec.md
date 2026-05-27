@@ -618,6 +618,6 @@ The conversation that produced this spec opened with several open questions. Eac
 
 Drafted in conversation with Zack Holland for the Kinetiks AI monorepo.
 
-This document is intended to be merged into `docs/specs/` as `skill-catalog-spec.md`, and referenced from `docs/CLAUDE.md`, `docs/platform-contract.md`, and `docs/specs/platform-contract-2027-addendum.md`. Once accepted, subsequent build plans for the Skill Catalog subsystem (Phase 1: schema, manifests, app consumption wiring; Phase 2: Catalog UI surface; Phase 3: performance attribution; Phase 4: Authority Agent Skill proposal extension; Phase 5: cross-customer aggregation) each reference this document as their architectural foundation.
+This document is intended to be merged into `docs/specs/` as `skill-catalog-spec.md`, and referenced from `CLAUDE.md`, `docs/platform-contract.md`, and `docs/specs/platform-contract-2027-addendum.md`. Once accepted, subsequent build plans for the Skill Catalog subsystem (Phase 1: schema, manifests, app consumption wiring; Phase 2: Catalog UI surface; Phase 3: performance attribution; Phase 4: Authority Agent Skill proposal extension; Phase 5: cross-customer aggregation) each reference this document as their architectural foundation.
 
 The platform contract version bumps with the merger of this spec. Apps, integrations, and agents built or updated after the merge conform to the structures described here.

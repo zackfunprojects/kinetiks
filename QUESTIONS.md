@@ -131,11 +131,11 @@ follow-up pass should:
 Until step 3, the DB-layer guarantee is "future writes only." Codebase
 writes already conform to the union (commit "feat(types+tools)" audit).
 
-**Status (open — scheduled as Phase 2.5).** The follow-up pass is
-tracked in `docs/build-phases/upcoming/phase-2.5-ledger-check-validate.md`.
-Runs in parallel with the main queue any time a prod-read window
-opens. Phases 1.5, 2, and 4 each add new event types to the union;
-Phase 2.5 should wait until after the last of those lands so the
+**Status (open — scheduled as Phase 4.5, renamed from Phase 2.5).**
+The follow-up pass is tracked in
+`docs/build-phases/upcoming/phase-4.5-ledger-check-validate.md`.
+Phases 1.5, 2, and 4 each add new event types to the union; Phase
+4.5 runs after the last of those (Phase 4 + 5) lands so the
 `VALIDATE` pass clears every type in one shot.
 
 ### Confidence formula constants — HELD; measurable against fixtures
