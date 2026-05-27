@@ -304,8 +304,12 @@ export function calibratePattern(input: CalibrationInput): CalibrationDecision {
       next_effective_decay_days: prior,
       prior_decay_at: priorDecayAt,
       next_decay_at: priorDecayAt,
+      // Render as no_move so the audit text matches the decision.
+      // The dead-band rationale branch surfaces the attempted-but-
+      // suppressed direction via the `attempted_direction` field.
       rationale: renderRationale({
-        direction,
+        direction: "no_move",
+        attempted_direction: direction,
         stability,
         lifecycle,
         recent_declining_count,
@@ -348,6 +352,8 @@ export function calibratePattern(input: CalibrationInput): CalibrationDecision {
 
 function renderRationale(args: {
   direction: "extend" | "shorten" | "no_move";
+  /** Only set when direction='no_move' due to dead-band suppression. */
+  attempted_direction?: "extend" | "shorten";
   stability: { term: number; classification: StabilityClassification };
   lifecycle: LifecycleClassification;
   recent_declining_count: number;
@@ -374,7 +380,10 @@ function renderRationale(args: {
           : args.next === args.descriptor.decay_bounds.decay_floor_days
             ? "floor"
             : "dead-band";
-      return `No move (${edge}; move ratio below ${DEAD_BAND_RATIO}). ${stabilityPart}. ${lifecyclePart}.`;
+      const attempted = args.attempted_direction
+        ? ` Attempted ${args.attempted_direction} suppressed.`
+        : "";
+      return `No move (${edge}; move ratio below ${DEAD_BAND_RATIO}).${attempted} ${stabilityPart}. ${lifecyclePart}.`;
     }
     const mixed =
       args.stability.classification !== "neutral" &&

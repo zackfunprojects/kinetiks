@@ -385,7 +385,14 @@ describe("calibratePattern — clamping", () => {
     });
     expect(result.decision).toBe("no_move");
     expect(result.next_effective_decay_days).toBe(180);
-    expect(result.rationale).toMatch(/ceiling|dead.?band/i);
+    expect(result.rationale).toMatch(/ceiling/i);
+    // Rationale must not claim a move happened; the attempted direction
+    // is surfaced as "Attempted extend suppressed." but the leading
+    // narrative is "No move".
+    expect(result.rationale).toMatch(/^No move/);
+    expect(result.rationale).not.toMatch(/→ extend/);
+    expect(result.rationale).not.toMatch(/→ shorten/);
+    expect(result.rationale).toMatch(/Attempted extend suppressed/);
   });
 
   it("dead-band overrides to no_move at the floor when shortening", () => {
@@ -401,7 +408,11 @@ describe("calibratePattern — clamping", () => {
     });
     expect(result.decision).toBe("no_move");
     expect(result.next_effective_decay_days).toBe(30);
-    expect(result.rationale).toMatch(/floor|dead.?band/i);
+    expect(result.rationale).toMatch(/floor/i);
+    expect(result.rationale).toMatch(/^No move/);
+    expect(result.rationale).not.toMatch(/→ extend/);
+    expect(result.rationale).not.toMatch(/→ shorten/);
+    expect(result.rationale).toMatch(/Attempted shorten suppressed/);
   });
 
   it("dead-band overrides to no_move when natural move (no clamp) is below ratio", () => {

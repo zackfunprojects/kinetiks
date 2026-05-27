@@ -15,7 +15,7 @@
 -- ============================================================
 
 BEGIN;
-SELECT plan(8);
+SELECT plan(13);
 
 -- ── Arrange: two seeded accounts + service-role-inserted patterns ──
 DO $$
@@ -144,6 +144,128 @@ SELECT throws_ok(
   '23514',
   NULL,
   'CHECK constraint rejects unregistered event_type variants'
+);
+
+-- ────────────────────────────────────────────────────────────
+-- _kt_apply_pattern_decay_calibration RPC: atomic UPDATE + Ledger
+-- ────────────────────────────────────────────────────────────
+
+-- Happy path: CAS matches → UPDATE applies + Ledger row lands.
+DO $$
+DECLARE
+  v_prior_updated_at timestamptz;
+  v_result jsonb;
+  v_alice_account uuid;
+BEGIN
+  SELECT id INTO v_alice_account
+    FROM kinetiks_accounts WHERE codename = 'amber-fox-cal';
+  SELECT updated_at INTO v_prior_updated_at
+    FROM kinetiks_pattern_library
+    WHERE id = 'cccccccc-cccc-cccc-cccc-cccccccccc01'::uuid;
+
+  SELECT _kt_apply_pattern_decay_calibration(
+    v_alice_account,
+    'cccccccc-cccc-cccc-cccc-cccccccccc01'::uuid,
+    60,                                    -- prior_effective_decay_days
+    v_prior_updated_at,                    -- prior_updated_at (matches)
+    66,                                    -- next_effective_decay_days
+    (now() + interval '61 days')::timestamptz,
+    jsonb_build_object(
+      'pattern_id',                       'cccccccc-cccc-cccc-cccc-cccccccccc01',
+      'pattern_type',                     'harvest.outreach_angle_performance.reply_rate',
+      'prior_effective_decay_days',       60,
+      'next_effective_decay_days',        66,
+      'prior_decay_at',                   (now() + interval '55 days')::text,
+      'next_decay_at',                    (now() + interval '61 days')::text,
+      'observed_variance',                0.0005,
+      'observation_count',                40,
+      'declining_transitions_in_window',  0,
+      'decision',                         'extend',
+      'rationale',                        'pgtap: cas match')
+  ) INTO v_result;
+
+  PERFORM set_config('test.rpc_happy_result', v_result::text, true);
+END $$;
+
+SELECT is(
+  current_setting('test.rpc_happy_result')::jsonb,
+  '{"applied": true}'::jsonb,
+  'RPC reports applied=true on CAS match'
+);
+
+SELECT is(
+  (SELECT effective_decay_days FROM kinetiks_pattern_library
+    WHERE id = 'cccccccc-cccc-cccc-cccc-cccccccccc01'::uuid),
+  66,
+  'happy-path RPC updated effective_decay_days on alice''s pattern'
+);
+
+SELECT is(
+  (SELECT count(*)::int FROM kinetiks_ledger
+    WHERE event_type = 'pattern_decay_calibrated'
+      AND detail->>'pattern_id' = 'cccccccc-cccc-cccc-cccc-cccccccccc01'
+      AND detail->>'rationale' = 'pgtap: cas match'),
+  1,
+  'happy-path RPC wrote exactly one pattern_decay_calibrated Ledger row'
+);
+
+-- CAS failure: prior_effective_decay_days no longer matches → no
+-- UPDATE, no Ledger row, applied=false.
+DO $$
+DECLARE
+  v_prior_updated_at timestamptz;
+  v_result jsonb;
+  v_bob_account uuid;
+  v_ledger_before int;
+  v_ledger_after int;
+BEGIN
+  SELECT id INTO v_bob_account
+    FROM kinetiks_accounts WHERE codename = 'silver-otter-cal';
+  SELECT updated_at INTO v_prior_updated_at
+    FROM kinetiks_pattern_library
+    WHERE id = 'dddddddd-dddd-dddd-dddd-dddddddddd02'::uuid;
+  SELECT count(*)::int INTO v_ledger_before
+    FROM kinetiks_ledger
+    WHERE event_type = 'pattern_decay_calibrated'
+      AND detail->>'pattern_id' = 'dddddddd-dddd-dddd-dddd-dddddddddd02';
+
+  SELECT _kt_apply_pattern_decay_calibration(
+    v_bob_account,
+    'dddddddd-dddd-dddd-dddd-dddddddddd02'::uuid,
+    99,                                    -- prior_effective_decay_days WRONG (actual is 60)
+    v_prior_updated_at,
+    54,
+    (now() + interval '49 days')::timestamptz,
+    jsonb_build_object('pattern_id', 'dddddddd-dddd-dddd-dddd-dddddddddd02',
+                       'rationale',  'pgtap: cas mismatch — must not apply')
+  ) INTO v_result;
+
+  SELECT count(*)::int INTO v_ledger_after
+    FROM kinetiks_ledger
+    WHERE event_type = 'pattern_decay_calibrated'
+      AND detail->>'pattern_id' = 'dddddddd-dddd-dddd-dddd-dddddddddd02';
+
+  PERFORM set_config('test.rpc_cas_result',      v_result::text,       true);
+  PERFORM set_config('test.rpc_cas_ledger_diff', (v_ledger_after - v_ledger_before)::text, true);
+END $$;
+
+SELECT is(
+  current_setting('test.rpc_cas_result')::jsonb,
+  '{"applied": false}'::jsonb,
+  'RPC reports applied=false when prior_effective_decay_days mismatches'
+);
+
+SELECT is(
+  (SELECT effective_decay_days FROM kinetiks_pattern_library
+    WHERE id = 'dddddddd-dddd-dddd-dddd-dddddddddd02'::uuid),
+  60,
+  'CAS-mismatch RPC left bob''s effective_decay_days untouched'
+);
+
+SELECT is(
+  current_setting('test.rpc_cas_ledger_diff')::int,
+  0,
+  'CAS-mismatch RPC did NOT write a Ledger entry'
 );
 
 SELECT * FROM finish();

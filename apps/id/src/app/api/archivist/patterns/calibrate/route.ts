@@ -94,7 +94,6 @@ export async function POST(request: Request) {
 
   const admin = createAdminClient();
   const now = new Date();
-  const nowIso = now.toISOString();
   const results: CalibrationAccountResult[] = [];
 
   for (const accountId of accountIds) {
@@ -115,24 +114,31 @@ export async function POST(request: Request) {
         now,
       });
 
-      // Page through eligible patterns. Defensive observation_count
-      // floor at MIN_OBSERVATION_COUNT_FOR_QUERY (2); the pure
-      // function applies the descriptor's specific threshold inside
-      // its skip branch.
-      let offset = 0;
+      // Keyset-page through eligible patterns (`id > lastSeenId`).
+      // Per CLAUDE.md, unbounded lists use keyset pagination — offset
+      // pagination gets slow as offset grows and is unstable when
+      // rows shift. Defensive observation_count floor at
+      // MIN_OBSERVATION_COUNT_FOR_QUERY (2); the pure function
+      // applies the descriptor's specific threshold inside its skip
+      // branch.
+      let lastSeenId: string | null = null;
       while (true) {
-        const { data: page, error: pageErr } = await admin
+        let pageQuery = admin
           .from("kinetiks_pattern_library")
           .select("*")
           .eq("account_id", accountId)
           .neq("status", "archived")
           .gte("observation_count", MIN_OBSERVATION_COUNT_FOR_QUERY)
           .order("id", { ascending: true })
-          .range(offset, offset + PATTERN_PAGE_SIZE - 1);
+          .limit(PATTERN_PAGE_SIZE);
+        if (lastSeenId !== null) {
+          pageQuery = pageQuery.gt("id", lastSeenId);
+        }
+        const { data: page, error: pageErr } = await pageQuery;
 
         if (pageErr) {
           result.errors.push(
-            `page ${offset}: ${pageErr.message} (${pageErr.code})`,
+            `page after=${lastSeenId ?? "<start>"}: ${pageErr.message} (${pageErr.code})`,
           );
           Sentry.captureException(new Error(pageErr.message), {
             tags: {
@@ -141,7 +147,7 @@ export async function POST(request: Request) {
               stage: "select",
               app: "id",
             },
-            extra: { account_id: accountId, offset },
+            extra: { account_id: accountId, last_seen_id: lastSeenId },
           });
           break;
         }
@@ -153,14 +159,13 @@ export async function POST(request: Request) {
             decliningCounts,
             admin,
             accountId,
-            nowIso,
             now,
             result,
           });
         }
 
         if (page.length < PATTERN_PAGE_SIZE) break;
-        offset += PATTERN_PAGE_SIZE;
+        lastSeenId = (page[page.length - 1] as { id: string }).id;
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "unknown error";
@@ -179,8 +184,20 @@ export async function POST(request: Request) {
     results.push(result);
   }
 
+  // Aggregates mirror the deferred-sweep contract so the
+  // archivist-cron summary can roll in-band per-account failures
+  // into its `calibration_errors` count, not just transport failures.
+  let totalFailed = 0;
+  const perAccount: Record<string, CalibrationAccountResult> = {};
+  for (const r of results) {
+    totalFailed += r.errors.length;
+    perAccount[r.account_id] = r;
+  }
+
   return apiSuccess({
     accounts_processed: results.length,
+    failed: totalFailed,
+    per_account: perAccount,
     results,
   });
 }
@@ -194,12 +211,10 @@ async function processPattern(args: {
   decliningCounts: Map<string, number>;
   admin: ReturnType<typeof createAdminClient>;
   accountId: string;
-  nowIso: string;
   now: Date;
   result: CalibrationAccountResult;
 }): Promise<void> {
-  const { pattern, decliningCounts, admin, accountId, nowIso, now, result } =
-    args;
+  const { pattern, decliningCounts, admin, accountId, now, result } = args;
   result.patterns_evaluated += 1;
 
   const descriptor: PatternTypeDescriptor | undefined = getPatternType(
@@ -225,28 +240,46 @@ async function processPattern(args: {
     return;
   }
 
-  // Atomic check-and-set on prior effective_decay_days. If an
-  // emission landed between our SELECT and this UPDATE, the WHERE
-  // filter drops the row; we count it as raced and move on.
-  const { data: updated, error: updateErr } = await admin
-    .from("kinetiks_pattern_library")
-    .update({
-      effective_decay_days: decision.next_effective_decay_days,
-      decay_at: decision.next_decay_at,
-      updated_at: nowIso,
-    })
-    .eq("id", pattern.id)
-    .eq("account_id", accountId)
-    .eq("effective_decay_days", decision.prior_effective_decay_days)
-    .select("id");
+  // Atomic UPDATE + Ledger INSERT via the
+  // `_kt_apply_pattern_decay_calibration` Postgres function
+  // (migration 00048). The CAS predicate inside the function
+  // covers BOTH effective_decay_days AND updated_at, so a
+  // concurrent emission that updated variance/observation_count
+  // (even without touching effective_decay_days) invalidates this
+  // calibration attempt and the row count comes back zero.
+  const { data: rpcResult, error: rpcErr } = await admin.rpc(
+    "_kt_apply_pattern_decay_calibration",
+    {
+      p_account_id: accountId,
+      p_pattern_id: pattern.id,
+      p_prior_effective_decay_days: decision.prior_effective_decay_days,
+      p_prior_updated_at: pattern.updated_at,
+      p_next_effective_decay_days: decision.next_effective_decay_days,
+      p_next_decay_at: decision.next_decay_at,
+      p_ledger_detail: {
+        pattern_id: pattern.id,
+        pattern_type: pattern.pattern_type,
+        prior_effective_decay_days: decision.prior_effective_decay_days,
+        next_effective_decay_days: decision.next_effective_decay_days,
+        prior_decay_at: decision.prior_decay_at,
+        next_decay_at: decision.next_decay_at,
+        observed_variance: pattern.variance,
+        observation_count: pattern.observation_count,
+        declining_transitions_in_window:
+          decliningCounts.get(pattern.id) ?? 0,
+        decision: decision.decision,
+        rationale: decision.rationale,
+      },
+    },
+  );
 
-  if (updateErr) {
-    result.errors.push(`update ${pattern.id}: ${updateErr.message}`);
-    Sentry.captureException(new Error(updateErr.message), {
+  if (rpcErr) {
+    result.errors.push(`rpc ${pattern.id}: ${rpcErr.message}`);
+    Sentry.captureException(new Error(rpcErr.message), {
       tags: {
         route: "archivist/patterns/calibrate",
-        action: "update_pattern",
-        stage: "update",
+        action: "apply_calibration_rpc",
+        stage: "rpc",
         app: "id",
       },
       extra: {
@@ -259,50 +292,16 @@ async function processPattern(args: {
     return;
   }
 
-  if (!updated || updated.length === 0) {
-    // Lost a race with an emission. Don't write a Ledger entry; the
-    // next calibration tick will pick up the fresh state.
+  const applied =
+    typeof rpcResult === "object" &&
+    rpcResult !== null &&
+    (rpcResult as { applied?: unknown }).applied === true;
+
+  if (!applied) {
+    // Lost the CAS race: an emission updated this row between our
+    // SELECT and the RPC. Don't write a Ledger entry; the next
+    // calibration tick picks up the fresh state.
     result.patterns_raced += 1;
-    return;
-  }
-
-  const { error: ledgerErr } = await admin.from("kinetiks_ledger").insert({
-    account_id: accountId,
-    event_type: "pattern_decay_calibrated",
-    source_app: "kinetiks_id",
-    source_operator: "archivist",
-    target_layer: null,
-    detail: {
-      pattern_id: pattern.id,
-      pattern_type: pattern.pattern_type,
-      prior_effective_decay_days: decision.prior_effective_decay_days,
-      next_effective_decay_days: decision.next_effective_decay_days,
-      prior_decay_at: decision.prior_decay_at,
-      next_decay_at: decision.next_decay_at,
-      observed_variance: pattern.variance,
-      observation_count: pattern.observation_count,
-      declining_transitions_in_window:
-        decliningCounts.get(pattern.id) ?? 0,
-      decision: decision.decision,
-      rationale: decision.rationale,
-    },
-  });
-
-  if (ledgerErr) {
-    result.errors.push(`ledger ${pattern.id}: ${ledgerErr.message}`);
-    Sentry.captureException(new Error(ledgerErr.message), {
-      tags: {
-        route: "archivist/patterns/calibrate",
-        action: "ledger_insert",
-        stage: "insert",
-        app: "id",
-      },
-      extra: {
-        account_id: accountId,
-        pattern_id: pattern.id,
-        pattern_type: pattern.pattern_type,
-      },
-    });
     return;
   }
 

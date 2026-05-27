@@ -209,7 +209,12 @@ Deno.serve(async () => {
 
   // Pass 4: Phase 2 empirical decay calibration. Runs only on the
   // 00:00 UTC tick of the day (one of the four 6h ticks). Same
-  // batching as the other passes.
+  // batching as the other passes. Mirrors the deferred-sweep
+  // pattern: a 200 from the route can still report per-account
+  // in-band failures via data.failed + data.per_account[*].error;
+  // those must roll into calibration_errors so a clean transport
+  // run doesn't mask a calibration pass that actually failed for
+  // half the batch.
   if (isCalibrationTick) {
     for (let i = 0; i < allIds.length; i += API_BATCH_SIZE) {
       const batchIds = allIds.slice(i, i + API_BATCH_SIZE);
@@ -220,12 +225,29 @@ Deno.serve(async () => {
       if (!ok) {
         calibrationErrors += batchIds.length;
       } else {
-        const env = body as { data?: { accounts_processed?: number } };
+        const env = body as {
+          data?: {
+            accounts_processed?: number;
+            failed?: number;
+            per_account?: Record<string, { error?: string } | unknown>;
+          };
+        };
         const count =
           typeof env?.data?.accounts_processed === "number"
             ? env.data.accounts_processed
             : batchIds.length;
         calibrationProcessed += count;
+        // In-band failures: data.failed is the route's aggregate
+        // (sum of per-account errors.length); per_account[*].error
+        // captures transport-style failures inside the route loop.
+        const inBandFailed =
+          typeof env?.data?.failed === "number" ? env.data.failed : 0;
+        const perAccountErrors = env?.data?.per_account
+          ? Object.values(env.data.per_account).filter(
+              (v) => v && typeof v === "object" && "error" in (v as object),
+            ).length
+          : 0;
+        calibrationErrors += inBandFailed + perAccountErrors;
       }
       if (i + API_BATCH_SIZE < allIds.length) {
         await new Promise((resolve) => setTimeout(resolve, BATCH_DELAY_MS));
