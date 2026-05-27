@@ -1,7 +1,7 @@
 # Phase 4.5: Ledger CHECK VALIDATE — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans` to implement this plan task-by-task.
-
+>
 > **Renamed from Phase 2.5.** Originally labelled "2.5" because it closes constraint debt that grew from Phase 1's L1b work, but its actual prerequisite is Phase 4 (it must run *after* Phase 4 ships the eight authority event types — otherwise the VALIDATE pass would need to be re-run). Renamed to reflect actual execution order.
 
 **Goal.** Close the standing `kinetiks_ledger_event_type_valid NOT VALID` debt from migration 00042 by auditing legacy `event_type` values in production, reconciling them (UPDATE or extend the union), and running `ALTER TABLE ... VALIDATE CONSTRAINT` so the constraint enforces against all rows, not just future writes.
@@ -96,7 +96,7 @@
 ## Risk and rollback
 
 - **Risk:** the audit misses a rare legacy value. Mitigation: take the audit query result and cross-check against `event_type` values in the last 90 days. Pre-validation against a staging restore.
-- **Rollback:** if the VALIDATE pass fails in prod after the reconcile migration applied, the constraint is still `VALID` against future writes but the existing-rows guarantee is lost. The fix is to extend the union with the missed value (a follow-up migration), then re-run VALIDATE. No data loss in either case.
+- **Rollback:** if the VALIDATE pass fails in prod after the reconcile migration applied, the constraint stays `NOT VALID` (still enforced against new INSERTs/UPDATEs, just not against pre-existing rows). The fix is to extend the union with the missed value in a follow-up migration, then re-run `VALIDATE`. No data loss in either case.
 
 ## Out of scope
 
