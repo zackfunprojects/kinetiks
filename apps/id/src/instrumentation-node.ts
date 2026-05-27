@@ -22,23 +22,35 @@ import { supabaseAICallLogger } from "./lib/ai/logger";
 import { registerKinetiksPromptTasks } from "./lib/ai/task-registry";
 import { registerKinetiksStateMachines } from "./lib/state-machines-init";
 import { bootPatternTypeRegistry } from "./lib/patterns/registry-boot";
+import { bootActionClassRegistry } from "./lib/action-classes/registry-boot";
 import { bootOperatorRegistry } from "./lib/operators/registry-boot";
 import { bootToolRegistry } from "./lib/tools/registry-boot";
+import { bootRuntimeAdapters } from "./lib/runtime/runtime-boot";
 import "./lib/connections/extractors";
 
 export function bootNodeInstrumentation(): void {
   configureAICallLogger(supabaseAICallLogger);
   registerKinetiksPromptTasks();
   registerKinetiksStateMachines();
-  // Pattern Type Registry MUST boot before the Tool Registry boot's
-  // cross-registry validator, which now requires required_patterns
-  // references to resolve to registered descriptors (L1a).
+  // Boot order is non-negotiable per the cross-registry validator at
+  // packages/tools/src/validate.ts (assertRegistriesValid, called at
+  // the end of bootToolRegistry):
+  //
+  //   patterns → action classes → operators → tools
+  //
+  // - Pattern Type Registry: operator `required_patterns` must resolve
+  // - Action Class Registry (Phase 4): operator `action_classes` and
+  //   tool `actionClass` must resolve
+  // - Operator Registry (Phase 3): operator descriptors referenced by
+  //   any future Workflow must exist
+  // - Tool Registry: final boot pass runs cross-registry validation
   bootPatternTypeRegistry();
-  // Operator Registry (Phase 3) MUST boot before the Tool Registry
-  // boot too — `assertRegistriesValid()` (called at the end of
-  // bootToolRegistry) checks every operator's required_tools,
-  // required_patterns, and action_classes references resolve. Boot
-  // order: patterns → operators → tools.
+  bootActionClassRegistry();
   bootOperatorRegistry();
   bootToolRegistry();
+  // Phase 4: wire authority resolution adapters. Must run AFTER the
+  // tool registry boot (the resolver references action class
+  // descriptors which need their tool callers cross-validated first).
+  // Replaces the F2 stub resolver with defaultAuthorityResolver.
+  bootRuntimeAdapters();
 }

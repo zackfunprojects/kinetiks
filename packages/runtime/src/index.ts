@@ -9,13 +9,71 @@ export type {
   TypedTool,
 } from "./types";
 
-// Authority resolution stub + override hook (L2a replaces the default)
+// Authority resolution (Phase 4: real flow per Addendum §2.9)
 export {
   configureAuthorityResolver,
   getAuthorityResolver,
   f2StubAuthorityResolver,
+  defaultAuthorityResolver,
+  validateActionAgainstConstraints,
+  // Adapter configuration (apps wire these at boot)
+  configureGrantReader,
+  getGrantReader,
+  configureRecentActionCounter,
+  getRecentActionCounter,
+  configureUsageSummaryReader,
+  getUsageSummaryReader,
+  configureLedgerHistoryReader,
+  getLedgerHistoryReader,
+  configureMetricCacheReader,
+  getMetricCacheReader,
+  configureLLMJudge,
+  getLLMJudge,
+  configureJudgmentBudgetAdapter,
+  getJudgmentBudgetAdapter,
+  configureLedgerAppender,
+  getLedgerAppender,
+  configureEscalationHandler,
+  getEscalationHandler,
+  _resetAuthorityAdaptersForTests,
 } from "./authority";
-export type { AuthorityResolution, AuthorityResolver, ResolveAuthorityCtx } from "./authority";
+export type {
+  AuthorityResolution,
+  AuthorityResolver,
+  ResolveAuthorityCtx,
+  AuthorityReason,
+  MatchedCapability,
+  MatchedGrant,
+  GrantReader,
+  RecentActionCounter,
+  UsageSummaryReader,
+  LedgerHistoryReader,
+  MetricCacheReader,
+  LLMJudge,
+  JudgmentBudgetAdapter,
+  LedgerAppender,
+  LedgerAppendInput,
+  EscalationHandler,
+  EscalationEnqueueInput,
+  EscalationEnqueueResult,
+  AuthorityOutcome,
+} from "./authority";
+
+// Phase 4 — escalation trigger evaluator
+export {
+  evaluateEscalationTriggers,
+} from "./escalation-triggers";
+export type {
+  EvaluationContext,
+  TriggerEvaluationResult,
+} from "./escalation-triggers";
+
+// Phase 4 — LLM judgment budget enforcer
+export { checkLLMJudgmentBudget } from "./llm-judgment-budgets";
+export type {
+  JudgmentBudgetCheckInput,
+  JudgmentBudgetCheckResult,
+} from "./llm-judgment-budgets";
 
 // Retry helpers (exported for tests + L2a's resolver to compose)
 export { AbortError, backoffMs, isRetryable, resolveRetryPolicy } from "./retry";

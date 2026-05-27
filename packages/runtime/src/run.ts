@@ -34,6 +34,8 @@ import {
 } from "@kinetiks/tools";
 import {
   getAuthorityResolver,
+  getEscalationHandler,
+  getLedgerAppender,
   type AuthorityResolution,
   type ResolveAuthorityCtx,
 } from "./authority";
@@ -111,7 +113,67 @@ export class AgentRun {
     );
 
     // Authority resolution happens once per logical call (not per retry).
-    const authority = await getAuthorityResolver()(tool, this.resolveCtx());
+    // Phase 4: thread per-call scope + action_input into the resolver
+    // context so the §2.9 flow can pick the narrowest grant and
+    // evaluate constraints / triggers against the actual payload.
+    const authority = await getAuthorityResolver()(
+      tool,
+      this.resolveCtx(input, options),
+    );
+
+    // ── Phase 4: handle escalated / denied outcomes BEFORE execution ──
+    // These outcomes mean the action MUST NOT execute even if it would
+    // otherwise succeed. The resolver has already established that a
+    // covering grant exists but a check (constraint, rate limit, spend
+    // envelope, or escalation trigger) failed.
+    if (authority.outcome === "escalated") {
+      const approvalId = await this.handleEscalation(tool, input, authority);
+      this.trace.push({
+        toolName: tool.name,
+        status: "queued_for_approval",
+        errorClass: "queued_for_approval",
+        authorityOutcome: "escalated",
+        attempt: 0,
+        latencyMs: 0,
+      });
+      this.authorityOutcomes.escalated += 1;
+      throw new ToolError(
+        "queued_for_approval",
+        `Action escalated to per-action approval (${authority.reason?.code ?? "trigger_fired"})`,
+        {
+          context: compactContext({
+            tool: tool.name,
+            grant_id: authority.grantId,
+            approval_id: approvalId,
+            reason_code: authority.reason?.code ?? "trigger_fired",
+            trigger_type: authority.reason?.trigger_type,
+          }),
+        },
+      );
+    }
+    if (authority.outcome === "denied") {
+      await this.recordDenial(tool, authority);
+      this.trace.push({
+        toolName: tool.name,
+        status: "denied",
+        errorClass: "denied_by_authority",
+        authorityOutcome: "denied",
+        attempt: 0,
+        latencyMs: 0,
+      });
+      this.authorityOutcomes.denied += 1;
+      throw new ToolError(
+        "denied_by_authority",
+        `Action denied by authority resolution (${authority.reason?.code ?? "policy"})`,
+        {
+          context: compactContext({
+            tool: tool.name,
+            grant_id: authority.grantId,
+            reason_code: authority.reason?.code,
+          }),
+        },
+      );
+    }
 
     const baseMetadata: ToolMetadata = {
       ...(this.options.metadataDefaults ?? {}),
@@ -156,6 +218,18 @@ export class AgentRun {
           latencyMs,
         });
         this.authorityOutcomes[authority.outcome] += 1;
+        // Phase 4: emit `authority_action_taken` to the Learning Ledger
+        // when the action executed under an active grant. Per addendum
+        // §2.9 this entry is the customer-visible audit trail; the
+        // operational `tool_calls` row covers the operational log. PII
+        // rules per CLAUDE.md: counts, ids, action class strings only.
+        if (
+          authority.outcome === "grant_covers" &&
+          authority.grantId &&
+          tool.actionClass
+        ) {
+          await this.recordActionTaken(tool, authority, input, output);
+        }
         return output;
       } catch (err) {
         const latencyMs = Math.round(performance.now() - t0);
@@ -241,14 +315,151 @@ export class AgentRun {
     };
   }
 
-  private resolveCtx(): ResolveAuthorityCtx {
+  private resolveCtx(
+    input?: unknown,
+    options?: InvokeToolOptions,
+  ): ResolveAuthorityCtx {
     return {
       accountId: this.accountId,
       userId: this.userId,
       invokedByAgent: this.invokedByAgent,
       threadId: this.threadId,
+      actionInput: input,
+      scopeType: options?.scopeType,
+      scopeId: options?.scopeId,
+      budgetCategoryId: options?.budgetCategoryId,
       metadata: this.options.metadataDefaults,
     };
+  }
+
+  /**
+   * Phase 4: enqueue an escalation when the resolver returned
+   * `escalated`. Returns the approval_id so the caller can echo it in
+   * the thrown `queued_for_approval` ToolError.
+   *
+   * Adapters must be configured at boot (apps/id/src/lib/runtime/runtime-boot.ts).
+   * If either adapter is missing the escalation cannot be enqueued —
+   * we throw a configuration_error so the action does NOT proceed
+   * (safer than silent fallthrough to executeTool).
+   */
+  private async handleEscalation<TIn, TOut>(
+    tool: AgentTool<TIn, TOut>,
+    input: TIn,
+    authority: AuthorityResolution,
+  ): Promise<string> {
+    const handler = getEscalationHandler();
+    if (!handler) {
+      throw new ToolError(
+        "configuration_error",
+        "Authority escalation handler is not configured; cannot enqueue approval for escalated action",
+        { context: compactContext({ tool: tool.name, grant_id: authority.grantId }) },
+      );
+    }
+    if (!tool.actionClass || !authority.grantId) {
+      throw new ToolError(
+        "internal_error",
+        "Authority resolver returned 'escalated' for a tool without an action_class or grant_id",
+        { context: { tool: tool.name } },
+      );
+    }
+    const { approval_id } = await handler.enqueue({
+      account_id: this.accountId,
+      invoked_by_agent: this.invokedByAgent,
+      tool_name: tool.name,
+      action_class: tool.actionClass,
+      action_input: input,
+      grant_id: authority.grantId,
+      reason: authority.reason ?? {
+        code: "constraint_failed",
+        detail: "escalated without a reason payload",
+      },
+    });
+
+    const appender = getLedgerAppender();
+    if (appender) {
+      await appender.append({
+        account_id: this.accountId,
+        event_type: "authority_action_escalated",
+        grant_id: authority.grantId,
+        source_app: "kinetiks_id",
+        source_operator: this.invokedByAgent,
+        detail: {
+          grant_id: authority.grantId,
+          action_class: tool.actionClass,
+          tool_name: tool.name,
+          reason_code: authority.reason?.code ?? "trigger_fired",
+          trigger_type: authority.reason?.trigger_type,
+          trigger_index: authority.reason?.trigger_index,
+          detail: authority.reason?.detail ?? "",
+          approval_id,
+        },
+      });
+    }
+    return approval_id;
+  }
+
+  /**
+   * Phase 4: append a `authority_action_escalated` Ledger entry with
+   * `reason_code` set for the denial. No approval is enqueued — the
+   * action is hard-denied (e.g. spend-bearing action class with no
+   * spending envelope on the grant). The customer sees the denial via
+   * the trace summary; UI may surface it in the Authority tab.
+   */
+  private async recordDenial<TIn, TOut>(
+    tool: AgentTool<TIn, TOut>,
+    authority: AuthorityResolution,
+  ): Promise<void> {
+    const appender = getLedgerAppender();
+    if (!appender || !tool.actionClass) return;
+    await appender.append({
+      account_id: this.accountId,
+      event_type: "authority_action_escalated",
+      grant_id: authority.grantId ?? "00000000-0000-0000-0000-000000000000",
+      source_app: "kinetiks_id",
+      source_operator: this.invokedByAgent,
+      detail: {
+        grant_id: authority.grantId,
+        action_class: tool.actionClass,
+        tool_name: tool.name,
+        reason_code: authority.reason?.code ?? "missing_budget",
+        detail: `denied: ${authority.reason?.detail ?? "policy"}`,
+        approval_id: null,
+        denied: true,
+      },
+    });
+  }
+
+  /**
+   * Phase 4: append `authority_action_taken` to the Learning Ledger
+   * after a `grant_covers` execution succeeds. The detail summary is
+   * PII-safe: action class string, tool name, input field counts +
+   * lengths, and an optional output ref if the tool returned one.
+   *
+   * The customer-visible audit trail uses this entry, NOT the
+   * operational `tool_calls` row.
+   */
+  private async recordActionTaken<TIn, TOut>(
+    tool: AgentTool<TIn, TOut>,
+    authority: AuthorityResolution,
+    input: TIn,
+    output: TOut,
+  ): Promise<void> {
+    const appender = getLedgerAppender();
+    if (!appender || !tool.actionClass || !authority.grantId) return;
+    await appender.append({
+      account_id: this.accountId,
+      event_type: "authority_action_taken",
+      grant_id: authority.grantId,
+      source_app: "kinetiks_id",
+      source_operator: this.invokedByAgent,
+      detail: {
+        grant_id: authority.grantId,
+        action_class: tool.actionClass,
+        tool_name: tool.name,
+        action_input_summary: summarizeForLedger(input),
+        outcome_ref: extractOutcomeRef(output),
+      },
+    });
   }
 }
 
@@ -263,6 +474,22 @@ export function startAgentRun(options: RunOptions): AgentRun {
 // Helpers
 // ============================================================
 
+/**
+ * Strip null and undefined values from a context object so it satisfies
+ * ToolError's `Record<string, string | number | boolean | string[]>`
+ * shape without manual narrowing at every callsite.
+ */
+function compactContext(
+  obj: Record<string, string | number | boolean | string[] | null | undefined>,
+): Record<string, string | number | boolean | string[]> {
+  const out: Record<string, string | number | boolean | string[]> = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (v === null || v === undefined) continue;
+    out[k] = v;
+  }
+  return out;
+}
+
 function statusFromErrorClass(c: ToolError["errorClass"]): TraceEntry["status"] {
   switch (c) {
     case "denied_by_authority":
@@ -273,6 +500,73 @@ function statusFromErrorClass(c: ToolError["errorClass"]): TraceEntry["status"] 
     default:
       return "error";
   }
+}
+
+/**
+ * PII-safe summarization of a tool input for the Learning Ledger
+ * `authority_action_taken` entry. Per CLAUDE.md, never dump full
+ * payloads, recipient emails, or message bodies into Ledger detail —
+ * counts, lengths, and structural fingerprints only.
+ *
+ * Convention:
+ *   - Top-level primitives (string|number|boolean) are passed through,
+ *     except strings longer than 100 chars are replaced by `length:N`.
+ *   - Arrays become `{ <key>_count: N }`.
+ *   - Nested objects become `{ <key>_keys: [<top-level-key-names>] }`.
+ *   - Email-shaped strings ("@") inside arrays are NOT enumerated;
+ *     only the count.
+ */
+function summarizeForLedger(
+  input: unknown,
+): Record<string, string | number | boolean | string[]> {
+  if (typeof input !== "object" || input === null) return {};
+  const out: Record<string, string | number | boolean | string[]> = {};
+  for (const [k, v] of Object.entries(input as Record<string, unknown>)) {
+    if (v === null || v === undefined) continue;
+    if (typeof v === "boolean" || typeof v === "number") {
+      out[k] = v;
+      continue;
+    }
+    if (typeof v === "string") {
+      if (v.length > 100) out[`${k}_length`] = v.length;
+      else if (!v.includes("@")) out[k] = v;
+      else out[`${k}_length`] = v.length;
+      continue;
+    }
+    if (Array.isArray(v)) {
+      out[`${k}_count`] = v.length;
+      continue;
+    }
+    if (typeof v === "object") {
+      out[`${k}_keys`] = Object.keys(v as Record<string, unknown>);
+      continue;
+    }
+  }
+  return out;
+}
+
+/**
+ * Best-effort extraction of a stable outcome reference (event_id,
+ * draft_id, message_ts, etc.) from a tool's output. Returns undefined
+ * if none of the conventional keys are present. Used by the Ledger
+ * `authority_action_taken` detail; falling back to no reference is
+ * acceptable (the trace is still attributable via grant_id + tool_calls.id).
+ */
+function extractOutcomeRef(output: unknown): string | undefined {
+  if (typeof output !== "object" || output === null) return undefined;
+  const obj = output as Record<string, unknown>;
+  const candidates = [
+    "event_id",
+    "draft_id",
+    "message_ts",
+    "message_id",
+    "id",
+  ];
+  for (const k of candidates) {
+    const v = obj[k];
+    if (typeof v === "string" && v.length > 0) return v;
+  }
+  return undefined;
 }
 
 /**
