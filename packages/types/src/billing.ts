@@ -366,6 +366,17 @@ export interface LedgerEventDetailMap {
     /** Optional reason the customer typed when pausing. */
     pause_reason: string | null;
   };
+  authority_grant_resumed: {
+    grant_id: string;
+    /**
+     * Optional reason the customer typed when resuming. Resume is a
+     * `paused → active` lifecycle transition driven from the Cortex
+     * Authority tab (apps/id/src/lib/cortex/authority/lifecycle.ts);
+     * the dedicated event type closes the audit-trail gap between
+     * pause and revoke.
+     */
+    resume_reason: string | null;
+  };
   authority_grant_narrowed: {
     grant_id: string;
     /** The new (tighter) grant proposed for re-approval; the original is
