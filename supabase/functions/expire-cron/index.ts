@@ -213,6 +213,81 @@ Deno.serve(async () => {
     }
   }
 
+  // ── 5. Expire Authority Grants past expires_at ────────────────
+  // Per the Kinetiks Contract Addendum §2.3: any active or paused grant
+  // whose `expires_at` has passed transitions to `expired` (terminal).
+  // The lifecycle trigger on kinetiks_authority_grants (00050) enforces
+  // the same logic as a backstop; this sweep is the actor for it.
+  //
+  // The aggregate `actions_taken_under_grant` count is read from each
+  // grant's `usage_summary.action_counts` (computed nightly by the
+  // archivist cron) so the Ledger entry surfaces a meaningful number
+  // without a second query per row. Per-action_class breakdowns are
+  // not surfaced here — that lives in the grant detail view.
+  //
+  // CRON cadence is hourly (00045 schedule). Grants therefore expire
+  // within an hour of their `expires_at` cutover. Sub-hourly precision
+  // is not needed: the resolver also filters `expires_at > now()` so
+  // an action against a not-yet-swept-but-expired grant naturally
+  // returns null until the sweep catches up.
+  const { data: expiredGrants, error: grantErr } = await admin
+    .from("kinetiks_authority_grants")
+    .update({
+      status: "expired",
+      // revoked_at is the canonical terminal timestamp column. The
+      // CHECK on 00050 requires it set on entry to (revoked, expired).
+      // revocation_reason stays null: expiry is not a revocation, and
+      // the AuthorityRevocationReason type does not enumerate a
+      // "system_expired" reason. The event_type
+      // `authority_grant_expired` carries that semantic in the Ledger.
+      revoked_at: now,
+    })
+    .in("status", ["active", "paused"])
+    .not("expires_at", "is", null)
+    .lt("expires_at", now)
+    .select("id, account_id, expires_at, usage_summary")
+    .limit(BATCH_SIZE);
+
+  if (grantErr) {
+    console.error("[expire-cron] Authority Grant expiration query failed:", grantErr);
+  }
+
+  if (expiredGrants && expiredGrants.length > 0) {
+    interface ExpiredGrantRow {
+      id: string;
+      account_id: string;
+      expires_at: string;
+      usage_summary: { action_counts?: Record<string, number> } | null;
+    }
+    const rows = expiredGrants as ExpiredGrantRow[];
+    const ledgerEntries = rows.map((g) => {
+      const actionCounts = g.usage_summary?.action_counts ?? {};
+      const actions_taken = Object.values(actionCounts).reduce(
+        (sum, v) => sum + (typeof v === "number" ? v : 0),
+        0,
+      );
+      return {
+        account_id: g.account_id,
+        event_type: "authority_grant_expired",
+        source_app: "kinetiks_id",
+        source_operator: "expire_cron",
+        target_layer: null,
+        grant_id: g.id,
+        detail: {
+          grant_id: g.id,
+          expired_at: g.expires_at,
+          actions_taken_under_grant: actions_taken,
+        },
+      };
+    });
+    const { error: grantLedgerErr } = await admin
+      .from("kinetiks_ledger")
+      .insert(ledgerEntries);
+    if (grantLedgerErr) {
+      console.error("[expire-cron] Authority Grant ledger insert failed:", grantLedgerErr);
+    }
+  }
+
   // Log summary to ledger
   const { error: summaryLedgerErr } = await admin
     .from("kinetiks_ledger")
@@ -225,6 +300,7 @@ Deno.serve(async () => {
         expired_stale: (expiredStale ?? []).length,
         superseded: supersededCount,
         expired_approvals: (expiredApprovals ?? []).length,
+        expired_grants: (expiredGrants ?? []).length,
         timestamp: now,
       },
     });
@@ -237,7 +313,11 @@ Deno.serve(async () => {
     expired_stale: (expiredStale ?? []).length,
     superseded: supersededCount,
     expired_approvals: (expiredApprovals ?? []).length,
-    total_expired: allExpired.length + (expiredApprovals ?? []).length,
+    expired_grants: (expiredGrants ?? []).length,
+    total_expired:
+      allExpired.length +
+      (expiredApprovals ?? []).length +
+      (expiredGrants ?? []).length,
   };
 
   console.log("[expire-cron] Run complete:", JSON.stringify(summary));
