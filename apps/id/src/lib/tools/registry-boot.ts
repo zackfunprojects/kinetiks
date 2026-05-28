@@ -10,6 +10,7 @@ import { noopTestTool } from "./noop-test";
 import { listCapabilitiesTool } from "./list-capabilities";
 import { queryPatternsTool } from "./query-patterns";
 import { queryActionsAuthorityTool } from "./query-actions-authority";
+import { queryActiveAuthorityTool } from "./query-active-authority";
 import { ga4QueryTool } from "./ga4-query";
 import { gscQueryTool } from "./gsc-query";
 import { stripeQueryTool } from "./stripe-query";
@@ -42,7 +43,11 @@ export function bootToolRegistry(): void {
   registerTool(listCapabilitiesTool);
   // F2 stubs — replaced by L1a / L2a implementations
   registerTool(queryPatternsTool);
+  // Phase 4 — Chunk 10: queryActionsAuthority now hits the real
+  // GrantReader; queryActiveAuthority is new for "what authority do
+  // you have right now?" customer questions.
   registerTool(queryActionsAuthorityTool);
+  registerTool(queryActiveAuthorityTool);
   // D1 — first real data tool. Reads GA4 traffic through the cache layer.
   registerTool(ga4QueryTool);
   // D2 Slice 6 — GSC + Stripe via Nango-fed cache.

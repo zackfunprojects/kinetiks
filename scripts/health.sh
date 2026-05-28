@@ -11,6 +11,8 @@
 #   3. Edge Function drift: `scripts/functions-drift-check.sh`
 #   4. Vercel deploy state: most recent Production deploy on the
 #      currently-linked project is Ready (not Error / Building)
+#   5. Trust-language: `scripts/check-authority-grant-phrase.sh`
+#      (Kinetiks Contract Addendum §2.14)
 #
 # Usage:
 #   pnpm health
@@ -26,7 +28,7 @@ done
 ok() { printf "  ✓ %s\n" "$1"; }
 fail() { printf "  ✗ %s\n" "$1" >&2; exit 1; }
 
-echo "[1/4] TypeScript across workspace..."
+echo "[1/5] TypeScript across workspace..."
 if pnpm -r type-check >/tmp/health-tsc.log 2>&1; then
   ok "type-check passed"
 else
@@ -36,7 +38,7 @@ else
 fi
 
 if [ "$SKIP_TESTS" -eq 0 ]; then
-  echo "[2/4] Unit tests across workspace..."
+  echo "[2/5] Unit tests across workspace..."
   if pnpm -r test >/tmp/health-test.log 2>&1; then
     ok "tests passed"
   else
@@ -45,10 +47,10 @@ if [ "$SKIP_TESTS" -eq 0 ]; then
     fail "tests failed — see /tmp/health-test.log"
   fi
 else
-  echo "[2/4] Unit tests SKIPPED (--skip-tests)"
+  echo "[2/5] Unit tests SKIPPED (--skip-tests)"
 fi
 
-echo "[3/4] Edge Functions drift..."
+echo "[3/5] Edge Functions drift..."
 if scripts/functions-drift-check.sh --quiet 2>/tmp/health-drift.log; then
   ok "no drift between repo / deployed / scheduled"
 else
@@ -57,7 +59,16 @@ else
   fail "Edge Function drift — run pnpm functions:deploy / extend the schedules migration"
 fi
 
-echo "[4/4] Vercel production deploy state..."
+echo "[4/5] Trust-language check (Authority Grant phrase)..."
+if scripts/check-authority-grant-phrase.sh >/tmp/health-trust.log 2>&1; then
+  ok "no customer-facing 'Authority Grant' occurrences"
+else
+  echo "" >&2
+  cat /tmp/health-trust.log >&2
+  fail "customer-facing 'Authority Grant' phrase found — see Addendum §2.14"
+fi
+
+echo "[5/5] Vercel production deploy state..."
 if command -v vercel >/dev/null 2>&1; then
   # Most recent Production-environment row. vercel ls writes the table
   # to stderr and the URLs to stdout, so combine both streams.
