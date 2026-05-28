@@ -30,13 +30,20 @@ export async function POST(request: Request, { params }: RouteParams) {
   const { auth, error } = await requireAuth(request, { permissions: "read-write" });
   if (error) return error;
 
+  // Read raw text first so empty body (legitimate, optional reason)
+  // is distinguishable from malformed JSON (must 400). Silently
+  // swallowing JSON parse errors on a mutating endpoint hides client
+  // bugs and routes around the validator.
+  const bodyText = await request.text();
   let raw: unknown = {};
-  try {
-    raw = await request.json();
-  } catch {
-    // Empty body is fine — `reason` is optional.
+  if (bodyText.trim().length > 0) {
+    try {
+      raw = JSON.parse(bodyText);
+    } catch {
+      return apiError("Invalid JSON body", 400);
+    }
   }
-  const parsed = resumeBodySchema.safeParse(raw ?? {});
+  const parsed = resumeBodySchema.safeParse(raw);
   if (!parsed.success) {
     const first = parsed.error.issues[0];
     const path = first?.path?.join(".") ?? "body";

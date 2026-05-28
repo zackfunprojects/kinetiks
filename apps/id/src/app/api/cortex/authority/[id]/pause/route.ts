@@ -31,15 +31,20 @@ export async function POST(request: Request, { params }: RouteParams) {
   if (error) return error;
 
   // Body is optional — an empty POST means "pause with no reason".
-  // Tolerate both an empty body and a `{}` payload; reject anything
-  // structurally invalid.
+  // Read raw text first so we can tell empty body (legitimate) from a
+  // malformed-JSON body (must 400). Silently swallowing JSON errors on
+  // a mutating endpoint hides client bugs and is the kind of thing
+  // the trust layer specifically tries to avoid.
+  const bodyText = await request.text();
   let raw: unknown = {};
-  try {
-    raw = await request.json();
-  } catch {
-    // No body / non-JSON body — treat as empty (reason is optional).
+  if (bodyText.trim().length > 0) {
+    try {
+      raw = JSON.parse(bodyText);
+    } catch {
+      return apiError("Invalid JSON body", 400);
+    }
   }
-  const parsed = pauseBodySchema.safeParse(raw ?? {});
+  const parsed = pauseBodySchema.safeParse(raw);
   if (!parsed.success) {
     const first = parsed.error.issues[0];
     const path = first?.path?.join(".") ?? "body";

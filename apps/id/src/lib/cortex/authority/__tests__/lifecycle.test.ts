@@ -666,11 +666,11 @@ describe("narrowGrant", () => {
 });
 
 // ============================================================
-// Ledger actor capture
+// Ledger actor capture — covers all four lifecycle transitions
 // ============================================================
 
 describe("ledger actor_user_id capture", () => {
-  it("writes actor_user_id on each lifecycle ledger entry", async () => {
+  it("writes actor_user_id on the authority_grant_paused entry (active → paused)", async () => {
     const { admin, ledger } = makeAdmin([
       {
         id: GRANT_ID,
@@ -682,16 +682,90 @@ describe("ledger actor_user_id capture", () => {
         expires_at: null,
       },
     ]);
-
     await pauseGrant(admin as never, {
       account_id: ACCOUNT_ID,
       user_id: USER_ID,
       grant_id: GRANT_ID,
     });
+    const entry = ledger.find((l) => l.event_type === "authority_grant_paused");
+    expect((entry!.detail as Record<string, unknown>).actor_user_id).toBe(
+      USER_ID,
+    );
+  });
 
-    const pausedEntry = ledger.find((l) => l.event_type === "authority_grant_paused");
-    expect(
-      (pausedEntry!.detail as Record<string, unknown>).actor_user_id,
-    ).toBe(USER_ID);
+  it("writes actor_user_id on the authority_grant_resumed entry (paused → active)", async () => {
+    const { admin, ledger } = makeAdmin([
+      {
+        id: GRANT_ID,
+        account_id: ACCOUNT_ID,
+        status: "paused",
+        granted_at: new Date().toISOString(),
+        revoked_at: null,
+        revocation_reason: null,
+        expires_at: null,
+      },
+    ]);
+    await resumeGrant(admin as never, {
+      account_id: ACCOUNT_ID,
+      user_id: USER_ID,
+      grant_id: GRANT_ID,
+    });
+    const entry = ledger.find((l) => l.event_type === "authority_grant_resumed");
+    expect((entry!.detail as Record<string, unknown>).actor_user_id).toBe(
+      USER_ID,
+    );
+  });
+
+  it("writes actor_user_id on the authority_grant_revoked entry (active → revoked)", async () => {
+    const { admin, ledger } = makeAdmin([
+      {
+        id: GRANT_ID,
+        account_id: ACCOUNT_ID,
+        status: "active",
+        granted_at: new Date().toISOString(),
+        revoked_at: null,
+        revocation_reason: null,
+        expires_at: null,
+      },
+    ]);
+    await revokeGrant(admin as never, {
+      account_id: ACCOUNT_ID,
+      user_id: USER_ID,
+      grant_id: GRANT_ID,
+      reason: "no longer needed",
+    });
+    const entry = ledger.find((l) => l.event_type === "authority_grant_revoked");
+    expect((entry!.detail as Record<string, unknown>).actor_user_id).toBe(
+      USER_ID,
+    );
+  });
+
+  it("writes actor_user_id on both authority_grant_narrowed and the revoke pair (narrow flow)", async () => {
+    const { admin, ledger } = makeAdmin([
+      {
+        id: GRANT_ID,
+        account_id: ACCOUNT_ID,
+        status: "active",
+        granted_at: new Date().toISOString(),
+        revoked_at: null,
+        revocation_reason: null,
+        expires_at: null,
+      },
+    ]);
+    await narrowGrant(admin as never, {
+      account_id: ACCOUNT_ID,
+      user_id: USER_ID,
+      grant_id: GRANT_ID,
+      successor: VALID_SUCCESSOR_PAYLOAD,
+      reason: "tighter shape",
+    });
+    const narrowed = ledger.find((l) => l.event_type === "authority_grant_narrowed");
+    const revoked = ledger.find((l) => l.event_type === "authority_grant_revoked");
+    expect((narrowed!.detail as Record<string, unknown>).actor_user_id).toBe(
+      USER_ID,
+    );
+    expect((revoked!.detail as Record<string, unknown>).actor_user_id).toBe(
+      USER_ID,
+    );
   });
 });

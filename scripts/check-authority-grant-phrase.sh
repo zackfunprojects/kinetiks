@@ -84,8 +84,22 @@ trap "rm -f '${hits_file}'" EXIT INT TERM
 
 for root in "${ROOTS[@]}"; do
   if [ ! -d "$root" ]; then continue; fi
+  # rg / grep return:
+  #   0  → matches found
+  #   1  → no matches (legitimate clean result)
+  #   ≥2 → scanner error (bad regex, IO failure, etc.)
+  # `|| true` would mask the error case and let CI pass while the
+  # gate is actually broken. Propagate exit codes ≥2.
   # shellcheck disable=SC2086
-  eval $SEARCH "$root" >>"$hits_file" 2>/dev/null || true
+  if eval $SEARCH "$root" >>"$hits_file" 2>/dev/null; then
+    :  # matches written, continue
+  else
+    rc=$?
+    if [ "$rc" -ne 1 ]; then
+      echo "❌ trust-language scanner failed while scanning '$root' (exit $rc)" >&2
+      exit "$rc"
+    fi
+  fi
 done
 
 # Filter step. Any line where the FIRST occurrence of the phrase is
