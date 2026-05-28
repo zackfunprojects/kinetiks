@@ -11,6 +11,7 @@ import { requireAuth } from "@/lib/auth/require-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { apiSuccess, apiError } from "@/lib/utils/api-response";
 import { pauseGrant } from "@/lib/cortex/authority/lifecycle";
+import { captureException, USER_SAFE } from "@/lib/observability/sentry";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -51,7 +52,19 @@ export async function POST(request: Request, { params }: RouteParams) {
     });
     return apiSuccess({ grant_id, status: "paused" });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "pause failed";
-    return apiError(message, 500);
+    // Internal lifecycle errors carry `[authority/lifecycle]` prefixes
+    // that must not leak to the customer (CLAUDE.md). Capture full
+    // detail to Sentry; return the user-safe constant.
+    await captureException(err, {
+      tags: {
+        app: "id",
+        route: "/api/cortex/authority/[id]/pause",
+        action: "authority.pause",
+        stage: "execute",
+      },
+      user: { id: auth.account_id },
+      extra: { grantId: grant_id },
+    });
+    return apiError(USER_SAFE.GENERIC_PERMISSION_PAUSE, 500);
   }
 }

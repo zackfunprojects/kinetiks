@@ -11,6 +11,7 @@ import { requireAuth } from "@/lib/auth/require-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { apiSuccess, apiError } from "@/lib/utils/api-response";
 import { revokeGrant } from "@/lib/cortex/authority/lifecycle";
+import { captureException, USER_SAFE } from "@/lib/observability/sentry";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -51,7 +52,16 @@ export async function POST(request: Request, { params }: RouteParams) {
     });
     return apiSuccess({ grant_id, status: "revoked" });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "revoke failed";
-    return apiError(message, 500);
+    await captureException(err, {
+      tags: {
+        app: "id",
+        route: "/api/cortex/authority/[id]/revoke",
+        action: "authority.revoke",
+        stage: "execute",
+      },
+      user: { id: auth.account_id },
+      extra: { grantId: grant_id },
+    });
+    return apiError(USER_SAFE.GENERIC_PERMISSION_REVOKE, 500);
   }
 }

@@ -241,6 +241,7 @@ export interface LedgerAppendInput {
     | "authority_grant_proposed"
     | "authority_grant_approved"
     | "authority_grant_paused"
+    | "authority_grant_resumed"
     | "authority_grant_narrowed"
     | "authority_grant_revoked"
     | "authority_grant_expired"

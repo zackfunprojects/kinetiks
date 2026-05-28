@@ -102,13 +102,26 @@ export const queryActiveAuthorityTool = defineTool({
     const status_in = input.include_paused
       ? (["active", "paused"] as const)
       : (["active"] as const);
-    const page = await listGrants(admin, {
-      account_id: accountId,
-      status_in,
-      scope_type: input.scope_type,
-      expiring_within_days: input.expiring_within_days,
-      limit: input.limit ?? 20,
-    });
+    // Wrap the listGrants call so a database error surfaces with tool
+    // context (mirrors the query_actions_authority pattern). The agent
+    // runtime catches and converts the thrown Error into a structured
+    // tool_calls failure row; the context here helps Marcus phrase a
+    // follow-up to the customer.
+    let page;
+    try {
+      page = await listGrants(admin, {
+        account_id: accountId,
+        status_in,
+        scope_type: input.scope_type,
+        expiring_within_days: input.expiring_within_days,
+        limit: input.limit ?? 20,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "unknown error";
+      throw new Error(
+        `query_active_authority: failed to list grants — ${message}`,
+      );
+    }
 
     const permissions = page.items.map((g) => ({
       permission_id: g.id,

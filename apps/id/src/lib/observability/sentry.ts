@@ -113,4 +113,10 @@ export const USER_SAFE = {
   GENERIC_CONNECTION_FAILURE: "We couldn't reach that integration. Try again.",
   GENERIC_FORBIDDEN: "You don't have permission to do that.",
   GENERIC_NOT_FOUND: "We couldn't find what you were looking for.",
+  // Phase 4 — Authority Grants lifecycle. Customer-facing copy frames the
+  // grant as a "permission" per Kinetiks Contract Addendum §2.14.
+  GENERIC_PERMISSION_PAUSE: "We couldn't pause this permission right now. Try again.",
+  GENERIC_PERMISSION_RESUME: "We couldn't resume this permission right now. Try again.",
+  GENERIC_PERMISSION_REVOKE: "We couldn't revoke this permission right now. Try again.",
+  GENERIC_PERMISSION_NARROW: "We couldn't narrow this permission right now. Try again.",
 } as const;

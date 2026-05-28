@@ -84,12 +84,25 @@ export const queryActionsAuthorityTool = defineTool({
       );
     }
 
-    const grant = await reader.findCoveringGrant({
-      account_id: accountId,
-      action_class: input.action_class,
-      scope_type: input.scope_type ?? "standing",
-      scope_id: input.scope_id ?? null,
-    });
+    // Wrap the GrantReader call in a try/catch so a database error
+    // surfaces with tool context instead of bubbling a bare error up
+    // to the agent runtime. The runtime catches and converts ToolError
+    // / Error into a structured tool_calls failure row; wrapping here
+    // attaches the lookup context Marcus needs for any follow-up.
+    let grant;
+    try {
+      grant = await reader.findCoveringGrant({
+        account_id: accountId,
+        action_class: input.action_class,
+        scope_type: input.scope_type ?? "standing",
+        scope_id: input.scope_id ?? null,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "unknown error";
+      throw new Error(
+        `query_actions_authority: failed to resolve grant for action_class="${input.action_class}" — ${message}`,
+      );
+    }
 
     if (!grant) {
       return {

@@ -26,6 +26,7 @@ import {
   narrowGrant,
 } from "@/lib/cortex/authority/lifecycle";
 import { registerKinetiksStateMachines } from "@/lib/state-machines-init";
+import { captureException, USER_SAFE } from "@/lib/observability/sentry";
 import type { GrantProposalEnvelopeMember } from "@kinetiks/types";
 
 interface ActionResult<T = void> {
@@ -84,8 +85,20 @@ export async function pauseGrantAction(
     revalidatePath("/cortex/authority");
     return { ok: true };
   } catch (err) {
-    const message = err instanceof Error ? err.message : "pause failed";
-    return { ok: false, error: message };
+    // Internal `[authority/lifecycle]` paths must not leak to the
+    // customer (CLAUDE.md). Capture full detail to Sentry; return the
+    // user-safe constant for the UI.
+    await captureException(err, {
+      tags: {
+        app: "id",
+        route: "/cortex/authority",
+        action: "authority.pause",
+        stage: "execute",
+      },
+      user: { id: resolved.accountId },
+      extra: { grantId },
+    });
+    return { ok: false, error: USER_SAFE.GENERIC_PERMISSION_PAUSE };
   }
 }
 
@@ -109,8 +122,17 @@ export async function resumeGrantAction(
     revalidatePath("/cortex/authority");
     return { ok: true };
   } catch (err) {
-    const message = err instanceof Error ? err.message : "resume failed";
-    return { ok: false, error: message };
+    await captureException(err, {
+      tags: {
+        app: "id",
+        route: "/cortex/authority",
+        action: "authority.resume",
+        stage: "execute",
+      },
+      user: { id: resolved.accountId },
+      extra: { grantId },
+    });
+    return { ok: false, error: USER_SAFE.GENERIC_PERMISSION_RESUME };
   }
 }
 
@@ -141,8 +163,17 @@ export async function revokeGrantAction(
     revalidatePath("/cortex/authority");
     return { ok: true };
   } catch (err) {
-    const message = err instanceof Error ? err.message : "revoke failed";
-    return { ok: false, error: message };
+    await captureException(err, {
+      tags: {
+        app: "id",
+        route: "/cortex/authority",
+        action: "authority.revoke",
+        stage: "execute",
+      },
+      user: { id: resolved.accountId },
+      extra: { grantId },
+    });
+    return { ok: false, error: USER_SAFE.GENERIC_PERMISSION_REVOKE };
   }
 }
 
@@ -176,7 +207,16 @@ export async function narrowGrantAction(
     revalidatePath("/");
     return { ok: true, data: result };
   } catch (err) {
-    const message = err instanceof Error ? err.message : "narrow failed";
-    return { ok: false, error: message };
+    await captureException(err, {
+      tags: {
+        app: "id",
+        route: "/cortex/authority",
+        action: "authority.narrow",
+        stage: "execute",
+      },
+      user: { id: resolved.accountId },
+      extra: { grantId },
+    });
+    return { ok: false, error: USER_SAFE.GENERIC_PERMISSION_NARROW };
   }
 }

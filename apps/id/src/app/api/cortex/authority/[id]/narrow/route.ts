@@ -17,6 +17,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { apiSuccess, apiError } from "@/lib/utils/api-response";
 import { narrowGrant } from "@/lib/cortex/authority/lifecycle";
 import { proposedGrantPayloadSchema } from "@/lib/operators/descriptors";
+import { captureException, USER_SAFE } from "@/lib/observability/sentry";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -68,7 +69,20 @@ export async function POST(request: Request, { params }: RouteParams) {
       successor_approval_id: result.successor_approval_id,
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "narrow failed";
-    return apiError(message, 500);
+    // Internal `[authority/lifecycle]` paths must not leak to the
+    // customer. Capture full detail to Sentry; return the user-safe
+    // constant per CLAUDE.md "every failure branch pairs with a generic
+    // user-safe message constant".
+    await captureException(err, {
+      tags: {
+        app: "id",
+        route: "/api/cortex/authority/[id]/narrow",
+        action: "authority.narrow",
+        stage: "execute",
+      },
+      user: { id: auth.account_id },
+      extra: { grantId: grant_id },
+    });
+    return apiError(USER_SAFE.GENERIC_PERMISSION_NARROW, 500);
   }
 }

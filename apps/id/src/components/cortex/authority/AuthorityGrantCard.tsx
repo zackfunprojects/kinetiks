@@ -500,11 +500,18 @@ function UsageSummary({
 }: {
   summary: AuthorityGrant["usage_summary"];
 }) {
-  const totalActions = Object.values(summary.action_counts).reduce(
-    (sum, count) => sum + count,
+  // Defensive ?? {} against a partially-hydrated grant — the default
+  // server-side row carries action_counts as `{}`, but a row from the
+  // expiry feed lookup in page.tsx only carries scope_description and
+  // would render UsageSummary if the parent passed it (it doesn't),
+  // and the nightly rollup race could surface a transient null.
+  const actionCounts = summary.action_counts ?? {};
+  const escalations = summary.escalations_triggered ?? 0;
+  const totalActions = Object.values(actionCounts).reduce(
+    (sum, count) => sum + (typeof count === "number" ? count : 0),
     0,
   );
-  if (totalActions === 0 && summary.escalations_triggered === 0) {
+  if (totalActions === 0 && escalations === 0) {
     return (
       <div
         style={{
@@ -534,13 +541,13 @@ function UsageSummary({
         <strong style={{ color: "var(--kt-fg-2)" }}>{totalActions}</strong>{" "}
         action{totalActions === 1 ? "" : "s"}
       </span>
-      {summary.escalations_triggered > 0 && (
+      {escalations > 0 && (
         <span>
           Checked with you:{" "}
           <strong style={{ color: "var(--kt-fg-2)" }}>
-            {summary.escalations_triggered}
+            {escalations}
           </strong>{" "}
-          time{summary.escalations_triggered === 1 ? "" : "s"}
+          time{escalations === 1 ? "" : "s"}
         </span>
       )}
     </div>
@@ -571,7 +578,12 @@ function ActionButton({ label, onClick, disabled, variant }: ActionButtonProps) 
         fontWeight: "var(--kt-fw-semi)",
         cursor: disabled ? "not-allowed" : "pointer",
         opacity: disabled ? 0.5 : 1,
-        transition: "background 0.15s ease",
+        // Motion tokens per CLAUDE.md — no hardcoded durations or
+        // easings. The global @media (prefers-reduced-motion: reduce)
+        // rule in packages/ui/styles/kinetiks-tokens.css already
+        // forces transition-duration to 0.01ms, so no per-component
+        // media query is needed.
+        transition: "background var(--kt-dur-1) var(--kt-ease-standard)",
       }}
     >
       {label}
