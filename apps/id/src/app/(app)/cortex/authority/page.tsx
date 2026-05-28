@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { listGrants } from "@/lib/cortex/authority/list";
 import { AuthorityManager } from "@/components/cortex/authority/AuthorityManager";
+import { captureException } from "@/lib/observability/sentry";
 
 export const dynamic = "force-dynamic";
 
@@ -43,6 +44,11 @@ export default async function AuthorityPage() {
   // Grants section: all non-terminal grants (proposed, active, paused).
   // Terminal grants (revoked, expired) live in the recent-activity feed
   // for the 7-day window; long-term they live in the Ledger page.
+  //
+  // This is the SPINE query — the data the page is about. Per
+  // CLAUDE.md error-handling rules, spine failures get captured to
+  // Sentry (full structured shape) and surface a friendly error UI
+  // rather than rendering an empty page.
   let grantsPage;
   try {
     grantsPage = await listGrants(admin, {
@@ -51,10 +57,15 @@ export default async function AuthorityPage() {
       limit: 50,
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "unknown error";
-    console.error(
-      `[cortex/authority] listGrants failed account=${account.id}: ${message}`,
-    );
+    await captureException(err, {
+      tags: {
+        app: "id",
+        route: "/cortex/authority",
+        action: "authority.list",
+        stage: "spine",
+      },
+      user: { id: account.id as string },
+    });
     return (
       <Layout systemName={account.system_name as string | null}>
         <div
@@ -79,10 +90,15 @@ export default async function AuthorityPage() {
   // description without a second round trip. Terminal grants outside
   // the 50-row main page need a follow-up lookup to resolve their
   // scope_description — handled below.
+  //
+  // These are SIDE-PANEL queries — the page still renders fine if they
+  // fail. Per CLAUDE.md "side-panel queries capture to Sentry with a
+  // stage tag, fall back to 0 or []", they get captured with their own
+  // stage and we continue with empty data.
   const sevenDaysAgo = new Date(
     Date.now() - 7 * 24 * 60 * 60 * 1000,
   ).toISOString();
-  const { data: ledgerRows } = await admin
+  const { data: ledgerRows, error: ledgerErr } = await admin
     .from("kinetiks_ledger")
     .select("event_type, grant_id, created_at, detail")
     .eq("account_id", account.id)
@@ -90,6 +106,17 @@ export default async function AuthorityPage() {
     .like("event_type", "authority_%")
     .order("created_at", { ascending: false })
     .limit(50);
+  if (ledgerErr) {
+    await captureException(ledgerErr, {
+      tags: {
+        app: "id",
+        route: "/cortex/authority",
+        action: "authority.activity_feed",
+        stage: "side_panel",
+      },
+      user: { id: account.id as string },
+    });
+  }
 
   // Resolve scope_description for any grant referenced by the activity
   // feed but not already in the main grants list (e.g. a grant revoked
@@ -106,11 +133,22 @@ export default async function AuthorityPage() {
     );
   const uniqueMissing = Array.from(new Set(missingGrantIds));
   if (uniqueMissing.length > 0) {
-    const { data: orphanGrants } = await admin
+    const { data: orphanGrants, error: orphanErr } = await admin
       .from("kinetiks_authority_grants")
       .select("id, scope_description")
       .eq("account_id", account.id)
       .in("id", uniqueMissing);
+    if (orphanErr) {
+      await captureException(orphanErr, {
+        tags: {
+          app: "id",
+          route: "/cortex/authority",
+          action: "authority.orphan_scope_lookup",
+          stage: "side_panel",
+        },
+        user: { id: account.id as string },
+      });
+    }
     for (const og of orphanGrants ?? []) {
       scopeDescriptionByGrantId.set(
         og.id as string,

@@ -137,6 +137,7 @@ export async function pauseGrant(
     detail: {
       grant_id: args.grant_id,
       pause_reason: args.reason ?? null,
+      actor_user_id: args.user_id,
     },
   });
 }
@@ -187,6 +188,7 @@ export async function resumeGrant(
     detail: {
       grant_id: args.grant_id,
       resume_reason: args.reason ?? null,
+      actor_user_id: args.user_id,
     },
   });
 }
@@ -268,6 +270,7 @@ export async function revokeGrant(
       grant_id: args.grant_id,
       revocation_reason: revocationReason,
       customer_note: args.reason,
+      actor_user_id: args.user_id,
     },
   });
 }
@@ -319,10 +322,47 @@ export async function narrowGrant(
   admin: Admin,
   args: NarrowGrantArgs,
 ): Promise<NarrowGrantResult> {
-  // assertTransition first so an obvious illegal call short-circuits.
+  // Read current status first. Narrowing must work from BOTH active
+  // and paused (a customer who paused while thinking about a shape may
+  // still want to narrow). Without this read-first guard, calling
+  // narrowGrant on a paused grant would insert the successor RPC and
+  // then fail on the UPDATE filter `.eq("status", "active")` — leaving
+  // an orphan successor in the approval queue with the original still
+  // intact. Read-then-act mirrors the revokeGrant pattern.
+  const { data: current, error: readErr } = await admin
+    .from("kinetiks_authority_grants")
+    .select("status")
+    .eq("id", args.grant_id)
+    .eq("account_id", args.account_id)
+    .maybeSingle();
+  if (readErr) {
+    throw new Error(
+      `[authority/lifecycle] failed to read grant ${args.grant_id} for narrow: ${readErr.message}`,
+    );
+  }
+  if (!current) {
+    throw new Error(
+      `[authority/lifecycle] grant not found for narrow: ${args.grant_id}`,
+    );
+  }
+  const currentStatus = current.status as
+    | "proposed"
+    | "active"
+    | "paused"
+    | "revoked"
+    | "expired";
+  if (currentStatus !== "active" && currentStatus !== "paused") {
+    throw new Error(
+      `[authority/lifecycle] cannot narrow grant in status '${currentStatus}'`,
+    );
+  }
+
+  // assertTransition with the actual from-state so the state machine
+  // veto matches reality. Both active→revoked and paused→revoked are
+  // legal transitions.
   assertTransition({
     entity: "kinetiks_authority_grants",
-    from: "active",
+    from: currentStatus,
     to: "revoked",
     actor: { kind: "user", userId: args.user_id, accountId: args.account_id },
   });
@@ -433,7 +473,10 @@ export async function narrowGrant(
 
   // Revoke the original. Two-step ordering: if this fails after the
   // successor lands, the audit trail (narrowed ledger entry below)
-  // points at the successor.
+  // points at the successor. Narrow accepts both active and paused
+  // (verified by the read-first guard above) — filter to those two
+  // so a concurrent expiry / revoke does not silently produce an
+  // orphan successor pair.
   const revocationReason: AuthorityRevocationReason = "customer_narrowed";
   const nowIso = new Date().toISOString();
   const { data: revoked, error: revokeErr } = await admin
@@ -445,7 +488,7 @@ export async function narrowGrant(
     })
     .eq("id", args.grant_id)
     .eq("account_id", args.account_id)
-    .eq("status", "active")
+    .in("status", ["active", "paused"])
     .select("id")
     .maybeSingle();
 
@@ -456,7 +499,7 @@ export async function narrowGrant(
   }
   if (!revoked) {
     throw new Error(
-      `[authority/lifecycle] narrow successor ${successor_grant_id} proposed but no active grant matched for revocation: ${args.grant_id}`,
+      `[authority/lifecycle] narrow successor ${successor_grant_id} proposed but no active or paused grant matched for revocation: ${args.grant_id}`,
     );
   }
 
@@ -469,6 +512,7 @@ export async function narrowGrant(
       grant_id: args.grant_id,
       successor_grant_id,
       changes_summary: summarizeChanges(args.successor),
+      actor_user_id: args.user_id,
     },
   });
   await writeLifecycleLedger(admin, {
@@ -479,6 +523,7 @@ export async function narrowGrant(
       grant_id: args.grant_id,
       revocation_reason: revocationReason,
       customer_note: args.reason,
+      actor_user_id: args.user_id,
     },
   });
 

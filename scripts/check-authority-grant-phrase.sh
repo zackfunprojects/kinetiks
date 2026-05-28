@@ -73,15 +73,25 @@ else
 fi
 
 violations=""
+# Buffer hits to a temp file, then iterate via redirected fd. Heredoc-
+# from-a-variable expansion can break on lines carrying backslashes,
+# unbalanced quotes, or other shell-metacharacters; reading from a file
+# descriptor sidesteps that entirely. The mktemp + trap cleanup runs
+# on any exit path including SIGINT.
+hits_file=$(mktemp -t kt-authority-grant-phrase.XXXXXX)
+# shellcheck disable=SC2064
+trap "rm -f '${hits_file}'" EXIT INT TERM
+
 for root in "${ROOTS[@]}"; do
   if [ ! -d "$root" ]; then continue; fi
   # shellcheck disable=SC2086
-  hits=$(eval $SEARCH "$root" 2>/dev/null || true)
-  if [ -z "$hits" ]; then continue; fi
+  eval $SEARCH "$root" >>"$hits_file" 2>/dev/null || true
+done
 
-  # Filter step. Any line where the FIRST occurrence of the phrase is
-  # within a comment is allowed (the phrase used in a comment or
-  # docstring is fine — that is internal documentation).
+# Filter step. Any line where the FIRST occurrence of the phrase is
+# within a comment is allowed (the phrase used in a comment or
+# docstring is fine — that is internal documentation).
+if [ -s "$hits_file" ]; then
   while IFS= read -r line; do
     [ -z "$line" ] && continue
 
@@ -107,16 +117,14 @@ for root in "${ROOTS[@]}"; do
     # Heuristic: if the line, with all TypeScript-identifier-shaped
     # occurrences ("AuthorityGrant", "AuthorityGrantStatus", etc.)
     # removed, no longer contains "Authority Grant", it is type-only.
-    stripped_types=$(echo "$contents" | sed -E 's/AuthorityGrant[A-Za-z]*//g')
-    if ! echo "$stripped_types" | grep -qE "$PATTERN"; then
+    stripped_types=$(printf '%s' "$contents" | sed -E 's/AuthorityGrant[A-Za-z]*//g')
+    if ! printf '%s' "$stripped_types" | grep -qE "$PATTERN"; then
       continue
     fi
 
     violations="${violations}${line}"$'\n'
-  done <<EOF
-$hits
-EOF
-done
+  done <"$hits_file"
+fi
 
 if [ -n "$violations" ]; then
   echo "❌ Trust-language violation: 'Authority Grant' appears in customer-rendered surfaces."

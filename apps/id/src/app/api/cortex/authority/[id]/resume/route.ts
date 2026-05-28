@@ -7,6 +7,8 @@
  *
  * Phase 4 — Chunk 9.
  */
+import { z } from "zod";
+
 import { requireAuth } from "@/lib/auth/require-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { apiSuccess, apiError } from "@/lib/utils/api-response";
@@ -17,9 +19,9 @@ interface RouteParams {
   params: Promise<{ id: string }>;
 }
 
-interface ResumeBody {
-  reason?: string;
-}
+const resumeBodySchema = z.object({
+  reason: z.string().max(2000).optional(),
+});
 
 export async function POST(request: Request, { params }: RouteParams) {
   const { id: grant_id } = await params;
@@ -28,18 +30,17 @@ export async function POST(request: Request, { params }: RouteParams) {
   const { auth, error } = await requireAuth(request, { permissions: "read-write" });
   if (error) return error;
 
-  let body: ResumeBody = {};
+  let raw: unknown = {};
   try {
-    body = (await request.json()) as ResumeBody;
+    raw = await request.json();
   } catch {
     // Empty body is fine — `reason` is optional.
   }
-
-  if (body.reason !== undefined && typeof body.reason !== "string") {
-    return apiError("reason must be a string when provided", 400);
-  }
-  if (body.reason && body.reason.length > 2000) {
-    return apiError("reason exceeds 2000 characters", 400);
+  const parsed = resumeBodySchema.safeParse(raw ?? {});
+  if (!parsed.success) {
+    const first = parsed.error.issues[0];
+    const path = first?.path?.join(".") ?? "body";
+    return apiError(`invalid resume payload at '${path}'`, 400);
   }
 
   const admin = createAdminClient();
@@ -48,7 +49,7 @@ export async function POST(request: Request, { params }: RouteParams) {
       account_id: auth.account_id,
       user_id: auth.user_id,
       grant_id,
-      reason: body.reason,
+      reason: parsed.data.reason,
     });
     return apiSuccess({ grant_id, status: "active" });
   } catch (err) {

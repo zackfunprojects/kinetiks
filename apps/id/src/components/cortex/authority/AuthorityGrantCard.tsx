@@ -319,6 +319,7 @@ export function AuthorityGrantCard({
           }}
         >
           <label
+            htmlFor={`revoke-reason-${grant.id}`}
             style={{
               display: "block",
               fontSize: "var(--kt-fs-12)",
@@ -329,11 +330,13 @@ export function AuthorityGrantCard({
             Why are you revoking this permission?
           </label>
           <textarea
+            id={`revoke-reason-${grant.id}`}
             value={revokeReason}
             onChange={(e) => setRevokeReason(e.target.value)}
             disabled={isPending}
             maxLength={2000}
             placeholder="e.g. switching to a tighter set of channels"
+            aria-label="Revocation reason"
             style={{
               width: "100%",
               minHeight: 72,

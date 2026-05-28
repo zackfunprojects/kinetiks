@@ -596,4 +596,102 @@ describe("narrowGrant", () => {
     ).rejects.toThrow(/unregistered action_class/);
     expect(rpcCalls).toHaveLength(0);
   });
+
+  it("narrows a PAUSED grant — accepted because pause is reversible and narrow commits to a tighter shape", async () => {
+    // Bug class: an earlier draft of narrowGrant used `.eq("status",
+    // "active")` on the revoke UPDATE. Narrowing a paused grant would
+    // insert the successor RPC and silently leave the original
+    // untouched — orphan successor in the queue. This test pins the
+    // contract that narrow accepts paused too.
+    const { admin, grants, ledger, rpcCalls } = makeAdmin([
+      {
+        id: GRANT_ID,
+        account_id: ACCOUNT_ID,
+        status: "paused",
+        granted_at: new Date().toISOString(),
+        revoked_at: null,
+        revocation_reason: null,
+        expires_at: null,
+      },
+    ]);
+
+    const result = await narrowGrant(admin as never, {
+      account_id: ACCOUNT_ID,
+      user_id: USER_ID,
+      grant_id: GRANT_ID,
+      successor: VALID_SUCCESSOR_PAYLOAD,
+      reason: "tightening from paused state",
+    });
+
+    expect(result.successor_grant_id).toBeDefined();
+    const original = grants.get(GRANT_ID)!;
+    expect(original.status).toBe("revoked");
+    expect(original.revocation_reason).toBe("customer_narrowed");
+    expect(rpcCalls).toHaveLength(1);
+    expect(ledger.map((l) => l.event_type)).toEqual(
+      expect.arrayContaining([
+        "authority_grant_narrowed",
+        "authority_grant_revoked",
+      ]),
+    );
+  });
+
+  it("throws when narrowing a grant already in terminal status", async () => {
+    const { admin, rpcCalls, ledger } = makeAdmin([
+      {
+        id: GRANT_ID,
+        account_id: ACCOUNT_ID,
+        status: "revoked",
+        granted_at: new Date(Date.now() - 60_000).toISOString(),
+        revoked_at: new Date().toISOString(),
+        revocation_reason: "customer_revoked",
+        expires_at: null,
+      },
+    ]);
+
+    await expect(
+      narrowGrant(admin as never, {
+        account_id: ACCOUNT_ID,
+        user_id: USER_ID,
+        grant_id: GRANT_ID,
+        successor: VALID_SUCCESSOR_PAYLOAD,
+        reason: "too late",
+      }),
+    ).rejects.toThrow(/cannot narrow grant in status 'revoked'/);
+
+    // Nothing wrote: no RPC, no ledger entries.
+    expect(rpcCalls).toHaveLength(0);
+    expect(ledger).toHaveLength(0);
+  });
+});
+
+// ============================================================
+// Ledger actor capture
+// ============================================================
+
+describe("ledger actor_user_id capture", () => {
+  it("writes actor_user_id on each lifecycle ledger entry", async () => {
+    const { admin, ledger } = makeAdmin([
+      {
+        id: GRANT_ID,
+        account_id: ACCOUNT_ID,
+        status: "active",
+        granted_at: new Date().toISOString(),
+        revoked_at: null,
+        revocation_reason: null,
+        expires_at: null,
+      },
+    ]);
+
+    await pauseGrant(admin as never, {
+      account_id: ACCOUNT_ID,
+      user_id: USER_ID,
+      grant_id: GRANT_ID,
+    });
+
+    const pausedEntry = ledger.find((l) => l.event_type === "authority_grant_paused");
+    expect(
+      (pausedEntry!.detail as Record<string, unknown>).actor_user_id,
+    ).toBe(USER_ID);
+  });
 });

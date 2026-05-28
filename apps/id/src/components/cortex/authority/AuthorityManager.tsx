@@ -302,7 +302,12 @@ function RecentActivityList({ entries }: { entries: RecentActivityEntry[] }) {
     >
       {entries.map((entry, i) => (
         <li
-          key={`${entry.event_type}-${entry.created_at}-${i}`}
+          // Identity-preserving composite key — grant_id + created_at +
+          // event_type uniquely identifies a Ledger row. Avoiding the
+          // array index means React keeps the right DOM nodes attached
+          // to the right rows if the feed reorders (e.g. on optimistic
+          // update or realtime push).
+          key={`${entry.grant_id ?? "system"}|${entry.created_at}|${entry.event_type}`}
           style={{
             padding: "var(--kt-s-2) var(--kt-s-3)",
             borderTop: i === 0 ? "none" : "1px solid var(--kt-border-2)",

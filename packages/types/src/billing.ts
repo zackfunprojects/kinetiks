@@ -365,6 +365,8 @@ export interface LedgerEventDetailMap {
     grant_id: string;
     /** Optional reason the customer typed when pausing. */
     pause_reason: string | null;
+    /** Acting user_id (kinetiks user). v2 multi-user audit forward-compat. */
+    actor_user_id?: string;
   };
   authority_grant_resumed: {
     grant_id: string;
@@ -376,6 +378,8 @@ export interface LedgerEventDetailMap {
      * pause and revoke.
      */
     resume_reason: string | null;
+    /** Acting user_id (kinetiks user). v2 multi-user audit forward-compat. */
+    actor_user_id?: string;
   };
   authority_grant_narrowed: {
     grant_id: string;
@@ -384,6 +388,8 @@ export interface LedgerEventDetailMap {
     successor_grant_id: string;
     /** Plain-language summary of what changed (≤ 8 entries). */
     changes_summary: string[];
+    /** Acting user_id (kinetiks user). v2 multi-user audit forward-compat. */
+    actor_user_id?: string;
   };
   authority_grant_revoked: {
     grant_id: string;
@@ -395,6 +401,9 @@ export interface LedgerEventDetailMap {
     revocation_reason: AuthorityRevocationReason;
     /** Optional plain-language explanation supplied by the customer. */
     customer_note?: string;
+    /** Acting user_id (kinetiks user) when revocation was customer-driven.
+     *  Null/absent for system-driven revocations (e.g. fixture cleanup). */
+    actor_user_id?: string;
   };
   authority_grant_expired: {
     grant_id: string;
