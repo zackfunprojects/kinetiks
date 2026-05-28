@@ -35,9 +35,14 @@ export async function POST(request: Request, { params }: RouteParams) {
   // malformed-JSON body (must 400). Silently swallowing JSON errors on
   // a mutating endpoint hides client bugs and is the kind of thing
   // the trust layer specifically tries to avoid.
+  //
+  // Use bodyText.length, NOT trim(): whitespace-only bodies like " \n "
+  // are not "empty" — they are malformed JSON and must hit the 400 path.
+  // Otherwise a client bug producing whitespace-padded garbage would
+  // silently succeed.
   const bodyText = await request.text();
   let raw: unknown = {};
-  if (bodyText.trim().length > 0) {
+  if (bodyText.length > 0) {
     try {
       raw = JSON.parse(bodyText);
     } catch {

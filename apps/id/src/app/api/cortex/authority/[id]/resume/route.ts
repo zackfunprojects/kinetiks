@@ -34,9 +34,12 @@ export async function POST(request: Request, { params }: RouteParams) {
   // is distinguishable from malformed JSON (must 400). Silently
   // swallowing JSON parse errors on a mutating endpoint hides client
   // bugs and routes around the validator.
+  //
+  // Use bodyText.length, NOT trim(): whitespace-only bodies are not
+  // "empty" — they are malformed JSON and must hit the 400 path.
   const bodyText = await request.text();
   let raw: unknown = {};
-  if (bodyText.trim().length > 0) {
+  if (bodyText.length > 0) {
     try {
       raw = JSON.parse(bodyText);
     } catch {
