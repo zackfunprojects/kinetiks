@@ -9,6 +9,15 @@ const DIMENSIONS: Record<ConfidenceRingSize, { px: number; strokePx: number; fon
   lg: { px: 40, strokePx: 4, fontSize: "var(--kt-fs-14)" },
 };
 
+export type ConfidenceRingTone = "auto" | "accent" | "success" | "warning" | "danger";
+
+const TONE_STROKE: Record<Exclude<ConfidenceRingTone, "auto">, string> = {
+  accent: "var(--kt-accent)",
+  success: "var(--kt-success)",
+  warning: "var(--kt-warning)",
+  danger: "var(--kt-danger)",
+};
+
 export interface ConfidenceRingProps {
   /** 0..1 confidence. Values outside are clamped. */
   value: number;
@@ -17,6 +26,14 @@ export interface ConfidenceRingProps {
   size?: ConfidenceRingSize;
   ariaLabel?: string;
   showLabel?: boolean;
+  /**
+   * Fill tone. "auto" (default) fills accent at/above threshold, neutral below
+   * — the earned-autonomy signal. Pass an explicit tone (e.g. "warning") to
+   * show the trust-re-earning state after a rejection.
+   */
+  tone?: ConfidenceRingTone;
+  /** Render a small tick at the threshold position on the track. */
+  showThresholdTick?: boolean;
   className?: string;
 }
 
@@ -26,6 +43,8 @@ export function ConfidenceRing({
   size = "md",
   ariaLabel,
   showLabel = false,
+  tone = "auto",
+  showThresholdTick = false,
   className,
 }: ConfidenceRingProps) {
   const clamped = Math.min(1, Math.max(0, value));
@@ -33,8 +52,19 @@ export function ConfidenceRing({
   const radius = (px - strokePx) / 2;
   const circumference = 2 * Math.PI * radius;
   const dashOffset = circumference - clamped * circumference;
-  const stroke = clamped >= threshold ? "var(--kt-accent)" : "var(--kt-fg-3)";
+  const stroke =
+    tone === "auto"
+      ? clamped >= threshold
+        ? "var(--kt-accent)"
+        : "var(--kt-fg-3)"
+      : TONE_STROKE[tone];
   const label = Math.round(clamped * 100);
+
+  // Threshold tick: a dot on the track at the threshold angle (track starts at
+  // 12 o'clock and runs clockwise, matching the progress arc's -90° rotation).
+  const tickAngle = (-90 + Math.min(1, Math.max(0, threshold)) * 360) * (Math.PI / 180);
+  const tickX = px / 2 + radius * Math.cos(tickAngle);
+  const tickY = px / 2 + radius * Math.sin(tickAngle);
 
   const wrap: CSSProperties = {
     position: "relative",
@@ -74,6 +104,9 @@ export function ConfidenceRing({
           transform={`rotate(-90 ${px / 2} ${px / 2})`}
           style={{ transition: "stroke-dashoffset var(--kt-dur-2) var(--kt-ease-standard)" }}
         />
+        {showThresholdTick ? (
+          <circle cx={tickX} cy={tickY} r={Math.max(1.5, strokePx * 0.7)} fill="var(--kt-fg-2)" />
+        ) : null}
       </svg>
       {showLabel ? (
         <span

@@ -1,6 +1,9 @@
 "use client";
 
+import Link from "next/link";
+import { Card, Button, StatusPill, ConfidenceRing } from "@kinetiks/ui";
 import type { ApprovalRecord } from "@/lib/approvals/types";
+import { categoryThreshold, confidenceFraction } from "./confidence";
 
 interface StrategicApprovalCardProps {
   approval: ApprovalRecord;
@@ -9,133 +12,61 @@ interface StrategicApprovalCardProps {
   systemName: string | null;
 }
 
-export function StrategicApprovalCard({
-  approval,
-  onApprove,
-  onReject,
-  systemName,
-}: StrategicApprovalCardProps) {
+export function StrategicApprovalCard({ approval, onApprove, onReject, systemName }: StrategicApprovalCardProps) {
+  const threshold = categoryThreshold(approval.action_category);
+  const b = approval.confidence_breakdown;
+
   return (
-    <div
-      style={{
-        padding: 12,
-        borderRadius: 8,
-        border: "1px solid var(--kt-danger-soft)",
-        background: "var(--kt-bg-muted)",
-        marginBottom: 8,
-      }}
-    >
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-        <span
-          style={{
-            fontSize: 10,
-            fontWeight: 600,
-            padding: "2px 6px",
-            borderRadius: 4,
-            background: "var(--kt-danger-soft)",
-            color: "var(--kt-danger)",
-            textTransform: "uppercase",
-          }}
-        >
-          Strategic
-        </span>
-        <span style={{ fontSize: 11, color: "var(--kt-fg-3)" }}>
-          {approval.source_app}
-        </span>
-        {approval.confidence_score !== null && (
-          <span style={{ fontSize: 11, color: "var(--kt-fg-3)", marginLeft: "auto" }}>
-            {Math.round(approval.confidence_score)}% conf.
+    <Card variant="accent" style={{ marginBottom: "var(--kt-s-2)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "var(--kt-s-2)", marginBottom: "var(--kt-s-2)" }}>
+        <StatusPill tone="danger">Strategic</StatusPill>
+        <span className="kt-small">{approval.source_app}</span>
+        {approval.confidence_score !== null ? (
+          <span style={{ marginLeft: "auto" }}>
+            <ConfidenceRing
+              value={confidenceFraction(approval.confidence_score)}
+              threshold={threshold}
+              showThresholdTick
+              showLabel
+              size="md"
+              ariaLabel={`Confidence ${Math.round(approval.confidence_score)} percent versus ${Math.round(threshold * 100)} percent threshold`}
+            />
           </span>
-        )}
+        ) : null}
       </div>
 
-      {/* Title */}
-      <div style={{ fontSize: 14, fontWeight: 600, color: "var(--kt-fg-1)", marginBottom: 8 }}>
-        {approval.title}
-      </div>
+      <div className="kt-card-title" style={{ marginBottom: "var(--kt-s-2)" }}>{approval.title}</div>
 
-      {/* Description with reasoning */}
-      {approval.description && (
+      {approval.description ? (
         <div
+          className="kt-small"
           style={{
-            fontSize: 12,
-            color: "var(--kt-fg-2)",
-            marginBottom: 10,
-            lineHeight: 1.5,
-            padding: 10,
-            borderRadius: 6,
-            background: "var(--kt-bg-base)",
-            border: "1px solid var(--kt-border-2)",
+            marginBottom: "var(--kt-s-3)",
+            padding: "var(--kt-s-3)",
+            borderRadius: "var(--kt-radius-1)",
+            background: "var(--kt-bg-subtle)",
+            border: "1px solid var(--kt-border-1)",
+            lineHeight: "var(--kt-lh-body)",
           }}
         >
           {approval.description}
         </div>
-      )}
+      ) : null}
 
-      {/* Confidence breakdown */}
-      {approval.confidence_breakdown && (
-        <div
-          style={{
-            fontSize: 11,
-            color: "var(--kt-fg-3)",
-            marginBottom: 10,
-            fontFamily: "var(--font-mono), monospace",
-          }}
-        >
-          <div>Cortex: {approval.confidence_breakdown.cortex} | Category: {approval.confidence_breakdown.category} | Specificity: {approval.confidence_breakdown.specificity} | Agent: {approval.confidence_breakdown.agent}</div>
+      {b ? (
+        <div className="kt-data-inline" style={{ color: "var(--kt-fg-3)", marginBottom: "var(--kt-s-3)" }}>
+          Cortex {b.cortex} · Category {b.category} · Specificity {b.specificity} · Agent {b.agent}
         </div>
-      )}
+      ) : null}
 
-      {/* Discuss link */}
-      <a
-        href="/chat"
-        style={{
-          fontSize: 12,
-          color: "var(--kt-warm)",
-          textDecoration: "none",
-          display: "block",
-          marginBottom: 10,
-        }}
-      >
+      <Link href="/chat" className="kt-link" style={{ display: "block", marginBottom: "var(--kt-s-3)", fontSize: "var(--kt-fs-12)" }}>
         Discuss with {systemName || "your system"} &rarr;
-      </a>
+      </Link>
 
-      {/* Actions */}
-      <div style={{ display: "flex", gap: 6 }}>
-        <button
-          onClick={() => onApprove(approval.id)}
-          style={{
-            flex: 1,
-            padding: "8px 12px",
-            borderRadius: 6,
-            border: "none",
-            background: "var(--kt-success-soft)",
-            color: "var(--kt-success)",
-            fontSize: 12,
-            fontWeight: 500,
-            cursor: "pointer",
-          }}
-        >
-          Approve
-        </button>
-        <button
-          onClick={() => onReject(approval.id)}
-          style={{
-            flex: 1,
-            padding: "8px 12px",
-            borderRadius: 6,
-            border: "1px solid var(--kt-danger-soft)",
-            background: "transparent",
-            color: "var(--kt-danger)",
-            fontSize: 12,
-            fontWeight: 500,
-            cursor: "pointer",
-          }}
-        >
-          Reject
-        </button>
+      <div style={{ display: "flex", gap: "var(--kt-s-2)" }}>
+        <Button variant="accent" size="sm" style={{ flex: 1 }} onClick={() => onApprove(approval.id)}>Approve</Button>
+        <Button variant="danger" size="sm" style={{ flex: 1 }} onClick={() => onReject(approval.id)}>Reject</Button>
       </div>
-    </div>
+    </Card>
   );
 }

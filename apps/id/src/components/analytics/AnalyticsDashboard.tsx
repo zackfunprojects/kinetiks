@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { DailyBriefCard } from "./DailyBriefCard";
 import { GoalOverview } from "./GoalOverview";
 import { InsightsBoard } from "./InsightsBoard";
 import { SourcesPanel } from "./SourcesPanel";
@@ -22,6 +23,9 @@ export function AnalyticsDashboard() {
         </div>
         <DateRangePicker value={dateRange} onChange={setDateRange} />
       </div>
+
+      {/* Daily brief */}
+      <DailyBriefCard />
 
       {/* Goals */}
       <section style={{ marginBottom: "var(--kt-s-6)" }}>
