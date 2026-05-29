@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { assertTransition } from "@kinetiks/lib/state-machines";
 import { registerKinetiksStateMachines } from "@/lib/state-machines-init";
+import { captureException } from "@/lib/observability/sentry";
 
 /**
  * Server Actions for the Cortex Patterns sub-tab per the Kinetiks
@@ -89,9 +90,11 @@ export async function starPattern(patternId: string, value: boolean): Promise<Ac
     .eq("id", patternId)
     .eq("account_id", auth.accountId);
   if (error) {
-    console.error(
-      `starPattern failed pattern=${patternId} account=${auth.accountId}: ${error.message}`,
-    );
+    await captureException(error, {
+      tags: { route: "/cortex/patterns", action: "pattern.star", stage: "persist", app: "id" },
+      user: { id: auth.accountId },
+      extra: { pattern_id: patternId, postgrest_code: error.code },
+    });
     return { ok: false, error: "Could not update star state" };
   }
 
@@ -116,9 +119,11 @@ export async function suppressPattern(patternId: string, value: boolean): Promis
     .eq("id", patternId)
     .eq("account_id", auth.accountId);
   if (error) {
-    console.error(
-      `suppressPattern failed pattern=${patternId} account=${auth.accountId}: ${error.message}`,
-    );
+    await captureException(error, {
+      tags: { route: "/cortex/patterns", action: "pattern.suppress", stage: "persist", app: "id" },
+      user: { id: auth.accountId },
+      extra: { pattern_id: patternId, postgrest_code: error.code },
+    });
     return { ok: false, error: "Could not update suppressed state" };
   }
 
@@ -151,9 +156,11 @@ export async function annotatePattern(
     .eq("id", patternId)
     .eq("account_id", auth.accountId);
   if (error) {
-    console.error(
-      `annotatePattern failed pattern=${patternId} account=${auth.accountId}: ${error.message}`,
-    );
+    await captureException(error, {
+      tags: { route: "/cortex/patterns", action: "pattern.annotate", stage: "persist", app: "id" },
+      user: { id: auth.accountId },
+      extra: { pattern_id: patternId, postgrest_code: error.code },
+    });
     return { ok: false, error: "Could not update annotation" };
   }
 
@@ -206,9 +213,11 @@ export async function archivePattern(patternId: string): Promise<ActionResult> {
     .eq("id", patternId)
     .eq("account_id", auth.accountId);
   if (error) {
-    console.error(
-      `archivePattern failed pattern=${patternId} account=${auth.accountId}: ${error.message}`,
-    );
+    await captureException(error, {
+      tags: { route: "/cortex/patterns", action: "pattern.archive", stage: "persist", app: "id" },
+      user: { id: auth.accountId },
+      extra: { pattern_id: patternId, postgrest_code: error.code },
+    });
     return { ok: false, error: "Could not archive pattern" };
   }
 

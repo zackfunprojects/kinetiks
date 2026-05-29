@@ -387,23 +387,18 @@ export async function buildDataAvailabilityManifest(
   accountId: string,
   supabase: SupabaseClient
 ): Promise<DataAvailabilityManifest> {
-  console.log("[MANIFEST] accountId:", accountId);
-
   // 1. Check each Cortex layer
   // Each layer table has: id, account_id, data (jsonb), confidence_score, source, source_detail, created_at, updated_at
   // Data lives INSIDE the `data` jsonb column - field counting must look there, not at top-level columns
   const layerCoverages: CortexLayerCoverage[] = await Promise.all(
     CORTEX_LAYERS.map(async (layerName) => {
       const tableName = CORTEX_LAYER_TABLES[layerName];
-      console.log("[MANIFEST] querying table:", tableName, "for account:", accountId);
 
       const { data: layerData, error: layerError } = await supabase
         .from(tableName)
         .select("data, confidence_score, source, updated_at")
         .eq("account_id", accountId)
         .single();
-
-      console.log("[MANIFEST] raw query result:", tableName, JSON.stringify(layerData?.confidence_score ?? "null"));
 
       if (layerError && layerError.code !== "PGRST116") {
         // PGRST116 = no rows - expected for new accounts
@@ -452,9 +447,6 @@ export async function buildDataAvailabilityManifest(
   const overallConfidence = layerCoverages.length > 0
     ? Math.round(layerCoverages.reduce((sum, l) => sum + l.confidence, 0) / layerCoverages.length)
     : 0;
-
-  console.log("[MANIFEST] computed overall confidence:", overallConfidence);
-  console.log("[MANIFEST] layers with data:", layersWithData.map((l) => `${l.layer_name}: ${l.confidence}%`));
 
   // 3. Check Synapse connections
   const { data: synapses, error: synapsesError } = await supabase

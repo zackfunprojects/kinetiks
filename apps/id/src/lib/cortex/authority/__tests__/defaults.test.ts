@@ -6,7 +6,6 @@ import {
   assertNoAuthorityGrantPhrase,
   buildAcceptDefaultProposal,
   buildProposeDefaultPayload,
-  emitDefaultAcceptLedgerEntries,
   emitDefaultRejectedLedgerEntries,
   emitDefaultSkippedLedgerEntries,
 } from "../defaults";
@@ -135,71 +134,6 @@ describe("authority/defaults", () => {
       const eightDaysMs = 8 * 24 * 60 * 60 * 1000;
       expect(stamp).toBeGreaterThan(before + sixDaysMs);
       expect(stamp).toBeLessThan(before + eightDaysMs);
-    });
-  });
-
-  describe("emitDefaultAcceptLedgerEntries", () => {
-    it("inserts two rows per grant (proposed + approved)", async () => {
-      const insert = vi.fn().mockReturnValue({ error: null });
-      const admin = {
-        from: vi.fn().mockReturnValue({ insert }),
-      };
-      await emitDefaultAcceptLedgerEntries({
-        admin: admin as unknown as Parameters<typeof emitDefaultAcceptLedgerEntries>[0]["admin"],
-        account_id: "acc-1",
-        invocation_id: "inv-1",
-        grants: [
-          {
-            grant_id: "g1",
-            default_origin_app: "kinetiks_id",
-            default_origin_key: "k1",
-            action_classes: ["kinetiks_id.send_slack_notification"],
-          },
-        ],
-      });
-      expect(admin.from).toHaveBeenCalledWith("kinetiks_ledger");
-      const rows = insert.mock.calls[0][0] as Array<{ event_type: string; detail: Record<string, unknown> }>;
-      expect(rows).toHaveLength(2);
-      expect(rows[0].event_type).toBe("authority_grant_proposed");
-      expect(rows[1].event_type).toBe("authority_grant_approved");
-      expect(rows[0].detail.source_label).toBe("default_at_signup");
-      expect(rows[1].detail.source_label).toBe("default_at_signup");
-      expect(rows[1].detail.approval_id).toBeNull();
-      expect(rows[0].detail.action_classes).toEqual([
-        "kinetiks_id.send_slack_notification",
-      ]);
-    });
-
-    it("no-ops on empty input", async () => {
-      const insert = vi.fn();
-      const admin = { from: vi.fn().mockReturnValue({ insert }) };
-      await emitDefaultAcceptLedgerEntries({
-        admin: admin as unknown as Parameters<typeof emitDefaultAcceptLedgerEntries>[0]["admin"],
-        account_id: "acc",
-        invocation_id: "inv",
-        grants: [],
-      });
-      expect(insert).not.toHaveBeenCalled();
-    });
-
-    it("throws on ledger insert failure", async () => {
-      const insert = vi.fn().mockReturnValue({ error: { message: "boom" } });
-      const admin = { from: vi.fn().mockReturnValue({ insert }) };
-      await expect(
-        emitDefaultAcceptLedgerEntries({
-          admin: admin as unknown as Parameters<typeof emitDefaultAcceptLedgerEntries>[0]["admin"],
-          account_id: "acc",
-          invocation_id: "inv",
-          grants: [
-            {
-              grant_id: "g1",
-              default_origin_app: "kinetiks_id",
-              default_origin_key: "k1",
-              action_classes: [],
-            },
-          ],
-        }),
-      ).rejects.toThrow(/boom/);
     });
   });
 

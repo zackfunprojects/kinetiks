@@ -135,10 +135,7 @@ export async function processMarcusMessage(
   ).catch(() => undefined);
 
   // 5. Build data availability manifest
-  console.log("[ENGINE] accountId passed to manifest:", accountId);
   const manifest = await buildDataAvailabilityManifest(accountId, admin);
-  console.log("[ENGINE] manifest overall confidence:", manifest.cortex_coverage.overall_confidence);
-  console.log("[ENGINE] manifest layers with data:", manifest.cortex_coverage.layers.filter((l) => l.has_data).map((l) => `${l.layer_name}: ${l.confidence}%`));
 
   // 6. Load thread memories
   const memories = await loadThreadMemories(accountId, thread.id, admin);
@@ -200,9 +197,6 @@ export async function processMarcusMessage(
     briefInsights,
     briefPatterns,
   );
-  console.log("[ENGINE] brief evidence count:", brief.available_evidence.length);
-  console.log("[ENGINE] brief must_not:", brief.response_shape.must_not);
-
   // 7.5. Tool decision + invocation (D1). A Haiku picks whether any
   // single registered tool would directly answer the question; if yes,
   // the Runtime invokes it and we re-render the brief with a

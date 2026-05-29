@@ -36,7 +36,6 @@ function OnboardingContent() {
       try {
         const res = await fetch("/api/account/create", { method: "POST" });
         const json = await res.json();
-        console.log("[onboarding] /api/account/create response:", res.status, json);
 
         if (!res.ok) {
           setError(json.error ?? `Account creation failed (${res.status})`);

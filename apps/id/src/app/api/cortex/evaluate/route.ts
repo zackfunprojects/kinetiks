@@ -4,6 +4,7 @@ import { evaluateProposal } from "@/lib/cortex";
 import { recalculateConfidence } from "@/lib/cortex";
 import { resolveProposal } from "@/lib/cortex";
 import { apiSuccess, apiError } from "@/lib/utils/api-response";
+import { captureException } from "@/lib/observability/sentry";
 import type { Proposal } from "@kinetiks/types";
 
 /**
@@ -106,10 +107,11 @@ export async function POST(request: Request) {
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown error";
-      console.error(
-        `Failed to evaluate proposal ${proposal.id}:`,
-        message
-      );
+      await captureException(err, {
+        tags: { route: "/api/cortex/evaluate", action: "proposal.evaluate", stage: "execute", app: "id" },
+        user: { id: proposal.account_id },
+        extra: { proposal_id: proposal.id },
+      });
       results.push({
         proposal_id: proposal.id,
         status: "error",
@@ -125,11 +127,10 @@ export async function POST(request: Request) {
     try {
       await recalculateConfidence(admin, accountId);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Unknown error";
-      console.error(
-        `Failed to recalculate confidence for account ${accountId}:`,
-        message
-      );
+      await captureException(err, {
+        tags: { route: "/api/cortex/evaluate", action: "confidence.recalculate", stage: "execute", app: "id" },
+        user: { id: accountId },
+      });
     }
   }
 
