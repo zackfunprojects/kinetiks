@@ -95,7 +95,29 @@ if [ "$AHEAD" != "0" ]; then
   exit 1
 fi
 
-# ── 3. (Informational) Branch context ───────────────────────
+# ── 3. pnpm-lock.yaml in sync with workspace package.jsons? ──
+# Failure mode caught in production (PR #69, Vercel preview): adding
+# a dependency via `pnpm add` updates the workspace's package.json
+# but leaves pnpm-lock.yaml untouched until `pnpm install` is run.
+# Local builds work because node_modules is populated; CI fails
+# because `pnpm install --frozen-lockfile` refuses to drift.
+#
+# `pnpm install --frozen-lockfile` is the same check Vercel runs.
+# When node_modules is already populated, it completes in ~3s and
+# only verifies the lockfile.
+if command -v pnpm >/dev/null 2>&1; then
+  if ! pnpm install --frozen-lockfile --reporter=silent >/tmp/health-lockfile.log 2>&1; then
+    echo "" >&2
+    echo "❌ pnpm-lock.yaml is out of sync with at least one workspace's package.json:" >&2
+    tail -8 /tmp/health-lockfile.log >&2
+    echo "" >&2
+    echo "Fix: run \`pnpm install\` to regenerate the lockfile, then commit it." >&2
+    echo "Vercel CI uses --frozen-lockfile and refuses to build with drift." >&2
+    exit 1
+  fi
+fi
+
+# ── 4. (Informational) Branch context ───────────────────────
 # Production auto-deploys from main on Vercel. If we're on a feature
 # branch, Vercel deploys to a *preview* URL, not production. Warn
 # clearly so the human knows what "deployed" means in this context.
