@@ -199,6 +199,47 @@ export const hubspotQueryTool = defineTool({
       if (pagesWalked >= HUBSPOT_MAX_PAGES) hitPageCap = true;
     }
 
+    // Phase 7 CR round 3: false-positive `truncated` for accounts with
+    // exactly HUBSPOT_MAX_PAGES * HUBSPOT_PAGE_SIZE rows. The loop sets
+    // hitPageCap as soon as the cap-page returns a full PAGE_SIZE, but
+    // there may be nothing past it. A cheap one-row probe past the last
+    // cursor confirms whether there's more data; if not, fall through
+    // to `ok` with exact aggregates.
+    if (hitPageCap && cursorSynced && cursorId) {
+      const { data: probeRows, error: probeError } = await admin
+        .from("kinetiks_crm_entities")
+        .select("id")
+        .eq("account_id", ctx.accountId)
+        .eq("source", "hubspot")
+        .eq("entity_type", input.entity_type)
+        .or(
+          `synced_at.lt.${cursorSynced},and(synced_at.eq.${cursorSynced},id.lt.${cursorId})`,
+        )
+        .limit(1);
+      if (probeError) {
+        Sentry.captureException(probeError, {
+          tags: {
+            route: "hubspot_query",
+            action: "entities_query",
+            stage: "truncated_probe",
+            app: "id",
+          },
+          user: { id: ctx.accountId },
+          extra: {
+            entity_type: input.entity_type,
+            pages_walked: pagesWalked,
+            postgrest_code: probeError.code,
+          },
+        });
+        // Probe failed — keep the conservative `truncated` flag; we
+        // don't know whether there's more, and over-reporting partial
+        // is safer than under-reporting truncation.
+      } else if (!probeRows || probeRows.length === 0) {
+        // No row past the cursor — we read everything; not truncated.
+        hitPageCap = false;
+      }
+    }
+
     if (hitPageCap) {
       Sentry.captureMessage("[hubspot_query] page-walk cap reached", {
         level: "warning",
@@ -275,12 +316,14 @@ export const hubspotQueryTool = defineTool({
           : {}),
       }));
 
-    // Phase 7 CR round 2: return `truncated` rather than `ok` when
-    // the page cap is hit. Aggregates are computed from whatever we
-    // did fetch (a lower bound), but the caller (Marcus) gets an
-    // explicit signal that totals are partial. Marcus surfaces this
-    // to the customer rather than presenting partial numbers as
-    // authoritative.
+    // Phase 7 CR round 2 + 3: return `truncated` rather than `ok`
+    // when the page cap is hit AND the post-loop probe confirmed more
+    // data exists. Aggregates are computed from whatever we did fetch
+    // (a lower bound), but the caller (Marcus) gets an explicit
+    // signal that totals are partial. Marcus surfaces this to the
+    // customer rather than presenting partial numbers as authoritative.
+    // Exact-fit result sets (probe returned no rows past the cursor)
+    // fall through to `ok` instead.
     if (hitPageCap) {
       return {
         status: "truncated" as const,
