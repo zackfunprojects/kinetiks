@@ -1,3 +1,6 @@
+"use client";
+
+import { useId } from "react";
 import { trendPaths, toPoints } from "@kinetiks/lib/chart-math";
 import { cn } from "./cn";
 
@@ -35,7 +38,9 @@ export function TrendChart({
   const pad = strokeWidth + 2;
   const { line, area } = trendPaths(values, width, height, pad);
   const end = toPoints(values, width, height, pad).at(-1);
-  const gradientId = `kt-trend-fade-${Math.round(width)}-${Math.round(height)}`;
+  // useId is SSR-safe and unique per instance, so multiple same-size charts
+  // don't collide on the gradient id. Strip colons React may include.
+  const gradientId = `kt-trend-fade-${useId().replace(/:/g, "")}`;
 
   return (
     <svg

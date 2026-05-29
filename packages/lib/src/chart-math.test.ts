@@ -105,4 +105,9 @@ describe("fractionToPercent", () => {
     expect(fractionToPercent(-1)).toBe(0);
     expect(fractionToPercent(2)).toBe(100);
   });
+
+  it("returns 0 for NaN (never produces width:'NaN%')", () => {
+    expect(fractionToPercent(NaN)).toBe(0);
+    expect(fractionToPercent(0 / 0)).toBe(0);
+  });
 });
