@@ -66,21 +66,23 @@ SELECT throws_ok(
 );
 
 -- ── Alice cannot UPDATE her row ───────────────────────────
-SELECT throws_ok(
-  $$ UPDATE kinetiks_metric_cache
-     SET response = '{"rows":[{"value":9999}]}'::jsonb
-     WHERE id = 'aaaaaaaa-2222-2222-2222-aaaaaaaaaaaa' $$,
-  '42501',
-  NULL,
-  'authenticated user cannot update kinetiks_metric_cache (no client UPDATE policy)'
+-- No client UPDATE policy: RLS filters the target to zero rows rather
+-- than throwing; the cached response stays unchanged.
+UPDATE kinetiks_metric_cache
+   SET response = '{"rows":[{"value":9999}]}'::jsonb
+   WHERE id = 'aaaaaaaa-2222-2222-2222-aaaaaaaaaaaa';
+SELECT is(
+  (SELECT response->'rows'->0->>'value' FROM kinetiks_metric_cache WHERE id = 'aaaaaaaa-2222-2222-2222-aaaaaaaaaaaa'),
+  '1000',
+  'authenticated update on own metric_cache row is filtered (response unchanged)'
 );
 
--- ── Authenticated cannot call advisory lock RPCs ─────────
-SELECT throws_ok(
-  $$ SELECT _kt_try_advisory_lock('123') $$,
-  '42501',
-  NULL,
-  'authenticated user cannot call advisory lock helpers (service_role only)'
+-- ── Authenticated lacks EXECUTE on the advisory lock helpers ─────
+-- Checked via the catalog so the assertion does not depend on
+-- call-time error codes (service_role only).
+SELECT ok(
+  NOT has_function_privilege('authenticated', '_kt_try_advisory_lock(text)', 'EXECUTE'),
+  'authenticated lacks EXECUTE on advisory lock helper (service_role only)'
 );
 
 SELECT _kt_test_clear_auth();

@@ -22,8 +22,8 @@ BEGIN
   PERFORM set_config('test.alice_account', alice_account::text, true);
 
   INSERT INTO kinetiks_ledger (account_id, event_type, detail)
-  VALUES (alice_account, 'pgtap.event', '{}'::jsonb),
-         (bob_account,   'pgtap.event', '{}'::jsonb);
+  VALUES (alice_account, 'account_created', '{}'::jsonb),
+         (bob_account,   'account_created', '{}'::jsonb);
 END $$;
 
 SELECT _kt_test_set_auth_user('11111111-1111-1111-1111-111111111111');

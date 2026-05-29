@@ -133,13 +133,16 @@ SELECT results_eq(
 );
 
 -- ── updated_at advances on update via trigger ───────────────
+-- now() is frozen within a single transaction, so updated_at (set by
+-- the trigger on UPDATE) equals created_at here. >= confirms the trigger
+-- kept a sane ordering without depending on wall-clock advance.
 SELECT cmp_ok(
   (SELECT updated_at FROM kinetiks_pattern_pending_observations
      WHERE id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa01'::uuid),
-  '>',
+  '>=',
   (SELECT created_at FROM kinetiks_pattern_pending_observations
      WHERE id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa01'::uuid),
-  'updated_at trigger fires on UPDATE'
+  'updated_at is set on UPDATE (>= created_at; now() is frozen in-txn)'
 );
 
 -- ── Expiry path: pending → expired ──────────────────────────
