@@ -33,6 +33,7 @@ export default async function IntegrationsPage() {
     { data: synapses },
     { data: connections },
     { data: imports },
+    { data: identity },
   ] = await Promise.all([
     admin
       .from("kinetiks_app_activations")
@@ -52,43 +53,25 @@ export default async function IntegrationsPage() {
       .select("*")
       .eq("account_id", account.id)
       .order("created_at", { ascending: false }),
+    admin
+      .from("kinetiks_system_identity")
+      .select("email_provider, email_address, slack_workspace_id, calendar_connected")
+      .eq("account_id", account.id)
+      .maybeSingle(),
   ]);
 
   const providers = listProviders();
 
   return (
     <div>
-      <h1
-        style={{
-          fontSize: 24,
-          fontWeight: 700,
-          color: "var(--kt-fg-1)",
-          margin: "0 0 8px",
-        }}
-      >
-        Integrations
-      </h1>
-      <p
-        style={{
-          fontSize: 14,
-          color: "var(--kt-fg-2)",
-          margin: "0 0 32px",
-        }}
-      >
+      <h1 className="kt-page-title" style={{ margin: "0 0 var(--kt-s-2)" }}>Integrations</h1>
+      <p className="kt-body" style={{ margin: "0 0 var(--kt-s-6)" }}>
         Kinetiks apps, external tools, and data imports
       </p>
 
       {/* Kinetiks Apps */}
       <section style={{ marginBottom: 40 }}>
-        <h2
-          style={{
-            fontSize: 16,
-            fontWeight: 600,
-            color: "var(--kt-fg-1)",
-            margin: "0 0 16px",
-            fontFamily: "var(--font-mono), monospace",
-          }}
-        >
+        <h2 className="kt-section-title" style={{ margin: "0 0 var(--kt-s-4)" }}>
           Apps
         </h2>
         <AppsManager
@@ -99,15 +82,7 @@ export default async function IntegrationsPage() {
 
       {/* External Connections */}
       <section style={{ marginBottom: 40 }}>
-        <h2
-          style={{
-            fontSize: 16,
-            fontWeight: 600,
-            color: "var(--kt-fg-1)",
-            margin: "0 0 16px",
-            fontFamily: "var(--font-mono), monospace",
-          }}
-        >
+        <h2 className="kt-section-title" style={{ margin: "0 0 var(--kt-s-4)" }}>
           Connections
         </h2>
         <ConnectionsManager
@@ -118,35 +93,34 @@ export default async function IntegrationsPage() {
 
       {/* System Connections */}
       <section style={{ marginBottom: 40 }}>
-        <h2
-          style={{
-            fontSize: 16,
-            fontWeight: 600,
-            color: "var(--kt-fg-1)",
-            margin: "0 0 16px",
-            fontFamily: "var(--font-mono), monospace",
-          }}
-        >
+        <h2 className="kt-section-title" style={{ margin: "0 0 var(--kt-s-4)" }}>
           System Connections
         </h2>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
-          <SystemConnectionCard label="Email" status="Not connected" description="Connect Google Workspace or Microsoft 365" />
-          <SystemConnectionCard label="Slack" status="Not connected" description="Connect your team workspace" />
-          <SystemConnectionCard label="Calendar" status="Not connected" description="Connect for meeting prep briefs" />
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "var(--kt-s-3)" }}>
+          <SystemConnectionCard
+            label="Email"
+            connected={!!identity?.email_provider}
+            detail={identity?.email_address ? `${identity.email_provider}: ${identity.email_address}` : identity?.email_provider}
+            description="Connect Google Workspace or Microsoft 365"
+          />
+          <SystemConnectionCard
+            label="Slack"
+            connected={!!identity?.slack_workspace_id}
+            detail="Workspace linked"
+            description="Connect your team workspace"
+          />
+          <SystemConnectionCard
+            label="Calendar"
+            connected={!!identity?.calendar_connected}
+            detail="Calendar linked"
+            description="Connect for meeting prep briefs"
+          />
         </div>
       </section>
 
       {/* Data Imports */}
       <section>
-        <h2
-          style={{
-            fontSize: 16,
-            fontWeight: 600,
-            color: "var(--kt-fg-1)",
-            margin: "0 0 16px",
-            fontFamily: "var(--font-mono), monospace",
-          }}
-        >
+        <h2 className="kt-section-title" style={{ margin: "0 0 var(--kt-s-4)" }}>
           Imports
         </h2>
         <ImportsManager initialImports={(imports ?? []) as ImportRecord[]} />

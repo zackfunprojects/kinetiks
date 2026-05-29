@@ -1,25 +1,49 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import type { Goal } from "@/lib/goals/types";
+import { Button, AsyncSection } from "@kinetiks/ui";
+import type { Goal, GoalStatus } from "@/lib/goals/types";
+import type { GoalProgressView } from "@/lib/oracle/goal-view";
 import { GoalCard } from "./GoalCard";
 import { GoalEditor } from "./GoalEditor";
 
 export function GoalsManager() {
   const [goals, setGoals] = useState<Goal[]>([]);
+  const [progress, setProgress] = useState<Record<string, GoalProgressView>>({});
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Goal | null | "new">(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
   const fetchGoals = useCallback(async () => {
+    setLoading(true);
+    setFetchError(null);
+
+    // Goals are the required spine — a failure here is the error state.
     try {
-      const res = await fetch("/api/goals?status=all");
-      if (!res.ok) throw new Error(`Failed to load goals (${res.status})`);
-      const data = await res.json();
-      setGoals(data.data?.goals ?? []);
-      setFetchError(null);
+      const goalsRes = await fetch("/api/goals?status=all");
+      if (!goalsRes.ok) throw new Error(`Failed to load goals (${goalsRes.status})`);
+      const goalsData = await goalsRes.json();
+      setGoals(goalsData.data?.goals ?? []);
     } catch (err) {
       setFetchError(err instanceof Error ? err.message : "Failed to load goals");
+      setLoading(false);
+      return;
+    }
+
+    // Oracle progress is a best-effort overlay; its failure (reject or non-OK)
+    // must not blank the goals list.
+    try {
+      const progressRes = await fetch("/api/oracle/goals");
+      if (progressRes.ok) {
+        const progressData = await progressRes.json();
+        const map: Record<string, GoalProgressView> = {};
+        for (const p of (progressData.data?.goals ?? []) as GoalProgressView[]) {
+          map[p.goal_id] = p;
+        }
+        setProgress(map);
+      }
+    } catch {
+      // progress overlay unavailable; goals still render
     } finally {
       setLoading(false);
     }
@@ -31,32 +55,24 @@ export function GoalsManager() {
 
   const handleSave = async (data: Record<string, unknown>) => {
     const method = data.id ? "PATCH" : "POST";
-    try {
-      const res = await fetch("/api/goals", {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
-      if (res.ok) {
-        setEditing(null);
-        fetchGoals();
-      }
-    } catch {
-      // Keep editor open
+    const res = await fetch("/api/goals", {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (res.ok) {
+      setEditing(null);
+      fetchGoals();
     }
   };
 
-  const handleArchive = async (goalId: string) => {
-    try {
-      await fetch("/api/goals", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: goalId, status: "archived" }),
-      });
-      fetchGoals();
-    } catch {
-      // Ignore
-    }
+  const handleStatusChange = async (goalId: string, status: GoalStatus) => {
+    await fetch("/api/goals", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: goalId, status }),
+    });
+    fetchGoals();
   };
 
   const activeGoals = goals.filter((g) => g.status === "active" || g.status === "paused");
@@ -65,102 +81,64 @@ export function GoalsManager() {
 
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "var(--kt-s-4)" }}>
         <div>
-          <h1 style={{ fontSize: 24, fontWeight: 700, color: "var(--kt-fg-1)", margin: 0 }}>Goals</h1>
-          <p style={{ fontSize: 14, color: "var(--kt-fg-2)", margin: "4px 0 0" }}>
-            KPI targets and OKRs for your GTM system
-          </p>
+          <h1 className="kt-page-title" style={{ margin: 0 }}>Goals</h1>
+          <p className="kt-body" style={{ margin: "var(--kt-s-1) 0 0" }}>KPI targets and OKRs for your GTM system</p>
         </div>
-        {editing === null && (
-          <button
-            onClick={() => setEditing("new")}
-            style={{
-              padding: "8px 16px",
-              borderRadius: 6,
-              border: "none",
-              background: "var(--kt-accent-hover)",
-              color: "var(--kt-fg-on-inverse)",
-              fontSize: 13,
-              fontWeight: 500,
-              cursor: "pointer",
-            }}
-          >
-            + New goal
-          </button>
-        )}
+        {editing === null ? (
+          <Button variant="accent" onClick={() => setEditing("new")}>+ New goal</Button>
+        ) : null}
       </div>
 
-      {editing !== null && (
-        <GoalEditor
-          goal={editing === "new" ? null : editing}
-          onSave={handleSave}
-          onCancel={() => setEditing(null)}
-        />
-      )}
+      {editing !== null ? (
+        <GoalEditor goal={editing === "new" ? null : editing} onSave={handleSave} onCancel={() => setEditing(null)} />
+      ) : null}
 
-      {loading ? (
-        <div style={{ padding: 24, textAlign: "center", color: "var(--kt-fg-3)", fontSize: 13 }}>
-          Loading goals...
-        </div>
-      ) : fetchError ? (
-        <div style={{ padding: 24, borderRadius: 8, border: "1px dashed var(--kt-danger-soft)", background: "var(--kt-bg-subtle)", textAlign: "center" }}>
-          <p style={{ fontSize: 13, color: "var(--kt-danger)", margin: 0 }}>{fetchError}</p>
-        </div>
-      ) : activeGoals.length === 0 && editing === null ? (
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            padding: 48,
-            borderRadius: 8,
-            border: "1px dashed var(--kt-border-1)",
-            background: "var(--kt-bg-subtle)",
-          }}
-        >
-          <p style={{ fontSize: 14, color: "var(--kt-fg-3)", margin: 0 }}>
-            No active goals. Create one to start tracking your GTM performance.
-          </p>
-        </div>
-      ) : (
-        <>
-          {activeGoals.map((goal) => (
-            <GoalCard
-              key={goal.id}
-              goal={goal}
-              onEdit={(g) => setEditing(g)}
-              onArchive={handleArchive}
-            />
-          ))}
+      <AsyncSection
+        loading={loading}
+        error={fetchError}
+        isEmpty={activeGoals.length === 0 && editing === null && completedGoals.length === 0 && archivedGoals.length === 0}
+        onRetry={fetchGoals}
+        errorTitle="We couldn't load your goals."
+        emptyTitle="No goals yet. Create one to start tracking your GTM performance."
+      >
+        {activeGoals.map((goal) => (
+          <GoalCard
+            key={goal.id}
+            goal={goal}
+            progress={progress[goal.id]}
+            onEdit={(g) => setEditing(g)}
+            onStatusChange={handleStatusChange}
+          />
+        ))}
 
-          {completedGoals.length > 0 && (
-            <details style={{ marginTop: 24 }}>
-              <summary style={{ fontSize: 13, color: "var(--kt-success)", cursor: "pointer" }}>
-                {completedGoals.length} completed goal{completedGoals.length !== 1 ? "s" : ""}
-              </summary>
-              <div style={{ marginTop: 8, opacity: 0.7 }}>
-                {completedGoals.map((goal) => (
-                  <GoalCard key={goal.id} goal={goal} onEdit={() => {}} onArchive={() => {}} />
-                ))}
-              </div>
-            </details>
-          )}
+        {completedGoals.length > 0 ? (
+          <details style={{ marginTop: "var(--kt-s-5)" }}>
+            <summary className="kt-small" style={{ color: "var(--kt-success)", cursor: "pointer" }}>
+              {completedGoals.length} completed goal{completedGoals.length !== 1 ? "s" : ""}
+            </summary>
+            <div style={{ marginTop: "var(--kt-s-2)" }}>
+              {completedGoals.map((goal) => (
+                <GoalCard key={goal.id} goal={goal} progress={progress[goal.id]} onEdit={() => {}} onStatusChange={handleStatusChange} readOnly />
+              ))}
+            </div>
+          </details>
+        ) : null}
 
-          {archivedGoals.length > 0 && (
-            <details style={{ marginTop: 16 }}>
-              <summary style={{ fontSize: 13, color: "var(--kt-fg-3)", cursor: "pointer" }}>
-                {archivedGoals.length} archived goal{archivedGoals.length !== 1 ? "s" : ""}
-              </summary>
-              <div style={{ marginTop: 8, opacity: 0.5 }}>
-                {archivedGoals.map((goal) => (
-                  <GoalCard key={goal.id} goal={goal} onEdit={() => {}} onArchive={() => {}} />
-                ))}
-              </div>
-            </details>
-          )}
-        </>
-      )}
+        {archivedGoals.length > 0 ? (
+          <details style={{ marginTop: "var(--kt-s-4)" }}>
+            <summary className="kt-small" style={{ cursor: "pointer" }}>
+              {archivedGoals.length} archived goal{archivedGoals.length !== 1 ? "s" : ""}
+            </summary>
+            <div style={{ marginTop: "var(--kt-s-2)", opacity: 0.6 }}>
+              {archivedGoals.map((goal) => (
+                <GoalCard key={goal.id} goal={goal} onEdit={() => {}} onStatusChange={handleStatusChange} readOnly />
+              ))}
+            </div>
+          </details>
+        ) : null}
+      </AsyncSection>
     </div>
   );
 }

@@ -150,6 +150,17 @@ export function registerKinetiksPromptTasks(): void {
     defaultModel: "claude-haiku-4-5-20251001",
   });
 
+  // ── Cortex Identity ───────────────────────────────────────
+  // Layer reflection: a single Haiku call that reads one Context layer's
+  // data and reflects back, in one plain sentence, what the system
+  // understands about the business from it ("KIT KNOWS THIS"). On-demand
+  // only (button-triggered), so no auto-cost on every page view.
+  registerPromptTask({
+    task: "cortex.layer_reflection",
+    version: "v1-2026-05",
+    defaultModel: "claude-haiku-4-5-20251001",
+  });
+
   // ── Authority Agent (Phase 4 — Kinetiks Contract Addendum §2.5) ──
   // Evidence summarizer: a single Haiku call that compresses the
   // Learning Ledger's authority-event history (last 90 days) into a

@@ -1,145 +1,113 @@
 "use client";
 
-import type { Goal } from "@/lib/goals/types";
+import { Card, Pill, StatusPill, ProgressBar, Sparkline, Button } from "@kinetiks/ui";
+import type { Goal, GoalStatus } from "@/lib/goals/types";
+import type { GoalProgressView } from "@/lib/oracle/goal-view";
+import { goalStatusLabel, goalStatusTone, formatGoalValue } from "@/components/analytics/goal-status";
 
 interface GoalCardProps {
   goal: Goal;
+  progress?: GoalProgressView;
   onEdit: (goal: Goal) => void;
-  onArchive: (goalId: string) => void;
+  onStatusChange: (goalId: string, status: GoalStatus) => void;
+  readOnly?: boolean;
 }
 
-const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
-  on_track: { bg: "var(--kt-success-soft)", text: "var(--kt-success)" },
-  ahead: { bg: "var(--kt-accent-soft)", text: "var(--kt-accent)" },
-  behind: { bg: "var(--kt-warning-soft)", text: "var(--kt-warning)" },
-  at_risk: { bg: "var(--kt-danger-soft)", text: "var(--kt-danger)" },
-  critical: { bg: "var(--kt-danger-soft)", text: "var(--kt-danger)" },
+const TONE_VAR: Record<string, string> = {
+  accent: "var(--kt-accent)",
+  success: "var(--kt-success)",
+  warning: "var(--kt-warning)",
+  danger: "var(--kt-danger)",
+  neutral: "var(--kt-fg-3)",
 };
 
-export function GoalCard({ goal, onEdit, onArchive }: GoalCardProps) {
-  const progress = goal.target_value
-    ? Math.min((goal.current_value / goal.target_value) * 100, 100)
-    : 0;
-
-  const statusStyle = STATUS_COLORS[goal.progress_status] ?? STATUS_COLORS.on_track;
+export function GoalCard({ goal, progress, onEdit, onStatusChange, readOnly = false }: GoalCardProps) {
+  const tone = goalStatusTone(goal.progress_status);
+  const unit = progress?.unit ?? "count";
+  // Fallback (when Oracle progress is missing) must respect goal.direction;
+  // a raw current/target ratio misreports "below"/"exact" goals.
+  const fallbackCompletion = (() => {
+    if (!goal.target_value) return 0;
+    if (goal.direction === "below") {
+      return goal.current_value <= goal.target_value
+        ? 100
+        : Math.max(0, 100 - ((goal.current_value - goal.target_value) / goal.target_value) * 100);
+    }
+    if (goal.direction === "exact") {
+      return Math.max(0, 100 - (Math.abs(goal.current_value - goal.target_value) / goal.target_value) * 100);
+    }
+    return Math.min((goal.current_value / goal.target_value) * 100, 100);
+  })();
+  const completion = progress?.completion_percentage ?? fallbackCompletion;
 
   return (
-    <div
-      style={{
-        padding: 16,
-        borderRadius: 8,
-        border: "1px solid var(--kt-border-2)",
-        background: "var(--kt-bg-muted)",
-        marginBottom: 8,
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span
-            style={{
-              fontSize: 10,
-              fontWeight: 600,
-              padding: "2px 6px",
-              borderRadius: 4,
-              background: "var(--kt-accent-soft)",
-              color: "var(--kt-fg-2)",
-              textTransform: "uppercase",
-            }}
-          >
-            {goal.type === "kpi_target" ? "KPI" : "OKR"}
-          </span>
-          <span
-            style={{
-              fontSize: 10,
-              fontWeight: 600,
-              padding: "2px 6px",
-              borderRadius: 4,
-              background: statusStyle.bg,
-              color: statusStyle.text,
-              textTransform: "uppercase",
-            }}
-          >
-            {goal.progress_status.replace("_", " ")}
-          </span>
+    <Card style={{ marginBottom: "var(--kt-s-2)" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "var(--kt-s-2)", marginBottom: "var(--kt-s-2)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "var(--kt-s-2)" }}>
+          <Pill tone="neutral">{goal.type === "kpi_target" ? "KPI" : "OKR"}</Pill>
+          <StatusPill tone={tone}>{goalStatusLabel(goal.progress_status)}</StatusPill>
         </div>
-        <div style={{ display: "flex", gap: 4 }}>
-          <button
-            onClick={() => onEdit(goal)}
-            style={{
-              background: "none",
-              border: "none",
-              color: "var(--kt-fg-3)",
-              cursor: "pointer",
-              fontSize: 12,
-              padding: "2px 6px",
-            }}
-          >
-            Edit
-          </button>
-          <button
-            onClick={() => onArchive(goal.id)}
-            style={{
-              background: "none",
-              border: "none",
-              color: "var(--kt-fg-3)",
-              cursor: "pointer",
-              fontSize: 12,
-              padding: "2px 6px",
-            }}
-          >
-            Archive
-          </button>
-        </div>
+        {!readOnly ? (
+          <div style={{ display: "flex", gap: "var(--kt-s-1)" }}>
+            <Button variant="ghost" size="sm" onClick={() => onEdit(goal)}>Edit</Button>
+            {goal.status === "active" ? (
+              <>
+                <Button variant="ghost" size="sm" onClick={() => onStatusChange(goal.id, "paused")}>Pause</Button>
+                <Button variant="ghost" size="sm" onClick={() => onStatusChange(goal.id, "completed")}>Complete</Button>
+              </>
+            ) : null}
+            {goal.status === "paused" ? (
+              <Button variant="ghost" size="sm" onClick={() => onStatusChange(goal.id, "active")}>Resume</Button>
+            ) : null}
+            <Button variant="ghost" size="sm" onClick={() => onStatusChange(goal.id, "archived")}>Archive</Button>
+          </div>
+        ) : null}
       </div>
 
-      <div style={{ fontSize: 14, fontWeight: 500, color: "var(--kt-fg-1)", marginBottom: 8 }}>
-        {goal.name}
-      </div>
+      <div className="kt-card-title" style={{ marginBottom: "var(--kt-s-3)" }}>{goal.name}</div>
 
-      {goal.target_value !== null && (
-        <div style={{ marginBottom: 8 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--kt-fg-2)", marginBottom: 4 }}>
-            <span>{goal.current_value.toLocaleString()}</span>
-            <span>{goal.target_value.toLocaleString()}</span>
-          </div>
-          <div style={{ height: 4, borderRadius: 2, background: "var(--kt-bg-base)" }}>
-            <div
-              style={{
-                height: "100%",
-                borderRadius: 2,
-                background: statusStyle.text,
-                width: `${progress}%`,
-                transition: "width 0.3s",
-              }}
-            />
-          </div>
-        </div>
-      )}
-
-      {goal.contributing_apps.length > 0 && (
-        <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-          {goal.contributing_apps.map((app) => (
-            <span
-              key={app}
-              style={{
-                fontSize: 10,
-                padding: "1px 6px",
-                borderRadius: 4,
-                border: "1px solid var(--kt-border-2)",
-                color: "var(--kt-fg-3)",
-              }}
-            >
-              {app}
+      {goal.target_value !== null ? (
+        <>
+          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: "var(--kt-s-2)" }}>
+            <span className="kt-data-cell" style={{ color: "var(--kt-fg-1)" }}>
+              {formatGoalValue(goal.current_value, unit)}
             </span>
+            <span className="kt-small">
+              {formatGoalValue(goal.target_value, unit)} target · {completion.toFixed(0)}%
+            </span>
+          </div>
+          <ProgressBar
+            value={completion / 100}
+            tone={tone}
+            tickAt={progress && goal.target_value > 0 ? Math.min(1, progress.expected_value / goal.target_value) : undefined}
+            ariaLabel={`${goal.name}: ${completion.toFixed(0)} percent of target`}
+          />
+          {progress && progress.recent_values.length >= 2 ? (
+            <div style={{ marginTop: "var(--kt-s-3)" }}>
+              <Sparkline values={progress.recent_values} width={260} height={24} color={TONE_VAR[tone]} showEndDot ariaLabel={`${goal.name} trend`} />
+            </div>
+          ) : null}
+          {progress?.forecast_value != null ? (
+            <div className="kt-small" style={{ marginTop: "var(--kt-s-2)" }}>
+              Forecast {formatGoalValue(progress.forecast_value, unit)} by period end · {progress.days_remaining}d left
+            </div>
+          ) : null}
+        </>
+      ) : null}
+
+      {goal.contributing_apps.length > 0 ? (
+        <div style={{ display: "flex", gap: "var(--kt-s-1)", flexWrap: "wrap", marginTop: "var(--kt-s-3)" }}>
+          {goal.contributing_apps.map((app) => (
+            <Pill key={app} tone="neutral">{app}</Pill>
           ))}
         </div>
-      )}
+      ) : null}
 
-      {goal.target_period && (
-        <div style={{ fontSize: 11, color: "var(--kt-fg-3)", marginTop: 8, fontFamily: "var(--font-mono), monospace" }}>
-          {goal.target_period} {goal.direction && `(${goal.direction})`}
+      {goal.target_period ? (
+        <div className="kt-data-inline" style={{ color: "var(--kt-fg-3)", marginTop: "var(--kt-s-2)" }}>
+          {goal.target_period}{goal.direction ? ` · ${goal.direction}` : ""}
         </div>
-      )}
-    </div>
+      ) : null}
+    </Card>
   );
 }

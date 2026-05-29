@@ -1,58 +1,24 @@
+import { Card, StatusPill } from "@kinetiks/ui";
+
 interface SystemConnectionCardProps {
   label: string;
-  status: string;
+  connected: boolean;
+  /** Shown when connected (e.g. the linked address / workspace). */
+  detail?: string | null;
+  /** Shown when not connected (how to wire it up). */
   description: string;
 }
 
-export function SystemConnectionCard({ label, status, description }: SystemConnectionCardProps) {
-  const lower = status.toLowerCase();
-  const connected = lower === "connected" || lower === "active";
-
+export function SystemConnectionCard({ label, connected, detail, description }: SystemConnectionCardProps) {
   return (
-    <div
-      style={{
-        padding: 16,
-        borderRadius: 8,
-        border: "1px solid var(--kt-border-2)",
-        background: "var(--kt-bg-muted)",
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-        <span style={{ fontSize: 14, fontWeight: 500, color: "var(--kt-fg-1)" }}>
-          {label}
-        </span>
-        <span
-          style={{
-            fontSize: 10,
-            fontWeight: 600,
-            padding: "2px 6px",
-            borderRadius: 4,
-            background: connected ? "var(--kt-success-soft)" : "var(--kt-bg-base)",
-            color: connected ? "var(--kt-success)" : "var(--kt-fg-3)",
-            textTransform: "uppercase",
-          }}
-        >
-          {status}
-        </span>
+    <Card variant="muted">
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "var(--kt-s-2)" }}>
+        <span className="kt-card-title">{label}</span>
+        <StatusPill tone={connected ? "success" : "neutral"}>{connected ? "Connected" : "Not connected"}</StatusPill>
       </div>
-      <p style={{ fontSize: 12, color: "var(--kt-fg-3)", margin: "0 0 12px", lineHeight: 1.4 }}>
-        {description}
+      <p className="kt-small" style={{ margin: 0 }}>
+        {connected && detail ? detail : description}
       </p>
-      <button
-        disabled
-        style={{
-          padding: "6px 12px",
-          borderRadius: 6,
-          border: "1px solid var(--kt-border-1)",
-          background: "transparent",
-          color: "var(--kt-fg-3)",
-          fontSize: 12,
-          cursor: "not-allowed",
-          opacity: 0.5,
-        }}
-      >
-        {connected ? "Configure" : "Connect"}
-      </button>
-    </div>
+    </Card>
   );
 }
