@@ -19,7 +19,18 @@ export function MessageBubble({
   isStreaming,
 }: MessageBubbleProps) {
   const [showActions, setShowActions] = useState(false);
+  const [copied, setCopied] = useState(false);
   const isUser = role === "user";
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Clipboard unavailable; no-op.
+    }
+  };
 
   return (
     <div
@@ -110,23 +121,44 @@ export function MessageBubble({
           </div>
         )}
 
-        {timestamp && (
-          <div
-            style={{
-              fontSize: 11,
-              fontFamily: "var(--font-mono), monospace",
-              color: isUser ? "var(--kt-fg-on-inverse)" : "var(--kt-fg-3)",
-              opacity: isUser ? 0.6 : 1,
-              marginTop: 4,
-              textAlign: isUser ? "right" : "left",
-            }}
-          >
-            {new Date(timestamp).toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
-          </div>
-        )}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "var(--kt-s-2)",
+            marginTop: 4,
+            justifyContent: isUser ? "flex-end" : "flex-start",
+          }}
+        >
+          {timestamp && (
+            <span
+              className="kt-data-inline"
+              style={{
+                color: isUser ? "var(--kt-fg-on-inverse)" : "var(--kt-fg-3)",
+                opacity: isUser ? 0.6 : 1,
+              }}
+            >
+              {new Date(timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+            </span>
+          )}
+          {!isUser && !isStreaming && content ? (
+            <button
+              type="button"
+              onClick={handleCopy}
+              aria-label="Copy message"
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                fontSize: "var(--kt-fs-11)",
+                color: "var(--kt-fg-3)",
+                padding: 0,
+              }}
+            >
+              {copied ? "Copied" : "Copy"}
+            </button>
+          ) : null}
+        </div>
       </div>
     </div>
   );

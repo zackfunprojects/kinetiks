@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { TabBar } from "./TabBar";
 import { SettingsModal } from "./SettingsModal";
+import { CommandPalette } from "@/components/command/CommandPalette";
+import { useGlobalShortcuts } from "@/hooks/useGlobalShortcuts";
 
 export interface AppAccount {
   id: string;
@@ -20,6 +22,10 @@ interface AppShellProps {
 
 export function AppShell({ account, userEmail, children }: AppShellProps) {
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+
+  const togglePalette = useCallback(() => setPaletteOpen((o) => !o), []);
+  useGlobalShortcuts({ onTogglePalette: togglePalette });
 
   return (
     <div
@@ -42,6 +48,7 @@ export function AppShell({ account, userEmail, children }: AppShellProps) {
           onClose={() => setSettingsOpen(false)}
         />
       )}
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
     </div>
   );
 }

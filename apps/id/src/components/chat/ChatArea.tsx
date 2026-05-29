@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import type { MarcusMessage } from "@kinetiks/types";
 import { MessageBubble } from "./MessageBubble";
+import { filterSlashCommands, type AppCommand } from "@/lib/commands/registry";
 
 interface ChatAreaProps {
   currentThreadId?: string;
@@ -13,6 +15,13 @@ interface ChatAreaProps {
   systemName: string | null;
 }
 
+const STARTERS = [
+  "Give me my daily brief.",
+  "How are my goals pacing?",
+  "What should I focus on this week?",
+  "What's working in my outreach?",
+];
+
 export function ChatArea({
   currentThreadId,
   messages,
@@ -21,11 +30,15 @@ export function ChatArea({
   onRefreshThreads,
   systemName,
 }: ChatAreaProps) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingText, setStreamingText] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const draftApplied = useRef(false);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -39,145 +52,175 @@ export function ChatArea({
     };
   }, []);
 
-  const handleSend = useCallback(async () => {
-    const message = input.trim();
-    if (!message || isStreaming) return;
+  // Pre-fill the composer from ?draft= (command palette / insight "act on this").
+  // The customer reviews before sending; we never auto-send.
+  useEffect(() => {
+    if (draftApplied.current) return;
+    const draft = searchParams.get("draft");
+    if (draft) {
+      draftApplied.current = true;
+      setInput(draft);
+      router.replace(window.location.pathname);
+      requestAnimationFrame(() => textareaRef.current?.focus());
+    }
+  }, [searchParams, router]);
 
-    setInput("");
-    setIsStreaming(true);
-    setStreamingText("");
+  const handleSend = useCallback(
+    async (override?: string) => {
+      const message = (override ?? input).trim();
+      if (!message || isStreaming) return;
 
-    abortControllerRef.current?.abort();
-    const controller = new AbortController();
-    abortControllerRef.current = controller;
+      setInput("");
+      setIsStreaming(true);
+      setStreamingText("");
 
-    const userMsg: MarcusMessage = {
-      id: `temp-${Date.now()}`,
-      thread_id: currentThreadId ?? "",
-      role: "user",
-      content: message,
-      channel: "web",
-      extracted_actions: null,
-      context_used: null,
-      created_at: new Date().toISOString(),
-    };
-    onMessagesChange([...messages, userMsg]);
+      abortControllerRef.current?.abort();
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
 
-    try {
-      const res = await fetch("/api/marcus/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message,
-          thread_id: currentThreadId,
-          channel: "web",
-        }),
-        signal: controller.signal,
-      });
-
-      if (!res.ok || !res.body) {
-        throw new Error("Chat request failed");
-      }
-
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let fullText = "";
-      let threadId: string = currentThreadId ?? "";
-      let lineBuffer = "";
-
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          lineBuffer += decoder.decode(value, { stream: true });
-          const lines = lineBuffer.split("\n");
-          lineBuffer = lines.pop() ?? "";
-
-          for (const line of lines) {
-            if (!line.startsWith("data: ")) continue;
-            const jsonStr = line.slice(6).trim();
-            if (!jsonStr) continue;
-
-            try {
-              const event = JSON.parse(jsonStr);
-
-              if (event.type === "thread_id") {
-                threadId = event.thread_id;
-                if (!currentThreadId) {
-                  onThreadCreated(threadId);
-                }
-              } else if (event.type === "text") {
-                fullText += event.text;
-                setStreamingText(fullText);
-              } else if (event.type === "extraction") {
-                if (event.disclosure) {
-                  fullText += `\n\n---\n${event.disclosure}`;
-                  setStreamingText(fullText);
-                }
-              } else if (event.type === "error") {
-                fullText += `\n\n[Error: ${event.error}]`;
-                setStreamingText(fullText);
-              }
-            } catch {
-              // Skip malformed SSE events
-            }
-          }
-        }
-
-        if (lineBuffer.startsWith("data: ")) {
-          const jsonStr = lineBuffer.slice(6).trim();
-          if (jsonStr) {
-            try {
-              const event = JSON.parse(jsonStr);
-              if (event.type === "text") {
-                fullText += event.text;
-              }
-            } catch {
-              // Skip
-            }
-          }
-        }
-      } finally {
-        reader.releaseLock();
-      }
-
-      const marcusMsg: MarcusMessage = {
-        id: `temp-marcus-${Date.now()}`,
-        thread_id: threadId ?? "",
-        role: "marcus",
-        content: fullText,
+      const userMsg: MarcusMessage = {
+        id: `temp-${Date.now()}`,
+        thread_id: currentThreadId ?? "",
+        role: "user",
+        content: message,
         channel: "web",
         extracted_actions: null,
         context_used: null,
         created_at: new Date().toISOString(),
       };
-      onMessagesChange([...messages, userMsg, marcusMsg]);
-      setStreamingText("");
-      onRefreshThreads();
-    } catch (err) {
-      if (err instanceof DOMException && err.name === "AbortError") return;
-      onMessagesChange([
-        ...messages,
-        userMsg,
-        {
-          id: `temp-error-${Date.now()}`,
-          thread_id: currentThreadId ?? "",
+      onMessagesChange([...messages, userMsg]);
+
+      try {
+        const res = await fetch("/api/marcus/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message, thread_id: currentThreadId, channel: "web" }),
+          signal: controller.signal,
+        });
+
+        if (!res.ok || !res.body) {
+          throw new Error("Chat request failed");
+        }
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let fullText = "";
+        let threadId: string = currentThreadId ?? "";
+        let lineBuffer = "";
+
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            lineBuffer += decoder.decode(value, { stream: true });
+            const lines = lineBuffer.split("\n");
+            lineBuffer = lines.pop() ?? "";
+
+            for (const line of lines) {
+              if (!line.startsWith("data: ")) continue;
+              const jsonStr = line.slice(6).trim();
+              if (!jsonStr) continue;
+
+              try {
+                const event = JSON.parse(jsonStr);
+                if (event.type === "thread_id") {
+                  threadId = event.thread_id;
+                  if (!currentThreadId) onThreadCreated(threadId);
+                } else if (event.type === "text") {
+                  fullText += event.text;
+                  setStreamingText(fullText);
+                } else if (event.type === "extraction") {
+                  if (event.disclosure) {
+                    fullText += `\n\n---\n${event.disclosure}`;
+                    setStreamingText(fullText);
+                  }
+                } else if (event.type === "error") {
+                  fullText += `\n\n[Error: ${event.error}]`;
+                  setStreamingText(fullText);
+                }
+              } catch {
+                // Skip malformed SSE events
+              }
+            }
+          }
+
+          if (lineBuffer.startsWith("data: ")) {
+            const jsonStr = lineBuffer.slice(6).trim();
+            if (jsonStr) {
+              try {
+                const event = JSON.parse(jsonStr);
+                if (event.type === "text") fullText += event.text;
+              } catch {
+                // Skip
+              }
+            }
+          }
+        } finally {
+          reader.releaseLock();
+        }
+
+        const marcusMsg: MarcusMessage = {
+          id: `temp-marcus-${Date.now()}`,
+          thread_id: threadId ?? "",
           role: "marcus",
-          content: "I encountered an error processing your message. Please try again.",
+          content: fullText,
           channel: "web",
           extracted_actions: null,
           context_used: null,
           created_at: new Date().toISOString(),
-        },
-      ]);
-    } finally {
-      setIsStreaming(false);
-      setStreamingText("");
+        };
+        onMessagesChange([...messages, userMsg, marcusMsg]);
+        setStreamingText("");
+        onRefreshThreads();
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        onMessagesChange([
+          ...messages,
+          userMsg,
+          {
+            id: `temp-error-${Date.now()}`,
+            thread_id: currentThreadId ?? "",
+            role: "marcus",
+            content: "I encountered an error processing your message. Please try again.",
+            channel: "web",
+            extracted_actions: null,
+            context_used: null,
+            created_at: new Date().toISOString(),
+          },
+        ]);
+      } finally {
+        setIsStreaming(false);
+        setStreamingText("");
+      }
+    },
+    [input, isStreaming, currentThreadId, messages, onMessagesChange, onThreadCreated, onRefreshThreads],
+  );
+
+  // Slash menu: active when the composer begins with "/" and matches commands.
+  const slashMatches = useMemo<AppCommand[]>(() => {
+    if (!input.startsWith("/")) return [];
+    const token = input.split(/\s/)[0];
+    return filterSlashCommands(token);
+  }, [input]);
+  const slashOpen = slashMatches.length > 0;
+
+  function runSlash(cmd: AppCommand) {
+    if (cmd.kind === "navigate" && cmd.href) {
+      router.push(cmd.href);
+      setInput("");
+    } else if (cmd.kind === "chat" && cmd.prompt) {
+      setInput(cmd.prompt);
+      requestAnimationFrame(() => textareaRef.current?.focus());
     }
-  }, [input, isStreaming, currentThreadId, messages, onMessagesChange, onThreadCreated, onRefreshThreads]);
+  }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (slashOpen && e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      runSlash(slashMatches[0]);
+      return;
+    }
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
@@ -185,54 +228,23 @@ export function ChatArea({
   };
 
   const displayName = systemName || "your system";
+  const showChips = !input.trim() && !isStreaming;
 
   return (
-    <div
-      style={{
-        flex: 1,
-        display: "flex",
-        flexDirection: "column",
-        backgroundColor: "var(--kt-bg-base)",
-        height: "100%",
-      }}
-    >
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", backgroundColor: "var(--kt-bg-base)", height: "100%" }}>
       {/* Messages */}
-      <div
-        style={{
-          flex: 1,
-          overflowY: "auto",
-          padding: "24px 24px 0",
-        }}
-      >
+      <div style={{ flex: 1, overflowY: "auto", padding: "var(--kt-s-5) var(--kt-s-5) 0" }}>
         <div style={{ maxWidth: 720, margin: "0 auto" }}>
-          {messages.length === 0 && !streamingText && (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                height: "calc(100vh - 200px)",
-                color: "var(--kt-fg-3)",
-                fontSize: 14,
-              }}
-            >
-              <div style={{ textAlign: "center" }}>
-                <div
-                  style={{
-                    fontSize: 20,
-                    fontWeight: 600,
-                    color: "var(--kt-fg-1)",
-                    marginBottom: 8,
-                  }}
-                >
-                  {systemName || "Kinetiks"}
-                </div>
-                <div style={{ color: "var(--kt-fg-3)" }}>
-                  Ask {displayName} anything about your GTM.
-                </div>
+          {messages.length === 0 && !streamingText ? (
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "calc(100vh - 240px)" }}>
+              <div style={{ textAlign: "center", maxWidth: 460 }}>
+                <div className="kt-voice-display" style={{ marginBottom: "var(--kt-s-2)" }}>{systemName || "Kinetiks"}</div>
+                <p className="kt-body" style={{ margin: 0 }}>
+                  I&apos;m ready. Ask about your goals, your traffic, or what to focus on, and I&apos;ll work from what I know about your business.
+                </p>
               </div>
             </div>
-          )}
+          ) : null}
 
           {messages.map((msg) => (
             <MessageBubble
@@ -244,59 +256,108 @@ export function ChatArea({
             />
           ))}
 
-          {streamingText && (
-            <MessageBubble role="marcus" content={streamingText} isStreaming />
-          )}
+          {streamingText ? <MessageBubble role="marcus" content={streamingText} isStreaming /> : null}
 
           <div ref={messagesEndRef} />
         </div>
       </div>
 
       {/* Input */}
-      <div style={{ padding: "16px 24px", borderTop: "1px solid var(--kt-border-2)" }}>
-        <div style={{ maxWidth: 720, margin: "0 auto", display: "flex", gap: 8, alignItems: "flex-end" }}>
-          <textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={`Message ${displayName}...`}
-            aria-label={`Message ${displayName}`}
-            rows={1}
-            style={{
-              flex: 1,
-              padding: "10px 14px",
-              border: "1px solid var(--kt-border-1)",
-              borderRadius: 8,
-              fontSize: 14,
-              outline: "none",
-              resize: "none",
-              fontFamily: "inherit",
-              lineHeight: 1.5,
-              maxHeight: 120,
-              overflow: "auto",
-              backgroundColor: "var(--kt-bg-base)",
-              color: "var(--kt-fg-1)",
-            }}
-            disabled={isStreaming}
-          />
-          <button
-            onClick={handleSend}
-            disabled={isStreaming || !input.trim()}
-            style={{
-              padding: "10px 20px",
-              backgroundColor:
-                isStreaming || !input.trim() ? "var(--kt-border-1)" : "var(--kt-accent-hover)",
-              color: isStreaming || !input.trim() ? "var(--kt-fg-3)" : "var(--kt-fg-on-inverse)",
-              border: "none",
-              borderRadius: 8,
-              fontSize: 14,
-              cursor: isStreaming || !input.trim() ? "not-allowed" : "pointer",
-              fontWeight: 500,
-              whiteSpace: "nowrap",
-            }}
-          >
-            {isStreaming ? "..." : "Send"}
-          </button>
+      <div style={{ padding: "var(--kt-s-4) var(--kt-s-5)", borderTop: "1px solid var(--kt-border-2)" }}>
+        <div style={{ maxWidth: 720, margin: "0 auto", position: "relative" }}>
+          {/* Slash command menu */}
+          {slashOpen ? (
+            <div
+              role="listbox"
+              aria-label="Slash commands"
+              style={{
+                position: "absolute",
+                bottom: "calc(100% + var(--kt-s-2))",
+                left: 0,
+                right: 0,
+                background: "var(--kt-bg-elevated)",
+                border: "1px solid var(--kt-border-1)",
+                borderRadius: "var(--kt-radius-2)",
+                boxShadow: "var(--kt-shadow-md)",
+                padding: "var(--kt-s-1)",
+                maxHeight: 220,
+                overflowY: "auto",
+              }}
+            >
+              {slashMatches.map((cmd, i) => (
+                <button
+                  key={cmd.id}
+                  type="button"
+                  onClick={() => runSlash(cmd)}
+                  style={{
+                    display: "flex",
+                    width: "100%",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    gap: "var(--kt-s-3)",
+                    padding: "var(--kt-s-2) var(--kt-s-3)",
+                    border: "none",
+                    borderRadius: "var(--kt-radius-1)",
+                    background: i === 0 ? "var(--kt-accent-soft)" : "transparent",
+                    color: "var(--kt-fg-1)",
+                    fontSize: "var(--kt-fs-14)",
+                    cursor: "pointer",
+                    textAlign: "left",
+                  }}
+                >
+                  <span>{cmd.label}</span>
+                  <span className="kt-data-inline" style={{ color: "var(--kt-fg-3)" }}>{cmd.slash}</span>
+                </button>
+              ))}
+            </div>
+          ) : null}
+
+          {/* Suggestion chips */}
+          {showChips ? (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--kt-s-2)", marginBottom: "var(--kt-s-3)" }}>
+              {STARTERS.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => handleSend(s)}
+                  style={{
+                    padding: "var(--kt-s-1) var(--kt-s-3)",
+                    border: "1px solid var(--kt-border-2)",
+                    borderRadius: "var(--kt-radius-full)",
+                    background: "var(--kt-bg-elevated)",
+                    color: "var(--kt-fg-2)",
+                    fontSize: "var(--kt-fs-13)",
+                    cursor: "pointer",
+                  }}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          ) : null}
+
+          <div style={{ display: "flex", gap: "var(--kt-s-2)", alignItems: "flex-end" }}>
+            <textarea
+              ref={textareaRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={`Message ${displayName}, or type /`}
+              aria-label={`Message ${displayName}`}
+              rows={1}
+              className="kt-field kt-textarea"
+              style={{ flex: 1, maxHeight: 120, minHeight: 0, resize: "none", lineHeight: "var(--kt-lh-body)" }}
+              disabled={isStreaming}
+            />
+            <button
+              onClick={() => handleSend()}
+              disabled={isStreaming || !input.trim()}
+              className="kt-btn kt-btn--accent kt-btn--md"
+              style={{ whiteSpace: "nowrap" }}
+            >
+              {isStreaming ? "..." : "Send"}
+            </button>
+          </div>
         </div>
       </div>
     </div>
