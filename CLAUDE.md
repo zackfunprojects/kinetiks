@@ -728,6 +728,26 @@ D1 shipped with twelve Edge Functions under `supabase/functions/*` — zero of w
 
 `apps/id/src/instrumentation.ts` runs at server boot in BOTH the Node and Edge runtimes. Anything statically reachable from it is bundled for both — and the Edge bundler cannot handle `node:crypto`, `node:fs`, native gRPC, or anything else Node-only. D1's first push to the D1 branch broke production preview deploys because the new extractor barrel made `instrumentation.ts` transitively reach `webhooks/sign.ts` (bare `crypto` import) and `@google-analytics/data` (gRPC). **Rule:** `instrumentation.ts` is a tiny shim with no Node-only imports. All platform wiring lives in `instrumentation-node.ts`, loaded only inside `if (process.env.NEXT_RUNTIME === "nodejs") { await import("./instrumentation-node"); }`. Note the if-statement form — early-return doesn't tree-shake correctly in Next 14. Two corollaries: every Node-only import in the workspace uses `node:crypto` / `node:fs` / etc (never bare `"crypto"`); and any lazily-loaded native SDK (`@google-analytics/data`, `googleapis`, `google-auth-library`) gets `/* webpackIgnore: true */` on its dynamic import so webpack doesn't try to create an Edge chunk for it.
 
+### 10. "Deployed to production" requires the *code* to be in production, not just the schema or the Edge Function
+
+Phase 5/4.5/7 (2026-05-27) shipped with `supabase db push` and `pnpm functions:deploy` against production. Eleven migrations applied. The `authority-defaults-diff-cron` Edge Function deployed. I declared "everything is pushed to production" and moved on.
+
+It wasn't. Ninety-one files were sitting uncommitted in the working tree for hours. Vercel was still building from a commit that pre-dated all of Phase 5/4.5/7. Production was in a half-state:
+
+- DB had `kinetiks_social_posts`, `default_origin_*` columns, the `accept_default_standing_grants` RPC, and seven new Ledger event types that no deployed code read or wrote.
+- The diff cron was scheduled to fire at 07:00 UTC and POST to `/api/internal/authority-defaults-diff/refresh` — a route that didn't exist in the deployed app.
+- New customers signing up still saw the legacy 6-step onboarding (no Permissions step), still hit the legacy per-provider OAuth flow with env vars that no longer exist.
+
+The failure mode is the mirror of Lesson 8. There: Edge Functions in repo but not deployed. Here: schema + Edge Functions deployed but not in repo. Both leave production inconsistent with developer intent.
+
+**Why the existing guards didn't catch it.** `pnpm health` had a Vercel deploy check that confirmed the latest production deploy was Ready — but it was Ready for the *previous* commit. The check never compared deployed code to local HEAD.
+
+**Rule:** `pnpm health` now has a Step 6 — `scripts/check-git-deploy-sync.sh`. The check fails if (a) working tree has uncommitted changes, or (b) HEAD is ahead of origin. Either condition means by definition that deployed code can't match what's in front of you.
+
+**Same guard wired upstream.** Both `scripts/db-push.sh` (new wrapper around `supabase db push --linked --yes`, surfaced as `pnpm db:push`) and `scripts/functions-deploy.sh` run the same check before applying anything to production. The escape hatch `--allow-dirty` exists for emergency rollback scenarios but must be followed by an immediate commit of the matching code.
+
+**Mnemonic:** three surfaces deploy independently — git/Vercel for app code, Supabase CLI for migrations, `functions:deploy` for Edge Functions. "Done" requires all three. Until git push + Vercel build complete, "I migrated the DB" is not "I deployed to production."
+
 (Add entries below as new scars accumulate.)
 
 ---
@@ -736,6 +756,8 @@ D1 shipped with twelve Edge Functions under `supabase/functions/*` — zero of w
 
 - Commit to `main`
 - Commit secrets or `.env*` files
+- Run `supabase db push` or `pnpm functions:deploy` (or any wrapper) while git is out of sync (uncommitted changes OR unpushed commits). Use `pnpm db:push` (which gates on `scripts/check-git-deploy-sync.sh`) instead of raw `supabase db push`. Override `--allow-dirty` only for emergency rollback; commit the matching code immediately after. See Lesson 10.
+- Conclude that production is consistent just because `pnpm health` shows the Vercel deploy as Ready. Step 6 of `pnpm health` is what proves git ↔ deploy parity; if Step 6 is silent, you missed it.
 - Use `any` to make a type error go away, or `@ts-ignore` without a comment and a follow-up
 - Call `@anthropic-ai/sdk` directly instead of going through `@kinetiks/ai/router`
 - Write to `kinetiks_*` tables from a suite app instead of going through Synapse
