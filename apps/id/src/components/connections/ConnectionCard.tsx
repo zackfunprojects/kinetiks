@@ -6,6 +6,8 @@ interface ConnectionCardProps {
   provider: ProviderDefinition;
   connection: ConnectionPublic | null;
   isSyncing: boolean;
+  /** Phase 7: true while the Nango Connect modal is open + we're polling for the webhook. */
+  isPending?: boolean;
   onConnect: () => void;
   onSync?: () => void;
   onDisconnect?: () => void;
@@ -38,6 +40,7 @@ export function ConnectionCard({
   provider,
   connection,
   isSyncing,
+  isPending,
   onConnect,
   onSync,
   onDisconnect,
@@ -186,6 +189,8 @@ export function ConnectionCard({
       ) : (
         <button
           onClick={onConnect}
+          disabled={isPending}
+          aria-busy={isPending}
           style={{
             width: "100%",
             padding: "8px 16px",
@@ -195,10 +200,11 @@ export function ConnectionCard({
             borderRadius: 6,
             background: "var(--kt-accent-hover)",
             color: "var(--kt-fg-on-inverse)",
-            cursor: "pointer",
+            cursor: isPending ? "wait" : "pointer",
+            opacity: isPending ? 0.6 : 1,
           }}
         >
-          Connect
+          {isPending ? "Connecting..." : "Connect"}
         </button>
       )}
     </div>

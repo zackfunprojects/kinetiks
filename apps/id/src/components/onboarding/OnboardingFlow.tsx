@@ -10,6 +10,7 @@ import { CrawlStep } from "./CrawlStep";
 import { ConversationStep } from "./ConversationStep";
 import { CalibrationStep } from "./CalibrationStep";
 import { WritingSampleStep } from "./WritingSampleStep";
+import { AuthorityDefaultsStep } from "./AuthorityDefaultsStep";
 import { CompletionStep } from "./CompletionStep";
 
 interface Account {
@@ -23,7 +24,11 @@ interface OnboardingFlowProps {
   bootstrapKey: string | null;
 }
 
-const STEPS = ["Welcome", "Website", "Questions", "Voice", "Samples", "Done"];
+// Phase 5: Permissions step inserted between Samples and Done per the
+// Kinetiks Contract Addendum §2.6. Step 5 (Permissions) advances
+// itself transparently when authority_defaults_reviewed_at is already
+// set, so resume-after-completion is a clean pass-through.
+const STEPS = ["Welcome", "Website", "Questions", "Voice", "Samples", "Permissions", "Done"];
 const TOTAL_STEPS = STEPS.length;
 
 export function OnboardingFlow({ account, fromApp, bootstrapKey }: OnboardingFlowProps) {
@@ -68,6 +73,12 @@ export function OnboardingFlow({ account, fromApp, bootstrapKey }: OnboardingFlo
           const hasVoiceCalibration =
             status.layers.voice && status.layers.voice.percentage >= 40;
 
+          // Phase 5: a fully-Cartographer-complete customer now resumes
+          // to step 5 (Permissions). If they have already reviewed
+          // permissions, AuthorityDefaultsStep self-advances to step 6
+          // (Done) via its own /api/onboarding/authority-defaults GET
+          // — which authoritatively reads kinetiks_accounts
+          // .authority_defaults_reviewed_at.
           if (status.aggregate >= 50 && hasVoiceCalibration) {
             setStep(5);
           } else if (status.aggregate >= 30) {
@@ -199,11 +210,20 @@ export function OnboardingFlow({ account, fromApp, bootstrapKey }: OnboardingFlo
       )}
 
       {step === 5 && (
+        <AuthorityDefaultsStep
+          onComplete={advance}
+          onBack={goBack}
+          stepNumber={6}
+          totalSteps={TOTAL_STEPS}
+        />
+      )}
+
+      {step === 6 && (
         <CompletionStep
           codename={account.codename}
           fromApp={fromApp}
           fillStatus={fillStatus}
-          stepNumber={6}
+          stepNumber={7}
           totalSteps={TOTAL_STEPS}
         />
       )}

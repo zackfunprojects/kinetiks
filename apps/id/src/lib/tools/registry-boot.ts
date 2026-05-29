@@ -20,6 +20,13 @@ import { queryInsightsTool } from "./query-insights";
 import { sendSlackNotificationTool } from "./send-slack-notification";
 import { draftEmailTool } from "./draft-email";
 import { addCalendarEventTool } from "./add-calendar-event";
+// Phase 7 — Nango Connect end-to-end. Read tools for the new
+// providers that now connect through Nango.
+import { hubspotQueryTool } from "./hubspot-query";
+import { twitterQueryTool } from "./twitter-query";
+import { linkedinQueryTool } from "./linkedin-query";
+import { instagramQueryTool } from "./instagram-query";
+import { tiktokQueryTool } from "./tiktok-query";
 
 let _booted = false;
 
@@ -65,6 +72,15 @@ export function bootToolRegistry(): void {
   registerTool(sendSlackNotificationTool);
   registerTool(draftEmailTool);
   registerTool(addCalendarEventTool);
+  // Phase 7 — read tools for the new Nango-connected providers.
+  // Each tool's availability is gated by `connection_required` on
+  // the corresponding ConnectionProvider; the registry validator
+  // catches any provider mismatch at boot.
+  registerTool(hubspotQueryTool);
+  registerTool(twitterQueryTool);
+  registerTool(linkedinQueryTool);
+  registerTool(instagramQueryTool);
+  registerTool(tiktokQueryTool);
   // Cross-registry validation — fails the boot if anything is
   // inconsistent. Phase 4 — Chunk 6 introduced the first consequential
   // tools (send_slack_notification, draft_email, add_calendar_event);

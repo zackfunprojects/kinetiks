@@ -66,3 +66,21 @@ export function pickSafeAddress(
   if (typeof input.country === "string") out.country = input.country;
   return out;
 }
+
+/**
+ * Phase 7: SHA-256 hex of a normalized social-media handle, truncated
+ * to 16 characters. Used by the social-post sync handlers to redact
+ * mention handles in metadata while still letting Marcus's read
+ * tools detect "this post mentioned the same handle as that one"
+ * without ever surfacing the handle itself.
+ *
+ * Truncation matches the imported_from_account_id_hash pattern in
+ * Pattern Library exports — 16 hex chars (64 bits) is collision-
+ * resistant enough for the per-account hash space.
+ */
+export function hashHandle(handle: string | null | undefined): string | null {
+  if (!handle) return null;
+  const normalized = handle.trim().toLowerCase().replace(/^@+/, "");
+  if (normalized.length === 0) return null;
+  return createHash("sha256").update(normalized).digest("hex").slice(0, 16);
+}

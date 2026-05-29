@@ -42,6 +42,26 @@ const PROVIDERS: Record<ConnectionProvider, ProviderDefinition> = {
     targetLayers: ["products", "customers"],
     docsUrl: "https://stripe.com/docs/api",
   },
+  google_ads: {
+    provider: "google_ads",
+    displayName: "Google Ads",
+    description:
+      "Campaign performance, conversion data, and ad spend across networks",
+    category: "revenue",
+    authType: "oauth",
+    targetLayers: ["customers", "market"],
+    docsUrl: "https://developers.google.com/google-ads/api/docs/start",
+  },
+  meta_ads: {
+    provider: "meta_ads",
+    displayName: "Meta Ads",
+    description:
+      "Facebook + Instagram ad performance, audience insights, and creative engagement",
+    category: "revenue",
+    authType: "oauth",
+    targetLayers: ["customers", "market"],
+    docsUrl: "https://developers.facebook.com/docs/marketing-apis",
+  },
   hubspot: {
     provider: "hubspot",
     displayName: "HubSpot",
@@ -51,16 +71,6 @@ const PROVIDERS: Record<ConnectionProvider, ProviderDefinition> = {
     authType: "oauth",
     targetLayers: ["customers", "competitive"],
     docsUrl: "https://developers.hubspot.com/docs/api/overview",
-  },
-  salesforce: {
-    provider: "salesforce",
-    displayName: "Salesforce",
-    description:
-      "Leads, opportunities, accounts, and sales pipeline data",
-    category: "crm",
-    authType: "oauth",
-    targetLayers: ["customers", "competitive"],
-    docsUrl: "https://developer.salesforce.com/docs/apis",
   },
   twitter: {
     provider: "twitter",
@@ -92,15 +102,15 @@ const PROVIDERS: Record<ConnectionProvider, ProviderDefinition> = {
     targetLayers: ["customers", "brand"],
     docsUrl: "https://developers.facebook.com/docs/instagram-api",
   },
-  resend: {
-    provider: "resend",
-    displayName: "Resend",
+  tiktok: {
+    provider: "tiktok",
+    displayName: "TikTok",
     description:
-      "Email delivery metrics, open rates, and engagement data",
-    category: "email",
-    authType: "api_key",
-    targetLayers: ["customers"],
-    docsUrl: "https://resend.com/docs/api-reference/introduction",
+      "Video performance, audience demographics, follower growth, and engagement",
+    category: "social",
+    authType: "oauth",
+    targetLayers: ["customers", "voice", "brand"],
+    docsUrl: "https://developers.tiktok.com/doc/business-overview/",
   },
 };
 
