@@ -105,16 +105,23 @@ function normalizeTikTokVideo(raw: Record<string, unknown>): NormalizedSocialPos
   if (!id || !posted) return null;
   const captionText = r.video_description ?? r.caption ?? r.title;
 
-  // Defensive: catch any fields the schema gains in a quarterly
-  // refresh. Unknown fields land in metadata.extra so the customer
-  // record stays complete even when the typed normalization misses
-  // them. The TikTok API has a habit of adding new aggregate fields
-  // without notice.
-  const extra: Record<string, unknown> = {};
+  // Phase 7 CR: catch unknown TikTok fields BUT only if they're safe-
+  // shaped. Blindly copying every unknown key risks persisting PII the
+  // upstream API gains in a schema refresh (display names, usernames,
+  // raw URLs to user content). The narrow allowlist keeps the defensive
+  // intent — quarterly aggregate-metric additions still land — while
+  // refusing strings, arrays, and nested objects that could carry
+  // identifying data. Capped at 8 entries so a runaway schema can't
+  // bloat the row.
+  const extra: Record<string, number | boolean | null> = {};
+  let extraCount = 0;
+  const EXTRA_CAP = 8;
   for (const [key, value] of Object.entries(r)) {
-    if (!KNOWN_FIELDS.has(key) && key !== "_nango_metadata") {
-      extra[key] = value;
-    }
+    if (KNOWN_FIELDS.has(key) || key === "_nango_metadata") continue;
+    if (value !== null && typeof value !== "number" && typeof value !== "boolean") continue;
+    if (extraCount >= EXTRA_CAP) break;
+    extra[key] = value as number | boolean | null;
+    extraCount++;
   }
 
   return {

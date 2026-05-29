@@ -1,5 +1,6 @@
 import "server-only";
 
+import * as Sentry from "@sentry/nextjs";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { SocialPostSource } from "@kinetiks/types";
@@ -90,7 +91,32 @@ export async function runSocialPostSync(
       async (page) => {
         const rows: Array<Record<string, unknown>> = [];
         for (const raw of page) {
-          const normalized = args.normalizePost(raw);
+          // Phase 7 CR: isolate normalize errors at row level so one
+          // malformed record doesn't fail the whole sync. The CodeRabbit
+          // finding flagged that a normalizer throw would propagate up
+          // and mark the entire batch as failed; for sync resilience
+          // we treat per-row failures as skips and continue.
+          let normalized: NormalizedSocialPost | null;
+          try {
+            normalized = args.normalizePost(raw);
+          } catch (err) {
+            skipped++;
+            Sentry.captureException(err, {
+              tags: {
+                route: "nango/handlers/social-post",
+                action: "normalize",
+                stage: "per_record",
+                app: "id",
+              },
+              user: { id: args.ctx.accountId },
+              extra: {
+                source: args.source,
+                provider_config_key: args.ctx.webhook.providerConfigKey,
+                sync_name: args.ctx.webhook.syncName,
+              },
+            });
+            continue;
+          }
           if (!normalized) {
             skipped++;
             continue;

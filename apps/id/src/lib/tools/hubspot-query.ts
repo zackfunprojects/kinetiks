@@ -1,9 +1,25 @@
 import "server-only";
 
+import * as Sentry from "@sentry/nextjs";
 import { z } from "zod";
 import { defineTool } from "@kinetiks/tools";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+
+// Phase 7 CR: paginate full result set instead of the legacy 5000-row
+// cap, which silently truncated totals + buckets + new_in_window for
+// large CRMs. Supabase caps at 1000 rows/page; we keyset on synced_at
+// descending. MAX_PAGES is the safety ceiling — 50 pages × 1000 rows
+// = 50k CRM entities, more than any single HubSpot subportal supports.
+// If a customer ever blows through it, we Sentry-warn and surface
+// partial data rather than crashing.
+const HUBSPOT_PAGE_SIZE = 1000;
+const HUBSPOT_MAX_PAGES = 50;
+
+const GENERIC_HUBSPOT_QUERY_ERROR =
+  "Couldn't read your HubSpot data right now. Try again in a moment.";
+const GENERIC_HUBSPOT_CONNECTION_ERROR =
+  "Couldn't verify your HubSpot connection right now. Try again in a moment.";
 
 /**
  * Marcus tool — read HubSpot CRM aggregates.
@@ -69,13 +85,31 @@ export const hubspotQueryTool = defineTool({
   execute: async (input, ctx) => {
     const admin = createAdminClient();
 
-    const { data: conn } = await admin
+    // Phase 7 CR: distinguish DB error from not_connected. Previously
+    // a DB error returned not_connected, which masked outages.
+    const { data: conn, error: connError } = await admin
       .from("kinetiks_connections")
       .select("status")
       .eq("account_id", ctx.accountId)
       .eq("provider", "hubspot")
       .eq("status", "active")
       .maybeSingle();
+    if (connError) {
+      Sentry.captureException(connError, {
+        tags: {
+          route: "hubspot_query",
+          action: "connection_check",
+          stage: "select",
+          app: "id",
+        },
+        user: { id: ctx.accountId },
+        extra: { postgrest_code: connError.code },
+      });
+      return {
+        status: "error" as const,
+        message: GENERIC_HUBSPOT_CONNECTION_ERROR,
+      };
+    }
     if (!conn) {
       return {
         status: "not_connected" as const,
@@ -87,22 +121,86 @@ export const hubspotQueryTool = defineTool({
     cutoff.setUTCDate(cutoff.getUTCDate() - input.recent_days);
     const cutoffIso = cutoff.toISOString();
 
-    const { data: rows, error } = await admin
-      .from("kinetiks_crm_entities")
-      .select("data, external_updated_at, synced_at")
-      .eq("account_id", ctx.accountId)
-      .eq("source", "hubspot")
-      .eq("entity_type", input.entity_type)
-      .limit(5000);
-    if (error) {
-      console.error(`[hubspot_query] read failed: ${error.message}`);
-      return {
-        status: "error" as const,
-        message: "Couldn't read your HubSpot data right now. Try again in a moment.",
-      };
+    // Phase 7 CR: paginate the full result set so totals + buckets +
+    // new_in_window are accurate for accounts with > 5000 CRM
+    // entities. We order by synced_at descending and keyset on the
+    // last seen synced_at (with id tiebreaker so equal-timestamp
+    // batches don't loop forever).
+    const rows: Array<{
+      data: Record<string, unknown> | null;
+      external_updated_at: string | null;
+      synced_at: string | null;
+      id: string;
+    }> = [];
+    let cursorSynced: string | null = null;
+    let cursorId: string | null = null;
+    let pagesWalked = 0;
+    let hitPageCap = false;
+    while (pagesWalked < HUBSPOT_MAX_PAGES) {
+      let q = admin
+        .from("kinetiks_crm_entities")
+        .select("id, data, external_updated_at, synced_at")
+        .eq("account_id", ctx.accountId)
+        .eq("source", "hubspot")
+        .eq("entity_type", input.entity_type)
+        .order("synced_at", { ascending: false })
+        .order("id", { ascending: false })
+        .limit(HUBSPOT_PAGE_SIZE);
+      if (cursorSynced && cursorId) {
+        // Strict-less-than keyset: (synced_at, id) < (cursor, cursorId)
+        q = q.or(
+          `synced_at.lt.${cursorSynced},and(synced_at.eq.${cursorSynced},id.lt.${cursorId})`,
+        );
+      }
+      const { data: page, error: pageError } = await q;
+      if (pageError) {
+        Sentry.captureException(pageError, {
+          tags: {
+            route: "hubspot_query",
+            action: "entities_query",
+            stage: "page",
+            app: "id",
+          },
+          user: { id: ctx.accountId },
+          extra: {
+            entity_type: input.entity_type,
+            pages_walked: pagesWalked,
+            postgrest_code: pageError.code,
+          },
+        });
+        return {
+          status: "error" as const,
+          message: GENERIC_HUBSPOT_QUERY_ERROR,
+        };
+      }
+      const pageRows = (page ?? []) as typeof rows;
+      rows.push(...pageRows);
+      pagesWalked++;
+      if (pageRows.length < HUBSPOT_PAGE_SIZE) break;
+      const last = pageRows[pageRows.length - 1];
+      cursorSynced = last.synced_at;
+      cursorId = last.id;
+      if (pagesWalked >= HUBSPOT_MAX_PAGES) hitPageCap = true;
     }
 
-    const total = rows?.length ?? 0;
+    if (hitPageCap) {
+      Sentry.captureMessage("[hubspot_query] page-walk cap reached", {
+        level: "warning",
+        tags: {
+          route: "hubspot_query",
+          action: "entities_query",
+          stage: "cap",
+          app: "id",
+        },
+        user: { id: ctx.accountId },
+        extra: {
+          entity_type: input.entity_type,
+          rows_collected: rows.length,
+        },
+      });
+    }
+
+    const total = rows.length;
     if (total === 0) {
       return {
         status: "ok" as const,
@@ -120,8 +218,8 @@ export const hubspotQueryTool = defineTool({
     // OK; false positives (counting an old deal as "new") are not.
     let newCount = 0;
     if (input.recent_days > 0) {
-      for (const r of rows ?? []) {
-        const t = (r.external_updated_at as string | null) ?? (r.synced_at as string | null);
+      for (const r of rows) {
+        const t = r.external_updated_at ?? r.synced_at;
         if (t && t >= cutoffIso) newCount++;
       }
     }
@@ -130,8 +228,8 @@ export const hubspotQueryTool = defineTool({
     const buckets = new Map<string, { count: number; amount: number }>();
     const groupKey = input.group_by;
 
-    for (const r of rows ?? []) {
-      const data = (r.data as Record<string, unknown>) ?? {};
+    for (const r of rows) {
+      const data = r.data ?? {};
       let key: string;
       if (groupKey === "overall") {
         key = "overall";

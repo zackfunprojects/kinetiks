@@ -1,5 +1,8 @@
 import { randomUUID } from "node:crypto";
 
+import * as Sentry from "@sentry/nextjs";
+import { z } from "zod";
+
 import { renderCustomerSentence } from "@kinetiks/tools";
 
 import { requireAuth } from "@/lib/auth/require-auth";
@@ -9,10 +12,29 @@ import { listManifestsWithDefaults } from "@/lib/manifest/registry";
 import {
   assertNoAuthorityGrantPhrase,
   buildAcceptDefaultProposal,
-  emitDefaultAcceptLedgerEntries,
+  // emitDefaultAcceptLedgerEntries removed in Phase 7 CR — migration
+  // 00066 moves the writes into the accept RPC so they're atomic.
   emitDefaultRejectedLedgerEntries,
   emitDefaultSkippedLedgerEntries,
 } from "@/lib/cortex/authority/defaults";
+
+const ROUTE_TAG = "onboarding/authority-defaults";
+
+// Phase 7 CR: validate POST input with Zod. The two-shape body —
+// `{ mode: "accept", accepted_keys: string[] }` or `{ mode: "skip" }`
+// — is a discriminated union; encode it that way so the type narrows
+// after parse and the caller never reads `accepted_keys` on a skip.
+const AcceptOnboardingDefaultsSchema = z.discriminatedUnion("mode", [
+  z.object({
+    mode: z.literal("accept"),
+    accepted_keys: z.array(z.string().min(1)).default([]),
+  }),
+  z.object({
+    mode: z.literal("skip"),
+  }),
+]);
+
+type AcceptOnboardingDefaultsRequest = z.infer<typeof AcceptOnboardingDefaultsSchema>;
 
 /**
  * POST /api/onboarding/authority-defaults
@@ -53,12 +75,7 @@ import {
 
 const GENERIC_ACCEPT_DEFAULTS_ERROR =
   "We couldn't save your permission choices. Try again.";
-
-interface AcceptOnboardingDefaultsRequest {
-  mode: "accept" | "skip";
-  /** Required when mode="accept"; ignored when mode="skip". */
-  accepted_keys?: string[];
-}
+const GENERIC_LOAD_DEFAULTS_ERROR = "Failed to load defaults";
 
 /**
  * Shape returned by GET. The signup UI uses this to render the
@@ -107,10 +124,12 @@ export async function GET(request: Request): Promise<Response> {
     .eq("id", auth.account_id)
     .maybeSingle();
   if (accountError) {
-    console.error(
-      `[authority-defaults] account fetch failed for ${auth.account_id}: ${accountError.message}`,
-    );
-    return apiError("Failed to load defaults", 500);
+    Sentry.captureException(accountError, {
+      tags: { route: ROUTE_TAG, action: "account_fetch", stage: "GET", app: "id" },
+      user: { id: auth.account_id },
+      extra: { postgrest_code: accountError.code },
+    });
+    return apiError(GENERIC_LOAD_DEFAULTS_ERROR, 500);
   }
   const reviewedAt = (account?.authority_defaults_reviewed_at as string | null) ?? null;
 
@@ -162,22 +181,22 @@ export async function POST(request: Request): Promise<Response> {
   });
   if (authError) return authError;
 
-  let body: AcceptOnboardingDefaultsRequest;
+  let bodyRaw: unknown;
   try {
-    body = (await request.json()) as AcceptOnboardingDefaultsRequest;
+    bodyRaw = await request.json();
   } catch {
     return apiError("Invalid request body", 400);
   }
-
-  if (body.mode !== "accept" && body.mode !== "skip") {
+  const parsedBody = AcceptOnboardingDefaultsSchema.safeParse(bodyRaw);
+  if (!parsedBody.success) {
     return apiError(
-      'mode must be "accept" or "skip"',
+      `Invalid request: ${parsedBody.error.issues.map((i) => i.message).join("; ")}`,
       400,
     );
   }
-  const acceptedKeysInput = Array.isArray(body.accepted_keys)
-    ? body.accepted_keys.filter((k): k is string => typeof k === "string")
-    : [];
+  const body: AcceptOnboardingDefaultsRequest = parsedBody.data;
+  const acceptedKeysInput: readonly string[] =
+    body.mode === "accept" ? body.accepted_keys : [];
 
   const manifestsWithDefaults = listManifestsWithDefaults();
   if (manifestsWithDefaults.length === 0) {
@@ -202,8 +221,14 @@ export async function POST(request: Request): Promise<Response> {
       // No cross-manifest key collisions in v1; surface as a 500 if
       // it ever happens because the manifest validator missed it.
       if (keyToManifest.has(d.key)) {
-        console.error(
-          `[authority-defaults] duplicate key "${d.key}" across manifests (validator gap)`,
+        Sentry.captureMessage(
+          `[${ROUTE_TAG}] duplicate manifest key (validator gap)`,
+          {
+            level: "error",
+            tags: { route: ROUTE_TAG, action: "manifest_dedup", stage: "POST", app: "id" },
+            user: { id: auth.account_id },
+            extra: { duplicate_key: d.key },
+          },
         );
         return apiError(GENERIC_ACCEPT_DEFAULTS_ERROR, 500);
       }
@@ -250,25 +275,42 @@ export async function POST(request: Request): Promise<Response> {
       const acceptedForApp = allKeys.filter((k) => acceptedSet.has(k));
       if (acceptedForApp.length === 0) continue;
 
-      const proposals = acceptedForApp.map((key) => {
+      // Phase 7 CR (migration 00066): the RPC now writes its own
+      // Ledger entries atomically. We thread an invocation_id so all
+      // grants in this one accept call share a correlation key in
+      // the audit trail, and we pass the action_classes per proposal
+      // so the Ledger detail mirrors what defaults.ts used to set.
+      const invocation_id = randomUUID();
+      const proposalsWithActionClasses = acceptedForApp.map((key) => {
         const entry = keyToManifest.get(key);
         if (!entry) throw new Error(`unreachable: missing manifest entry for key ${key}`);
-        return buildAcceptDefaultProposal({
+        const base = buildAcceptDefaultProposal({
           default: entry.default as Parameters<typeof buildAcceptDefaultProposal>[0]["default"],
           app,
         });
+        const action_classes = (
+          entry.default as Parameters<typeof buildAcceptDefaultProposal>[0]["default"]
+        ).granted_capabilities.map((c) => c.action_class);
+        return { ...base, action_classes };
       });
 
       const { data, error } = await admin.rpc("accept_default_standing_grants", {
         p_account_id: auth.account_id,
         p_granted_by: auth.user_id,
         p_proposed_by_agent: "onboarding_signup",
-        p_proposals: proposals,
+        p_invocation_id: invocation_id,
+        p_proposals: proposalsWithActionClasses,
       });
       if (error) {
-        console.error(
-          `[authority-defaults] RPC failed for app=${app}: ${error.message}`,
-        );
+        Sentry.captureException(error, {
+          tags: { route: ROUTE_TAG, action: "accept_rpc", stage: "rpc", app: "id" },
+          user: { id: auth.account_id },
+          extra: {
+            manifest_app: app,
+            proposals_count: proposalsWithActionClasses.length,
+            postgrest_code: error.code,
+          },
+        });
         return apiError(GENERIC_ACCEPT_DEFAULTS_ERROR, 500);
       }
       const rows = (data ?? []) as Array<{
@@ -276,9 +318,6 @@ export async function POST(request: Request): Promise<Response> {
         default_origin_app: string;
         default_origin_key: string;
       }>;
-      // Action class list for each grant — sourced from the manifest
-      // so the Ledger detail mirrors the persistence shape.
-      const invocation_id = randomUUID();
       for (const r of rows) {
         const entry = keyToManifest.get(r.default_origin_key);
         const action_classes = entry
@@ -293,21 +332,7 @@ export async function POST(request: Request): Promise<Response> {
           action_classes,
         });
       }
-      try {
-        await emitDefaultAcceptLedgerEntries({
-          admin,
-          account_id: auth.account_id,
-          invocation_id,
-          grants: grantsCreated.filter((g) => g.default_origin_app === app),
-        });
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        console.error(`[authority-defaults] ledger emit (accept) failed: ${msg}`);
-        // Grants are persisted; Ledger emission failed. v1 acceptance:
-        // grant rows carry default_origin_*, which is the durable
-        // provenance. We continue and try to set the marker so the
-        // customer can move forward.
-      }
+      // No separate Ledger emit — the RPC owns the writes atomically.
     }
 
     // Reject any manifest key not in accepted_keys.
@@ -322,8 +347,11 @@ export async function POST(request: Request): Promise<Response> {
           rejected_keys: rejected,
         });
       } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        console.error(`[authority-defaults] ledger emit (rejected) failed: ${msg}`);
+        Sentry.captureException(err, {
+          tags: { route: ROUTE_TAG, action: "ledger_emit_rejected", stage: "post_rpc", app: "id" },
+          user: { id: auth.account_id },
+          extra: { manifest_app: app, rejected_count: rejected.length },
+        });
       }
     }
 
@@ -348,8 +376,11 @@ export async function POST(request: Request): Promise<Response> {
         skipped_keys: allKeys,
       });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error(`[authority-defaults] ledger emit (skipped) failed: ${msg}`);
+      Sentry.captureException(err, {
+        tags: { route: ROUTE_TAG, action: "ledger_emit_skipped", stage: "skip_path", app: "id" },
+        user: { id: auth.account_id },
+        extra: { manifest_app: app, skipped_count: allKeys.length },
+      });
     }
   }
   const reviewedAt = await markReviewed(auth.account_id);
@@ -375,9 +406,11 @@ async function markReviewed(account_id: string): Promise<string | null> {
     .update({ authority_defaults_reviewed_at: nowIso })
     .eq("id", account_id);
   if (error) {
-    console.error(
-      `[authority-defaults] markReviewed failed for account ${account_id}: ${error.message}`,
-    );
+    Sentry.captureException(error, {
+      tags: { route: ROUTE_TAG, action: "mark_reviewed", stage: "update", app: "id" },
+      user: { id: account_id },
+      extra: { postgrest_code: error.code },
+    });
     return null;
   }
   return nowIso;

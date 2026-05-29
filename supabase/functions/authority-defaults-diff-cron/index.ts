@@ -32,8 +32,11 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.0";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const INTERNAL_SERVICE_SECRET = Deno.env.get("INTERNAL_SERVICE_SECRET");
-const KINETIKS_ID_API_URL =
-  Deno.env.get("KINETIKS_ID_API_URL") || "https://kinetiks.ai";
+// Phase 7 CR: fail closed if KINETIKS_ID_API_URL is missing. The old
+// default of "https://kinetiks.ai" silently routed dev/staging crons
+// at production, which would have triggered real customer-facing
+// proposals during preview deploys. Require an explicit value.
+const KINETIKS_ID_API_URL = Deno.env.get("KINETIKS_ID_API_URL");
 
 /** Maximum accounts to process per CRON run. */
 const BATCH_LIMIT = 200;
@@ -55,8 +58,20 @@ interface RefreshResponse {
 }
 
 Deno.serve(async () => {
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !INTERNAL_SERVICE_SECRET) {
-    console.error("[authority-defaults-diff-cron] Missing required environment variables");
+  // Phase 7 CR: include KINETIKS_ID_API_URL in the env guard. Defaulting
+  // to production silently in dev/staging would have produced real
+  // customer-facing proposals on every preview deploy of this cron.
+  if (
+    !SUPABASE_URL ||
+    !SUPABASE_SERVICE_ROLE_KEY ||
+    !INTERNAL_SERVICE_SECRET ||
+    !KINETIKS_ID_API_URL
+  ) {
+    console.error(
+      "[authority-defaults-diff-cron] Missing required environment variables. " +
+        "Set SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, INTERNAL_SERVICE_SECRET, " +
+        "and KINETIKS_ID_API_URL (no default to avoid accidental cross-env routing).",
+    );
     return new Response(JSON.stringify({ error: "Missing env vars" }), {
       status: 500,
       headers: { "Content-Type": "application/json" },
@@ -157,19 +172,21 @@ Deno.serve(async () => {
     await Promise.all(promises);
   }
 
+  // Phase 7 CR: structured single-line JSON so Supabase log search
+  // can filter/aggregate via the same fields the cron exposes in
+  // its HTTP response. console.log spit out a human-readable form
+  // that wasn't queryable.
   const summary = {
+    event: "authority_defaults_diff_cron_complete",
     accounts_queried: accountIds.length,
     accounts_processed: totalProcessed,
     proposals_created: totalProposalsCreated,
     cooldown_skipped: totalCooldownSkipped,
     already_covered: totalAlreadyCovered,
     errors: totalErrors,
+    completed_at: new Date().toISOString(),
   };
-
-  console.log(
-    "[authority-defaults-diff-cron] Run complete:",
-    JSON.stringify(summary),
-  );
+  console.log(JSON.stringify(summary));
 
   return new Response(JSON.stringify(summary), {
     headers: { "Content-Type": "application/json" },

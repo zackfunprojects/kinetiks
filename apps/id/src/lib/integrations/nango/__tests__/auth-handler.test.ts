@@ -50,6 +50,25 @@ function makeAdmin(opts: { upsertId?: string; updateId?: string | null } = {}) {
             }),
           };
         },
+        // Phase 7 CR: revoke path now reads existing metadata before
+        // updating, so the mock supports a select() chain that returns
+        // the existing row's metadata (defaulting to an empty object).
+        select: (_cols?: string) => {
+          const builder = {
+            eq: (_col?: string, _val?: unknown) => builder,
+            neq: (_col?: string, _val?: unknown) => builder,
+            maybeSingle: () => {
+              if (opts.updateId === null) {
+                return Promise.resolve({ data: null, error: null });
+              }
+              return Promise.resolve({
+                data: { metadata: {} },
+                error: null,
+              });
+            },
+          };
+          return builder;
+        },
         update: (patch: Record<string, unknown>) => {
           const matchers: Array<[string, unknown]> = [];
           const builder = {

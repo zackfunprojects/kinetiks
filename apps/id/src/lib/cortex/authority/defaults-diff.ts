@@ -1,5 +1,6 @@
 import "server-only";
 
+import * as Sentry from "@sentry/nextjs";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type {
@@ -8,6 +9,8 @@ import type {
 } from "@kinetiks/types";
 
 import { buildProposeDefaultPayload } from "./defaults";
+
+const DIFF_TAG = "authority/defaults-diff";
 
 /**
  * Manifest-diff loop per Phase 5 (Kinetiks Contract Addendum §2.6).
@@ -242,9 +245,15 @@ async function proposeOne(args: {
     p_proposals: [payload],
   });
   if (error) {
-    console.error(
-      `[defaults-diff] propose RPC failed for ${args.manifest_app}.${args.default.key}: ${error.message}`,
-    );
+    Sentry.captureException(error, {
+      tags: { route: DIFF_TAG, action: "propose_rpc", stage: "rpc", app: "id" },
+      user: { id: args.account_id },
+      extra: {
+        manifest_app: args.manifest_app,
+        default_key: args.default.key,
+        postgrest_code: error.code,
+      },
+    });
     return false;
   }
   const rows = (data ?? []) as Array<{ grant_id: string; approval_id: string }>;
@@ -293,9 +302,15 @@ async function proposeOne(args: {
     .from("kinetiks_ledger")
     .insert(ledgerRows);
   if (ledgerErr) {
-    console.error(
-      `[defaults-diff] ledger insert failed for grant ${grant_id}: ${ledgerErr.message}`,
-    );
+    Sentry.captureException(ledgerErr, {
+      tags: { route: DIFF_TAG, action: "ledger_insert", stage: "post_rpc", app: "id" },
+      user: { id: args.account_id },
+      extra: {
+        grant_id,
+        manifest_app: args.manifest_app,
+        default_key: args.default.key,
+      },
+    });
   }
   return true;
 }

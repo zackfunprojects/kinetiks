@@ -197,11 +197,43 @@ export async function handleNangoAuthEvent(
     const revocationReason = w.failureReason?.toLowerCase().includes("auth_expired")
       ? "auth_expired"
       : "provider_revoked";
+
+    // Phase 7 CR: preserve existing metadata on revoke. The previous
+    // implementation replaced the entire `metadata` jsonb with just
+    // the revoke fields, discarding `last_auth_at`, `last_auth_operation`,
+    // and any provider-specific data (GA4 property selection, etc.).
+    // Read first, merge, then UPDATE. Race-condition note: between the
+    // SELECT and UPDATE another revoke could land; the .neq("status",
+    // "revoked") filter on UPDATE plus the maybeSingle() result
+    // handles that — the second writer sees 0 rows affected.
+    const { data: existing, error: existingError } = await args.admin
+      .from("kinetiks_connections")
+      .select("metadata")
+      .eq("account_id", account_id)
+      .eq("nango_connection_id", w.connectionId)
+      .neq("status", "revoked")
+      .maybeSingle();
+    if (existingError) {
+      console.error(
+        `[nango/auth] revoke pre-fetch failed: ${existingError.message}`,
+      );
+      return {
+        outcome: "failed",
+        account_id,
+        reason: `revoke pre-fetch failed: ${existingError.message}`,
+      };
+    }
+    if (!existing) {
+      return { outcome: "ignored", account_id, reason: "no active row to revoke" };
+    }
+    const existingMetadata = (existing.metadata as Record<string, unknown> | null) ?? {};
+
     const { data: updated, error: updateError } = await args.admin
       .from("kinetiks_connections")
       .update({
         status: "revoked",
         metadata: {
+          ...existingMetadata,
           revoked_at: args.arrivedAt.toISOString(),
           revocation_reason: revocationReason,
           nango_deletion_failure_reason: w.failureReason ?? null,
@@ -223,8 +255,8 @@ export async function handleNangoAuthEvent(
       };
     }
     if (!updated) {
-      // Either no matching row (already revoked elsewhere) or the
-      // row was already in `revoked` status. Idempotent no-op.
+      // Race: another writer revoked between our SELECT and UPDATE.
+      // Idempotent no-op.
       return { outcome: "ignored", account_id, reason: "no active row to revoke" };
     }
     const connection_id = (updated as { id: string }).id;

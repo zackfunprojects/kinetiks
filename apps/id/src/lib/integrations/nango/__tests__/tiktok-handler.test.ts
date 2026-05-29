@@ -88,21 +88,45 @@ describe("tiktok handler normalization", () => {
       expect(out.metadata.post_url).toBe("https://www.tiktok.com/@user/video/v1");
     });
 
-    it("preserves unknown fields in metadata.extra (TikTok schema drift)", () => {
+    it("preserves safe-shaped unknown fields in metadata.extra (TikTok schema drift)", () => {
+      // Phase 7 CR: only primitive number/boolean/null unknowns are
+      // preserved. Strings / arrays / objects are dropped because the
+      // upstream API could ship PII in a schema refresh (usernames,
+      // raw URLs to user content) and the redaction boundary belongs
+      // in this handler, not downstream.
       const out = normalizeTikTokVideo({
         id: "v2",
         create_time: 1700000000,
         video_description: "hi",
         view_count: 100,
-        // Hypothetical future fields TikTok adds without notice:
-        new_metric_2027: 999,
-        engagement_v2: { foo: "bar" },
+        new_metric_2027: 999,           // number — kept
+        is_verified_post: true,         // boolean — kept
+        null_field: null,               // null — kept
+        upstream_string_field: "hi",    // string — dropped (PII risk)
+        engagement_v2: { foo: "bar" },  // object — dropped (PII risk)
+        unknown_array: [1, 2, 3],       // array — dropped
       });
       if (!out) return;
       const extra = out.metadata.extra as Record<string, unknown>;
       expect(extra).toBeDefined();
       expect(extra.new_metric_2027).toBe(999);
-      expect(extra.engagement_v2).toEqual({ foo: "bar" });
+      expect(extra.is_verified_post).toBe(true);
+      expect(extra.null_field).toBe(null);
+      expect(extra.upstream_string_field).toBeUndefined();
+      expect(extra.engagement_v2).toBeUndefined();
+      expect(extra.unknown_array).toBeUndefined();
+    });
+
+    it("caps metadata.extra at 8 entries to bound row size", () => {
+      const out = normalizeTikTokVideo({
+        id: "v_cap",
+        create_time: 1700000000,
+        unk_1: 1, unk_2: 2, unk_3: 3, unk_4: 4, unk_5: 5,
+        unk_6: 6, unk_7: 7, unk_8: 8, unk_9: 9, unk_10: 10,
+      });
+      if (!out) return;
+      const extra = out.metadata.extra as Record<string, unknown>;
+      expect(Object.keys(extra).length).toBeLessThanOrEqual(8);
     });
 
     it("zero-fills missing engagement counts", () => {

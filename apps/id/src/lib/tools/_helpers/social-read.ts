@@ -1,11 +1,25 @@
 import "server-only";
 
+import * as Sentry from "@sentry/nextjs";
 import { z } from "zod";
 import { defineTool, type AgentTool } from "@kinetiks/tools";
 
 import type { SocialPostSource } from "@kinetiks/types";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+
+const GENERIC_POSTS_QUERY_ERROR =
+  "Couldn't read your posts right now. Try again in a moment.";
+const GENERIC_CONNECTION_QUERY_ERROR =
+  "Couldn't verify your connection right now. Try again in a moment.";
+
+// Phase 7 CR: paginate through the full time window rather than
+// truncating at 500 rows. Active accounts (high-frequency posters)
+// would silently mis-rank top posts and underreport totals. Supabase
+// caps each page at 1000; we walk pages until exhaustion with a
+// safety ceiling so a runaway query can't tie up the worker.
+const PAGE_SIZE = 1000;
+const MAX_PAGES = 20; // safety: caps at 20k posts/window; alerts via Sentry if hit
 
 /**
  * Phase 7 — shared factory for the four social-post Marcus tools
@@ -135,17 +149,36 @@ export function defineSocialReadTool(
     execute: async (input, ctx) => {
       const admin = createAdminClient();
 
-      // Connection check. The availability predicate gates at
-      // ToolRegistry boot, but a not-active connection (revoked /
-      // pending) should yield a structured not_connected response,
-      // not a tool-execute crash.
-      const { data: conn } = await admin
+      // Phase 7 CR: distinguish DB error from "not connected." The
+      // availability predicate gates at ToolRegistry boot, but a
+      // non-active row (revoked / pending) should still yield a
+      // structured not_connected response, and a DB error should
+      // yield a structured error response — NOT be conflated with
+      // not_connected.
+      const { data: conn, error: connError } = await admin
         .from("kinetiks_connections")
         .select("status")
         .eq("account_id", ctx.accountId)
         .eq("provider", config.provider)
         .eq("status", "active")
         .maybeSingle();
+      if (connError) {
+        Sentry.captureException(connError, {
+          tags: {
+            route: config.name,
+            action: "connection_check",
+            stage: "select",
+            app: "id",
+          },
+          user: { id: ctx.accountId },
+          extra: { provider: config.provider, postgrest_code: connError.code },
+        });
+        return {
+          status: "error" as const,
+          source: config.source,
+          message: GENERIC_CONNECTION_QUERY_ERROR,
+        };
+      }
       if (!conn) {
         return {
           status: "not_connected" as const,
@@ -157,26 +190,88 @@ export function defineSocialReadTool(
       const now = new Date();
       const start = windowStart(input.time_window, now);
 
-      const { data: posts, error } = await admin
-        .from("kinetiks_social_posts")
-        .select("posted_at, content_summary, engagement, metadata")
-        .eq("account_id", ctx.accountId)
-        .eq("source", config.source)
-        .gte("posted_at", start)
-        .order("posted_at", { ascending: false })
-        .limit(500);
-      if (error) {
-        console.error(
-          `[${config.name}] query failed: ${error.message}`,
-        );
-        return {
-          status: "error" as const,
-          source: config.source,
-          message: "Couldn't read your posts right now. Try again in a moment.",
-        };
+      // Phase 7 CR: walk pages instead of truncating at 500. We keyset
+      // on posted_at descending; the first page is `<= now`, each
+      // subsequent page is `< previous_page_last_posted_at`. This is
+      // race-free under the unique (account_id, source, provider_post_id)
+      // constraint even when concurrent syncs add new posts.
+      const posts: Array<{
+        posted_at: string;
+        content_summary: string | null;
+        engagement: Record<string, unknown> | null;
+        metadata: Record<string, unknown> | null;
+      }> = [];
+      let cursor: string | null = null;
+      let pagesWalked = 0;
+      let hitPageCap = false;
+      while (pagesWalked < MAX_PAGES) {
+        let q = admin
+          .from("kinetiks_social_posts")
+          .select("posted_at, content_summary, engagement, metadata")
+          .eq("account_id", ctx.accountId)
+          .eq("source", config.source)
+          .gte("posted_at", start)
+          .order("posted_at", { ascending: false })
+          .limit(PAGE_SIZE);
+        if (cursor) q = q.lt("posted_at", cursor);
+        const { data: page, error: pageError } = await q;
+        if (pageError) {
+          Sentry.captureException(pageError, {
+            tags: {
+              route: config.name,
+              action: "posts_query",
+              stage: "page",
+              app: "id",
+            },
+            user: { id: ctx.accountId },
+            extra: {
+              source: config.source,
+              time_window: input.time_window,
+              pages_walked: pagesWalked,
+              postgrest_code: pageError.code,
+            },
+          });
+          return {
+            status: "error" as const,
+            source: config.source,
+            message: GENERIC_POSTS_QUERY_ERROR,
+          };
+        }
+        const rows = (page ?? []) as typeof posts;
+        posts.push(...rows);
+        pagesWalked++;
+        if (rows.length < PAGE_SIZE) break;
+        const lastPostedAt = rows[rows.length - 1].posted_at;
+        if (lastPostedAt === cursor) {
+          // Defensive: every row in the page shares the same posted_at
+          // (extremely unlikely). Without strict-tiebreaker logic we'd
+          // loop forever; cap-out instead.
+          hitPageCap = true;
+          break;
+        }
+        cursor = lastPostedAt;
+        if (pagesWalked >= MAX_PAGES) hitPageCap = true;
       }
 
-      if (!posts || posts.length === 0) {
+      if (hitPageCap) {
+        Sentry.captureMessage(`[${config.name}] page-walk cap reached`, {
+          level: "warning",
+          tags: {
+            route: config.name,
+            action: "posts_query",
+            stage: "cap",
+            app: "id",
+          },
+          user: { id: ctx.accountId },
+          extra: {
+            source: config.source,
+            time_window: input.time_window,
+            posts_collected: posts.length,
+          },
+        });
+      }
+
+      if (posts.length === 0) {
         return {
           status: "ok" as const,
           source: config.source,

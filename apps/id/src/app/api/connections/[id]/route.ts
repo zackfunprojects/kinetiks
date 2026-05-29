@@ -11,6 +11,9 @@
  * `/api/integrations/nango/webhook` writes the resulting data.
  */
 
+import * as Sentry from "@sentry/nextjs";
+import { z } from "zod";
+
 import { requireAuth } from "@/lib/auth/require-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { apiSuccess, apiError } from "@/lib/utils/api-response";
@@ -20,6 +23,23 @@ import {
 } from "@/lib/integrations/nango/client";
 import { getNangoProviderConfig } from "@/lib/integrations/nango/provider-config";
 import type { ConnectionPublic, ConnectionProvider } from "@kinetiks/types";
+
+const GENERIC_LOAD_CONNECTION_ERROR =
+  "We couldn't load that connection. Try again in a moment.";
+const GENERIC_REVOKE_ERROR = "Failed to revoke connection";
+const GENERIC_SYNC_ERROR = "Sync trigger failed";
+
+const SyncRequestSchema = z.object({
+  action: z.literal("sync"),
+});
+
+// Phase 7 CR: surface the manual-sync throttle from a side channel that
+// updates BEFORE the sync completes. `last_sync_at` is the wrong axis
+// because it stays stale (or null) while a sync is in flight, letting
+// rapid PATCH calls enqueue duplicate runs.
+// `metadata.last_manual_sync_request_at` is set inside the same UPDATE
+// that triggers the sync, so concurrent callers see it immediately.
+const MANUAL_SYNC_THROTTLE_MS = 5 * 60 * 1000;
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -37,11 +57,19 @@ interface ConnectionRow {
   created_at: string;
 }
 
+type FetchConnectionResult =
+  | { kind: "ok"; row: ConnectionRow | null }
+  | { kind: "error"; message: string };
+
+// Phase 7 CR: distinguish "no row matched" from "DB query failed."
+// Both used to return null, which the callers mapped to 404 — masking
+// real failures as not-found and breaking incident triage.
 async function fetchConnectionByIdAndAccount(args: {
   admin: ReturnType<typeof createAdminClient>;
   id: string;
   account_id: string;
-}): Promise<ConnectionRow | null> {
+  route: string;
+}): Promise<FetchConnectionResult> {
   const { data, error } = await args.admin
     .from("kinetiks_connections")
     .select(
@@ -51,12 +79,14 @@ async function fetchConnectionByIdAndAccount(args: {
     .eq("account_id", args.account_id)
     .maybeSingle();
   if (error) {
-    console.error(
-      `[api/connections/[id]] fetch failed for ${args.id}: ${error.message}`,
-    );
-    return null;
+    Sentry.captureException(error, {
+      tags: { route: args.route, action: "fetch_connection", stage: "select", app: "id" },
+      user: { id: args.account_id },
+      extra: { connection_id: args.id, postgrest_code: error.code },
+    });
+    return { kind: "error", message: error.message };
   }
-  return (data as ConnectionRow | null) ?? null;
+  return { kind: "ok", row: (data as ConnectionRow | null) ?? null };
 }
 
 export async function GET(request: Request, { params }: RouteParams): Promise<Response> {
@@ -65,12 +95,15 @@ export async function GET(request: Request, { params }: RouteParams): Promise<Re
   if (error) return error;
 
   const admin = createAdminClient();
-  const connection = await fetchConnectionByIdAndAccount({
+  const result = await fetchConnectionByIdAndAccount({
     admin,
     id: connectionId,
     account_id: auth.account_id,
+    route: "connections/[id].GET",
   });
-  if (!connection) return apiError("Connection not found", 404);
+  if (result.kind === "error") return apiError(GENERIC_LOAD_CONNECTION_ERROR, 500);
+  if (!result.row) return apiError("Connection not found", 404);
+  const connection = result.row;
 
   const publicConnection: ConnectionPublic = {
     id: connection.id,
@@ -90,12 +123,15 @@ export async function DELETE(request: Request, { params }: RouteParams): Promise
   if (error) return error;
 
   const admin = createAdminClient();
-  const connection = await fetchConnectionByIdAndAccount({
+  const result = await fetchConnectionByIdAndAccount({
     admin,
     id: connectionId,
     account_id: auth.account_id,
+    route: "connections/[id].DELETE",
   });
-  if (!connection) return apiError("Connection not found", 404);
+  if (result.kind === "error") return apiError(GENERIC_LOAD_CONNECTION_ERROR, 500);
+  if (!result.row) return apiError("Connection not found", 404);
+  const connection = result.row;
   if (connection.status === "revoked") {
     return apiSuccess({ deleted: true, already_revoked: true });
   }
@@ -115,10 +151,20 @@ export async function DELETE(request: Request, { params }: RouteParams): Promise
       });
       nangoOutcome = "deleted";
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error(
-        `[api/connections/[id]] Nango deleteConnection failed for ${connection.nango_connection_id}: ${msg}`,
-      );
+      Sentry.captureException(err, {
+        tags: {
+          route: "connections/[id].DELETE",
+          action: "nango_delete",
+          stage: "nango_revoke",
+          app: "id",
+        },
+        user: { id: auth.account_id },
+        extra: {
+          connection_id: connection.id,
+          provider: connection.provider,
+          nango_connection_id: connection.nango_connection_id,
+        },
+      });
       nangoOutcome = "failed";
       // Fall through and revoke locally anyway.
     }
@@ -139,10 +185,17 @@ export async function DELETE(request: Request, { params }: RouteParams): Promise
     .eq("id", connectionId)
     .eq("account_id", auth.account_id);
   if (updateError) {
-    console.error(
-      `[api/connections/[id]] local revoke failed: ${updateError.message}`,
-    );
-    return apiError("Failed to revoke connection", 500);
+    Sentry.captureException(updateError, {
+      tags: {
+        route: "connections/[id].DELETE",
+        action: "local_revoke",
+        stage: "update",
+        app: "id",
+      },
+      user: { id: auth.account_id },
+      extra: { connection_id: connection.id, provider: connection.provider },
+    });
+    return apiError(GENERIC_REVOKE_ERROR, 500);
   }
 
   // Emit the connection_revoked Ledger entry. Mirrors the pattern
@@ -161,9 +214,16 @@ export async function DELETE(request: Request, { params }: RouteParams): Promise
     },
   });
   if (ledgerError) {
-    console.error(
-      `[api/connections/[id]] ledger emit failed: ${ledgerError.message}`,
-    );
+    Sentry.captureException(ledgerError, {
+      tags: {
+        route: "connections/[id].DELETE",
+        action: "ledger_emit",
+        stage: "post_revoke",
+        app: "id",
+      },
+      user: { id: auth.account_id },
+      extra: { connection_id: connection.id, provider: connection.provider },
+    });
     // Local row already revoked. Don't fail the request.
   }
 
@@ -175,29 +235,30 @@ export async function PATCH(request: Request, { params }: RouteParams): Promise<
   const { auth, error } = await requireAuth(request, { permissions: "read-write" });
   if (error) return error;
 
-  let body: Record<string, unknown>;
+  let bodyRaw: unknown;
   try {
-    const parsed: unknown = await request.json();
-    if (!parsed || typeof parsed !== "object") {
-      return apiError("Invalid JSON body", 400);
-    }
-    body = parsed as Record<string, unknown>;
+    bodyRaw = await request.json();
   } catch {
     return apiError("Invalid JSON body", 400);
   }
-
-  const action = body.action;
-  if (action !== "sync") {
-    return apiError("Invalid action. Supported: 'sync'", 400);
+  const parsedBody = SyncRequestSchema.safeParse(bodyRaw);
+  if (!parsedBody.success) {
+    return apiError(
+      `Invalid request: ${parsedBody.error.issues.map((i) => i.message).join("; ")}`,
+      400,
+    );
   }
 
   const admin = createAdminClient();
-  const connection = await fetchConnectionByIdAndAccount({
+  const result = await fetchConnectionByIdAndAccount({
     admin,
     id: connectionId,
     account_id: auth.account_id,
+    route: "connections/[id].PATCH",
   });
-  if (!connection) return apiError("Connection not found", 404);
+  if (result.kind === "error") return apiError(GENERIC_LOAD_CONNECTION_ERROR, 500);
+  if (!result.row) return apiError("Connection not found", 404);
+  const connection = result.row;
 
   if (connection.status !== "active" && connection.status !== "error") {
     return apiError(`Cannot sync a ${connection.status} connection`, 400);
@@ -209,12 +270,53 @@ export async function PATCH(request: Request, { params }: RouteParams): Promise<
     );
   }
 
-  // Rate limit: one manual sync per 5 minutes per connection.
-  if (connection.last_sync_at) {
-    const lastMs = new Date(connection.last_sync_at).getTime();
-    if (Date.now() - lastMs < 5 * 60 * 1000) {
-      return apiError("Rate limited. Please wait 5 minutes between manual syncs.", 429);
+  // Phase 7 CR: throttle on a side channel that updates BEFORE the
+  // sync completes. The legacy check on last_sync_at was tied to last
+  // successful sync, which stays stale while a sync is in flight;
+  // rapid PATCH calls could enqueue multiple parallel Nango runs.
+  // `last_manual_sync_request_at` is set in the SAME UPDATE statement
+  // that schedules the sync, so the next caller sees it immediately
+  // even if the sync hasn't returned yet.
+  const existingMeta = (connection.metadata ?? {}) as Record<string, unknown>;
+  const lastRequestAtRaw = existingMeta.last_manual_sync_request_at;
+  if (typeof lastRequestAtRaw === "string") {
+    const lastRequestMs = new Date(lastRequestAtRaw).getTime();
+    if (
+      Number.isFinite(lastRequestMs) &&
+      Date.now() - lastRequestMs < MANUAL_SYNC_THROTTLE_MS
+    ) {
+      return apiError(
+        "A manual sync was requested less than 5 minutes ago. Please wait.",
+        429,
+      );
     }
+  }
+
+  // Stamp the throttle marker BEFORE calling Nango. UPDATE returns
+  // success on no-row-matched too; we re-fetch to confirm.
+  const nowIso = new Date().toISOString();
+  const { error: throttleError } = await admin
+    .from("kinetiks_connections")
+    .update({
+      metadata: {
+        ...existingMeta,
+        last_manual_sync_request_at: nowIso,
+      },
+    })
+    .eq("id", connection.id)
+    .eq("account_id", auth.account_id);
+  if (throttleError) {
+    Sentry.captureException(throttleError, {
+      tags: {
+        route: "connections/[id].PATCH",
+        action: "throttle_stamp",
+        stage: "pre_trigger",
+        app: "id",
+      },
+      user: { id: auth.account_id },
+      extra: { connection_id: connection.id, provider: connection.provider },
+    });
+    return apiError(GENERIC_SYNC_ERROR, 500);
   }
 
   const config = getNangoProviderConfig(connection.provider as ConnectionProvider);
@@ -227,10 +329,20 @@ export async function PATCH(request: Request, { params }: RouteParams): Promise<
     });
     return apiSuccess({ triggered: true, sync_names: config.sync_names });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error(
-      `[api/connections/[id]] triggerSync failed for ${connection.nango_connection_id}: ${msg}`,
-    );
-    return apiError("Sync trigger failed", 500);
+    Sentry.captureException(err, {
+      tags: {
+        route: "connections/[id].PATCH",
+        action: "trigger_sync",
+        stage: "nango_trigger",
+        app: "id",
+      },
+      user: { id: auth.account_id },
+      extra: {
+        connection_id: connection.id,
+        provider: connection.provider,
+        nango_connection_id: connection.nango_connection_id,
+      },
+    });
+    return apiError(GENERIC_SYNC_ERROR, 500);
   }
 }

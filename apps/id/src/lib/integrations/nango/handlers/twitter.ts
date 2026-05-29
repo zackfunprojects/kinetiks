@@ -122,24 +122,29 @@ const twitterProfileStatsHandler: NangoHandlerFn = async (ctx) => {
       },
       async (page) => {
         for (const r of page) {
-          if (typeof r.followers_count !== "number") continue;
           const date = r.date ?? today.toISOString().slice(0, 10);
-          // Followers + total tweet count emit as two separate cache
-          // rows so the Marcus tool can read each metric independently.
-          // 6h stale-after — followers trend slowly; we don't need
-          // sub-hour freshness.
-          await writeCachedMetric(admin, {
-            account_id: ctx.accountId,
-            source: "twitter",
-            input: { metric: "twitter_followers", date, dimension: "overall" },
-            response: {
-              metric: "twitter_followers",
-              unit: "count",
-              value: r.followers_count,
-              date_range: { start: date, end: date },
-            },
-            stale_after_seconds: 6 * 60 * 60,
-          });
+          // Phase 7 CR: followers + total tweet count emit as separate
+          // cache rows so the Marcus tool can read each metric
+          // independently. Previously tweet_count was gated on
+          // followers_count being a number AND recordsAdded only
+          // counted once even when both metrics were written. Both
+          // fixed: each metric independently gated and counted.
+          // 6h stale-after — followers/tweet counts trend slowly.
+          if (typeof r.followers_count === "number") {
+            await writeCachedMetric(admin, {
+              account_id: ctx.accountId,
+              source: "twitter",
+              input: { metric: "twitter_followers", date, dimension: "overall" },
+              response: {
+                metric: "twitter_followers",
+                unit: "count",
+                value: r.followers_count,
+                date_range: { start: date, end: date },
+              },
+              stale_after_seconds: 6 * 60 * 60,
+            });
+            recordsAdded++;
+          }
           if (typeof r.tweet_count === "number") {
             await writeCachedMetric(admin, {
               account_id: ctx.accountId,
@@ -153,8 +158,8 @@ const twitterProfileStatsHandler: NangoHandlerFn = async (ctx) => {
               },
               stale_after_seconds: 6 * 60 * 60,
             });
+            recordsAdded++;
           }
-          recordsAdded++;
         }
       },
     );
