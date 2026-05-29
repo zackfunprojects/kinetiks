@@ -30,11 +30,24 @@ import { fetchAllRecords, NangoMisconfiguredError } from "../client";
 import { registerNangoHandler } from ".";
 import type { NangoHandlerFn, NangoHandlerResult } from "../types";
 import { writeCachedMetric } from "@/lib/connections/metric-cache";
-import { getStaleAfterSeconds } from "@/lib/connections/extractors/ga4";
 
 type MetricKey = "ga4_sessions" | "ga4_users" | "ga4_bounce_rate";
 type DimensionKey = "overall" | "country" | "device" | "source" | "medium" | "page_path";
 type DateRangeKey = "last_7_days" | "last_28_days" | "last_90_days";
+
+// Inlined from the Phase-6-deleted `extractors/ga4.ts`. Per-metric
+// TTL chosen to balance freshness vs the GA4 Data API rate limit;
+// historical 90-day windows refresh daily because the data doesn't
+// shift minute-to-minute.
+const GA4_TTL_SECONDS: Record<MetricKey, number> = {
+  ga4_sessions: 15 * 60,
+  ga4_users: 60 * 60,
+  ga4_bounce_rate: 60 * 60,
+};
+function getStaleAfterSeconds(query: { metric: MetricKey; date_range: DateRangeKey }): number {
+  if (query.date_range === "last_90_days") return 86_400;
+  return GA4_TTL_SECONDS[query.metric];
+}
 
 interface Ga4MetricPoint {
   id: string;
