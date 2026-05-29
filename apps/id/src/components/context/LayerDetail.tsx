@@ -11,6 +11,7 @@ import {
 } from "@/lib/utils/layer-display";
 import { FieldEditor } from "./FieldEditor";
 import { ArrayFieldEditor } from "./ArrayFieldEditor";
+import { LayerReflection } from "./LayerReflection";
 import Link from "next/link";
 
 interface LayerDetailProps {
@@ -189,6 +190,9 @@ export function LayerDetail({
 
   const hasChanges = JSON.stringify(data) !== JSON.stringify(initialData ?? {});
   const schema = LAYER_SCHEMAS[layer];
+  const pendingCount = recentProposals.filter(
+    (p) => p.status === "submitted" || p.status === "escalated",
+  ).length;
 
   function updateField(name: string, value: unknown) {
     setData((prev) => ({ ...prev, [name]: value }));
@@ -236,21 +240,26 @@ export function LayerDetail({
           <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--kt-fg-2)" }}>
             {LAYER_DESCRIPTIONS[layer]}
           </p>
-          <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+          <div style={{ display: "flex", gap: "var(--kt-s-2)", marginTop: 6, alignItems: "center" }}>
             {source && (
               <Badge
                 label={source.replace("_", " ")}
                 variant={source.startsWith("user") ? "accent" : "default"}
               />
             )}
+            {pendingCount > 0 && (
+              <Badge label={`${pendingCount} pending`} variant="warning" />
+            )}
             {updatedAt && (
-              <span style={{ fontSize: 11, color: "var(--kt-fg-3)", fontFamily: "var(--font-mono), monospace" }}>
+              <span className="kt-data-inline" style={{ color: "var(--kt-fg-3)" }}>
                 Last updated: {new Date(updatedAt).toLocaleDateString()}
               </span>
             )}
           </div>
         </div>
       </div>
+
+      <LayerReflection layer={layer} />
 
       {/* Editor */}
       <Card style={{ marginBottom: 24 }}>
