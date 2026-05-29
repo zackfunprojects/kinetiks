@@ -13,12 +13,10 @@ export function AnalyticsDashboard() {
 
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "var(--kt-s-5)" }}>
         <div>
-          <h1 style={{ fontSize: 24, fontWeight: 700, color: "var(--kt-fg-1)", margin: 0 }}>
-            Analytics
-          </h1>
-          <p style={{ fontSize: 14, color: "var(--kt-fg-2)", margin: "4px 0 0" }}>
+          <h1 className="kt-page-title" style={{ margin: 0 }}>Analytics</h1>
+          <p className="kt-body" style={{ margin: "var(--kt-s-1) 0 0" }}>
             Cross-app performance powered by the Oracle
           </p>
         </div>
@@ -26,29 +24,29 @@ export function AnalyticsDashboard() {
       </div>
 
       {/* Goals */}
-      <section style={{ marginBottom: 32 }}>
+      <section style={{ marginBottom: "var(--kt-s-6)" }}>
         <SectionHeader title="Goals" />
         <GoalOverview />
       </section>
 
       {/* Insights — D2 Slice 12 surface, reads kinetiks_insights (v3). */}
-      <section style={{ marginBottom: 32 }}>
+      <section style={{ marginBottom: "var(--kt-s-6)" }}>
         <InsightsBoard />
       </section>
 
       {/* Sources — connection health for Oracle integrations. */}
-      <section style={{ marginBottom: 32 }}>
+      <section style={{ marginBottom: "var(--kt-s-6)" }}>
         <SourcesPanel />
       </section>
 
       {/* App Performance */}
-      <section style={{ marginBottom: 32 }}>
+      <section style={{ marginBottom: "var(--kt-s-6)" }}>
         <SectionHeader title="App Performance" />
         <AppPerformance days={dateRange} />
       </section>
 
       {/* Budget */}
-      <section style={{ marginBottom: 32 }}>
+      <section style={{ marginBottom: "var(--kt-s-6)" }}>
         <SectionHeader title="Budget" />
         <BudgetSection />
       </section>
@@ -58,15 +56,7 @@ export function AnalyticsDashboard() {
 
 function SectionHeader({ title }: { title: string }) {
   return (
-    <h2
-      style={{
-        fontSize: 16,
-        fontWeight: 600,
-        color: "var(--kt-fg-1)",
-        margin: "0 0 12px",
-        fontFamily: "var(--font-mono), monospace",
-      }}
-    >
+    <h2 className="kt-section-title" style={{ margin: "0 0 var(--kt-s-3)" }}>
       {title}
     </h2>
   );

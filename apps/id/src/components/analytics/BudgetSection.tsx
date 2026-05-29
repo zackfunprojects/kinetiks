@@ -1,98 +1,92 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { Card, ProgressBar, StatusPill, AsyncSection } from "@kinetiks/ui";
 import type { BudgetPacing } from "@/lib/oracle/budget-tracker";
+
+function usd(n: number): string {
+  return `$${Math.round(n).toLocaleString()}`;
+}
 
 export function BudgetSection() {
   const [pacing, setPacing] = useState<BudgetPacing | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const load = useCallback(() => {
+    setLoading(true);
+    setError(null);
     fetch("/api/oracle/budget")
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
       .then((data) => setPacing(data.data?.pacing ?? null))
-      .catch(() => {})
+      .catch((err) => setError(err instanceof Error ? err.message : "Failed to load budget"))
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) {
-    return <div style={{ padding: 16, color: "var(--kt-fg-3)", fontSize: 13 }}>Loading...</div>;
-  }
-
-  if (!pacing) {
-    return (
-      <div style={{ padding: 24, borderRadius: 8, border: "1px dashed var(--kt-border-1)", background: "var(--kt-bg-subtle)", textAlign: "center" }}>
-        <p style={{ fontSize: 13, color: "var(--kt-fg-3)", margin: 0 }}>
-          No active budget. Create one in Cortex Integrations.
-        </p>
-      </div>
-    );
-  }
+  useEffect(() => {
+    load();
+  }, [load]);
 
   return (
-    <div style={{ padding: 16, borderRadius: 8, border: "1px solid var(--kt-border-2)", background: "var(--kt-bg-muted)" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
+    <AsyncSection
+      loading={loading}
+      error={error}
+      isEmpty={!pacing}
+      onRetry={load}
+      errorTitle="We couldn't load your budget."
+      emptyFallback={
+        <Card variant="muted">
+          <div className="kt-body">No active budget. Create one in Cortex to track spend pacing here.</div>
+        </Card>
+      }
+    >
+      {pacing ? <BudgetCard pacing={pacing} /> : null}
+    </AsyncSection>
+  );
+}
+
+function BudgetCard({ pacing }: { pacing: BudgetPacing }) {
+  const onPace = pacing.on_pace;
+  return (
+    <Card>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "var(--kt-s-3)" }}>
         <div>
-          <div style={{ fontSize: 20, fontWeight: 600, color: "var(--kt-fg-1)" }}>
-            ${pacing.total_spent.toLocaleString()} / ${pacing.total_budget.toLocaleString()}
+          <div className="kt-data-large">
+            {usd(pacing.total_spent)} <span className="kt-small">/ {usd(pacing.total_budget)}</span>
           </div>
-          <div style={{ fontSize: 12, color: "var(--kt-fg-3)", marginTop: 2 }}>
+          <div className="kt-small" style={{ marginTop: "var(--kt-s-1)" }}>
             {pacing.days_remaining} days remaining
           </div>
         </div>
-        <span
-          style={{
-            fontSize: 11,
-            fontWeight: 600,
-            padding: "4px 10px",
-            borderRadius: 6,
-            alignSelf: "flex-start",
-            background: pacing.on_pace ? "var(--kt-success-soft)" : "var(--kt-warning-soft)",
-            color: pacing.on_pace ? "var(--kt-success)" : "var(--kt-warning)",
-            textTransform: "uppercase",
-          }}
-        >
-          {pacing.on_pace ? "On pace" : "Off pace"}
-        </span>
+        <StatusPill tone={onPace ? "success" : "warning"}>{onPace ? "On pace" : "Off pace"}</StatusPill>
       </div>
 
-      {/* Pacing bar */}
-      <div style={{ position: "relative", height: 8, borderRadius: 4, background: "var(--kt-bg-base)", marginBottom: 16 }}>
-        <div
-          style={{
-            height: "100%",
-            borderRadius: 4,
-            background: pacing.on_pace ? "var(--kt-success)" : "var(--kt-warning)",
-            width: `${Math.min(pacing.spend_percentage, 100)}%`,
-          }}
-        />
-        {/* Time marker */}
-        <div
-          style={{
-            position: "absolute",
-            top: -2,
-            left: `${pacing.pacing_percentage}%`,
-            width: 2,
-            height: 12,
-            background: "var(--kt-fg-3)",
-            borderRadius: 1,
-          }}
-        />
-      </div>
+      <ProgressBar
+        value={pacing.spend_percentage / 100}
+        tone={onPace ? "success" : "warning"}
+        height={8}
+        tickAt={pacing.pacing_percentage / 100}
+        ariaLabel={`Spent ${pacing.spend_percentage.toFixed(0)} percent of budget; ${pacing.pacing_percentage.toFixed(0)} percent of the period has elapsed`}
+      />
 
-      {/* Allocations */}
-      {pacing.allocations.length > 0 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      {pacing.allocations.length > 0 ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--kt-s-1)", marginTop: "var(--kt-s-4)" }}>
           {pacing.allocations.map((alloc) => (
-            <div key={alloc.category} style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
-              <span style={{ color: "var(--kt-fg-2)" }}>{alloc.category}</span>
-              <span style={{ color: alloc.pace_status === "over" ? "var(--kt-danger)" : "var(--kt-fg-3)", fontFamily: "var(--font-mono), monospace" }}>
-                ${alloc.spent.toLocaleString()} / ${alloc.allocated.toLocaleString()}
+            <div key={alloc.category} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span className="kt-small">{alloc.category}</span>
+              <span
+                className="kt-data-inline"
+                style={{ color: alloc.pace_status === "over" ? "var(--kt-danger)" : "var(--kt-fg-2)" }}
+              >
+                {usd(alloc.spent)} / {usd(alloc.allocated)}
               </span>
             </div>
           ))}
         </div>
-      )}
-    </div>
+      ) : null}
+    </Card>
   );
 }

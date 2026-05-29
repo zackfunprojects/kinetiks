@@ -2,6 +2,8 @@ import { requireAuth } from "@/lib/auth/require-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { apiSuccess, apiError } from "@/lib/utils/api-response";
 import { calculateGoalProgress } from "@/lib/oracle/goal-tracker";
+import { getMetricDefinition } from "@/lib/oracle/metric-schema";
+import type { GoalProgressView } from "@/lib/oracle/goal-view";
 import type { Goal } from "@/lib/goals/types";
 
 /**
@@ -36,7 +38,15 @@ export async function GET(request: Request) {
       }
 
       const values = (snapshots ?? []).map((s: { value: number }) => s.value);
-      return calculateGoalProgress(goal, values);
+      const def = goal.metric_key ? getMetricDefinition(goal.metric_key) : null;
+      const view: GoalProgressView = {
+        ...calculateGoalProgress(goal, values),
+        name: goal.name,
+        metric_key: goal.metric_key,
+        unit: def?.unit ?? "count",
+        recent_values: values,
+      };
+      return view;
     })
   );
 

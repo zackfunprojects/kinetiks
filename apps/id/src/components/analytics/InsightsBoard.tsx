@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { EmptyState, ErrorState, Button } from "@kinetiks/ui";
 
 import { InsightCard, type InsightCardData } from "./InsightCard";
 import { InsightFilters, type SeverityFilter } from "./InsightFilters";
@@ -19,9 +20,10 @@ export function InsightsBoard() {
   const [severityFilter, setSeverityFilter] = useState<SeverityFilter>("all");
   const [sourceFilter, setSourceFilter] = useState<string | "all">("all");
 
-  useEffect(() => {
+  const load = useCallback(() => {
     let cancelled = false;
     setLoading(true);
+    setError(null);
     fetch("/api/oracle/insights?limit=50")
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -41,6 +43,8 @@ export function InsightsBoard() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => load(), [load]);
 
   const availableSources = useMemo(
     () => Array.from(new Set(insights.map((i) => i.source_app))).sort(),
@@ -68,25 +72,24 @@ export function InsightsBoard() {
     }));
   }, [filtered]);
 
-  const handleDismiss = (id: string) => {
+  const handleDismiss = (id: string) =>
     setInsights((prev) => prev.filter((i) => i.insight_id !== id));
-  };
-  const handleActedOn = (id: string) => {
-    setInsights((prev) =>
-      prev.map((i) => (i.insight_id === id ? { ...i, acted_on: true } : i))
-    );
+  const handleActedOn = (id: string) =>
+    setInsights((prev) => prev.map((i) => (i.insight_id === id ? { ...i, acted_on: true } : i)));
+
+  const resetFilters = () => {
+    setSeverityFilter("all");
+    setSourceFilter("all");
   };
 
   return (
-    <section style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    <section style={{ display: "flex", flexDirection: "column", gap: "var(--kt-s-4)" }}>
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-        <h2 style={{ margin: 0, fontSize: 18, color: "var(--kt-fg-0)" }}>Insights</h2>
-        <span style={{ fontSize: 12, color: "var(--kt-fg-3)" }}>
-          {loading ? "" : `${filtered.length} of ${insights.length}`}
-        </span>
+        <h2 className="kt-section-title" style={{ margin: 0 }}>Insights</h2>
+        <span className="kt-small">{loading ? "" : `${filtered.length} of ${insights.length}`}</span>
       </header>
 
-      {!loading && !error && insights.length > 0 && (
+      {!loading && !error && insights.length > 0 ? (
         <InsightFilters
           severity={severityFilter}
           onSeverityChange={setSeverityFilter}
@@ -94,52 +97,32 @@ export function InsightsBoard() {
           availableSources={availableSources}
           onSourceChange={setSourceFilter}
         />
-      )}
+      ) : null}
 
       {loading ? (
         <InsightSkeleton />
       ) : error ? (
-        <div
-          role="alert"
-          style={{
-            padding: 16,
-            borderRadius: "var(--kt-radius-2, 8px)",
-            border: "1px solid var(--kt-danger, var(--kt-border-1))",
-            background: "var(--kt-danger-soft, var(--kt-bg-2))",
-            color: "var(--kt-danger, var(--kt-fg-1))",
-            fontSize: 13,
-          }}
-        >
-          Failed to load insights: {error}
-        </div>
+        <ErrorState title="We couldn't load insights." onRetry={load} />
       ) : insights.length === 0 ? (
-        <EmptyState />
+        <EmptyState
+          title="No insights yet."
+          body="The Oracle surfaces patterns as data flows in from your connected sources."
+        />
       ) : filtered.length === 0 ? (
-        <FilteredEmptyState
-          onReset={() => {
-            setSeverityFilter("all");
-            setSourceFilter("all");
-          }}
+        <EmptyState
+          title="No insights match these filters."
+          action={<Button variant="ghost" size="sm" onClick={resetFilters}>Clear filters</Button>}
         />
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--kt-s-5)" }}>
           {grouped.map((g) =>
             g.items.length === 0 ? null : (
-              <div
-                key={g.severity}
-                style={{ display: "flex", flexDirection: "column", gap: 12 }}
-              >
-                <h3 style={{ margin: 0, fontSize: 13, color: "var(--kt-fg-3)" }}>
-                  {g.severity[0]!.toUpperCase() + g.severity.slice(1)} (
-                  {g.items.length})
+              <div key={g.severity} style={{ display: "flex", flexDirection: "column", gap: "var(--kt-s-3)" }}>
+                <h3 className="kt-eyebrow" style={{ margin: 0 }}>
+                  {g.severity} ({g.items.length})
                 </h3>
                 {g.items.map((i) => (
-                  <InsightCard
-                    key={i.insight_id}
-                    insight={i}
-                    onDismiss={handleDismiss}
-                    onActedOn={handleActedOn}
-                  />
+                  <InsightCard key={i.insight_id} insight={i} onDismiss={handleDismiss} onActedOn={handleActedOn} />
                 ))}
               </div>
             )
@@ -147,58 +130,5 @@ export function InsightsBoard() {
         </div>
       )}
     </section>
-  );
-}
-
-function EmptyState() {
-  return (
-    <div
-      style={{
-        padding: 24,
-        borderRadius: "var(--kt-radius-2, 8px)",
-        border: "1px dashed var(--kt-border-1)",
-        background: "var(--kt-bg-subtle, var(--kt-bg-1))",
-        textAlign: "center",
-      }}
-    >
-      <p style={{ margin: 0, fontSize: 13, color: "var(--kt-fg-3)" }}>
-        No insights yet. The Oracle surfaces patterns as data flows in from your
-        connected sources.
-      </p>
-    </div>
-  );
-}
-
-function FilteredEmptyState({ onReset }: { onReset: () => void }) {
-  return (
-    <div
-      style={{
-        padding: 16,
-        borderRadius: "var(--kt-radius-2, 8px)",
-        border: "1px dashed var(--kt-border-1)",
-        background: "var(--kt-bg-subtle, var(--kt-bg-1))",
-        textAlign: "center",
-        fontSize: 13,
-        color: "var(--kt-fg-3)",
-      }}
-    >
-      No insights match these filters.{" "}
-      <button
-        type="button"
-        onClick={onReset}
-        style={{
-          background: "transparent",
-          border: "none",
-          color: "var(--kt-accent, var(--kt-fg-2))",
-          cursor: "pointer",
-          padding: 0,
-          font: "inherit",
-          textDecoration: "underline",
-        }}
-      >
-        Clear filters
-      </button>
-      .
-    </div>
   );
 }

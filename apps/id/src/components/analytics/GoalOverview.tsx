@@ -1,22 +1,26 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import type { GoalProgress } from "@/lib/oracle/goal-tracker";
+import { useState, useEffect, useCallback } from "react";
+import { Card, Stat, ProgressBar, Sparkline, StatusPill, AsyncSection } from "@kinetiks/ui";
+import type { GoalProgressView } from "@/lib/oracle/goal-view";
+import { goalStatusLabel, goalStatusTone, formatGoalValue } from "./goal-status";
 
-const STATUS_COLORS: Record<string, string> = {
-  on_track: "var(--kt-success)",
-  ahead: "var(--kt-accent)",
-  behind: "var(--kt-warning)",
-  at_risk: "var(--kt-danger)",
-  critical: "var(--kt-danger)",
+const TONE_VAR: Record<string, string> = {
+  accent: "var(--kt-accent)",
+  success: "var(--kt-success)",
+  warning: "var(--kt-warning)",
+  danger: "var(--kt-danger)",
+  neutral: "var(--kt-fg-3)",
 };
 
 export function GoalOverview() {
-  const [goals, setGoals] = useState<GoalProgress[]>([]);
+  const [goals, setGoals] = useState<GoalProgressView[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const load = useCallback(() => {
+    setLoading(true);
+    setFetchError(null);
     fetch("/api/oracle/goals")
       .then((res) => {
         if (!res.ok) throw new Error(`Failed to load goals (${res.status})`);
@@ -27,73 +31,76 @@ export function GoalOverview() {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) {
-    return <div style={{ padding: 16, color: "var(--kt-fg-3)", fontSize: 13 }}>Loading goals...</div>;
-  }
-
-  if (fetchError) {
-    return (
-      <div style={{ padding: 24, borderRadius: 8, border: "1px dashed var(--kt-danger-soft)", background: "var(--kt-bg-subtle)", textAlign: "center" }}>
-        <p style={{ fontSize: 13, color: "var(--kt-danger)", margin: 0 }}>{fetchError}</p>
-      </div>
-    );
-  }
-
-  if (goals.length === 0) {
-    return (
-      <div style={{ padding: 24, borderRadius: 8, border: "1px dashed var(--kt-border-1)", background: "var(--kt-bg-subtle)", textAlign: "center" }}>
-        <p style={{ fontSize: 13, color: "var(--kt-fg-3)", margin: 0 }}>
-          No active goals. Create goals in Cortex to track them here.
-        </p>
-      </div>
-    );
-  }
+  useEffect(() => {
+    load();
+  }, [load]);
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
-      {goals.map((goal) => (
-        <div
-          key={goal.goal_id}
-          style={{
-            padding: 16,
-            borderRadius: 8,
-            border: "1px solid var(--kt-border-2)",
-            background: "var(--kt-bg-muted)",
-          }}
-        >
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-            <span style={{ fontSize: 13, fontWeight: 500, color: "var(--kt-fg-1)" }}>
-              {goal.goal_id.slice(0, 8)}...
-            </span>
-            <span style={{ fontSize: 11, color: STATUS_COLORS[goal.status] ?? "var(--kt-fg-3)", fontWeight: 600, textTransform: "uppercase" }}>
-              {goal.status.replace("_", " ")}
-            </span>
-          </div>
+    <AsyncSection
+      loading={loading}
+      error={fetchError}
+      isEmpty={goals.length === 0}
+      onRetry={load}
+      errorTitle="We couldn't load your goals."
+      emptyFallback={
+        <Card variant="muted">
+          <div className="kt-body">No active goals yet. Create goals in Cortex to track progress here.</div>
+        </Card>
+      }
+    >
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "var(--kt-s-3)" }}>
+        {goals.map((goal) => (
+          <GoalCard key={goal.goal_id} goal={goal} />
+        ))}
+      </div>
+    </AsyncSection>
+  );
+}
 
-          {/* Progress bar */}
-          <div style={{ height: 6, borderRadius: 3, background: "var(--kt-bg-base)", marginBottom: 8 }}>
-            <div
-              style={{
-                height: "100%",
-                borderRadius: 3,
-                background: STATUS_COLORS[goal.status] ?? "var(--kt-fg-3)",
-                width: `${Math.min(goal.completion_percentage, 100)}%`,
-              }}
-            />
-          </div>
+function GoalCard({ goal }: { goal: GoalProgressView }) {
+  const tone = goalStatusTone(goal.status);
+  const tickAt =
+    goal.target_value > 0 ? Math.min(1, goal.expected_value / goal.target_value) : undefined;
 
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--kt-fg-2)" }}>
-            <span>{goal.current_value.toLocaleString()} / {goal.target_value.toLocaleString()}</span>
-            <span>{goal.completion_percentage.toFixed(1)}%</span>
-          </div>
+  return (
+    <Card>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "var(--kt-s-2)", marginBottom: "var(--kt-s-3)" }}>
+        <span className="kt-card-title">{goal.name}</span>
+        <StatusPill tone={tone}>{goalStatusLabel(goal.status)}</StatusPill>
+      </div>
 
-          {goal.forecast_value !== null && (
-            <div style={{ fontSize: 11, color: "var(--kt-fg-3)", marginTop: 4 }}>
-              Forecast: {goal.forecast_value.toLocaleString()} ({goal.days_remaining}d remaining)
-            </div>
-          )}
+      <div style={{ display: "flex", alignItems: "baseline", gap: "var(--kt-s-2)", marginBottom: "var(--kt-s-3)" }}>
+        <span className="kt-data-large">{formatGoalValue(goal.current_value, goal.unit)}</span>
+        <span className="kt-small">
+          / {formatGoalValue(goal.target_value, goal.unit)} target · {goal.completion_percentage.toFixed(0)}%
+        </span>
+      </div>
+
+      <ProgressBar
+        value={goal.completion_percentage / 100}
+        tone={tone}
+        tickAt={tickAt}
+        ariaLabel={`${goal.name}: ${goal.completion_percentage.toFixed(0)} percent of target, status ${goalStatusLabel(goal.status)}`}
+      />
+
+      {goal.recent_values.length >= 2 ? (
+        <div style={{ marginTop: "var(--kt-s-3)" }}>
+          <Sparkline
+            values={goal.recent_values}
+            width={260}
+            height={28}
+            color={TONE_VAR[tone] ?? "var(--kt-accent)"}
+            showEndDot
+            ariaLabel={`${goal.name} recent trend`}
+          />
         </div>
-      ))}
-    </div>
+      ) : null}
+
+      <div className="kt-small" style={{ marginTop: "var(--kt-s-3)" }}>
+        {goal.forecast_value !== null
+          ? `Forecast ${formatGoalValue(goal.forecast_value, goal.unit)} by period end · ${goal.days_remaining}d left`
+          : `${goal.days_remaining}d left`}
+      </div>
+    </Card>
   );
 }
