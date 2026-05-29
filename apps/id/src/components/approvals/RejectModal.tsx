@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Button, Textarea } from "@kinetiks/ui";
 
 interface RejectModalProps {
   onReject: (reason: string) => void;
@@ -11,92 +12,41 @@ export function RejectModal({ onReject, onCancel }: RejectModalProps) {
   const [reason, setReason] = useState("");
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 200,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
-      <div
-        onClick={onCancel}
-        style={{
-          position: "absolute",
-          inset: 0,
-          background: "var(--kt-backdrop)",
-        }}
-      />
+    <div style={{ position: "fixed", inset: 0, zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div onClick={onCancel} style={{ position: "absolute", inset: 0, background: "var(--kt-backdrop)" }} />
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="reject-modal-title"
         style={{
           position: "relative",
-          width: 400,
-          background: "var(--kt-bg-subtle)",
-          borderRadius: 12,
+          width: 420,
+          maxWidth: "calc(100vw - var(--kt-s-6))",
+          background: "var(--kt-bg-elevated)",
+          borderRadius: "var(--kt-radius-3)",
           border: "1px solid var(--kt-border-1)",
-          padding: 24,
+          boxShadow: "var(--kt-shadow-lg)",
+          padding: "var(--kt-s-5)",
         }}
       >
-        <h3 id="reject-modal-title" style={{ fontSize: 16, fontWeight: 600, color: "var(--kt-fg-1)", margin: "0 0 12px" }}>
-          Reject with reason
-        </h3>
-        <textarea
+        <h3 id="reject-modal-title" className="kt-section-title" style={{ margin: "0 0 var(--kt-s-1)" }}>Reject with reason</h3>
+        <p className="kt-small" style={{ margin: "0 0 var(--kt-s-3)" }}>
+          Your reason calibrates future decisions in this category.
+        </p>
+        <Textarea
           value={reason}
           onChange={(e) => setReason(e.target.value)}
-          placeholder="Why are you rejecting this?"
+          placeholder="Why are you rejecting this? (e.g. too aggressive, wrong audience)"
+          aria-label="Rejection reason"
           autoFocus
           rows={3}
-          style={{
-            width: "100%",
-            padding: "10px 12px",
-            border: "1px solid var(--kt-border-1)",
-            borderRadius: 8,
-            fontSize: 13,
-            outline: "none",
-            resize: "none",
-            boxSizing: "border-box",
-            backgroundColor: "var(--kt-bg-base)",
-            color: "var(--kt-fg-1)",
-            fontFamily: "inherit",
-            marginBottom: 16,
-          }}
+          style={{ marginBottom: "var(--kt-s-4)" }}
         />
-        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-          <button
-            onClick={onCancel}
-            style={{
-              padding: "8px 16px",
-              borderRadius: 6,
-              border: "1px solid var(--kt-border-1)",
-              background: "transparent",
-              color: "var(--kt-fg-2)",
-              fontSize: 13,
-              cursor: "pointer",
-            }}
-          >
-            Cancel
-          </button>
-          <button
-            onClick={() => reason.trim() && onReject(reason.trim())}
-            disabled={!reason.trim()}
-            style={{
-              padding: "8px 16px",
-              borderRadius: 6,
-              border: "none",
-              background: reason.trim() ? "var(--kt-danger)" : "var(--kt-border-1)",
-              color: reason.trim() ? "var(--kt-fg-on-inverse)" : "var(--kt-fg-3)",
-              fontSize: 13,
-              cursor: reason.trim() ? "pointer" : "not-allowed",
-              fontWeight: 500,
-            }}
-          >
+        <div style={{ display: "flex", gap: "var(--kt-s-2)", justifyContent: "flex-end" }}>
+          <Button variant="ghost" onClick={onCancel}>Cancel</Button>
+          <Button variant="danger" disabled={!reason.trim()} onClick={() => reason.trim() && onReject(reason.trim())}>
             Reject
-          </button>
+          </Button>
         </div>
       </div>
     </div>

@@ -1,6 +1,8 @@
 "use client";
 
+import { Card, Button, StatusPill, ConfidenceRing } from "@kinetiks/ui";
 import type { ApprovalRecord } from "@/lib/approvals/types";
+import { categoryThreshold, confidenceFraction } from "./confidence";
 
 interface QuickApprovalCardProps {
   approval: ApprovalRecord;
@@ -9,90 +11,43 @@ interface QuickApprovalCardProps {
 }
 
 export function QuickApprovalCard({ approval, onApprove, onReject }: QuickApprovalCardProps) {
+  const threshold = categoryThreshold(approval.action_category);
+  const body = formatBody(approval.preview.content) || approval.description;
+
   return (
-    <div
-      style={{
-        padding: 12,
-        borderRadius: 8,
-        border: "1px solid var(--kt-border-2)",
-        background: "var(--kt-bg-muted)",
-        marginBottom: 8,
-      }}
-    >
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-        <span
-          style={{
-            fontSize: 10,
-            fontWeight: 600,
-            padding: "2px 6px",
-            borderRadius: 4,
-            background: "var(--kt-accent-soft)",
-            color: "var(--kt-accent)",
-            textTransform: "uppercase",
-          }}
-        >
-          Quick
-        </span>
-        <span style={{ fontSize: 11, color: "var(--kt-fg-3)" }}>
-          {approval.source_app}
-        </span>
+    <Card style={{ marginBottom: "var(--kt-s-2)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "var(--kt-s-2)", marginBottom: "var(--kt-s-2)" }}>
+        <StatusPill tone="accent">Quick</StatusPill>
+        <span className="kt-small">{approval.source_app}</span>
+        {approval.confidence_score !== null ? (
+          <span style={{ marginLeft: "auto" }}>
+            <ConfidenceRing
+              value={confidenceFraction(approval.confidence_score)}
+              threshold={threshold}
+              showThresholdTick
+              showLabel
+              size="md"
+              ariaLabel={`Confidence ${Math.round(approval.confidence_score)} percent`}
+            />
+          </span>
+        ) : null}
       </div>
 
-      {/* Title */}
-      <div style={{ fontSize: 13, fontWeight: 500, color: "var(--kt-fg-1)", marginBottom: 6 }}>
-        {approval.title}
-      </div>
+      <div className="kt-card-title" style={{ marginBottom: "var(--kt-s-1)" }}>{approval.title}</div>
+      {body ? (
+        <div className="kt-small" style={{ marginBottom: "var(--kt-s-3)", whiteSpace: "pre-wrap", lineHeight: "var(--kt-lh-body)" }}>{body}</div>
+      ) : null}
 
-      {/* Content preview */}
-      {approval.description && (
-        <div
-          style={{
-            fontSize: 12,
-            color: "var(--kt-fg-2)",
-            marginBottom: 10,
-            lineHeight: 1.4,
-            maxHeight: 60,
-            overflow: "hidden",
-          }}
-        >
-          {approval.description}
-        </div>
-      )}
-
-      {/* Actions */}
-      <div style={{ display: "flex", gap: 6 }}>
-        <button
-          onClick={() => onApprove(approval.id)}
-          style={{
-            flex: 1,
-            padding: "6px 12px",
-            borderRadius: 6,
-            border: "none",
-            background: "var(--kt-success-soft)",
-            color: "var(--kt-success)",
-            fontSize: 12,
-            fontWeight: 500,
-            cursor: "pointer",
-          }}
-        >
-          Approve
-        </button>
-        <button
-          onClick={() => onReject(approval.id)}
-          style={{
-            padding: "6px 12px",
-            borderRadius: 6,
-            border: "1px solid var(--kt-border-1)",
-            background: "transparent",
-            color: "var(--kt-fg-2)",
-            fontSize: 12,
-            cursor: "pointer",
-          }}
-        >
-          Reject
-        </button>
+      <div style={{ display: "flex", gap: "var(--kt-s-2)" }}>
+        <Button variant="accent" size="sm" style={{ flex: 1 }} onClick={() => onApprove(approval.id)}>Approve</Button>
+        <Button variant="ghost" size="sm" onClick={() => onReject(approval.id)}>Reject</Button>
       </div>
-    </div>
+    </Card>
   );
+}
+
+function formatBody(content: Record<string, unknown>): string | null {
+  if (typeof content.body === "string") return content.body;
+  if (typeof content.content === "string") return content.content;
+  return null;
 }

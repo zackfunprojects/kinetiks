@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient as createBrowserClient } from "@/lib/supabase/client";
 import type { ApprovalRecord } from "@/lib/approvals/types";
 import { ApprovalCard } from "./ApprovalCard";
@@ -17,6 +17,25 @@ export function ApprovalPanel({ systemName }: ApprovalPanelProps) {
   const [loading, setLoading] = useState(true);
   const [batchLoading, setBatchLoading] = useState(false);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [contraction, setContraction] = useState<string | null>(null);
+  const contractionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // After a rejection, the system's autonomy for that action class contracts.
+  // Surface that plainly so the customer understands why they'll see more
+  // approvals in that category for a while. Reset any in-flight timer so a
+  // newer message isn't cleared early by an older one.
+  const announceContraction = useCallback((category: string | undefined) => {
+    const label = (category ?? "these").replace(/_/g, " ");
+    setContraction(`Understood. I'll check with you on ${label} actions until I've re-earned that call.`);
+    if (contractionTimer.current) clearTimeout(contractionTimer.current);
+    contractionTimer.current = setTimeout(() => setContraction(null), 8000);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (contractionTimer.current) clearTimeout(contractionTimer.current);
+    };
+  }, []);
 
   const fetchApprovals = useCallback(async () => {
     try {
@@ -79,6 +98,7 @@ export function ApprovalPanel({ systemName }: ApprovalPanelProps) {
 
   const handleReject = async (reason: string) => {
     if (!rejectingId) return;
+    const rejected = approvals.find((a) => a.id === rejectingId);
 
     try {
       await fetch("/api/approvals/action", {
@@ -92,6 +112,7 @@ export function ApprovalPanel({ systemName }: ApprovalPanelProps) {
         }),
       });
       setApprovals((prev) => prev.filter((a) => a.id !== rejectingId));
+      announceContraction(rejected?.action_category);
     } catch {
       // Will be refreshed by Realtime
     } finally {
@@ -129,7 +150,9 @@ export function ApprovalPanel({ systemName }: ApprovalPanelProps) {
         );
         return; // leave the approval in local state; user can retry
       }
+      const rejected = approvals.find((a) => a.id === id);
       setApprovals((prev) => prev.filter((a) => a.id !== id));
+      announceContraction(rejected?.action_category);
     } catch (err) {
       // eslint-disable-next-line no-console
       console.error(
@@ -167,7 +190,27 @@ export function ApprovalPanel({ systemName }: ApprovalPanelProps) {
   }
 
   return (
-    <div style={{ padding: "8px 8px", height: "100%", overflowY: "auto" }}>
+    <div style={{ padding: "var(--kt-s-2)", height: "100%", overflowY: "auto" }}>
+      {contraction ? (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "var(--kt-s-2)",
+            padding: "var(--kt-s-2) var(--kt-s-3)",
+            marginBottom: "var(--kt-s-2)",
+            borderRadius: "var(--kt-radius-1)",
+            background: "var(--kt-warning-soft)",
+            color: "var(--kt-warning)",
+            fontSize: "var(--kt-fs-13)",
+          }}
+        >
+          <span className="kt-status-dot" />
+          {contraction}
+        </div>
+      ) : null}
       <BatchApproveBar
         quickCount={quickCount}
         onBatchApprove={handleBatchApprove}
