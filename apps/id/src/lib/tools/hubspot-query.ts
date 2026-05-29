@@ -61,6 +61,22 @@ const Output = z.discriminatedUnion("status", [
     buckets: z.array(Bucket),
     window_days: z.number().int().nonnegative(),
   }),
+  // Phase 7 CR round 2: explicit truncated status when the
+  // pagination safety cap is hit. Caller (Marcus) sees a structured
+  // signal instead of an aggregate that silently undercounts large
+  // portals. The reported aggregates are still computed off whatever
+  // pages we did fetch, so they're a lower bound and labelled as such.
+  z.object({
+    status: z.literal("truncated"),
+    entity_type: EntityType,
+    partial_total: z.number().int().nonnegative(),
+    partial_new_in_window: z.number().int().nonnegative(),
+    partial_buckets: z.array(Bucket),
+    window_days: z.number().int().nonnegative(),
+    pages_walked: z.number().int().positive(),
+    page_size: z.number().int().positive(),
+    message: z.string(),
+  }),
   z.object({
     status: z.literal("not_connected"),
     message: z.string(),
@@ -258,6 +274,27 @@ export const hubspotQueryTool = defineTool({
           ? { total_amount: Math.round(v.amount * 100) / 100 }
           : {}),
       }));
+
+    // Phase 7 CR round 2: return `truncated` rather than `ok` when
+    // the page cap is hit. Aggregates are computed from whatever we
+    // did fetch (a lower bound), but the caller (Marcus) gets an
+    // explicit signal that totals are partial. Marcus surfaces this
+    // to the customer rather than presenting partial numbers as
+    // authoritative.
+    if (hitPageCap) {
+      return {
+        status: "truncated" as const,
+        entity_type: input.entity_type,
+        partial_total: total,
+        partial_new_in_window: newCount,
+        partial_buckets: bucketArray,
+        window_days: input.recent_days,
+        pages_walked: pagesWalked,
+        page_size: HUBSPOT_PAGE_SIZE,
+        message:
+          "HubSpot has more CRM data than this tool reads in a single call. The numbers below are partial; ask the customer to narrow the scope (e.g. specific entity_type or stage) for accurate aggregates.",
+      };
+    }
 
     return {
       status: "ok" as const,

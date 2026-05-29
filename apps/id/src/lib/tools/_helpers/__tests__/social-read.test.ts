@@ -45,17 +45,29 @@ function mockAdmin(opts: {
         };
       }
       if (table === "kinetiks_social_posts") {
+        // Phase 7 CR round 2: paginated query chain ends in
+        // `.order().order().limit()` and may have `.or()` appended on
+        // page ≥ 2. The terminal node in either path is a Promise
+        // (resolves with the mocked posts).
+        const resolveData = () =>
+          Promise.resolve({
+            data: opts.posts ?? [],
+            error: opts.postsError ?? null,
+          });
+        const limitTerminus = {
+          then: (...args: Parameters<Promise<unknown>["then"]>) =>
+            resolveData().then(...args),
+          or: () => resolveData(),
+        };
         return {
           select: () => ({
             eq: () => ({
               eq: () => ({
                 gte: () => ({
                   order: () => ({
-                    limit: () =>
-                      Promise.resolve({
-                        data: opts.posts ?? [],
-                        error: opts.postsError ?? null,
-                      }),
+                    order: () => ({
+                      limit: () => limitTerminus,
+                    }),
                   }),
                 }),
               }),

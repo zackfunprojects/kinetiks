@@ -270,32 +270,23 @@ export async function PATCH(request: Request, { params }: RouteParams): Promise<
     );
   }
 
-  // Phase 7 CR: throttle on a side channel that updates BEFORE the
-  // sync completes. The legacy check on last_sync_at was tied to last
-  // successful sync, which stays stale while a sync is in flight;
-  // rapid PATCH calls could enqueue multiple parallel Nango runs.
-  // `last_manual_sync_request_at` is set in the SAME UPDATE statement
-  // that schedules the sync, so the next caller sees it immediately
-  // even if the sync hasn't returned yet.
+  // Phase 7 CR round 2: atomic conditional UPDATE so concurrent PATCH
+  // calls can't both pass the in-memory check and both trigger Nango.
+  // The previous fix moved the throttle to `last_manual_sync_request_at`
+  // (set pre-Nango-trigger) but the check + stamp were two separate
+  // operations: two requests reading the old value would both pass the
+  // check, both stamp, both call triggerSync.
+  //
+  // Now: the UPDATE itself filters on
+  //   metadata->>'last_manual_sync_request_at' IS NULL
+  //   OR metadata->>'last_manual_sync_request_at' < cutoff_iso
+  // and we check whether the row actually updated. Postgres serializes
+  // the writes so exactly one caller wins; the loser sees 0 affected
+  // rows and returns 429.
   const existingMeta = (connection.metadata ?? {}) as Record<string, unknown>;
-  const lastRequestAtRaw = existingMeta.last_manual_sync_request_at;
-  if (typeof lastRequestAtRaw === "string") {
-    const lastRequestMs = new Date(lastRequestAtRaw).getTime();
-    if (
-      Number.isFinite(lastRequestMs) &&
-      Date.now() - lastRequestMs < MANUAL_SYNC_THROTTLE_MS
-    ) {
-      return apiError(
-        "A manual sync was requested less than 5 minutes ago. Please wait.",
-        429,
-      );
-    }
-  }
-
-  // Stamp the throttle marker BEFORE calling Nango. UPDATE returns
-  // success on no-row-matched too; we re-fetch to confirm.
   const nowIso = new Date().toISOString();
-  const { error: throttleError } = await admin
+  const cutoffIso = new Date(Date.now() - MANUAL_SYNC_THROTTLE_MS).toISOString();
+  const { data: stamped, error: throttleError } = await admin
     .from("kinetiks_connections")
     .update({
       metadata: {
@@ -304,7 +295,12 @@ export async function PATCH(request: Request, { params }: RouteParams): Promise<
       },
     })
     .eq("id", connection.id)
-    .eq("account_id", auth.account_id);
+    .eq("account_id", auth.account_id)
+    .or(
+      `metadata->>last_manual_sync_request_at.is.null,metadata->>last_manual_sync_request_at.lt.${cutoffIso}`,
+    )
+    .select("id")
+    .maybeSingle();
   if (throttleError) {
     Sentry.captureException(throttleError, {
       tags: {
@@ -317,6 +313,14 @@ export async function PATCH(request: Request, { params }: RouteParams): Promise<
       extra: { connection_id: connection.id, provider: connection.provider },
     });
     return apiError(GENERIC_SYNC_ERROR, 500);
+  }
+  if (!stamped) {
+    // Lost the race: another concurrent PATCH already stamped the
+    // throttle marker. Reject as rate-limited; don't trigger Nango.
+    return apiError(
+      "A manual sync was requested less than 5 minutes ago. Please wait.",
+      429,
+    );
   }
 
   const config = getNangoProviderConfig(connection.provider as ConnectionProvider);

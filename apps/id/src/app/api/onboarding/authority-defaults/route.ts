@@ -335,7 +335,19 @@ export async function POST(request: Request): Promise<Response> {
       // No separate Ledger emit — the RPC owns the writes atomically.
     }
 
-    // Reject any manifest key not in accepted_keys.
+    // Phase 7 CR round 2: mark the account as reviewed BEFORE the
+    // non-critical Ledger emits below. If the worker dies between
+    // grants and rejected/skipped Ledger writes, the grants are
+    // already committed by the atomic RPC and the customer can
+    // proceed because the marker is set. The Ledger rejection entries
+    // are recoverable (the diff cron's cooldown logic treats absence
+    // of a rejection entry as "not yet decided" — re-proposing later
+    // is the worst case, not a hung onboarding).
+    const reviewedAt = await markReviewed(auth.account_id);
+    if (!reviewedAt) return apiError(GENERIC_ACCEPT_DEFAULTS_ERROR, 500);
+
+    // Best-effort Ledger emit for rejected manifest keys. Failures
+    // route to Sentry but don't fail the customer's onboarding.
     for (const [app, allKeys] of allKeysByApp.entries()) {
       const rejected = allKeys.filter((k) => !acceptedSet.has(k));
       if (rejected.length === 0) continue;
@@ -348,15 +360,12 @@ export async function POST(request: Request): Promise<Response> {
         });
       } catch (err) {
         Sentry.captureException(err, {
-          tags: { route: ROUTE_TAG, action: "ledger_emit_rejected", stage: "post_rpc", app: "id" },
+          tags: { route: ROUTE_TAG, action: "ledger_emit_rejected", stage: "post_marker", app: "id" },
           user: { id: auth.account_id },
           extra: { manifest_app: app, rejected_count: rejected.length },
         });
       }
     }
-
-    const reviewedAt = await markReviewed(auth.account_id);
-    if (!reviewedAt) return apiError(GENERIC_ACCEPT_DEFAULTS_ERROR, 500);
 
     return apiSuccess({
       mode: "accept" as const,
@@ -367,6 +376,13 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   // ── Path 3: skip mode ──
+  // Phase 7 CR round 2: same idempotency principle — mark reviewed
+  // first, then best-effort Ledger emit. Skip is the lower-stakes
+  // path (no grants ever created), but the customer's onboarding
+  // shouldn't hang on a transient Ledger write.
+  const reviewedAt = await markReviewed(auth.account_id);
+  if (!reviewedAt) return apiError(GENERIC_ACCEPT_DEFAULTS_ERROR, 500);
+
   for (const [app, allKeys] of allKeysByApp.entries()) {
     try {
       await emitDefaultSkippedLedgerEntries({
@@ -377,14 +393,12 @@ export async function POST(request: Request): Promise<Response> {
       });
     } catch (err) {
       Sentry.captureException(err, {
-        tags: { route: ROUTE_TAG, action: "ledger_emit_skipped", stage: "skip_path", app: "id" },
+        tags: { route: ROUTE_TAG, action: "ledger_emit_skipped", stage: "post_marker", app: "id" },
         user: { id: auth.account_id },
         extra: { manifest_app: app, skipped_count: allKeys.length },
       });
     }
   }
-  const reviewedAt = await markReviewed(auth.account_id);
-  if (!reviewedAt) return apiError(GENERIC_ACCEPT_DEFAULTS_ERROR, 500);
 
   return apiSuccess({
     mode: "skip" as const,

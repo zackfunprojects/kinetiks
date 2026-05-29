@@ -190,30 +190,45 @@ export function defineSocialReadTool(
       const now = new Date();
       const start = windowStart(input.time_window, now);
 
-      // Phase 7 CR: walk pages instead of truncating at 500. We keyset
-      // on posted_at descending; the first page is `<= now`, each
-      // subsequent page is `< previous_page_last_posted_at`. This is
-      // race-free under the unique (account_id, source, provider_post_id)
-      // constraint even when concurrent syncs add new posts.
+      // Phase 7 CR round 2: composite cursor on (posted_at, provider_post_id).
+      // posted_at alone is not unique — multiple posts can share a
+      // timestamp (especially within a single bulk-import sync), and a
+      // pure `.lt("posted_at", cursor)` would drop everything past the
+      // first page at that timestamp once PAGE_SIZE rows share it.
+      // Pairing with provider_post_id (unique per source per account
+      // via the kinetiks_social_posts UNIQUE constraint) gives a
+      // strict total order. We use PostgREST's `.or()` to encode the
+      // composite predicate:
+      //   posted_at < cursor_posted_at
+      //   OR (posted_at = cursor_posted_at AND provider_post_id < cursor_provider_post_id)
       const posts: Array<{
         posted_at: string;
         content_summary: string | null;
         engagement: Record<string, unknown> | null;
         metadata: Record<string, unknown> | null;
+        provider_post_id: string;
       }> = [];
-      let cursor: string | null = null;
+      let cursorPostedAt: string | null = null;
+      let cursorProviderPostId: string | null = null;
       let pagesWalked = 0;
       let hitPageCap = false;
       while (pagesWalked < MAX_PAGES) {
         let q = admin
           .from("kinetiks_social_posts")
-          .select("posted_at, content_summary, engagement, metadata")
+          .select(
+            "posted_at, provider_post_id, content_summary, engagement, metadata",
+          )
           .eq("account_id", ctx.accountId)
           .eq("source", config.source)
           .gte("posted_at", start)
           .order("posted_at", { ascending: false })
+          .order("provider_post_id", { ascending: false })
           .limit(PAGE_SIZE);
-        if (cursor) q = q.lt("posted_at", cursor);
+        if (cursorPostedAt && cursorProviderPostId) {
+          q = q.or(
+            `posted_at.lt.${cursorPostedAt},and(posted_at.eq.${cursorPostedAt},provider_post_id.lt.${cursorProviderPostId})`,
+          );
+        }
         const { data: page, error: pageError } = await q;
         if (pageError) {
           Sentry.captureException(pageError, {
@@ -241,15 +256,9 @@ export function defineSocialReadTool(
         posts.push(...rows);
         pagesWalked++;
         if (rows.length < PAGE_SIZE) break;
-        const lastPostedAt = rows[rows.length - 1].posted_at;
-        if (lastPostedAt === cursor) {
-          // Defensive: every row in the page shares the same posted_at
-          // (extremely unlikely). Without strict-tiebreaker logic we'd
-          // loop forever; cap-out instead.
-          hitPageCap = true;
-          break;
-        }
-        cursor = lastPostedAt;
+        const last = rows[rows.length - 1];
+        cursorPostedAt = last.posted_at;
+        cursorProviderPostId = last.provider_post_id;
         if (pagesWalked >= MAX_PAGES) hitPageCap = true;
       }
 
