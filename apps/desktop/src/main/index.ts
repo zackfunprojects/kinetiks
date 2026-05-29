@@ -1,5 +1,5 @@
 import { app, BrowserWindow, shell } from "electron";
-import path from "path";
+import path from "node:path";
 import { createTray } from "./tray";
 import { setupNotifications } from "./notifications";
 import { loadWindowState, trackWindowState } from "./window-state";
@@ -60,14 +60,14 @@ function createWindow() {
     }
     if (!sameOrigin) {
       event.preventDefault();
-      if (url.startsWith("http")) shell.openExternal(url);
+      if (url.startsWith("http")) void shell.openExternal(url).catch(() => {});
     }
   });
 
   // target=_blank / window.open links open in the system browser.
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith("http")) {
-      shell.openExternal(url);
+      void shell.openExternal(url).catch(() => {});
     }
     return { action: "deny" };
   });

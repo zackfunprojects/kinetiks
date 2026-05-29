@@ -1,7 +1,7 @@
 import { app, BrowserWindow } from "electron";
 import type { Rectangle } from "electron";
-import path from "path";
-import fs from "fs";
+import path from "node:path";
+import fs from "node:fs";
 
 interface WindowState {
   width: number;
