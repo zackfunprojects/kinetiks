@@ -31,14 +31,27 @@ END;
 $$;
 
 -- Set the current JWT to a specific user — used to exercise RLS as that user.
+-- SECURITY DEFINER so the account lookup bypasses RLS even when this is called
+-- while already acting as another authenticated user (some suites switch users
+-- without clearing auth first). Injects the account_id claim to mirror the
+-- production custom_access_token_hook, so claim-based RLS policies are testable.
 CREATE OR REPLACE FUNCTION _kt_test_set_auth_user(p_user_id uuid)
 RETURNS void
 LANGUAGE plpgsql
+SECURITY DEFINER
 AS $$
+DECLARE
+  v_account_id uuid;
+  v_claims jsonb;
 BEGIN
-  PERFORM set_config('request.jwt.claims',
-    json_build_object('sub', p_user_id::text, 'role', 'authenticated')::text,
-    true);
+  SELECT id INTO v_account_id FROM kinetiks_accounts WHERE user_id = p_user_id;
+
+  v_claims := jsonb_build_object('sub', p_user_id::text, 'role', 'authenticated');
+  IF v_account_id IS NOT NULL THEN
+    v_claims := jsonb_set(v_claims, '{account_id}', to_jsonb(v_account_id::text));
+  END IF;
+
+  PERFORM set_config('request.jwt.claims', v_claims::text, true);
   PERFORM set_config('role', 'authenticated', true);
 END;
 $$;
