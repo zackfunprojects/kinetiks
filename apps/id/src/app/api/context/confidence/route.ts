@@ -2,6 +2,7 @@ import { requireAuth } from "@/lib/auth/require-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recalculateConfidence } from "@/lib/cortex";
 import { apiSuccess, apiError } from "@/lib/utils/api-response";
+import { captureException } from "@/lib/observability/sentry";
 
 /**
  * GET /api/context/confidence
@@ -20,7 +21,11 @@ export async function GET(request: Request) {
     .maybeSingle();
 
   if (fetchError) {
-    console.error("Failed to fetch confidence:", fetchError.message);
+    await captureException(fetchError, {
+      tags: { route: "/api/context/confidence", action: "confidence.fetch", stage: "execute", app: "id" },
+      user: { id: auth.account_id },
+      extra: { postgrest_code: fetchError.code },
+    });
     return apiError("Failed to fetch confidence scores", 500);
   }
 
@@ -41,7 +46,10 @@ export async function POST(request: Request) {
     const scores = await recalculateConfidence(admin, auth.account_id);
     return apiSuccess(scores);
   } catch (e) {
-    console.error("Confidence recalculation failed:", e);
+    await captureException(e, {
+      tags: { route: "/api/context/confidence", action: "confidence.recalculate", stage: "execute", app: "id" },
+      user: { id: auth.account_id },
+    });
     return apiError("Confidence recalculation failed", 500);
   }
 }

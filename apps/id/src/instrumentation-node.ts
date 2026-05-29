@@ -11,7 +11,7 @@
  *    tools (noop_test, list_capabilities, query_patterns,
  *    query_actions_authority, ga4_query)
  *  - `@kinetiks/cortex` state machines
- *  - connection extractors (registerExtractor side-effects)
+ *  - Nango sync handlers (per-source registerNangoHandler side-effects)
  *
  * Fail-loud: a malformed descriptor or an unregistered task surfaces
  * here at startup, not at runtime.

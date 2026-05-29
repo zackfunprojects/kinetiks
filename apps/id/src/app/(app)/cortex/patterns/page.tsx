@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { listPatterns } from "@/lib/cortex/patterns/list";
 import { listCustomerVisiblePatternTypes } from "@kinetiks/tools";
 import { PatternsManager } from "@/components/cortex/patterns/PatternsManager";
+import { captureException } from "@/lib/observability/sentry";
 import type { PatternLifecycleStatus } from "@kinetiks/types";
 
 export const dynamic = "force-dynamic";
@@ -85,8 +86,10 @@ export default async function PatternsPage({
       offset,
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "unknown error";
-    console.error(`Patterns page load failed account=${account.id}: ${message}`);
+    await captureException(err, {
+      tags: { route: "/cortex/patterns", action: "patterns.load", stage: "render", app: "id" },
+      user: { id: account.id },
+    });
     return (
       <div style={{ padding: "var(--kt-s-6)", color: "var(--kt-fg-2)" }}>
         We couldn&apos;t load patterns right now. Try again in a moment.

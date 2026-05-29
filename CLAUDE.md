@@ -58,11 +58,14 @@ Kinetiks AI is a GTM operating system. The product is the Kinetiks core app (web
 
 | Component | Files | LOC | Status |
 |-----------|-------|-----|--------|
-| **Kinetiks Core (apps/id)** | 290 | 37k | Phases 1-6 complete. Chat, Analytics, Cortex, Cartographer, Archivist, Marcus v2, Oracle schemas, approvals, agent comms, connections framework |
-| **Harvest (apps/hv)** | 214 | 26k | Full UI built (Greenhouse, Field, Market). Needs end-to-end workflow fixes. |
+| **Kinetiks Core (apps/id)** | ~510 | - | Phases 1-7 complete. Chat, Analytics, Cortex (7 sub-sections), Cartographer, Archivist, Marcus v2 (with live tool invocation), Oracle, Approval System, agent comms, Nango connections |
+| **Platform layer** | `packages/tools`, `packages/runtime` | - | Tool Registry (~21 tools), Agent Runtime (authority resolution, escalation triggers, `tool_calls` logging), Metric Cache, Insight Store, and the Operator / Pattern-Type / Action-Class registries - all built and cross-validated at boot |
+| **Pattern Library + Authority Grants** | core tables + registries | - | Both built end-to-end: hybrid schemas, `query_patterns` allowlist, decay calibration, authority resolution, 3-layer lifecycle state machines, export/import. Exercised today against the fixture stream (`KINETIKS_FIXTURES_ENABLED`) |
+| **Data flows (Nango)** | 10 sync handlers | - | GA4, GSC, Stripe, Google Ads, Meta, HubSpot, Twitter, LinkedIn, Instagram, TikTok handlers write to `kinetiks_metric_cache`; Marcus reads via tools |
+| **Harvest (apps/hv)** | 214 | 26k | Full UI built (Greenhouse, Field, Market). Needs end-to-end workflow fixes. Out of active build scope. |
 | **Desktop (apps/desktop)** | 4 | 200 | Electron skeleton (main, tray, notifications, preload) |
-| **Shared packages** | 94 | 13k | types, ui, supabase, synapse, ai, mcp, cortex, sentinel - all functional |
-| **Database** | 28 migrations | - | Core + Marcus + Harvest schemas with RLS |
+| **Shared packages** | ~160 files | - | types, ui, supabase, synapse, ai, mcp, cortex, sentinel, lib, tools, runtime - all functional |
+| **Database** | 67 migrations | - | Core + Marcus + Harvest + Pattern Library + Authority + Metric Cache + Nango schemas with RLS. 22 pgTAP suites, 15 Edge Functions |
 
 ### Not Yet Built
 
@@ -70,19 +73,18 @@ Kinetiks AI is a GTM operating system. The product is the Kinetiks core app (web
 |-----------|-------|
 | **Dark Madder (apps/dm)** | Exists as standalone repo, needs monorepo migration |
 | **Hypothesis (apps/ht)** | Not started |
-| **Implosion (apps/im)** | AI ads product. Schedules after Hypothesis, before Litmus. First app that requires the Kinetiks Contract Addendum structures end-to-end (Pattern Library reads/writes, Authority Grants, internal Operator Workflows for its eight Operators). |
+| **Implosion (apps/im)** | AI ads product. First app to exercise the Contract Addendum structures from a real suite app (Pattern reads/writes, Authority Grants, internal Operator Workflows for its eight Operators). |
 | **Litmus (apps/lt)** | Not started |
 | **Adventure (apps/av)** | Scoping (creative GTM: OOH, events, sponsorships, unconventional) |
-| **Tool registry + agent runtime** | The 2026 platform layer - next to build |
-| **Pattern Library** | Phase 1 of the Kinetiks Contract Addendum. New table `kinetiks_pattern_library`, Pattern Type Registry, `query_patterns` tool, Archivist write path, export/import endpoints. Ships before Implosion - Harvest and Dark Madder can emit patterns from existing operational data. |
-| **Authority Grants** | Phase 4 of the Kinetiks Contract Addendum. New table `kinetiks_authority_grants`, Action Class Registry, new Authority Agent Operator, new `authority_grant_proposal` approval class, authority resolution flow in the Agent Runtime, per-class LLM judgment budgets. Ships closer to Implosion launch. |
-| **Operator Workflows extension** | Phase 3 of the Kinetiks Contract Addendum. `WorkflowTask` gains `target_type` and `target_app`, optional `operator_registry` on app manifests, runtime distinction between cross-app and internal dispatch. Ships when Implosion is being scoped. |
-| **Integration extractors** | Connection framework exists (9 providers, OAuth, encryption) but zero actual data flows |
-| **`@kinetiks/lib`** | Shared utilities home (state machines, env, pagination, format helpers, template vars). Exists at `packages/lib/`. `serverEnv()` is the canonical Zod env loader; add new env vars there. |
+| **Real suite-app pattern emission** | The Pattern Library is built but is exercised only by the fixture emitter today. No real suite app emits patterns yet (suite apps are out of active scope). |
 
-### The Critical Gap
+**Deferred-by-design (built but intentionally not fully wired - do not mistake for bugs):**
+- Operator executors for Cartographer, Marcus, and Oracle are registration-only stubs that throw if dispatched via a Workflow; the real logic runs through their original paths (onboarding callers, the chat engine, `oracle-analysis-cron`). Only the Archivist executor is wired to the dispatcher - it proves the platform via `apps/id/src/lib/workflows/archivist-maintenance.ts`.
+- The Authority Agent implements `campaign_launch` only; `workflow_start`, `standing_review`, and `first_connect` throw `not_implemented`. The deterministic default/diff/narrow paths do not route through the agent, so signup and standing-review work without it.
 
-The connections system has 9 providers defined with OAuth and encryption, but `registerExtractor()` is never called. The Oracle has types and schemas but no data flowing into it. Marcus cannot reference real metrics. The intelligence layer has no fuel. **Building the tool infrastructure and the first real integrations is the highest priority.**
+### Data Flow (the former "Critical Gap" - resolved)
+
+The connection layer no longer uses a `registerExtractor()` pattern. Connections run through Nango: ten sync handlers in `apps/id/src/lib/integrations/nango/handlers/` write provider data to `kinetiks_metric_cache`, and Marcus reads it through registered tools (`ga4_query`, `gsc_query`, `stripe_query`, etc.). The intelligence layer has fuel. What remains is breadth (more providers, more derived metrics) and real customer connections - not missing plumbing.
 
 ---
 
@@ -609,8 +611,8 @@ The 2026 platform layer plus the 2027 extensions.
 
 - All external OAuth runs through the Connection Framework (`@kinetiks/cortex/connections`). We never implement OAuth ourselves outside this module.
 - Tokens are encrypted at rest with `KINETIKS_ENCRYPTION_KEY`. Decryption happens only in Edge Functions and the Agent Runtime, never in client code or feature code.
-- Provider config lives in `packages/cortex/connections/providers/`. Adding a new provider is config plus an extractor, never feature-coupled glue.
-- `registerExtractor()` is mandatory at the end of provider config. A provider without a registered extractor is dead weight - this is the current Critical Gap.
+- Connections run through Nango. Each provider declares a sync handler in `apps/id/src/lib/integrations/nango/handlers/` that calls `registerNangoHandler()` and writes results to `kinetiks_metric_cache`. Handlers are side-imported at boot via `handlers/boot.ts` (loaded from `instrumentation-node.ts`).
+- A provider without a registered Nango handler is dead weight - the Nango sync webhook has nothing to dispatch to. The Kinetiks `ConnectionProvider` list must map 1:1 to the Nango integration ids; `assertProviderConfigValid()` fails loudly at boot otherwise.
 - On reconnect failure, set `kinetiks_connections.status = 'expired'` and surface a banner in the connections UI. Never retry indefinitely.
 
 ---
@@ -831,7 +833,16 @@ FIRECRAWL_API_KEY=
 # Enrichment
 PEOPLE_DATA_LABS_API_KEY=
 
-# OAuth (data connections)
+# Data connections - OAuth is brokered by Nango (Phase 7). Nango stores and
+# refreshes provider tokens; the app holds the Nango keys below. The legacy
+# per-provider OAuth client vars are retained for any handler that calls a
+# provider SDK directly and for backward reference.
+NANGO_SECRET_KEY=
+NANGO_PUBLIC_KEY=
+NANGO_HOST=
+NANGO_WEBHOOK_SECRET=
+
+# OAuth (data connections) - legacy per-provider clients
 GA4_CLIENT_ID=
 GA4_CLIENT_SECRET=
 GSC_CLIENT_ID=
@@ -898,21 +909,15 @@ Per-app `CLAUDE.md` files at `apps/{code}/CLAUDE.md` document each app's interna
 
 ## Current Phase
 
-Check the active milestone or ask Zack. Work the phase tasks in order. Cross-phase work needs explicit approval. Phase plans for the active queue live in `docs/build-phases/upcoming/`; mark each phase complete by moving its plan to `docs/build-phases/built/` when its DoD is satisfied.
+Confirm the active milestone with Zack before starting new work. The Phase 1.5 → 7 queue is **complete**: every plan has moved to `docs/build-phases/built/` and `docs/build-phases/upcoming/` is empty. Do not assume a queue still lives here.
 
-**Scope constraint.** Build is `apps/id` (Kinetiks Core) only. No work on `apps/hv`, `apps/dm`, `apps/ht`, `apps/im`, `apps/lt`, or `apps/av` until further notice. The 2026 platform layer (Tool Registry, Agent Runtime, Metric Cache, Insight Store, and the first real integration) remains the parallel track; Marcus answering "how is my traffic?" through real tools is still the proof point for that track.
+Phases delivered (all in `docs/build-phases/built/`): 1 (core shell), 1.5 (fixture emitter), 1.6 (Budget + Authority nav), 1.7 / 1.7.1 (Kinetiks-internal pattern types + connection evidence close signal), 2 (Approval System + Empirical Decay Calibration), 3 (Cortex evolution + Operator Workflows platform), 4 (Authority Grants + command router), 4.5 (Ledger CHECK `VALIDATE`, migration 00062), 5 (Default Standing Grants + Oracle analytics), 6 (communication layer), 7 (Nango connect end-to-end).
 
-**Substrate principle: fixtures unblock the queue.** The Kinetiks Contract Addendum subsystems no longer queue behind suite-app readiness. A feature-flagged fixture emitter inside `apps/id` (`KINETIKS_FIXTURES_ENABLED=true`) emits dummy-but-plausible patterns through the same Synapse APIs real suite apps will eventually use. Same code paths, same arbitration, same Ledger writes. When real apps land later, the flag flips off and fixture rows auto-archive. **Suite apps replace fixtures additively when they exist; the platform code never branches on "is this dummy."** See the Fixtures Patterns section below for the seven rules and `docs/build-phases/upcoming/phase-1.5-fixture-emitter.md` for the emitter spec.
+**Scope constraint.** Build is `apps/id` (Kinetiks Core) only. No work on `apps/hv`, `apps/dm`, `apps/ht`, `apps/im`, `apps/lt`, or `apps/av` until further notice.
 
-The queue, in order:
+**Substrate principle: fixtures stand in for suite apps.** A feature-flagged fixture emitter inside `apps/id` (`KINETIKS_FIXTURES_ENABLED=true`) emits dummy-but-plausible patterns through the same Synapse APIs real suite apps will eventually use. Same code paths, same arbitration, same Ledger writes. When real apps land, the flag flips off and fixture rows auto-archive. **Suite apps replace fixtures additively; the platform code never branches on "is this dummy."** See the Fixtures Patterns section for the rules and `docs/build-phases/built/phase-1.5-fixture-emitter.md` for the emitter spec.
 
-1. **Phase 1.6** — Budget Cortex sub-tab + Authority placeholder. Promotes `BudgetManager` out of Integrations into its own sub-tab and adds a disabled Authority nav item so the canonical seven-section spec is visually complete on day one.
-2. **Phase 1.5** — Fixture Emitter for the seven Harvest pattern types. Unblocks every downstream phase.
-3. **Phase 1.7** — Kinetiks-internal pattern types (`kinetiks_id.marcus_question_resonance`, `kinetiks_id.insight_action_rate`, `kinetiks_id.onboarding_question_value`, `kinetiks_id.connection_value_per_source`). Real (non-fixture) emissions from observed customer behavior inside Kinetiks Core.
-4. **Phase 2** — Empirical Decay Calibration. Built and validated against the fixture stream; the math is the deliverable.
-5. **Phase 3** — Operator Workflows platform. `WorkflowTask.target_type`/`target_app`, optional `operator_registry` on app manifests, runtime distinction between cross-app and internal dispatch. Validated by registering Kinetiks Core's own Operators and building one Kinetiks-internal Workflow (daily brief assembly).
-6. **Phase 4** — Marcus action-bearing tools + Authority Grants + Authority Agent (bundled). First action classes defined for Marcus's own tools (`kinetiks_id.send_slack_notification`, `kinetiks_id.draft_email`, `kinetiks_id.add_calendar_event`); Phase 4 builds those tools alongside the Authority machinery.
-7. **Phase 5** — Default Standing Grants + signup flow. Ships with Phase 4.
-8. **Phase 4.5** (requires prod-read approval; runs after Phase 4 + 5) — `kinetiks_ledger_event_type_valid` `VALIDATE CONSTRAINT` pass. Closes the standing `NOT VALID` debt accumulated across Phases 1.5, 2, and 4 in a single audit + VALIDATE pass.
-
-Phase 4.5 was previously labelled "2.5" but its actual prerequisite is Phase 4 (every phase that adds Ledger event types re-adds the CHECK constraint `NOT VALID`; running VALIDATE before Phase 4 ships would require re-running it after).
+**Known follow-ups (from the 2026-05-29 audit; see also "Deferred-by-design" under Current State):**
+- Operator executors for Cartographer / Marcus / Oracle, and Authority Agent request types `workflow_start` / `standing_review` / `first_connect`, are registered but throw `not_implemented`. Wire them when a Workflow or agent path actually needs them; the internal `authority-agent/invoke` route returns a structured 422 for the unimplemented types.
+- Observability discipline is uneven: the Cortex patterns / context / evaluate routes now use the canonical `Sentry.captureException` shape (via `@/lib/observability/sentry`), but other paths still report via `console.error`. New code should use the helper.
+- No E2E layer exists yet (no Playwright config, dependency, or specs). DoD-critical flows (approval lifecycle, authority pause/revoke, chat send→response) have no browser-level coverage. Stand one up in an environment where `pnpm test` / Playwright can run.

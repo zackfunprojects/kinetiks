@@ -1,6 +1,7 @@
 import { requireAuth } from "@/lib/auth/require-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { apiSuccess, apiError } from "@/lib/utils/api-response";
+import { captureException } from "@/lib/observability/sentry";
 import type { ContextLayer } from "@kinetiks/types";
 
 const LAYERS: ContextLayer[] = [
@@ -47,20 +48,22 @@ export async function GET(request: Request): Promise<Response> {
   const failedLayers = layerResults.filter((r) => r.error !== null);
   if (failedLayers.length > 0) {
     for (const failed of failedLayers) {
-      console.error(
-        `Failed to fetch context layer "${failed.layer}" for account ${auth.account_id}:`,
-        failed.error?.message
-      );
+      await captureException(failed.error, {
+        tags: { route: "/api/context", action: "context.fetch_layer", stage: "execute", app: "id" },
+        user: { id: auth.account_id },
+        extra: { layer: failed.layer, postgrest_code: failed.error?.code },
+      });
     }
     return apiError("Failed to fetch context layers", 500);
   }
 
   // Check confidence query error
   if (confidenceResult.error) {
-    console.error(
-      `Failed to fetch confidence for account ${auth.account_id}:`,
-      confidenceResult.error.message
-    );
+    await captureException(confidenceResult.error, {
+      tags: { route: "/api/context", action: "confidence.fetch", stage: "execute", app: "id" },
+      user: { id: auth.account_id },
+      extra: { postgrest_code: confidenceResult.error.code },
+    });
     return apiError("Failed to fetch confidence scores", 500);
   }
 

@@ -35,7 +35,7 @@ export function PatternDetailDialog({ pattern, onClose }: PatternDetailDialogPro
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(0,0,0,0.4)",
+        background: "var(--kt-backdrop)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
