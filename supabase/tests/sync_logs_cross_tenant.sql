@@ -58,13 +58,14 @@ SELECT throws_ok(
   'authenticated user cannot insert into kinetiks_sync_logs'
 );
 
--- Alice cannot update
-SELECT throws_ok(
-  $$ UPDATE kinetiks_sync_logs
-     SET status = 'succeeded'
-     WHERE id = 'aaaaaaaa-3333-3333-3333-aaaaaaaaaaaa' $$,
-  '42501', NULL,
-  'authenticated user cannot update kinetiks_sync_logs'
+-- Alice cannot update (no user UPDATE policy: RLS filters to zero rows)
+UPDATE kinetiks_sync_logs
+   SET status = 'failed'
+   WHERE id = 'aaaaaaaa-3333-3333-3333-aaaaaaaaaaaa';
+SELECT is(
+  (SELECT status FROM kinetiks_sync_logs WHERE id = 'aaaaaaaa-3333-3333-3333-aaaaaaaaaaaa'),
+  'succeeded',
+  'authenticated update on own sync_logs row is filtered (status unchanged)'
 );
 
 SELECT _kt_test_clear_auth();

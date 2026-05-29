@@ -7,16 +7,19 @@ CREATE EXTENSION IF NOT EXISTS pgtap;
 CREATE OR REPLACE FUNCTION _kt_test_seed_account(
   p_user_id uuid,
   p_codename text,
-  p_email text DEFAULT 'pgtap-user@example.test'
+  p_email text DEFAULT NULL
 ) RETURNS uuid
 LANGUAGE plpgsql
 AS $$
 DECLARE
   account_id uuid;
+  -- Derive a unique email per user so seeding two accounts in one suite
+  -- never collides on auth.users' unique-email partial index.
+  v_email text := COALESCE(p_email, 'pgtap+' || replace(p_user_id::text, '-', '') || '@example.test');
 BEGIN
   -- Skip auth.users insert if it already exists for this UUID
   INSERT INTO auth.users (id, email, instance_id, aud, role)
-  VALUES (p_user_id, p_email, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated')
+  VALUES (p_user_id, v_email, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated')
   ON CONFLICT (id) DO NOTHING;
 
   INSERT INTO kinetiks_accounts (user_id, codename, display_name, onboarding_complete)

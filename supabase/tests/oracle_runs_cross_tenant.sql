@@ -58,13 +58,14 @@ SELECT throws_ok(
   'authenticated user cannot insert into kinetiks_oracle_runs'
 );
 
--- Alice cannot update
-SELECT throws_ok(
-  $$ UPDATE kinetiks_oracle_runs
-     SET signals_total = 999
-     WHERE id = 'eeeeeeee-4444-4444-4444-aaaaaaaaaaaa' $$,
-  '42501', NULL,
-  'authenticated user cannot update kinetiks_oracle_runs'
+-- Alice cannot update (no user UPDATE policy: RLS filters to zero rows)
+UPDATE kinetiks_oracle_runs
+   SET signals_total = 999
+   WHERE id = 'eeeeeeee-4444-4444-4444-aaaaaaaaaaaa';
+SELECT is(
+  (SELECT signals_total FROM kinetiks_oracle_runs WHERE id = 'eeeeeeee-4444-4444-4444-aaaaaaaaaaaa'),
+  5,
+  'authenticated update on own oracle_runs row is filtered (signals_total unchanged)'
 );
 
 SELECT _kt_test_clear_auth();

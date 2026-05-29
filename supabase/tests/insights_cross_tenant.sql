@@ -50,6 +50,9 @@ SELECT throws_ok(
 );
 
 -- ── acted_on flip stamps the timestamp ──────────────────────
+-- Seed as service role: kinetiks_insights has no user INSERT policy,
+-- so clear the authenticated context before inserting.
+SELECT _kt_test_clear_auth();
 DO $$
 DECLARE
   alice_account uuid := (SELECT id FROM kinetiks_accounts WHERE user_id = '11111111-1111-1111-1111-111111111111');

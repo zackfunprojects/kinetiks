@@ -64,20 +64,25 @@ SELECT throws_ok(
 );
 
 -- ── Alice cannot UPDATE her own row ────────────────────────
-SELECT throws_ok(
-  $$ UPDATE kinetiks_crm_entities
-     SET data = '{"amount":9999}'::jsonb
-     WHERE id = 'cccccccc-1111-1111-1111-aaaaaaaaaaaa' $$,
-  '42501', NULL,
-  'authenticated user cannot update kinetiks_crm_entities (default-deny)'
+-- No user UPDATE policy exists, so RLS filters the target to zero rows
+-- rather than throwing; the row stays unchanged.
+UPDATE kinetiks_crm_entities
+   SET data = '{"amount":9999}'::jsonb
+   WHERE id = 'cccccccc-1111-1111-1111-aaaaaaaaaaaa';
+SELECT is(
+  (SELECT data->>'amount' FROM kinetiks_crm_entities WHERE id = 'cccccccc-1111-1111-1111-aaaaaaaaaaaa'),
+  '5000',
+  'authenticated update on own crm_entities row is filtered (data unchanged)'
 );
 
 -- ── Alice cannot DELETE her own row ────────────────────────
-SELECT throws_ok(
-  $$ DELETE FROM kinetiks_crm_entities
-     WHERE id = 'cccccccc-1111-1111-1111-aaaaaaaaaaaa' $$,
-  '42501', NULL,
-  'authenticated user cannot delete kinetiks_crm_entities (default-deny)'
+-- No user DELETE policy: the delete filters to zero rows.
+DELETE FROM kinetiks_crm_entities
+  WHERE id = 'cccccccc-1111-1111-1111-aaaaaaaaaaaa';
+SELECT is(
+  (SELECT count(*)::int FROM kinetiks_crm_entities WHERE id = 'cccccccc-1111-1111-1111-aaaaaaaaaaaa'),
+  1,
+  'authenticated delete on own crm_entities row is filtered (row still exists)'
 );
 
 SELECT _kt_test_clear_auth();

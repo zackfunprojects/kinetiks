@@ -198,3 +198,15 @@ stream:
 If any of these fail (against either fixtures or real emissions),
 surface in this file as a new open question; do not paper over with
 looser thresholds.
+
+---
+
+## Desktop native shell (Phase 1)
+
+### Desktop icon assets - design dependency
+
+`apps/desktop` needs branded icons: a source `icon.png`, macOS `.icns`, Windows `.ico`, and a monochrome `trayTemplate.png` (+ `tray.png`). None exist yet, so `src/main/tray.ts` falls back to an embedded placeholder and electron-builder uses the default Electron icon. Required files are documented in `apps/desktop/assets/README.md`. Needs final art from design before Phase 4 packaging/signing; wire `.icns`/`.ico` into `electron-builder.yml` at that point.
+
+### Design spec silent on desktop window chrome
+
+`design/kinetiks-design-spec.md` covers the web UI but says nothing about the desktop window shell: titlebar height/treatment, vibrancy/material, traffic-light inset, window radius. Phase 1 enabled macOS vibrancy behind opaque content (no visual change yet). The custom integrated titlebar lands in Phase 2 and needs design direction (or new `--kt-*` chrome tokens) rather than invented values.

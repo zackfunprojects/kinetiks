@@ -24,10 +24,10 @@ BEGIN
   bob_account   := _kt_test_seed_account(bob_user, 'bright-otter');
 
   -- Insert one proposal per account (as service role)
-  INSERT INTO kinetiks_proposals (id, account_id, source_app, layer, action, data)
+  INSERT INTO kinetiks_proposals (id, account_id, source_app, target_layer, action, confidence, payload)
   VALUES
-    ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', alice_account, 'harvest', 'org', 'merge', '{}'::jsonb),
-    ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', bob_account,   'harvest', 'org', 'merge', '{}'::jsonb);
+    ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', alice_account, 'harvest', 'org', 'add', 'inferred', '{}'::jsonb),
+    ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', bob_account,   'harvest', 'org', 'add', 'inferred', '{}'::jsonb);
 END $$;
 
 -- ── Act + Assert: alice sees only her own proposal ───────────
@@ -46,7 +46,7 @@ SELECT is_empty(
 
 -- ── Act + Assert: alice cannot update bob's proposal ─────────
 SELECT lives_ok(
-  $$ UPDATE kinetiks_proposals SET action = 'replace' WHERE id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'::uuid $$,
+  $$ UPDATE kinetiks_proposals SET action = 'update' WHERE id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'::uuid $$,
   'update statement runs without error (RLS filters target rows)'
 );
 
@@ -54,7 +54,7 @@ SELECT _kt_test_clear_auth();
 
 SELECT is(
   (SELECT action FROM kinetiks_proposals WHERE id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'::uuid),
-  'merge',
+  'add',
   'bob''s proposal action is unchanged after alice''s update attempt'
 );
 

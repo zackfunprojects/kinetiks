@@ -9,7 +9,7 @@
 -- ============================================================
 
 BEGIN;
-SELECT plan(13);
+SELECT plan(14);
 
 -- Arrange: seed an account and a couple of approval rows
 DO $$
