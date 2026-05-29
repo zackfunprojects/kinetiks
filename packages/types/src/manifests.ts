@@ -22,6 +22,7 @@ import type {
   PatternTypeDescriptor,
   ToolDescriptor,
 } from "./descriptors";
+import type { DefaultStandingGrant } from "./default-grants";
 
 export interface KineticsAppManifest {
   /** Canonical app key. Lowercase snake_case. e.g. `kinetiks_id`, `harvest`, `dark_madder`. */
@@ -45,9 +46,12 @@ export interface KineticsAppManifest {
    */
   readonly operator_registry?: readonly OperatorDescriptor[];
   /**
-   * Phase 5 placeholder. Apps will declare default Authority Grants
-   * the customer is asked to approve at first-connect. The field is
-   * reserved here so the manifest contract is stable.
+   * Per the Kinetiks Contract Addendum §2.6. The minimal authority
+   * this app needs to be useful without explicit customer action,
+   * proposed at signup as the customer's first authority decisions.
+   * Validated at app boot by
+   * `apps/id/src/lib/manifest/validate.ts` against the Action Class
+   * Registry — a malformed default fails startup, not runtime.
    */
-  readonly default_standing_grants?: readonly unknown[];
+  readonly default_standing_grants?: readonly DefaultStandingGrant[];
 }

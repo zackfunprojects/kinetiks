@@ -145,6 +145,9 @@ importers:
       '@mendable/firecrawl-js':
         specifier: ^4.16.0
         version: 4.16.0
+      '@nangohq/frontend':
+        specifier: ^0.70.5
+        version: 0.70.5
       '@nangohq/node':
         specifier: ^0.70.3
         version: 0.70.3
@@ -1065,12 +1068,18 @@ packages:
       '@cfworker/json-schema':
         optional: true
 
+  '@nangohq/frontend@0.70.5':
+    resolution: {integrity: sha512-SYB8Z0bCcBxnUp+em/Rjeyv1PK/A9lXt2DI6qOcPVTncbUGUYHKiw5pWxzboLwELVioZ7d/MaHeCPnaHwWrYTg==}
+
   '@nangohq/node@0.70.3':
     resolution: {integrity: sha512-DYQi4/k62GmkMW0GtASOW+htq+XP84F40Vi+TkeUnK2MhKL5k8lcP3hbKn/4Ra7+Wu/dFm8Ivyir6MzUUIlXZg==}
     engines: {node: '>=20.0'}
 
   '@nangohq/types@0.70.3':
     resolution: {integrity: sha512-lQ686tCPBHPujdx6rKene1SkFu2ZdV3cbeQsDxPKQcZYuoJIXuFJZ/chSjVHIPqg7JIAU6z0M6uUGIWsrM+Tzg==}
+
+  '@nangohq/types@0.70.5':
+    resolution: {integrity: sha512-UCNUbzsCEqAIYwtTni9VHdfib7Ek25f8ogdo9s96P4NERUL8viX3+Zvu7hzJPkgUwIQOgcB3eRjbFnnILqahfg==}
 
   '@next/env@14.2.23':
     resolution: {integrity: sha512-CysUC9IO+2Bh0omJ3qrb47S8DtsTKbFidGm6ow4gXIG6reZybqxbkH2nhdEm1tC8SmgzDdpq3BIML0PWsmyUYA==}
@@ -5754,6 +5763,12 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  '@nangohq/frontend@0.70.5':
+    dependencies:
+      '@nangohq/types': 0.70.5
+    transitivePeerDependencies:
+      - debug
+
   '@nangohq/node@0.70.3':
     dependencies:
       '@nangohq/types': 0.70.3
@@ -5762,6 +5777,14 @@ snapshots:
       - debug
 
   '@nangohq/types@0.70.3':
+    dependencies:
+      axios: 1.15.2
+      json-schema: 0.4.0
+      type-fest: 4.41.0
+    transitivePeerDependencies:
+      - debug
+
+  '@nangohq/types@0.70.5':
     dependencies:
       axios: 1.15.2
       json-schema: 0.4.0
@@ -8126,7 +8149,7 @@ snapshots:
 
   firecrawl@4.15.2:
     dependencies:
-      axios: 1.13.6
+      axios: 1.15.2
       typescript-event-target: 1.1.2
       zod: 3.25.76
       zod-to-json-schema: 3.25.1(zod@3.25.76)

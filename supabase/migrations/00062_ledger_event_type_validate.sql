@@ -1,0 +1,34 @@
+-- ============================================================
+-- 00062_ledger_event_type_validate.sql
+--
+-- Phase 4.5 — close the NOT VALID debt.
+--
+-- The `kinetiks_ledger_event_type_valid` constraint has been
+-- recreated `NOT VALID` six times since migration 00042 (00042,
+-- 00044, 00047, 00049, 00051, 00054, 00057, 00061). Each pass
+-- extended the union as a new phase added event types and
+-- deliberately deferred the table-scan cost of VALIDATE because
+-- another extension was imminent.
+--
+-- Phase 4.5 runs the validation pass once, after Phase 4 and Phase
+-- 5 (and the legacy-event reconciliation in 00061) have shipped.
+-- Postgres scans every row in `kinetiks_ledger` and confirms the
+-- value satisfies the IN-list. The audit at
+-- `docs/operational/phase-4.5-audit-2026-05-27.md` confirmed there
+-- are no out-of-union values left; this migration is the structural
+-- check that promotes the constraint from "enforced against new
+-- writes only" to "enforced against all rows".
+--
+-- After this migration applies successfully, the constraint behaves
+-- like a regular CHECK: rejecting any INSERT or UPDATE that would
+-- introduce a non-canonical event_type, with the bonus invariant
+-- that every historical row already conforms.
+--
+-- VALIDATE is a one-time scan. Subsequent extensions to the union
+-- (new phases adding new event_types) can re-use the NOT VALID
+-- pattern; one more Phase-4.5-style audit + VALIDATE pass closes
+-- the debt next time.
+-- ============================================================
+
+ALTER TABLE kinetiks_ledger
+  VALIDATE CONSTRAINT kinetiks_ledger_event_type_valid;

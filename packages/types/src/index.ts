@@ -112,6 +112,13 @@ export type {
   WorkflowRunSummary,
 } from "./workflows";
 export type { KineticsAppManifest } from "./manifests";
+export type { DefaultStandingGrant } from "./default-grants";
+export type {
+  SocialPostRecord,
+  SocialPostSource,
+  SocialEngagementMetrics,
+  SocialPostMetadata,
+} from "./social";
 export type {
   Pattern,
   PatternLifecycleStatus,
