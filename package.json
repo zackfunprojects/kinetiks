@@ -13,7 +13,8 @@
     "functions:check": "scripts/functions-drift-check.sh",
     "health": "scripts/health.sh",
     "check:authority-phrase": "scripts/check-authority-grant-phrase.sh",
-    "check:deploy-sync": "scripts/check-git-deploy-sync.sh"
+    "check:deploy-sync": "scripts/check-git-deploy-sync.sh",
+    "test:rls": "scripts/test-rls.sh"
   },
   "devDependencies": {
     "turbo": "^2.4.0",
