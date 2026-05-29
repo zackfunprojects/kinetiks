@@ -23,7 +23,13 @@ export function DailyBriefCard() {
       });
       if (!res.ok) throw new Error("failed");
       const data = await res.json();
-      setContent((data.data?.content ?? "").trim());
+      const text = (data.data?.content ?? "").trim();
+      if (!text) {
+        // Empty payload is a failure, not a "done" brief with blank body.
+        setState("error");
+        return;
+      }
+      setContent(text);
       setState("done");
     } catch {
       setState("error");

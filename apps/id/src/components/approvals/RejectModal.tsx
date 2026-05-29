@@ -37,6 +37,7 @@ export function RejectModal({ onReject, onCancel }: RejectModalProps) {
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           placeholder="Why are you rejecting this? (e.g. too aggressive, wrong audience)"
+          aria-label="Rejection reason"
           autoFocus
           rows={3}
           style={{ marginBottom: "var(--kt-s-4)" }}

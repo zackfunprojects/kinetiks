@@ -48,13 +48,15 @@ export function ConfidenceRing({
   className,
 }: ConfidenceRingProps) {
   const clamped = Math.min(1, Math.max(0, value));
+  // Clamp once and reuse for both the fill-color comparison and the tick math.
+  const clampedThreshold = Math.min(1, Math.max(0, threshold));
   const { px, strokePx, fontSize } = DIMENSIONS[size];
   const radius = (px - strokePx) / 2;
   const circumference = 2 * Math.PI * radius;
   const dashOffset = circumference - clamped * circumference;
   const stroke =
     tone === "auto"
-      ? clamped >= threshold
+      ? clamped >= clampedThreshold
         ? "var(--kt-accent)"
         : "var(--kt-fg-3)"
       : TONE_STROKE[tone];
@@ -62,7 +64,7 @@ export function ConfidenceRing({
 
   // Threshold tick: a dot on the track at the threshold angle (track starts at
   // 12 o'clock and runs clockwise, matching the progress arc's -90° rotation).
-  const tickAngle = (-90 + Math.min(1, Math.max(0, threshold)) * 360) * (Math.PI / 180);
+  const tickAngle = (-90 + clampedThreshold * 360) * (Math.PI / 180);
   const tickX = px / 2 + radius * Math.cos(tickAngle);
   const tickY = px / 2 + radius * Math.sin(tickAngle);
 

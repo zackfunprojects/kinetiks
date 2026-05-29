@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient as createBrowserClient } from "@/lib/supabase/client";
 import type { ApprovalRecord } from "@/lib/approvals/types";
 import { ApprovalCard } from "./ApprovalCard";
@@ -18,14 +18,23 @@ export function ApprovalPanel({ systemName }: ApprovalPanelProps) {
   const [batchLoading, setBatchLoading] = useState(false);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [contraction, setContraction] = useState<string | null>(null);
+  const contractionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // After a rejection, the system's autonomy for that action class contracts.
   // Surface that plainly so the customer understands why they'll see more
-  // approvals in that category for a while.
+  // approvals in that category for a while. Reset any in-flight timer so a
+  // newer message isn't cleared early by an older one.
   const announceContraction = useCallback((category: string | undefined) => {
     const label = (category ?? "these").replace(/_/g, " ");
     setContraction(`Understood. I'll check with you on ${label} actions until I've re-earned that call.`);
-    window.setTimeout(() => setContraction(null), 8000);
+    if (contractionTimer.current) clearTimeout(contractionTimer.current);
+    contractionTimer.current = setTimeout(() => setContraction(null), 8000);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (contractionTimer.current) clearTimeout(contractionTimer.current);
+    };
   }, []);
 
   const fetchApprovals = useCallback(async () => {
