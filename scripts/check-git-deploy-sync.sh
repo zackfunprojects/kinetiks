@@ -76,10 +76,13 @@ if ! git rev-parse --verify --quiet "@{u}" >/dev/null; then
     echo "❌ Local 'main' has no upstream — refusing to call anything 'deployed'." >&2
     exit 1
   else
-    if [ "$QUIET" -ne 1 ]; then
-      echo "  ! branch '$CURRENT_BRANCH' has no upstream (not yet pushed)" >&2
-      echo "    Run: git push -u origin $CURRENT_BRANCH" >&2
-    fi
+    # Always print the remediation hint, even under --quiet. CR #69
+    # flagged that suppressing it on quiet mode leaves CI failures with
+    # no actionable stderr; downstream callers (health.sh, db-push.sh,
+    # functions-deploy.sh) couldn't tell the user how to recover.
+    echo "" >&2
+    echo "❌ branch '$CURRENT_BRANCH' has no upstream (not yet pushed)." >&2
+    echo "Run: git push -u origin $CURRENT_BRANCH" >&2
     exit 1
   fi
 fi
