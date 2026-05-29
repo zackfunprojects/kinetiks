@@ -9,10 +9,11 @@
 #   1. TypeScript: `pnpm -r type-check`
 #   2. Tests: `pnpm -r test`
 #   3. Edge Function drift: `scripts/functions-drift-check.sh`
-#   4. Vercel deploy state: most recent Production deploy on the
-#      currently-linked project is Ready (not Error / Building)
-#   5. Trust-language: `scripts/check-authority-grant-phrase.sh`
+#   4. Trust-language: `scripts/check-authority-grant-phrase.sh`
 #      (Kinetiks Contract Addendum §2.14)
+#   5. Vercel production deploy state: latest is Ready (not Error/Building)
+#   6. Git ↔ deploy sync: working tree clean + HEAD pushed.
+#      Added after the Phase 5/4.5/7 incident; see CLAUDE.md Lesson 10.
 #
 # Usage:
 #   pnpm health
@@ -28,7 +29,7 @@ done
 ok() { printf "  ✓ %s\n" "$1"; }
 fail() { printf "  ✗ %s\n" "$1" >&2; exit 1; }
 
-echo "[1/5] TypeScript across workspace..."
+echo "[1/6] TypeScript across workspace..."
 if pnpm -r type-check >/tmp/health-tsc.log 2>&1; then
   ok "type-check passed"
 else
@@ -38,7 +39,7 @@ else
 fi
 
 if [ "$SKIP_TESTS" -eq 0 ]; then
-  echo "[2/5] Unit tests across workspace..."
+  echo "[2/6] Unit tests across workspace..."
   if pnpm -r test >/tmp/health-test.log 2>&1; then
     ok "tests passed"
   else
@@ -47,10 +48,10 @@ if [ "$SKIP_TESTS" -eq 0 ]; then
     fail "tests failed — see /tmp/health-test.log"
   fi
 else
-  echo "[2/5] Unit tests SKIPPED (--skip-tests)"
+  echo "[2/6] Unit tests SKIPPED (--skip-tests)"
 fi
 
-echo "[3/5] Edge Functions drift..."
+echo "[3/6] Edge Functions drift..."
 if scripts/functions-drift-check.sh --quiet 2>/tmp/health-drift.log; then
   ok "no drift between repo / deployed / scheduled"
 else
@@ -59,7 +60,7 @@ else
   fail "Edge Function drift — run pnpm functions:deploy / extend the schedules migration"
 fi
 
-echo "[4/5] Trust-language check (Authority Grant phrase)..."
+echo "[4/6] Trust-language check (Authority Grant phrase)..."
 if scripts/check-authority-grant-phrase.sh >/tmp/health-trust.log 2>&1; then
   ok "no customer-facing 'Authority Grant' occurrences"
 else
@@ -68,7 +69,7 @@ else
   fail "customer-facing 'Authority Grant' phrase found — see Addendum §2.14"
 fi
 
-echo "[5/5] Vercel production deploy state..."
+echo "[5/6] Vercel production deploy state..."
 if command -v vercel >/dev/null 2>&1; then
   # Most recent Production-environment row. vercel ls writes the table
   # to stderr and the URLs to stdout, so combine both streams.
@@ -86,6 +87,17 @@ if command -v vercel >/dev/null 2>&1; then
   fi
 else
   ok "vercel CLI not installed, skipping (install with \`npm i -g vercel\`)"
+fi
+
+echo "[6/6] Git ↔ deploy sync (CLAUDE.md Lesson 10)..."
+# Catches the Phase 5/4.5/7 incident shape: uncommitted/unpushed code
+# while DB and/or Edge Functions were already pushed to production.
+if bash scripts/check-git-deploy-sync.sh --quiet 2>/tmp/health-git.log; then
+  ok "working tree clean + HEAD pushed to origin"
+else
+  echo "" >&2
+  cat /tmp/health-git.log >&2
+  fail "git ↔ deploy out of sync — commit + push before declaring production-ready"
 fi
 
 echo ""

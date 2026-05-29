@@ -156,8 +156,8 @@ export async function DELETE(request: Request) {
   if (ownErr) return apiError(`Failed to load budget: ${ownErr.message}`, 500);
   if (!owned) return apiError("Budget not found", 404);
 
-  await admin.from("kinetiks_budget_allocations").delete().eq("budget_id", id);
-
+  // Single delete: allocations cascade via the budget_id FK
+  // (ON DELETE CASCADE), so this is atomic — no orphaned-allocation window.
   const { error: delError } = await admin
     .from("kinetiks_budgets")
     .delete()

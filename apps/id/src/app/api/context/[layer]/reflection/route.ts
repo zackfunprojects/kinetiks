@@ -46,7 +46,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   // The Context layers hold the customer's own business identity (not
   // third-party contact PII). Cap the payload so the prompt stays bounded.
-  const summary = JSON.stringify(data).slice(0, 1800);
+  // It's prompt context (never parsed), so mark truncation rather than
+  // emit a silently-malformed JSON fragment.
+  const fullJson = JSON.stringify(data);
+  const summary = fullJson.length > 1800 ? `${fullJson.slice(0, 1800)} …(truncated)` : fullJson;
   const layerName = LAYER_DISPLAY_NAMES[typedLayer];
   const system =
     `You are the user's GTM system reflecting on what you know about their business. ` +
