@@ -20,9 +20,12 @@ export function LayerReflection({ layer }: { layer: ContextLayer }) {
     try {
       const res = await fetch(`/api/context/${layer}/reflection`);
       if (!res.ok) throw new Error("failed");
-      const body = await res.json();
-      const reflection = (body.data?.reflection ?? null) as string | null;
-      if (!reflection) {
+      const body: unknown = await res.json();
+      const reflection =
+        typeof body === "object" && body !== null
+          ? (body as { data?: { reflection?: unknown } }).data?.reflection
+          : undefined;
+      if (typeof reflection !== "string" || reflection.trim() === "") {
         setState("empty");
         return;
       }

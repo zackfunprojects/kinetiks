@@ -175,6 +175,28 @@ export interface LedgerEventDetailMap {
 
   // ── Cartographer ──────────────────────────────────────────
   cartographer_analyze: { layer?: string; field_count?: number };
+  // Phase 4.5 reconciliation: legacy events from early Phase 1
+  // Cartographer development, preserved in production data. Detail
+  // shapes documented from the audit at
+  // docs/operational/phase-4.5-audit-2026-05-27.md.
+  cartographer_crawl: {
+    url: string;
+    success: boolean;
+    timestamp?: string;
+    source_operator?: string;
+    proposals_submitted?: number;
+  };
+  cartographer_calibrate: {
+    choice: "A" | "B";
+    exercise: string;
+    dimension: string;
+    timestamp?: string;
+    adjusted_to: number;
+    adjusted_from: number;
+    proposal_status?: "accepted" | "declined";
+    source_operator?: string;
+    chosen_direction?: "high" | "low";
+  };
 
   // ── Insights ──────────────────────────────────────────────
   insight_applied: { insight_id?: string };
@@ -354,12 +376,29 @@ export interface LedgerEventDetailMap {
   };
   authority_grant_approved: {
     grant_id: string;
-    /** The approval row that recorded the customer decision. */
-    approval_id: string;
+    /**
+     * The approval row that recorded the customer decision. Null for
+     * the Phase 5 default-at-signup path where the customer approves
+     * defaults inline in the onboarding flow and no
+     * `kinetiks_approvals` row is created (the signup gesture itself
+     * is the approval). For every other path — campaign / workflow /
+     * program proposals approved via the Approvals UI, manifest-diff
+     * proposals approved via the Approvals UI — this is non-null and
+     * references the approval row.
+     */
+    approval_id: string | null;
     /** True when the customer edited before approving. */
     edits_applied: boolean;
     /** Plain-language edit categories the customer changed (≤ 8). */
     edit_categories?: string[];
+    /**
+     * Provenance label mirroring `authority_grant_proposed.source_label`.
+     * Phase 5 introduces `"default_at_signup"` (inline signup acceptance)
+     * and `"default_manifest_diff"` (manifest diff cron proposal,
+     * approved later via the Approvals UI). Other paths leave it unset
+     * for backward compatibility with Phase 4 callers.
+     */
+    source_label?: string;
   };
   authority_grant_paused: {
     grant_id: string;
@@ -425,6 +464,109 @@ export interface LedgerEventDetailMap {
     outcome_ref?: string;
   };
   authority_action_escalated: AuthorityActionEscalatedDetail;
+
+  // ── Phase 5: Default Standing Grants (Kinetiks Contract Addendum §2.6) ──
+  // Three events for the default-standing-grants lifecycle that do not
+  // map onto the Phase 4 grant_id-bearing events: rejected and skipped
+  // never produce a grant, and re-proposed pairs alongside a regular
+  // authority_grant_proposed entry to add cooldown provenance.
+  //
+  // PII rules: detail carries provenance keys, app names, and the
+  // prior-rejection timestamp only. No customer notes, no constraint
+  // payloads.
+  authority_default_rejected: {
+    /** Manifest app that declared the rejected default. */
+    default_origin_app: string;
+    /** Stable manifest key of the rejected default. */
+    default_origin_key: string;
+    /**
+     * Where the rejection happened.
+     *   - `default_at_signup`: customer un-checked the default during
+     *     the onboarding Permissions step. No proposal or grant ever
+     *     existed.
+     *   - `default_manifest_diff`: customer explicitly rejected a
+     *     cron-proposed default via the standard Approvals UI. A
+     *     companion `authority_grant_revoked` entry with the same
+     *     grant_id captures the lifecycle side; this entry adds the
+     *     default-flow provenance.
+     */
+    source_label: "default_at_signup" | "default_manifest_diff";
+  };
+  authority_default_skipped: {
+    /** Manifest app whose defaults were skipped. */
+    default_origin_app: string;
+    /** Stable manifest key skipped (one entry per manifest key on Skip). */
+    default_origin_key: string;
+    /** Always `default_at_signup` in v1 — skip only exists on the signup path. */
+    source_label: "default_at_signup";
+  };
+  authority_default_re_proposed: {
+    /** The newly-proposed grant id from the matching `authority_grant_proposed` entry. */
+    grant_id: string;
+    /** Manifest app and key the re-proposal covers. */
+    default_origin_app: string;
+    default_origin_key: string;
+    /**
+     * Timestamp of the customer's most recent prior rejection or skip
+     * for this (app, key). The diff cron uses a 30-day cooldown; this
+     * timestamp shows how long the system waited before asking again.
+     */
+    prior_rejection_at: string;
+    /** The kind of prior decision that triggered the cooldown. */
+    prior_decision: "rejected" | "skipped";
+  };
+
+  // ── Phase 7: Connection lifecycle (Nango Connect end-to-end) ──
+  // Four events for the connect / sync / disconnect lifecycle.
+  // Sync events mirror kinetiks_sync_logs rows so the Marcus
+  // calibration loop and the Cortex history view both consume from
+  // a single source. PII rules per CLAUDE.md: error_message is the
+  // generic surfaced message, never a stack trace or full payload.
+  connection_created: {
+    /** Kinetiks connection row id. */
+    connection_id: string;
+    /** Kinetiks ConnectionProvider value. */
+    provider: string;
+    /** Nango's stable connection id. */
+    nango_connection_id: string;
+    /** Nango integration key (matches provider-config.ts). */
+    nango_provider_config_key: string;
+  };
+  connection_revoked: {
+    connection_id: string;
+    provider: string;
+    nango_connection_id: string | null;
+    /**
+     * Where the revocation originated:
+     *   - `customer_revoked`: explicit disconnect via /api/connections/[id]
+     *   - `provider_revoked`: Nango fired connection.deleted from the
+     *     provider side (e.g. token expired beyond refresh, customer
+     *     revoked in the provider's app, scope changed)
+     *   - `auth_expired`: refresh token chain broke; Nango cannot
+     *     recover without re-auth
+     */
+    revocation_reason: "customer_revoked" | "provider_revoked" | "auth_expired";
+  };
+  connection_sync_completed: {
+    connection_id: string;
+    provider: string;
+    /** Nango sync name that completed (e.g. "twitter-recent-posts"). */
+    sync_name: string;
+    records_added: number;
+    records_updated: number;
+    records_deleted: number;
+    duration_ms: number;
+  };
+  connection_sync_failed: {
+    connection_id: string;
+    provider: string;
+    sync_name: string;
+    /** Coarse error classification: 'rate_limit'|'auth'|'schema'|'network'|'unknown'. */
+    error_class: string;
+    /** Generic, customer-safe message — never a stack trace. */
+    error_message: string;
+    duration_ms: number;
+  };
 }
 
 /** Canonical revocation reasons recorded on `authority_grant_revoked`. */

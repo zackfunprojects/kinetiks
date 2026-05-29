@@ -94,6 +94,92 @@ export async function fetchRecordsPage<T = Record<string, unknown>>(
   };
 }
 
+// ─── Connect session ──────────────────────────────────────
+
+export interface CreateConnectSessionInput {
+  end_user: {
+    id: string;
+    /** Customer-visible name shown in the Connect modal. Optional. */
+    display_name?: string;
+    /** Customer email. Optional but Nango uses it to seed OAuth forms. */
+    email?: string;
+  };
+  /** Lock the modal to one integration (the provider the customer picked). */
+  allowed_integrations: string[];
+}
+
+export interface ConnectSession {
+  token: string;
+  expires_at: string;
+}
+
+/**
+ * Mint a Connect session token for the frontend's `nango.openConnectUI()`.
+ * One-shot, 30-minute TTL by default (Nango-controlled). The token is
+ * scoped to a single Kinetiks end_user.id; OAuth completion fires the
+ * `connection.created` webhook for that end_user.
+ */
+export async function createConnectSession(
+  input: CreateConnectSessionInput,
+): Promise<ConnectSession> {
+  const client = getNangoClient();
+  const result = (await (client as unknown as {
+    createConnectSession: (i: unknown) => Promise<{
+      data: { token: string; expires_at: string };
+    }>;
+  }).createConnectSession({
+    end_user: input.end_user,
+    allowed_integrations: input.allowed_integrations,
+  }));
+  return {
+    token: result.data.token,
+    expires_at: result.data.expires_at,
+  };
+}
+
+// ─── Connection lifecycle ─────────────────────────────────
+
+export interface DeleteConnectionInput {
+  connection_id: string;
+  provider_config_key: string;
+}
+
+/**
+ * Revoke a Nango connection. Nango cancels in-flight syncs, calls
+ * the provider's revoke endpoint (where available), and fires a
+ * `connection.deleted` webhook for our records. Idempotent at the
+ * Nango layer: a second call for an already-deleted connection
+ * returns success.
+ */
+export async function deleteConnection(input: DeleteConnectionInput): Promise<void> {
+  const client = getNangoClient();
+  await client.deleteConnection(input.connection_id, input.provider_config_key);
+}
+
+// ─── Sync trigger ─────────────────────────────────────────
+
+export interface TriggerSyncInput {
+  connection_id: string;
+  provider_config_key: string;
+  /** Sync names declared on the Nango integration. */
+  sync_names: string[];
+}
+
+/**
+ * Kick off an immediate run of one or more syncs on a connection.
+ * Nango queues the run and the sync webhook fires on completion.
+ * Used after `connection.created` to populate data quickly rather
+ * than waiting for the next scheduled run.
+ */
+export async function triggerSync(input: TriggerSyncInput): Promise<void> {
+  const client = getNangoClient();
+  await client.triggerSync(
+    input.provider_config_key,
+    input.sync_names,
+    input.connection_id,
+  );
+}
+
 /**
  * Iterate every page for a sync, calling onPage with each batch. Caller
  * is responsible for writing records to the DB; this just orchestrates

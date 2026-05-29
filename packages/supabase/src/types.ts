@@ -1572,36 +1572,42 @@ export type Database = {
       }
       kinetiks_accounts: {
         Row: {
+          authority_defaults_reviewed_at: string | null
           codename: string
           created_at: string | null
           display_name: string | null
           from_app: string | null
           id: string
           kinetiks_connected: boolean | null
+          nango_end_user_id: string | null
           onboarding_complete: boolean | null
           system_name: string | null
           updated_at: string | null
           user_id: string
         }
         Insert: {
+          authority_defaults_reviewed_at?: string | null
           codename: string
           created_at?: string | null
           display_name?: string | null
           from_app?: string | null
           id?: string
           kinetiks_connected?: boolean | null
+          nango_end_user_id?: string | null
           onboarding_complete?: boolean | null
           system_name?: string | null
           updated_at?: string | null
           user_id: string
         }
         Update: {
+          authority_defaults_reviewed_at?: string | null
           codename?: string
           created_at?: string | null
           display_name?: string | null
           from_app?: string | null
           id?: string
           kinetiks_connected?: boolean | null
+          nango_end_user_id?: string | null
           onboarding_complete?: boolean | null
           system_name?: string | null
           updated_at?: string | null
@@ -2034,6 +2040,105 @@ export type Database = {
             columns: ["account_id"]
             isOneToOne: false
             referencedRelation: "kinetiks_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      kinetiks_authority_grants: {
+        Row: {
+          account_id: string
+          created_at: string
+          default_origin_app: string | null
+          default_origin_key: string | null
+          escalation_triggers: Json
+          expires_at: string | null
+          granted_at: string | null
+          granted_by: string
+          granted_capabilities: Json
+          id: string
+          max_unapproved_spend_per_action: number | null
+          max_unapproved_spend_per_day: number | null
+          parent_grant_id: string | null
+          proposed_at: string
+          proposed_by_agent: string | null
+          revocation_reason: string | null
+          revoked_at: string | null
+          scope_description: string
+          scope_id: string | null
+          scope_type: string
+          spending_currency: string
+          status: string
+          team_scope_id: string | null
+          updated_at: string
+          usage_summary: Json
+        }
+        Insert: {
+          account_id: string
+          created_at?: string
+          default_origin_app?: string | null
+          default_origin_key?: string | null
+          escalation_triggers?: Json
+          expires_at?: string | null
+          granted_at?: string | null
+          granted_by: string
+          granted_capabilities: Json
+          id?: string
+          max_unapproved_spend_per_action?: number | null
+          max_unapproved_spend_per_day?: number | null
+          parent_grant_id?: string | null
+          proposed_at?: string
+          proposed_by_agent?: string | null
+          revocation_reason?: string | null
+          revoked_at?: string | null
+          scope_description: string
+          scope_id?: string | null
+          scope_type: string
+          spending_currency?: string
+          status?: string
+          team_scope_id?: string | null
+          updated_at?: string
+          usage_summary?: Json
+        }
+        Update: {
+          account_id?: string
+          created_at?: string
+          default_origin_app?: string | null
+          default_origin_key?: string | null
+          escalation_triggers?: Json
+          expires_at?: string | null
+          granted_at?: string | null
+          granted_by?: string
+          granted_capabilities?: Json
+          id?: string
+          max_unapproved_spend_per_action?: number | null
+          max_unapproved_spend_per_day?: number | null
+          parent_grant_id?: string | null
+          proposed_at?: string
+          proposed_by_agent?: string | null
+          revocation_reason?: string | null
+          revoked_at?: string | null
+          scope_description?: string
+          scope_id?: string | null
+          scope_type?: string
+          spending_currency?: string
+          status?: string
+          team_scope_id?: string | null
+          updated_at?: string
+          usage_summary?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kinetiks_authority_grants_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "kinetiks_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "kinetiks_authority_grants_parent_grant_id_fkey"
+            columns: ["parent_grant_id"]
+            isOneToOne: false
+            referencedRelation: "kinetiks_authority_grants"
             referencedColumns: ["id"]
           },
         ]
@@ -3088,6 +3193,7 @@ export type Database = {
           created_at: string | null
           detail: Json
           event_type: string
+          grant_id: string | null
           id: string
           source_app: string | null
           source_operator: string | null
@@ -3098,6 +3204,7 @@ export type Database = {
           created_at?: string | null
           detail: Json
           event_type: string
+          grant_id?: string | null
           id?: string
           source_app?: string | null
           source_operator?: string | null
@@ -3108,6 +3215,7 @@ export type Database = {
           created_at?: string | null
           detail?: Json
           event_type?: string
+          grant_id?: string | null
           id?: string
           source_app?: string | null
           source_operator?: string | null
@@ -3119,6 +3227,13 @@ export type Database = {
             columns: ["account_id"]
             isOneToOne: false
             referencedRelation: "kinetiks_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "kinetiks_ledger_grant_id_fkey"
+            columns: ["grant_id"]
+            isOneToOne: false
+            referencedRelation: "kinetiks_authority_grants"
             referencedColumns: ["id"]
           },
         ]
@@ -3993,6 +4108,59 @@ export type Database = {
           },
         ]
       }
+      kinetiks_social_posts: {
+        Row: {
+          account_id: string
+          content_summary: string | null
+          created_at: string
+          engagement: Json
+          id: string
+          metadata: Json
+          observed_at: string
+          posted_at: string
+          provider_post_id: string
+          source: string
+          team_scope_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          account_id: string
+          content_summary?: string | null
+          created_at?: string
+          engagement?: Json
+          id?: string
+          metadata?: Json
+          observed_at?: string
+          posted_at: string
+          provider_post_id: string
+          source: string
+          team_scope_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          account_id?: string
+          content_summary?: string | null
+          created_at?: string
+          engagement?: Json
+          id?: string
+          metadata?: Json
+          observed_at?: string
+          posted_at?: string
+          provider_post_id?: string
+          source?: string
+          team_scope_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kinetiks_social_posts_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "kinetiks_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       kinetiks_synapses: {
         Row: {
           account_id: string
@@ -4490,12 +4658,37 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      _kt_apply_pattern_decay_calibration: {
+        Args: {
+          p_account_id: string
+          p_ledger_detail: Json
+          p_next_decay_at: string
+          p_next_effective_decay_days: number
+          p_pattern_id: string
+          p_prior_effective_decay_days: number
+          p_prior_updated_at: string
+        }
+        Returns: Json
+      }
       _kt_release_advisory_lock: { Args: { p_key: string }; Returns: boolean }
       _kt_schedule_edge_function: {
         Args: { p_cron: string; p_function_slug: string; p_name: string }
         Returns: undefined
       }
       _kt_try_advisory_lock: { Args: { p_key: string }; Returns: boolean }
+      accept_default_standing_grants: {
+        Args: {
+          p_account_id: string
+          p_granted_by: string
+          p_proposals: Json
+          p_proposed_by_agent: string
+        }
+        Returns: {
+          default_origin_app: string
+          default_origin_key: string
+          grant_id: string
+        }[]
+      }
       hv_check_suppression: {
         Args: { p_email?: string; p_kinetiks_id: string; p_phone?: string }
         Returns: boolean
@@ -4511,6 +4704,18 @@ export type Database = {
           p_window_type: string
         }
         Returns: number
+      }
+      propose_authority_grants: {
+        Args: {
+          p_account_id: string
+          p_granted_by: string
+          p_proposals: Json
+          p_proposed_by_agent: string
+        }
+        Returns: {
+          approval_id: string
+          grant_id: string
+        }[]
       }
     }
     Enums: {

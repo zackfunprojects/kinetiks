@@ -14,9 +14,11 @@ A typed discriminated union per event type would tighten the contract. Cost: eve
 
 Decision deferred. Open for a separate structural improvement phase.
 
-### DB CHECK constraint on `kinetiks_ledger.event_type`
+### DB CHECK constraint on `kinetiks_ledger.event_type` — RESOLVED (Phase 4.5, 2026-05-27)
 
-The column is currently unconstrained. Tightening it to match the TS union would require auditing every Edge Function and worker that writes Ledger rows. Worth doing eventually; not Phase 1 scope.
+The CHECK constraint `kinetiks_ledger_event_type_valid` is now fully validated against all rows. Audit at `docs/operational/phase-4.5-audit-2026-05-27.md` found 11 distinct event_types in production (146 rows); 9 were canonical and 2 (`cartographer_crawl`, `cartographer_calibrate`) were legacy from early Phase 1 Cartographer development. Both legacy types were preserved by adding them to the union (real events with stable detail shapes, not typos). Migrations 00061 (reconcile) and 00062 (VALIDATE CONSTRAINT) closed the NOT VALID debt that had accumulated across Phases 1.5, 2, 4, and 5. The probe at the end of the audit confirmed the validated constraint rejects deliberately-invalid event_types at INSERT time.
+
+`LedgerEventDetailMap` in `packages/types/src/billing.ts` was extended with the two new keys so the TS-side and DB-side unions match exactly.
 
 ### Confidence formula constants
 
@@ -131,12 +133,14 @@ follow-up pass should:
 Until step 3, the DB-layer guarantee is "future writes only." Codebase
 writes already conform to the union (commit "feat(types+tools)" audit).
 
-**Status (open — scheduled as Phase 4.5, renamed from Phase 2.5).**
-The follow-up pass is tracked in
-`docs/build-phases/upcoming/phase-4.5-ledger-check-validate.md`.
-Phases 1.5, 2, and 4 each add new event types to the union; Phase
-4.5 runs after the last of those (Phase 4 + 5) lands so the
-`VALIDATE` pass clears every type in one shot.
+**Status — RESOLVED (Phase 4.5, 2026-05-27).** Migrations 00061
+(reconcile + drop/recreate union to include the two legacy
+`cartographer_*` types found in production) and 00062 (`ALTER TABLE
+kinetiks_ledger VALIDATE CONSTRAINT kinetiks_ledger_event_type_valid`)
+shipped together. The phase plan moved to
+`docs/build-phases/built/phase-4.5-ledger-check-validate.md`. The
+NOT VALID caveat above no longer applies — the constraint enforces
+against ALL rows, not just future writes.
 
 ### Confidence formula constants — HELD; measurable against fixtures
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Card, Sparkline, AsyncSection } from "@kinetiks/ui";
 import { getMetricDefinition } from "@/lib/oracle/metric-schema";
 
@@ -41,8 +41,12 @@ export function AppPerformance({ days }: AppPerformanceProps) {
   const [rows, setRows] = useState<MetricRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Monotonic guard: when `days` changes quickly, ignore stale responses so an
+  // older range can't overwrite a newer one.
+  const requestSeq = useRef(0);
 
   const load = useCallback(() => {
+    const seq = ++requestSeq.current;
     setLoading(true);
     setError(null);
     fetch(`/api/oracle/metrics?days=${days}`)
@@ -50,19 +54,30 @@ export function AppPerformance({ days }: AppPerformanceProps) {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json();
       })
-      .then((data) => setRows((data.data?.metrics ?? []) as MetricRow[]))
-      .catch((err) => setError(err instanceof Error ? err.message : "Failed to load metrics"))
-      .finally(() => setLoading(false));
+      .then((data) => {
+        if (seq !== requestSeq.current) return;
+        setRows((data.data?.metrics ?? []) as MetricRow[]);
+      })
+      .catch((err) => {
+        if (seq !== requestSeq.current) return;
+        setError(err instanceof Error ? err.message : "Failed to load metrics");
+      })
+      .finally(() => {
+        if (seq === requestSeq.current) setLoading(false);
+      });
   }, [days]);
 
   useEffect(() => {
     load();
   }, [load]);
 
-  // Group rows (already period-ordered) into app -> metric_key -> value series.
+  // Group rows into app -> metric_key -> value series. Sort by period_start
+  // first so sparklines and the "latest" value are correct regardless of API
+  // ordering.
   const byApp = useMemo(() => {
     const out: Record<string, Record<string, number[]>> = {};
-    for (const r of rows) {
+    const ordered = [...rows].sort((a, b) => a.period_start.localeCompare(b.period_start));
+    for (const r of ordered) {
       (out[r.source_app] ??= {});
       (out[r.source_app][r.metric_key] ??= []).push(r.metric_value);
     }

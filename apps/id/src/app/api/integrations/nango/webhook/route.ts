@@ -33,6 +33,7 @@ import {
 } from "@/lib/integrations/nango/webhook-verify";
 import { NangoWebhookSchema } from "@/lib/integrations/nango/types";
 import { dispatchNangoSyncWebhook } from "@/lib/integrations/nango/handlers";
+import { handleNangoAuthEvent } from "@/lib/integrations/nango/handlers/auth";
 import {
   isRecentReplay,
   writeSyncLog,
@@ -98,10 +99,16 @@ export async function POST(request: Request) {
   }
   const webhook = result.data;
 
-  // 4. Auth and forward events are observed but not processed in D2.
+  // 4. Phase 7: auth events drive connection lifecycle (creation /
+  // deletion). Refresh is a no-op; override is idempotent upsert.
   if (webhook.type === "auth") {
-    // TODO(D2 follow-up): update kinetiks_connections.status on auth events.
-    return NextResponse.json({ ok: true, status: "auth_event" });
+    const adminAuth = createAdminClient();
+    const result = await handleNangoAuthEvent({
+      admin: adminAuth,
+      webhook,
+      arrivedAt: new Date(),
+    });
+    return NextResponse.json({ ok: true, status: "auth_event", ...result });
   }
   if (webhook.type === "forward") {
     return NextResponse.json({ ok: true, status: "forward_event" });
@@ -166,6 +173,26 @@ export async function POST(request: Request) {
       arrivedAt,
       providerCompletedAt: webhook.endedAt ? new Date(webhook.endedAt) : null,
     });
+    // Phase 7: Ledger mirror so the Marcus calibration loop sees
+    // connection-side failures in the same audit trail as everything
+    // else. PII-safe: failureReason is Nango's high-level message,
+    // never a stack or full payload.
+    await admin.from("kinetiks_ledger").insert({
+      account_id: connection.account_id,
+      event_type: "connection_sync_failed",
+      source_app: "kinetiks_id",
+      source_operator: "nango.webhook.sync",
+      detail: {
+        connection_id: connection.id,
+        provider: connection.provider,
+        sync_name: webhook.syncName,
+        error_class: "nango_sync_failed",
+        error_message: webhook.failureReason ?? "Nango reported sync failure.",
+        duration_ms: 0,
+      },
+    }).then(() => {}, (err) => {
+      console.error(`[nango/webhook] ledger emit (sync_failed) failed: ${err instanceof Error ? err.message : String(err)}`);
+    });
     return NextResponse.json({ ok: true, status: "processed" });
   }
 
@@ -195,6 +222,45 @@ export async function POST(request: Request) {
     arrivedAt,
     providerCompletedAt: webhook.endedAt ? new Date(webhook.endedAt) : null,
   });
+
+  // Phase 7: emit a Ledger mirror per sync run so Marcus and the
+  // Cortex history view consume from a unified audit trail. We only
+  // emit for handler-dispatched outcomes (succeeded / partial /
+  // failed); skipped-with-no-handler is already noisy in sync_logs
+  // and not Ledger-worthy.
+  if (
+    handlerResult.status === "succeeded" ||
+    handlerResult.status === "partial" ||
+    handlerResult.status === "failed"
+  ) {
+    const isFailure = handlerResult.status === "failed";
+    await admin.from("kinetiks_ledger").insert({
+      account_id: connection.account_id,
+      event_type: isFailure ? "connection_sync_failed" : "connection_sync_completed",
+      source_app: "kinetiks_id",
+      source_operator: "nango.webhook.sync",
+      detail: isFailure
+        ? {
+            connection_id: connection.id,
+            provider: connection.provider,
+            sync_name: webhook.syncName,
+            error_class: handlerResult.errorClass ?? "unknown",
+            error_message: handlerResult.errorMessage ?? "Sync handler reported failure.",
+            duration_ms: durationMs,
+          }
+        : {
+            connection_id: connection.id,
+            provider: connection.provider,
+            sync_name: webhook.syncName,
+            records_added: handlerResult.recordsAdded,
+            records_updated: handlerResult.recordsUpdated,
+            records_deleted: handlerResult.recordsDeleted,
+            duration_ms: durationMs,
+          },
+    }).then(() => {}, (err) => {
+      console.error(`[nango/webhook] ledger emit (sync_${isFailure ? "failed" : "completed"}) failed: ${err instanceof Error ? err.message : String(err)}`);
+    });
+  }
 
   const responseStatus =
     handlerResult.status === "skipped" && handlerResult.errorClass === "no_handler_registered"

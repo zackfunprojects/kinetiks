@@ -1,7 +1,8 @@
 "use client";
 
 import type { ExtractedAction } from "@kinetiks/types";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { Button } from "@kinetiks/ui";
 
 interface MessageBubbleProps {
   role: "user" | "marcus";
@@ -20,13 +21,21 @@ export function MessageBubble({
 }: MessageBubbleProps) {
   const [showActions, setShowActions] = useState(false);
   const [copied, setCopied] = useState(false);
+  const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isUser = role === "user";
+
+  useEffect(() => {
+    return () => {
+      if (copyTimer.current) clearTimeout(copyTimer.current);
+    };
+  }, []);
 
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(content);
       setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
+      if (copyTimer.current) clearTimeout(copyTimer.current);
+      copyTimer.current = setTimeout(() => setCopied(false), 1500);
     } catch {
       // Clipboard unavailable; no-op.
     }
@@ -142,21 +151,9 @@ export function MessageBubble({
             </span>
           )}
           {!isUser && !isStreaming && content ? (
-            <button
-              type="button"
-              onClick={handleCopy}
-              aria-label="Copy message"
-              style={{
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                fontSize: "var(--kt-fs-11)",
-                color: "var(--kt-fg-3)",
-                padding: 0,
-              }}
-            >
+            <Button variant="ghost" size="sm" onClick={handleCopy} aria-label="Copy message">
               {copied ? "Copied" : "Copy"}
-            </button>
+            </Button>
           ) : null}
         </div>
       </div>
