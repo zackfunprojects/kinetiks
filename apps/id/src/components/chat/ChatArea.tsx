@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { MarcusMessage } from "@kinetiks/types";
 import { MessageBubble } from "./MessageBubble";
 import { filterSlashCommands, type AppCommand } from "@/lib/commands/registry";
@@ -31,14 +31,18 @@ export function ChatArea({
   systemName,
 }: ChatAreaProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingText, setStreamingText] = useState("");
+  // Once the customer engages (types or sends), starter chips stay dismissed
+  // even if the composer is later cleared.
+  const [hasTyped, setHasTyped] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const draftApplied = useRef(false);
+  const lastAppliedDraft = useRef<string | null>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -53,23 +57,27 @@ export function ChatArea({
   }, []);
 
   // Pre-fill the composer from ?draft= (command palette / insight "act on this").
-  // The customer reviews before sending; we never auto-send.
+  // The customer reviews before sending; we never auto-send. Re-applies whenever
+  // the draft value changes (e.g. acting on a second insight while mounted), and
+  // strips only the `draft` param so other query params survive.
   useEffect(() => {
-    if (draftApplied.current) return;
     const draft = searchParams.get("draft");
-    if (draft) {
-      draftApplied.current = true;
-      setInput(draft);
-      router.replace(window.location.pathname);
-      requestAnimationFrame(() => textareaRef.current?.focus());
-    }
-  }, [searchParams, router]);
+    if (!draft || draft === lastAppliedDraft.current) return;
+    lastAppliedDraft.current = draft;
+    setInput(draft);
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("draft");
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname);
+    requestAnimationFrame(() => textareaRef.current?.focus());
+  }, [pathname, router, searchParams]);
 
   const handleSend = useCallback(
     async (override?: string) => {
       const message = (override ?? input).trim();
       if (!message || isStreaming) return;
 
+      setHasTyped(true);
       setInput("");
       setIsStreaming(true);
       setStreamingText("");
@@ -108,6 +116,31 @@ export function ChatArea({
         let threadId: string = currentThreadId ?? "";
         let lineBuffer = "";
 
+        // Shared so the trailing (newline-less) buffer runs the same logic and
+        // doesn't drop a final thread_id / extraction / error event.
+        const applyEvent = (jsonStr: string) => {
+          try {
+            const event = JSON.parse(jsonStr);
+            if (event.type === "thread_id") {
+              threadId = event.thread_id;
+              if (!currentThreadId) onThreadCreated(threadId);
+            } else if (event.type === "text") {
+              fullText += event.text;
+              setStreamingText(fullText);
+            } else if (event.type === "extraction") {
+              if (event.disclosure) {
+                fullText += `\n\n---\n${event.disclosure}`;
+                setStreamingText(fullText);
+              }
+            } else if (event.type === "error") {
+              fullText += `\n\n[Error: ${event.error}]`;
+              setStreamingText(fullText);
+            }
+          } catch {
+            // Skip malformed SSE events
+          }
+        };
+
         try {
           while (true) {
             const { done, value } = await reader.read();
@@ -120,41 +153,13 @@ export function ChatArea({
             for (const line of lines) {
               if (!line.startsWith("data: ")) continue;
               const jsonStr = line.slice(6).trim();
-              if (!jsonStr) continue;
-
-              try {
-                const event = JSON.parse(jsonStr);
-                if (event.type === "thread_id") {
-                  threadId = event.thread_id;
-                  if (!currentThreadId) onThreadCreated(threadId);
-                } else if (event.type === "text") {
-                  fullText += event.text;
-                  setStreamingText(fullText);
-                } else if (event.type === "extraction") {
-                  if (event.disclosure) {
-                    fullText += `\n\n---\n${event.disclosure}`;
-                    setStreamingText(fullText);
-                  }
-                } else if (event.type === "error") {
-                  fullText += `\n\n[Error: ${event.error}]`;
-                  setStreamingText(fullText);
-                }
-              } catch {
-                // Skip malformed SSE events
-              }
+              if (jsonStr) applyEvent(jsonStr);
             }
           }
 
           if (lineBuffer.startsWith("data: ")) {
             const jsonStr = lineBuffer.slice(6).trim();
-            if (jsonStr) {
-              try {
-                const event = JSON.parse(jsonStr);
-                if (event.type === "text") fullText += event.text;
-              } catch {
-                // Skip
-              }
-            }
+            if (jsonStr) applyEvent(jsonStr);
           }
         } finally {
           reader.releaseLock();
@@ -228,7 +233,7 @@ export function ChatArea({
   };
 
   const displayName = systemName || "your system";
-  const showChips = !input.trim() && !isStreaming;
+  const showChips = !hasTyped && !input.trim() && !isStreaming;
 
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", backgroundColor: "var(--kt-bg-base)", height: "100%" }}>
@@ -340,7 +345,10 @@ export function ChatArea({
             <textarea
               ref={textareaRef}
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={(e) => {
+                setInput(e.target.value);
+                setHasTyped(true);
+              }}
               onKeyDown={handleKeyDown}
               placeholder={`Message ${displayName}, or type /`}
               aria-label={`Message ${displayName}`}

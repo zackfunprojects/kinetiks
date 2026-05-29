@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
+import { Input } from "@kinetiks/ui";
 import { filterCommands, type AppCommand } from "@/lib/commands/registry";
 
 interface CommandPaletteProps {
@@ -80,25 +81,16 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
           overflow: "hidden",
         }}
       >
-        <input
-          ref={inputRef}
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={onKeyDown}
-          placeholder="Search commands, or type / for quick actions"
-          aria-label="Search commands"
-          style={{
-            width: "100%",
-            border: "none",
-            borderBottom: "1px solid var(--kt-border-1)",
-            background: "transparent",
-            color: "var(--kt-fg-1)",
-            fontSize: "var(--kt-fs-15)",
-            padding: "var(--kt-s-4)",
-            outline: "none",
-            boxSizing: "border-box",
-          }}
-        />
+        <div style={{ padding: "var(--kt-s-3)", borderBottom: "1px solid var(--kt-border-1)" }}>
+          <Input
+            ref={inputRef}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={onKeyDown}
+            placeholder="Search commands, or type / for quick actions"
+            aria-label="Search commands"
+          />
+        </div>
         <ul role="listbox" style={{ listStyle: "none", margin: 0, padding: "var(--kt-s-1)", maxHeight: 360, overflowY: "auto" }}>
           {results.length === 0 ? (
             <li className="kt-small" style={{ padding: "var(--kt-s-3)" }}>No matching commands.</li>
