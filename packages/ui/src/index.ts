@@ -45,3 +45,32 @@ export type { AvatarProps, AvatarSize } from "./avatar";
 
 export { ThemeProvider, useTheme } from "./theme";
 export type { Theme, ThemeProviderProps } from "./theme";
+
+export { ThemeToggle } from "./theme-toggle";
+export type { ThemeToggleProps } from "./theme-toggle";
+
+// Data-viz primitives (geometry from @kinetiks/lib/chart-math)
+export { Sparkline } from "./sparkline";
+export type { SparklineProps } from "./sparkline";
+
+export { TrendChart } from "./trend-chart";
+export type { TrendChartProps } from "./trend-chart";
+
+export { MiniBars } from "./mini-bars";
+export type { MiniBarsProps } from "./mini-bars";
+
+export { ProgressBar } from "./progress-bar";
+export type { ProgressBarProps, ProgressTone } from "./progress-bar";
+
+export { Stat } from "./stat";
+export type { StatProps } from "./stat";
+
+export { StatusPill } from "./status-pill";
+export type { StatusPillProps } from "./status-pill";
+
+// State primitives
+export { ErrorState } from "./error-state";
+export type { ErrorStateProps } from "./error-state";
+
+export { AsyncSection } from "./async-section";
+export type { AsyncSectionProps } from "./async-section";

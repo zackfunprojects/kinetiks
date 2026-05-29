@@ -298,6 +298,57 @@
   animation: kt-skeleton-shimmer 1.6s infinite var(--kt-ease-linear);
 }
 
+/* ─── Icon button ───────────────────────────────────────────── */
+
+.kt-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--kt-radius-1);
+  background: transparent;
+  color: var(--kt-fg-2);
+  cursor: pointer;
+  transition:
+    background-color var(--kt-dur-1) var(--kt-ease-standard),
+    color           var(--kt-dur-1) var(--kt-ease-standard);
+}
+.kt-icon-btn:hover { background-color: var(--kt-bg-muted); color: var(--kt-fg-1); }
+
+/* ─── Status dot (pairs with a text label inside a Pill) ─────── */
+
+.kt-status-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--kt-radius-full);
+  background-color: currentColor;
+}
+
+/* ─── Progress bar ──────────────────────────────────────────── */
+
+.kt-progress {
+  position: relative;
+  width: 100%;
+  background-color: var(--kt-bg-muted);
+  border-radius: var(--kt-radius-full);
+  overflow: hidden;
+}
+.kt-progress__fill {
+  height: 100%;
+  transition: width var(--kt-dur-3) var(--kt-ease-standard);
+}
+.kt-progress__tick {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background-color: var(--kt-fg-2);
+}
+
 /* ─── Avatar ────────────────────────────────────────────────── */
 
 .kt-avatar {
