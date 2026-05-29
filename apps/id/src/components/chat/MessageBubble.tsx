@@ -1,7 +1,8 @@
 "use client";
 
 import type { ExtractedAction } from "@kinetiks/types";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { Button } from "@kinetiks/ui";
 
 interface MessageBubbleProps {
   role: "user" | "marcus";
@@ -19,7 +20,26 @@ export function MessageBubble({
   isStreaming,
 }: MessageBubbleProps) {
   const [showActions, setShowActions] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isUser = role === "user";
+
+  useEffect(() => {
+    return () => {
+      if (copyTimer.current) clearTimeout(copyTimer.current);
+    };
+  }, []);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopied(true);
+      if (copyTimer.current) clearTimeout(copyTimer.current);
+      copyTimer.current = setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Clipboard unavailable; no-op.
+    }
+  };
 
   return (
     <div
@@ -110,23 +130,32 @@ export function MessageBubble({
           </div>
         )}
 
-        {timestamp && (
-          <div
-            style={{
-              fontSize: 11,
-              fontFamily: "var(--font-mono), monospace",
-              color: isUser ? "var(--kt-fg-on-inverse)" : "var(--kt-fg-3)",
-              opacity: isUser ? 0.6 : 1,
-              marginTop: 4,
-              textAlign: isUser ? "right" : "left",
-            }}
-          >
-            {new Date(timestamp).toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
-          </div>
-        )}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "var(--kt-s-2)",
+            marginTop: 4,
+            justifyContent: isUser ? "flex-end" : "flex-start",
+          }}
+        >
+          {timestamp && (
+            <span
+              className="kt-data-inline"
+              style={{
+                color: isUser ? "var(--kt-fg-on-inverse)" : "var(--kt-fg-3)",
+                opacity: isUser ? 0.6 : 1,
+              }}
+            >
+              {new Date(timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+            </span>
+          )}
+          {!isUser && !isStreaming && content ? (
+            <Button variant="ghost" size="sm" onClick={handleCopy} aria-label="Copy message">
+              {copied ? "Copied" : "Copy"}
+            </Button>
+          ) : null}
+        </div>
       </div>
     </div>
   );
