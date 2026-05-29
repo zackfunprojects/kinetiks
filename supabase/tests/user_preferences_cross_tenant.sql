@@ -38,25 +38,28 @@ SELECT is_empty(
   'alice cannot read bob''s preferences row'
 );
 
--- Alice inserts her own
-SELECT lives_ok(
-  $$ INSERT INTO kinetiks_user_preferences (user_id, theme) VALUES ('11111111-1111-1111-1111-111111111111', 'dark') $$,
-  'alice can insert her own preferences row'
-);
-
--- Default theme is 'light' — overwrite Alice's row to confirm default
-SELECT lives_ok(
-  $$ DELETE FROM kinetiks_user_preferences WHERE user_id = '11111111-1111-1111-1111-111111111111' $$,
-  'alice can delete her own row (cascade target)'
-);
+-- Alice inserts her own row with the default theme (no theme given).
+-- (Note: user_preferences has no user DELETE policy by design, so the
+-- default is verified on a fresh insert rather than a delete+reinsert.)
 SELECT lives_ok(
   $$ INSERT INTO kinetiks_user_preferences (user_id) VALUES ('11111111-1111-1111-1111-111111111111') $$,
-  'alice can insert with default theme'
+  'alice can insert her own preferences row'
 );
 SELECT is(
   (SELECT theme FROM kinetiks_user_preferences WHERE user_id = '11111111-1111-1111-1111-111111111111'),
   'light',
   'default theme is light'
+);
+
+-- Alice updates her own theme.
+SELECT lives_ok(
+  $$ UPDATE kinetiks_user_preferences SET theme = 'dark' WHERE user_id = '11111111-1111-1111-1111-111111111111' $$,
+  'alice can update her own preferences row'
+);
+SELECT is(
+  (SELECT theme FROM kinetiks_user_preferences WHERE user_id = '11111111-1111-1111-1111-111111111111'),
+  'dark',
+  'alice''s theme updates to dark'
 );
 
 -- Alice tries to update Bob's row — RLS filters it out (no rows affected)
