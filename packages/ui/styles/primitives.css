@@ -325,7 +325,7 @@
   width: 6px;
   height: 6px;
   border-radius: var(--kt-radius-full);
-  background-color: currentColor;
+  background-color: currentcolor;
 }
 
 /* ─── Progress bar ──────────────────────────────────────────── */

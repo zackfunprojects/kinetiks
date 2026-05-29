@@ -109,5 +109,8 @@ export function barRects(values: number[], width: number, height: number, gap = 
 
 /** Clamp a 0..1 fraction to a 0..100 percentage for CSS widths/offsets. */
 export function fractionToPercent(fraction: number): number {
+  // NaN slips through Math.min/Math.max and would surface as width:"NaN%"
+  // and aria-valuenow="NaN" in ProgressBar; treat it as 0.
+  if (Number.isNaN(fraction)) return 0;
   return round(Math.min(100, Math.max(0, fraction * 100)));
 }

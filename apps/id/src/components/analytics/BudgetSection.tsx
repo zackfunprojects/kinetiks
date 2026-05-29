@@ -4,8 +4,14 @@ import { useState, useEffect, useCallback } from "react";
 import { Card, ProgressBar, StatusPill, AsyncSection } from "@kinetiks/ui";
 import type { BudgetPacing } from "@/lib/oracle/budget-tracker";
 
+const USD_FORMATTER = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  maximumFractionDigits: 2,
+});
+
 function usd(n: number): string {
-  return `$${Math.round(n).toLocaleString()}`;
+  return USD_FORMATTER.format(n);
 }
 
 export function BudgetSection() {
