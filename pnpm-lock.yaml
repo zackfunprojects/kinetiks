@@ -21,6 +21,9 @@ importers:
         specifier: ^6.1.7
         version: 6.8.3
     devDependencies:
+      '@kinetiks/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       electron:
         specifier: ^28.1.0
         version: 28.3.3

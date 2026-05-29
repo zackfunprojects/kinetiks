@@ -195,3 +195,8 @@ export type {
   ReviewRequest,
   ReviewResponse,
 } from "./sentinel";
+export type {
+  KinetiksDesktopBridge,
+  DesktopPlatform,
+  DesktopNotification,
+} from "./desktop";
