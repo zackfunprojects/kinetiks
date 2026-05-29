@@ -36,6 +36,10 @@
     "./pii": {
       "types": "./src/pii.ts",
       "default": "./src/pii.ts"
+    },
+    "./chart-math": {
+      "types": "./src/chart-math.ts",
+      "default": "./src/chart-math.ts"
     }
   },
   "scripts": {

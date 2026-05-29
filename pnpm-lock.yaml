@@ -415,6 +415,9 @@ importers:
 
   packages/ui:
     dependencies:
+      '@kinetiks/lib':
+        specifier: workspace:*
+        version: link:../lib
       clsx:
         specifier: ^2.1.1
         version: 2.1.1

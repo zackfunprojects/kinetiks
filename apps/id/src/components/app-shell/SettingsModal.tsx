@@ -6,12 +6,13 @@ import { SettingsNav } from "./SettingsNav";
 import { useState } from "react";
 import type { AppAccount } from "./AppShell";
 import { AccountSettings } from "@/components/settings/AccountSettings";
+import { AppearanceSettings } from "@/components/settings/AppearanceSettings";
 import { BillingSettings } from "@/components/settings/BillingSettings";
 import { ApiKeySettings } from "@/components/settings/ApiKeySettings";
 import { NotificationSettings } from "@/components/settings/NotificationSettings";
 import { DangerZone } from "@/components/settings/DangerZone";
 
-export type SettingsSection = "account" | "billing" | "api-keys" | "notifications" | "danger-zone";
+export type SettingsSection = "account" | "appearance" | "billing" | "api-keys" | "notifications" | "danger-zone";
 
 interface SettingsModalProps {
   account: AppAccount;
@@ -62,6 +63,9 @@ export function SettingsModal({ account, userEmail, onClose }: SettingsModalProp
 
       {/* Modal */}
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Settings"
         style={{
           position: "relative",
           width: "calc(100vw - 80px)",
@@ -69,8 +73,9 @@ export function SettingsModal({ account, userEmail, onClose }: SettingsModalProp
           height: "calc(100vh - 80px)",
           maxHeight: 720,
           background: "var(--kt-bg-subtle)",
-          borderRadius: 12,
+          borderRadius: "var(--kt-radius-3)",
           border: "1px solid var(--kt-border-1)",
+          boxShadow: "var(--kt-shadow-lg)",
           display: "flex",
           overflow: "hidden",
         }}
@@ -79,10 +84,11 @@ export function SettingsModal({ account, userEmail, onClose }: SettingsModalProp
         <SettingsNav active={activeSection} onSelect={setActiveSection} />
 
         {/* Content */}
-        <div style={{ flex: 1, overflow: "auto", padding: 32 }}>
+        <div style={{ flex: 1, overflow: "auto", padding: "var(--kt-s-6)" }}>
           {activeSection === "account" && (
             <AccountSettings account={account} userEmail={userEmail} />
           )}
+          {activeSection === "appearance" && <AppearanceSettings />}
           {activeSection === "billing" && <BillingSettings />}
           {activeSection === "api-keys" && <ApiKeySettings />}
           {activeSection === "notifications" && <NotificationSettings />}
@@ -91,26 +97,15 @@ export function SettingsModal({ account, userEmail, onClose }: SettingsModalProp
 
         {/* Close button */}
         <button
+          type="button"
           onClick={onClose}
           aria-label="Close settings"
-          style={{
-            position: "absolute",
-            top: 16,
-            right: 16,
-            width: 32,
-            height: 32,
-            borderRadius: 6,
-            border: "none",
-            background: "var(--kt-bg-muted)",
-            color: "var(--kt-fg-2)",
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: 18,
-          }}
+          className="kt-icon-btn"
+          style={{ position: "absolute", top: "var(--kt-s-4)", right: "var(--kt-s-4)" }}
         >
-          x
+          <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <path d="M18 6 6 18M6 6l12 12" />
+          </svg>
         </button>
       </div>
     </div>

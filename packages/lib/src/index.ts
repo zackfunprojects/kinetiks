@@ -5,3 +5,4 @@ export * from "./state-machines";
 export * from "./format";
 export * from "./template-vars";
 export * from "./pii";
+export * from "./chart-math";
