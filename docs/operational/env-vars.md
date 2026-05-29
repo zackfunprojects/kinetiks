@@ -4,6 +4,29 @@ This is the source of truth for what env vars the system reads, where each
 needs to be set, and how to generate the value. If you set or rotate
 anything, update this doc in the same PR.
 
+## Phase 7 deletions (no longer needed; safe to remove from Vercel)
+
+The legacy per-provider OAuth code paths were deleted; Nango holds these
+credentials now. Removing them from Vercel is optional but recommended:
+
+```
+GA4_CLIENT_ID, GA4_CLIENT_SECRET,
+GSC_CLIENT_ID, GSC_CLIENT_SECRET,
+HUBSPOT_CLIENT_ID, HUBSPOT_CLIENT_SECRET,
+SALESFORCE_CLIENT_ID, SALESFORCE_CLIENT_SECRET,
+TWITTER_CLIENT_ID, TWITTER_CLIENT_SECRET,
+LINKEDIN_CLIENT_ID, LINKEDIN_CLIENT_SECRET,
+INSTAGRAM_CLIENT_ID, INSTAGRAM_CLIENT_SECRET,
+META_ADS_ACCESS_TOKEN,
+GOOGLE_ADS_CLIENT_ID, GOOGLE_ADS_CLIENT_SECRET
+```
+
+See [`docs/operational/nango-setup.md`](nango-setup.md) for the per-provider
+setup steps in the Nango dashboard.
+
+---
+
+
 Two surfaces consume env vars:
 
 1. **Vercel** — the running web app. Set per project (`kinetiks-id` at
@@ -35,22 +58,17 @@ rest of the app keeps running. Order roughly by importance.
 
 | Variable | Vercel | Supabase | Owns |
 | --- | --- | --- | --- |
-| `NANGO_SECRET_KEY` | yes | no | Server-side Nango SDK auth. Owns OAuth + sync orchestration for all six D2 integrations (GA4, GSC, Stripe, Meta Ads, Google Ads, HubSpot). Get from Nango dashboard → Environment Settings. **Never expose to the browser.** |
-| `NANGO_PUBLIC_KEY` | yes | no | Client-side Connect UI (`@nangohq/frontend`). Safe to ship to browser. Same source as the secret. |
-| `NANGO_WEBHOOK_SECRET` | yes | no | HMAC-SHA256 verification for inbound webhooks at `/api/integrations/nango/webhook`. Generate in the Nango dashboard → Environment Settings → Webhook signature. |
-| `NANGO_HOST` | yes | no | Nango API base URL. Default `https://api.nango.dev` (Nango Cloud). Override only when migrating to self-host. |
+| `NANGO_SECRET_KEY` | yes | yes | Server-side Nango SDK auth. Owns OAuth + sync orchestration for all ten Phase 7 integrations (GA4, GSC, Stripe, Google Ads, Meta Ads, HubSpot, Twitter, LinkedIn, Instagram, TikTok). Get from Nango dashboard → API Keys → Secret Key. **Never expose to the browser.** |
+| `NEXT_PUBLIC_NANGO_PUBLIC_KEY` | yes | no | Client-side Connect UI (`@nangohq/frontend`). Safe to ship to browser. Get from Nango dashboard → API Keys → Public Key. |
+| `NEXT_PUBLIC_NANGO_HOST` | yes (optional) | no | Nango API base URL override. Default `https://api.nango.dev` (Nango Cloud). |
+| `NANGO_WEBHOOK_SECRET` | yes | yes | HMAC-SHA256 verification for inbound webhooks at `/api/integrations/nango/webhook`. Generate in the Nango dashboard → Settings → Webhooks. |
 | `IDENTITY_API_URL` | no | yes | Where `metric-cache-cron` (Deno) calls into apps/id (Node). Default `https://kinetiks.ai`. Only needed on the Supabase Edge Function side. |
+| `KINETIKS_ID_API_URL` | no | yes | Where `authority-defaults-diff-cron` (Phase 5) calls into apps/id. Default `https://kinetiks.ai`. |
 | `HARVEST_API_URL` | no | yes | Where `gmail-sync-cron` / `sequence-cron` call Harvest. Default `https://hv.kinetiks.ai`. |
 | `RESEND_API_KEY` | yes | no | Transactional email send (briefs, system identity). |
 | `FIRECRAWL_API_KEY` | yes | no | Crawler used by Cartographer. |
 | `PEOPLE_DATA_LABS_API_KEY` | yes | no | Contact enrichment in Harvest. |
-| `GA4_CLIENT_ID` / `GA4_CLIENT_SECRET` | nango | no | **D2 migration:** these now live in Nango's GA4 integration config, not Vercel. Slice 12 removes them from Vercel. Kept as the OAuth client identity that Nango uses to talk to Google. |
-| `GSC_CLIENT_ID` / `GSC_CLIENT_SECRET` | nango | no | Same — stored in Nango's google-search-console integration. |
-| `STRIPE_SECRET_KEY` | nango | no | Same — Nango stripe integration. |
-| `HUBSPOT_CLIENT_ID` / `HUBSPOT_CLIENT_SECRET` | nango | no | Same — Nango hubspot integration. |
-| `GOOGLE_ADS_CLIENT_ID` / `_CLIENT_SECRET` | nango | no | Same — Nango google-ads integration. |
-| `META_ADS_ACCESS_TOKEN` | nango | no | Same — Nango facebook integration handles the Marketing API token. |
-| `GOOGLE_WORKSPACE_CLIENT_ID` / `_CLIENT_SECRET` | yes | no | Email integration (C1). **Not migrated to Nango** — this is system identity, different lifecycle. |
+| `GOOGLE_WORKSPACE_CLIENT_ID` / `_CLIENT_SECRET` | yes | no | Email integration (C1). **Not migrated to Nango** — this is system identity (Marcus's outbound email account), different lifecycle from customer-data connections. |
 | `MICROSOFT_365_CLIENT_ID` / `_CLIENT_SECRET` | yes | no | Email integration (C1). Same reason as above. |
 | `SLACK_BOT_TOKEN` | yes | no | Slack bot (C2). |
 | `SLACK_SIGNING_SECRET` | yes | no | Slack webhook verification. |

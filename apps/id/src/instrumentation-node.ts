@@ -23,10 +23,12 @@ import { registerKinetiksPromptTasks } from "./lib/ai/task-registry";
 import { registerKinetiksStateMachines } from "./lib/state-machines-init";
 import { bootPatternTypeRegistry } from "./lib/patterns/registry-boot";
 import { bootActionClassRegistry } from "./lib/action-classes/registry-boot";
+import { bootManifestRegistry } from "./lib/manifest/boot";
 import { bootOperatorRegistry } from "./lib/operators/registry-boot";
 import { bootToolRegistry } from "./lib/tools/registry-boot";
 import { bootRuntimeAdapters } from "./lib/runtime/runtime-boot";
-import "./lib/connections/extractors";
+import { assertProviderConfigValid } from "./lib/integrations/nango/provider-config";
+import "./lib/integrations/nango/handlers/boot";
 
 export function bootNodeInstrumentation(): void {
   configureAICallLogger(supabaseAICallLogger);
@@ -36,16 +38,20 @@ export function bootNodeInstrumentation(): void {
   // packages/tools/src/validate.ts (assertRegistriesValid, called at
   // the end of bootToolRegistry):
   //
-  //   patterns → action classes → operators → tools
+  //   patterns → action classes → manifests → operators → tools
   //
   // - Pattern Type Registry: operator `required_patterns` must resolve
   // - Action Class Registry (Phase 4): operator `action_classes` and
   //   tool `actionClass` must resolve
+  // - Manifest Registry (Phase 5): default_standing_grants reference
+  //   registered action classes, so manifests boot AFTER action classes.
+  //   Failing here at startup avoids broken Permissions step at signup.
   // - Operator Registry (Phase 3): operator descriptors referenced by
   //   any future Workflow must exist
   // - Tool Registry: final boot pass runs cross-registry validation
   bootPatternTypeRegistry();
   bootActionClassRegistry();
+  bootManifestRegistry();
   bootOperatorRegistry();
   bootToolRegistry();
   // Phase 4: wire authority resolution adapters. Must run AFTER the
@@ -53,4 +59,9 @@ export function bootNodeInstrumentation(): void {
   // descriptors which need their tool callers cross-validated first).
   // Replaces the F2 stub resolver with defaultAuthorityResolver.
   bootRuntimeAdapters();
+  // Phase 7: assert the Kinetiks ConnectionProvider list maps 1:1 to
+  // Nango integration ids declared in provider-config.ts. Unmapped
+  // providers would fail at the first connect attempt; failing here
+  // at startup is loud and obvious.
+  assertProviderConfigValid();
 }

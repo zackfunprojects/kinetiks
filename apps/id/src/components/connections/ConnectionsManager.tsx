@@ -1,11 +1,34 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
-import { useSearchParams } from "next/navigation";
+import { useState, useCallback, useEffect, useRef } from "react";
+import Nango from "@nangohq/frontend";
 import type { ConnectionPublic, ProviderDefinition } from "@kinetiks/types";
+
 import { ConnectionCard } from "./ConnectionCard";
-import { ApiKeyModal } from "./ApiKeyModal";
-import { Ga4PropertyPicker } from "./Ga4PropertyPicker";
+
+/**
+ * Phase 7 — Connections page driven by Nango Connect.
+ *
+ * Replaces the legacy per-provider OAuth redirect + API key modal +
+ * GA4 property picker. The new flow:
+ *
+ *   1. Click "Connect" → POST /api/connections returns a Nango
+ *      Connect session token.
+ *   2. `nango.openConnectUI({ sessionToken })` opens the Nango Connect
+ *      modal. Nango handles OAuth, API-key forms, provider-specific
+ *      prompts (HubSpot portal id, GA4 property picker, etc.) in one
+ *      modal.
+ *   3. On success Nango fires a `connection.created` webhook → our
+ *      auth handler upserts `kinetiks_connections`. The frontend
+ *      polls /api/connections for a few seconds to surface the new
+ *      row inline.
+ *
+ * Disconnect → DELETE /api/connections/[id] which calls
+ * nango.deleteConnection internally.
+ *
+ * The Nango public key is exposed at NEXT_PUBLIC_NANGO_PUBLIC_KEY;
+ * the secret key never reaches the frontend bundle.
+ */
 
 interface ConnectionsManagerProps {
   initialConnections: ConnectionPublic[];
@@ -28,6 +51,16 @@ const CATEGORY_LABELS: Record<string, string> = {
   email: "Email",
 };
 
+const POLL_INTERVAL_MS = 1000;
+const POLL_MAX_ATTEMPTS = 8;
+
+interface ConnectSessionResponse {
+  session_token: string;
+  expires_at: string;
+  provider: string;
+  nango_integration_id: string;
+}
+
 export function ConnectionsManager({
   initialConnections,
   providers,
@@ -35,110 +68,138 @@ export function ConnectionsManager({
   const [connections, setConnections] =
     useState<ConnectionPublic[]>(initialConnections);
   const [syncing, setSyncing] = useState<Set<string>>(new Set());
-  const [apiKeyModal, setApiKeyModal] = useState<ProviderDefinition | null>(
-    null
-  );
+  const [pending, setPending] = useState<Set<string>>(new Set());
   const [toast, setToast] = useState<{
     message: string;
     type: "success" | "error";
   } | null>(null);
-  const [ga4PickerOpen, setGa4PickerOpen] = useState(false);
 
-  const searchParams = useSearchParams();
+  const nangoRef = useRef<Nango | null>(null);
 
-  // Handle success/error from OAuth callback redirect
   useEffect(() => {
-    const success = searchParams.get("success");
-    const error = searchParams.get("error");
-    const ga4Pick = searchParams.get("ga4_pick");
-
-    if (success) {
-      setToast({ message: `Connected to ${success}`, type: "success" });
-      // Refresh connections list
-      refreshConnections();
-    } else if (error) {
-      const detail = searchParams.get("detail") ?? error;
-      setToast({
-        message: `Connection failed: ${detail}`,
-        type: "error",
-      });
+    if (nangoRef.current) return;
+    const publicKey = process.env.NEXT_PUBLIC_NANGO_PUBLIC_KEY;
+    if (!publicKey) {
+      console.warn(
+        "[ConnectionsManager] NEXT_PUBLIC_NANGO_PUBLIC_KEY is not set; the Connect button will fail",
+      );
+      return;
     }
-
-    // GA4 OAuth completes with ?ga4_pick=1; surface the property picker.
-    if (ga4Pick === "1") {
-      setGa4PickerOpen(true);
-    }
-  }, [searchParams]);
+    nangoRef.current = new Nango({
+      publicKey,
+      host: process.env.NEXT_PUBLIC_NANGO_HOST ?? "https://api.nango.dev",
+    });
+  }, []);
 
   const refreshConnections = useCallback(async () => {
     try {
       const res = await fetch("/api/connections");
-      if (res.ok) {
-        const json = await res.json();
-        const data = json.data ?? json;
-        setConnections((data.connections ?? []) as ConnectionPublic[]);
-      }
+      if (!res.ok) return;
+      const json = await res.json();
+      const data = json.data ?? json;
+      setConnections((data.connections ?? []) as ConnectionPublic[]);
     } catch {
-      // Silently fail on refresh - user still sees initial data
+      // Silent on refresh; user still sees the initial data.
     }
   }, []);
 
+  /**
+   * After Nango's modal fires `connect`, poll /api/connections for up
+   * to ~8 seconds waiting for the auth webhook to land. The webhook is
+   * usually faster than 2s; we cap so the spinner doesn't run forever
+   * if something is misconfigured.
+   */
+  const pollForProvider = useCallback(
+    async (provider: string) => {
+      setPending((prev) => new Set(prev).add(provider));
+      try {
+        for (let attempt = 0; attempt < POLL_MAX_ATTEMPTS; attempt++) {
+          await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+          const res = await fetch("/api/connections");
+          if (!res.ok) continue;
+          const json = await res.json();
+          const data = json.data ?? json;
+          const list = (data.connections ?? []) as ConnectionPublic[];
+          const found = list.find(
+            (c) => c.provider === provider && c.status !== "revoked",
+          );
+          if (found) {
+            setConnections(list);
+            setToast({ message: `Connected to ${provider}`, type: "success" });
+            return;
+          }
+        }
+        setToast({
+          message: `${provider} connection didn't appear after a few seconds. Refreshing.`,
+          type: "error",
+        });
+        await refreshConnections();
+      } finally {
+        setPending((prev) => {
+          const next = new Set(prev);
+          next.delete(provider);
+          return next;
+        });
+      }
+    },
+    [refreshConnections],
+  );
+
   const handleConnect = useCallback(
     async (provider: ProviderDefinition) => {
-      if (provider.authType === "api_key") {
-        setApiKeyModal(provider);
+      const nango = nangoRef.current;
+      if (!nango) {
+        setToast({
+          message: "Connect SDK isn't loaded. Refresh and try again.",
+          type: "error",
+        });
         return;
       }
 
-      // OAuth flow - request the authorization URL from the API
+      let session: ConnectSessionResponse;
       try {
         const res = await fetch("/api/connections", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ provider: provider.provider }),
         });
-
         const json = await res.json();
         if (!res.ok || !json.success) {
-          setToast({ message: json.error ?? "Connection failed", type: "error" });
+          setToast({
+            message: json.error ?? "Couldn't start the connect flow",
+            type: "error",
+          });
           return;
         }
-
-        const data = json.data ?? json;
-        window.location.href = data.authorization_url;
+        session = (json.data ?? json) as ConnectSessionResponse;
       } catch {
         setToast({
-          message: "Failed to start connection flow",
+          message: "Couldn't start the connect flow",
           type: "error",
         });
+        return;
       }
-    },
-    []
-  );
 
-  const handleApiKeySubmit = useCallback(
-    async (provider: string, apiKey: string) => {
       try {
-        const res = await fetch("/api/connections", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ provider, api_key: apiKey }),
+        const result = await nango.openConnectUI({
+          sessionToken: session.session_token,
+          onEvent: (event) => {
+            // Nango fires multiple events; we react to `connect` (success)
+            // and close. Errors are reported via the onEvent payload.
+            if (event.type === "connect") {
+              void pollForProvider(provider.provider);
+            }
+          },
         });
-
-        const json = await res.json();
-        if (!res.ok || !json.success) {
-          setToast({ message: json.error ?? "Failed to save API key", type: "error" });
-          return;
-        }
-
-        setApiKeyModal(null);
-        setToast({ message: `Connected to ${provider}`, type: "success" });
-        await refreshConnections();
-      } catch {
-        setToast({ message: "Failed to save API key", type: "error" });
+        // `result` is the final modal outcome — if the user cancels
+        // before completing, the modal closes without firing `connect`.
+        if (!result) return;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        setToast({ message: msg, type: "error" });
       }
     },
-    [refreshConnections]
+    [pollForProvider],
   );
 
   const handleSync = useCallback(
@@ -150,34 +211,15 @@ export function ConnectionsManager({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ action: "sync" }),
         });
-
-        const syncJson = await res.json();
-        if (!res.ok || !syncJson.success) {
-          setToast({ message: syncJson.error ?? "Sync failed", type: "error" });
+        const json = await res.json();
+        if (!res.ok || !json.success) {
+          setToast({ message: json.error ?? "Sync failed", type: "error" });
           return;
         }
-
-        const data = (syncJson.data ?? syncJson) as {
-          result: {
-            success: boolean;
-            proposals_generated: number;
-            error: string | null;
-          };
-        };
-
-        if (data.result.success) {
-          setToast({
-            message: `Synced - ${data.result.proposals_generated} proposals generated`,
-            type: "success",
-          });
-        } else {
-          setToast({
-            message: data.result.error ?? "Sync failed",
-            type: "error",
-          });
-        }
-
-        await refreshConnections();
+        setToast({ message: "Sync triggered — data should arrive shortly", type: "success" });
+        // Sync runs async; refresh after a short delay so last_sync_at
+        // catches up.
+        setTimeout(() => void refreshConnections(), 3000);
       } catch {
         setToast({ message: "Sync failed", type: "error" });
       } finally {
@@ -188,48 +230,51 @@ export function ConnectionsManager({
         });
       }
     },
-    [refreshConnections]
+    [refreshConnections],
   );
 
   const handleDisconnect = useCallback(
     async (connectionId: string, provider: string) => {
-      if (!confirm(`Disconnect ${provider}? This cannot be undone.`)) return;
-
+      if (!confirm(`Disconnect ${provider}? This will revoke access immediately.`))
+        return;
       try {
         const res = await fetch(`/api/connections/${connectionId}`, {
           method: "DELETE",
         });
-
         if (!res.ok) {
-          const data = (await res.json()) as { error: string };
-          setToast({ message: data.error, type: "error" });
+          const data = (await res.json()) as { error?: string };
+          setToast({
+            message: data.error ?? "Failed to disconnect",
+            type: "error",
+          });
           return;
         }
-
         setToast({ message: `Disconnected ${provider}`, type: "success" });
         await refreshConnections();
       } catch {
         setToast({ message: "Failed to disconnect", type: "error" });
       }
     },
-    [refreshConnections]
+    [refreshConnections],
   );
-
-  // Group providers by category
-  const connectedProviders = new Set(connections.map((c) => c.provider));
 
   return (
     <div>
       {/* Toast */}
       {toast && (
         <div
+          role="alert"
           style={{
             padding: "10px 16px",
             marginBottom: 16,
             borderRadius: 6,
             fontSize: 13,
-            background: toast.type === "success" ? "var(--kt-success-soft)" : "var(--kt-danger-soft)",
-            color: toast.type === "success" ? "var(--kt-success)" : "var(--kt-danger)",
+            background:
+              toast.type === "success"
+                ? "var(--kt-success-soft)"
+                : "var(--kt-danger-soft)",
+            color:
+              toast.type === "success" ? "var(--kt-success)" : "var(--kt-danger)",
             border: `1px solid ${toast.type === "success" ? "var(--kt-success)" : "var(--kt-danger)"}`,
             display: "flex",
             justifyContent: "space-between",
@@ -247,6 +292,7 @@ export function ConnectionsManager({
               color: "inherit",
               padding: "0 4px",
             }}
+            aria-label="Dismiss"
           >
             x
           </button>
@@ -256,10 +302,9 @@ export function ConnectionsManager({
       {/* Categories */}
       {CATEGORY_ORDER.map((category) => {
         const categoryProviders = providers.filter(
-          (p) => p.category === category
+          (p) => p.category === category,
         );
         if (categoryProviders.length === 0) return null;
-
         return (
           <div key={category} style={{ marginBottom: 32 }}>
             <h2
@@ -283,7 +328,7 @@ export function ConnectionsManager({
             >
               {categoryProviders.map((provider) => {
                 const connection = connections.find(
-                  (c) => c.provider === provider.provider
+                  (c) => c.provider === provider.provider,
                 );
                 return (
                   <ConnectionCard
@@ -293,6 +338,7 @@ export function ConnectionsManager({
                     isSyncing={
                       connection ? syncing.has(connection.id) : false
                     }
+                    isPending={pending.has(provider.provider)}
                     onConnect={() => handleConnect(provider)}
                     onSync={
                       connection
@@ -302,10 +348,7 @@ export function ConnectionsManager({
                     onDisconnect={
                       connection
                         ? () =>
-                            handleDisconnect(
-                              connection.id,
-                              provider.displayName
-                            )
+                            handleDisconnect(connection.id, provider.displayName)
                         : undefined
                     }
                   />
@@ -315,29 +358,6 @@ export function ConnectionsManager({
           </div>
         );
       })}
-
-      {/* GA4 property picker — opens after OAuth callback (?ga4_pick=1)
-          or when the user reconnects/changes property */}
-      <Ga4PropertyPicker
-        open={ga4PickerOpen}
-        onClose={() => setGa4PickerOpen(false)}
-        onPicked={() => {
-          setToast({
-            message: "GA4 property selected",
-            type: "success",
-          });
-          void refreshConnections();
-        }}
-      />
-
-      {/* API Key Modal */}
-      {apiKeyModal && (
-        <ApiKeyModal
-          provider={apiKeyModal}
-          onSubmit={(key) => handleApiKeySubmit(apiKeyModal.provider, key)}
-          onClose={() => setApiKeyModal(null)}
-        />
-      )}
     </div>
   );
 }

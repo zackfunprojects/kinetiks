@@ -1,43 +1,67 @@
 /**
  * GET  /api/connections     - List all connections for the authenticated user
- * POST /api/connections     - Initiate a new connection (OAuth redirect or API key storage)
+ * POST /api/connections     - Mint a Nango Connect session token for the frontend
+ *
+ * Phase 7 — Nango Connect end-to-end.
+ *
+ * Replaces the legacy per-provider OAuth initiate path (deleted in this
+ * phase). The new flow:
+ *   1. Client POSTs { provider } to this route.
+ *   2. We resolve (or mint) the customer's stable Nango end_user_id.
+ *   3. We call `nango.createConnectSession({ end_user, allowed_integrations })`.
+ *   4. We return `{ session_token }`; client opens `@nangohq/frontend`
+ *      Connect modal with that token.
+ *   5. Customer authorizes the provider inside the modal.
+ *   6. Nango fires the `connection.created` webhook, which lands in
+ *      apps/id/src/lib/integrations/nango/handlers/auth.ts and upserts
+ *      the kinetiks_connections row.
+ *
+ * No more per-provider client_id / client_secret on our side. Nango
+ * owns OAuth and the refresh-token chain.
  */
 
 import { requireAuth } from "@/lib/auth/require-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { apiSuccess, apiError } from "@/lib/utils/api-response";
-import {
-  getConnections,
-  getConnectionByProvider,
-  createConnection,
-  buildAuthorizationUrl,
-  isValidProvider,
-} from "@/lib/connections";
-import {
-  providerRequiresPkce,
-  generatePkceVerifier,
-} from "@/lib/connections/oauth";
-import type { StoredApiKeyCredentials } from "@/lib/connections";
-import { getProvider } from "@/lib/connections/providers";
+import { createConnectSession } from "@/lib/integrations/nango/client";
+import { getNangoProviderConfig } from "@/lib/integrations/nango/provider-config";
+import { isValidProvider } from "@/lib/connections/providers";
 import type { ConnectionProvider } from "@kinetiks/types";
-import { signState } from "@/lib/connections/state-hmac";
 
-export async function GET(request: Request) {
+interface ConnectionListRow {
+  id: string;
+  provider: ConnectionProvider;
+  status: string;
+  last_sync_at: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
+
+export async function GET(request: Request): Promise<Response> {
   const { auth, error } = await requireAuth(request, { permissions: "read-only" });
   if (error) return error;
 
   const admin = createAdminClient();
 
-  try {
-    const connections = await getConnections(admin, auth.account_id);
-    return apiSuccess({ connections });
-  } catch (err) {
-    console.error("Failed to fetch connections:", err);
+  const { data, error: queryError } = await admin
+    .from("kinetiks_connections")
+    .select("id, provider, status, last_sync_at, metadata, created_at")
+    .eq("account_id", auth.account_id)
+    .order("created_at", { ascending: false });
+
+  if (queryError) {
+    console.error(
+      `[api/connections] list failed for account ${auth.account_id}: ${queryError.message}`,
+    );
     return apiError("Failed to fetch connections", 500);
   }
+  return apiSuccess({ connections: (data ?? []) as ConnectionListRow[] });
 }
 
-export async function POST(request: Request) {
+const GENERIC_CONNECT_ERROR =
+  "We couldn't start the connect flow. Try again in a moment.";
+
+export async function POST(request: Request): Promise<Response> {
   const { auth, error } = await requireAuth(request, { permissions: "read-write" });
   if (error) return error;
 
@@ -52,102 +76,99 @@ export async function POST(request: Request) {
     return apiError("Invalid JSON body", 400);
   }
 
-  const { provider, api_key } = body as {
-    provider?: string;
-    api_key?: string;
-  };
-
-  if (!provider || typeof provider !== "string" || !isValidProvider(provider)) {
+  const provider = body.provider;
+  if (typeof provider !== "string" || !isValidProvider(provider)) {
     return apiError("Missing or invalid 'provider' field", 400);
   }
+  const providerKey = provider as ConnectionProvider;
 
   const admin = createAdminClient();
 
-  // Check for existing connection
-  const existing = await getConnectionByProvider(
-    admin,
-    auth.account_id,
-    provider as ConnectionProvider
-  );
-  if (existing && existing.status !== "revoked") {
-    return apiError(`Already connected to ${provider}. Disconnect first.`, 409);
+  // Reject duplicate connect attempts for an already-active connection.
+  // Customers can have at most one active connection per provider; if
+  // they want to re-auth, they disconnect first. The unique constraint
+  // is enforced at the application layer here and at the auth
+  // webhook's upsert step.
+  const { data: existing, error: existingError } = await admin
+    .from("kinetiks_connections")
+    .select("id, status")
+    .eq("account_id", auth.account_id)
+    .eq("provider", providerKey)
+    .neq("status", "revoked")
+    .maybeSingle();
+  if (existingError) {
+    console.error(
+      `[api/connections] existing check failed: ${existingError.message}`,
+    );
+    return apiError(GENERIC_CONNECT_ERROR, 500);
+  }
+  if (existing) {
+    return apiError(`Already connected to ${providerKey}. Disconnect first.`, 409);
   }
 
-  const providerDef = getProvider(provider as ConnectionProvider);
+  // Resolve the customer's stable Nango end_user_id. Set on first
+  // connect; reused for every subsequent connect on this account.
+  const { data: account, error: accountError } = await admin
+    .from("kinetiks_accounts")
+    .select("id, user_id, nango_end_user_id, codename")
+    .eq("id", auth.account_id)
+    .maybeSingle();
+  if (accountError || !account) {
+    console.error(
+      `[api/connections] account lookup failed: ${accountError?.message ?? "not found"}`,
+    );
+    return apiError(GENERIC_CONNECT_ERROR, 500);
+  }
 
-  // API key providers - store directly
-  if (providerDef.authType === "api_key") {
-    if (!api_key || typeof api_key !== "string" || api_key.trim().length === 0) {
-      return apiError("Missing 'api_key' for this provider", 400);
-    }
-
-    const credentials: StoredApiKeyCredentials = {
-      type: "api_key",
-      api_key: api_key.trim(),
-    };
-
-    try {
-      const connection = await createConnection(
-        admin,
-        auth.account_id,
-        provider as ConnectionProvider,
-        credentials
-      );
-
-      return apiSuccess({
-        connection: {
-          id: connection.id,
-          provider: connection.provider,
-          status: connection.status,
-          created_at: connection.created_at,
-        },
-      });
-    } catch (err) {
-      console.error("Failed to create API key connection:", err);
-      return apiError("Failed to create connection", 500);
+  let endUserId = (account.nango_end_user_id as string | null) ?? null;
+  if (!endUserId) {
+    endUserId = `kt_${auth.account_id}`;
+    const { error: updateError } = await admin
+      .from("kinetiks_accounts")
+      .update({ nango_end_user_id: endUserId })
+      .eq("id", auth.account_id)
+      .is("nango_end_user_id", null);
+    if (updateError) {
+      // Concurrent first-connect: another request set the id between
+      // our SELECT and UPDATE. Re-fetch.
+      const { data: retry } = await admin
+        .from("kinetiks_accounts")
+        .select("nango_end_user_id")
+        .eq("id", auth.account_id)
+        .maybeSingle();
+      endUserId = (retry?.nango_end_user_id as string | null) ?? null;
+      if (!endUserId) {
+        console.error(
+          `[api/connections] failed to set nango_end_user_id: ${updateError.message}`,
+        );
+        return apiError(GENERIC_CONNECT_ERROR, 500);
+      }
     }
   }
 
-  // OAuth providers - build authorization URL and return it
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://id.kinetiks.ai";
-  const redirectUri = `${appUrl}/api/connections/callback`;
+  const config = getNangoProviderConfig(providerKey);
 
   try {
-    // Generate PKCE verifier if provider requires it (e.g. Twitter/X)
-    const needsPkce = providerRequiresPkce(provider as ConnectionProvider);
-    const pkceVerifier = needsPkce ? generatePkceVerifier() : undefined;
-
-    // State encodes provider + account ID + optional PKCE verifier for the callback.
-    // HMAC-signed to prevent tampering (e.g., swapping account_id).
-    const statePayload = JSON.stringify({
-      provider,
-      account_id: auth.account_id,
-      ts: Date.now(),
-      ...(pkceVerifier ? { pkce_verifier: pkceVerifier } : {}),
+    const session = await createConnectSession({
+      end_user: {
+        id: endUserId,
+        display_name: (account.codename as string | null) ?? undefined,
+        // We do NOT pass user email to Nango — Nango forms can prompt
+        // the customer for it where the provider requires it.
+      },
+      allowed_integrations: [config.nango_integration_id],
     });
-    const signature = signState(statePayload);
-    const state = Buffer.from(
-      JSON.stringify({
-        ...JSON.parse(statePayload),
-        signature,
-      })
-    ).toString("base64url");
-
-    const authUrl = buildAuthorizationUrl(
-      provider as ConnectionProvider,
-      redirectUri,
-      state,
-      pkceVerifier
-    );
-
-    return apiSuccess({ authorization_url: authUrl });
+    return apiSuccess({
+      session_token: session.token,
+      expires_at: session.expires_at,
+      provider: providerKey,
+      nango_integration_id: config.nango_integration_id,
+    });
   } catch (err) {
-    console.error("Failed to build authorization URL:", err);
-    return apiError(
-      err instanceof Error
-        ? err.message
-        : "Failed to initiate OAuth flow",
-      500
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(
+      `[api/connections] createConnectSession failed for ${providerKey}: ${msg}`,
     );
+    return apiError(GENERIC_CONNECT_ERROR, 500);
   }
 }
