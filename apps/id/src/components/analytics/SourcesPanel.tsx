@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { Card, StatusPill, AsyncSection, type PillTone } from "@kinetiks/ui";
 
 interface SourceStatus {
   provider: string;
@@ -9,106 +11,83 @@ interface SourceStatus {
   last_error: string | null;
 }
 
+function statusTone(status: string): PillTone {
+  if (status === "active") return "success";
+  if (status === "error" || status === "expired") return "danger";
+  return "warning";
+}
+
 export function SourcesPanel() {
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [sources, setSources] = useState<SourceStatus[]>([]);
 
-  useEffect(() => {
-    let cancelled = false;
+  const load = useCallback(() => {
+    setLoading(true);
+    setError(null);
     fetch("/api/connections")
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
       .then((body: { data?: { connections?: SourceStatus[] } }) => {
-        if (cancelled) return;
         setSources(body.data?.connections ?? []);
-        setLoading(false);
       })
-      .catch(() => {
-        if (cancelled) return;
-        setSources([]);
-        setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
+      .catch((err) => setError(err instanceof Error ? err.message : "Failed to load sources"))
+      .finally(() => setLoading(false));
   }, []);
 
-  if (loading) {
-    return (
-      <div
-        aria-busy="true"
-        aria-live="polite"
-        style={{ padding: 12, fontSize: 13, color: "var(--kt-fg-3)" }}
-      >
-        Loading source status…
-      </div>
-    );
-  }
-
-  if (sources.length === 0) {
-    return (
-      <div
-        style={{
-          padding: 16,
-          borderRadius: "var(--kt-radius-2, 8px)",
-          border: "1px dashed var(--kt-border-1)",
-          fontSize: 13,
-          color: "var(--kt-fg-3)",
-          textAlign: "center",
-        }}
-      >
-        No data sources connected yet. Visit Connections to wire up GA4, Search
-        Console, Stripe, HubSpot, Meta Ads, or Google Ads.
-      </div>
-    );
-  }
+  useEffect(() => {
+    load();
+  }, [load]);
 
   return (
-    <section style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      <h3 style={{ margin: 0, fontSize: 13, color: "var(--kt-fg-3)" }}>Sources</h3>
-      <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 6 }}>
-        {sources.map((s) => (
-          <li
-            key={s.provider}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              padding: "8px 12px",
-              borderRadius: "var(--kt-radius-1, 6px)",
-              border: "1px solid var(--kt-border-1)",
-              background: "var(--kt-bg-1)",
-            }}
-          >
-            <StatusDot status={s.status} />
-            <span style={{ fontSize: 13, color: "var(--kt-fg-1)" }}>{s.provider}</span>
-            <span style={{ marginLeft: "auto", fontSize: 11, color: "var(--kt-fg-3)" }}>
-              {s.last_sync_at ? `synced ${relTime(s.last_sync_at)}` : "no sync yet"}
-            </span>
-          </li>
-        ))}
-      </ul>
+    <section style={{ display: "flex", flexDirection: "column", gap: "var(--kt-s-2)" }}>
+      <h3 className="kt-eyebrow" style={{ margin: 0 }}>Sources</h3>
+      <AsyncSection
+        loading={loading}
+        error={error}
+        isEmpty={sources.length === 0}
+        onRetry={load}
+        errorTitle="We couldn't load source status."
+        emptyFallback={
+          <Card variant="muted">
+            <div className="kt-body">
+              No data sources connected yet. Connect GA4, Search Console, Stripe, HubSpot, or Ads in Integrations.
+            </div>
+          </Card>
+        }
+      >
+        <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "var(--kt-s-1)" }}>
+          {sources.map((s) => {
+            const needsReconnect = s.status === "error" || s.status === "expired";
+            return (
+              <li
+                key={s.provider}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "var(--kt-s-3)",
+                  padding: "var(--kt-s-2) var(--kt-s-3)",
+                  borderRadius: "var(--kt-radius-1)",
+                  border: "1px solid var(--kt-border-1)",
+                  background: "var(--kt-bg-elevated)",
+                }}
+              >
+                <StatusPill tone={statusTone(s.status)}>{s.status}</StatusPill>
+                <span className="kt-card-title">{s.provider}</span>
+                <span className="kt-small" style={{ marginLeft: "auto" }}>
+                  {needsReconnect ? (
+                    <Link className="kt-link" href="/cortex/integrations">Reconnect</Link>
+                  ) : s.last_sync_at ? (
+                    `synced ${relTime(s.last_sync_at)}`
+                  ) : (
+                    "no sync yet"
+                  )}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      </AsyncSection>
     </section>
-  );
-}
-
-function StatusDot({ status }: { status: string }) {
-  const color =
-    status === "active"
-      ? "var(--kt-success, var(--kt-fg-3))"
-      : status === "error" || status === "expired"
-        ? "var(--kt-danger, var(--kt-fg-3))"
-        : "var(--kt-warning, var(--kt-fg-3))";
-  return (
-    <span
-      aria-label={`Status: ${status}`}
-      style={{
-        width: 8,
-        height: 8,
-        borderRadius: 4,
-        background: color,
-        display: "inline-block",
-      }}
-    />
   );
 }
 
