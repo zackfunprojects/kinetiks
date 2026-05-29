@@ -68,9 +68,25 @@ export function GoalEditor({ goal, onSave, onCancel }: GoalEditorProps) {
 
         <div>
           <span className={fieldLabel}>Type</span>
-          <div style={{ display: "flex", gap: "var(--kt-s-2)" }}>
-            <TypeButton label="KPI target" active={type === "kpi_target"} onClick={() => setType("kpi_target")} />
-            <TypeButton label="OKR" active={type === "okr"} onClick={() => setType("okr")} />
+          <div style={{ display: "flex", gap: "var(--kt-s-2)" }} role="group" aria-label="Goal type">
+            <Button
+              type="button"
+              size="sm"
+              variant={type === "kpi_target" ? "accent" : "secondary"}
+              aria-pressed={type === "kpi_target"}
+              onClick={() => setType("kpi_target")}
+            >
+              KPI target
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={type === "okr" ? "accent" : "secondary"}
+              aria-pressed={type === "okr"}
+              onClick={() => setType("okr")}
+            >
+              OKR
+            </Button>
           </div>
         </div>
 
@@ -133,26 +149,5 @@ export function GoalEditor({ goal, onSave, onCancel }: GoalEditorProps) {
         </Button>
       </div>
     </Card>
-  );
-}
-
-function TypeButton({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      style={{
-        padding: "var(--kt-s-2) var(--kt-s-4)",
-        borderRadius: "var(--kt-radius-1)",
-        border: active ? "1px solid var(--kt-accent)" : "1px solid var(--kt-border-2)",
-        background: active ? "var(--kt-accent-soft)" : "transparent",
-        color: "var(--kt-fg-1)",
-        fontSize: "var(--kt-fs-13)",
-        cursor: "pointer",
-      }}
-    >
-      {label}
-    </button>
   );
 }

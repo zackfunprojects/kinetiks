@@ -17,15 +17,23 @@ export function GoalsManager() {
   const fetchGoals = useCallback(async () => {
     setLoading(true);
     setFetchError(null);
+
+    // Goals are the required spine — a failure here is the error state.
     try {
-      const [goalsRes, progressRes] = await Promise.all([
-        fetch("/api/goals?status=all"),
-        fetch("/api/oracle/goals"),
-      ]);
+      const goalsRes = await fetch("/api/goals?status=all");
       if (!goalsRes.ok) throw new Error(`Failed to load goals (${goalsRes.status})`);
       const goalsData = await goalsRes.json();
       setGoals(goalsData.data?.goals ?? []);
+    } catch (err) {
+      setFetchError(err instanceof Error ? err.message : "Failed to load goals");
+      setLoading(false);
+      return;
+    }
 
+    // Oracle progress is a best-effort overlay; its failure (reject or non-OK)
+    // must not blank the goals list.
+    try {
+      const progressRes = await fetch("/api/oracle/goals");
       if (progressRes.ok) {
         const progressData = await progressRes.json();
         const map: Record<string, GoalProgressView> = {};
@@ -34,8 +42,8 @@ export function GoalsManager() {
         }
         setProgress(map);
       }
-    } catch (err) {
-      setFetchError(err instanceof Error ? err.message : "Failed to load goals");
+    } catch {
+      // progress overlay unavailable; goals still render
     } finally {
       setLoading(false);
     }

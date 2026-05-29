@@ -24,9 +24,21 @@ const TONE_VAR: Record<string, string> = {
 export function GoalCard({ goal, progress, onEdit, onStatusChange, readOnly = false }: GoalCardProps) {
   const tone = goalStatusTone(goal.progress_status);
   const unit = progress?.unit ?? "count";
-  const completion =
-    progress?.completion_percentage ??
-    (goal.target_value ? Math.min((goal.current_value / goal.target_value) * 100, 100) : 0);
+  // Fallback (when Oracle progress is missing) must respect goal.direction;
+  // a raw current/target ratio misreports "below"/"exact" goals.
+  const fallbackCompletion = (() => {
+    if (!goal.target_value) return 0;
+    if (goal.direction === "below") {
+      return goal.current_value <= goal.target_value
+        ? 100
+        : Math.max(0, 100 - ((goal.current_value - goal.target_value) / goal.target_value) * 100);
+    }
+    if (goal.direction === "exact") {
+      return Math.max(0, 100 - (Math.abs(goal.current_value - goal.target_value) / goal.target_value) * 100);
+    }
+    return Math.min((goal.current_value / goal.target_value) * 100, 100);
+  })();
+  const completion = progress?.completion_percentage ?? fallbackCompletion;
 
   return (
     <Card style={{ marginBottom: "var(--kt-s-2)" }}>

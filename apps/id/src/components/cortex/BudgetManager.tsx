@@ -12,6 +12,11 @@ function usd(currency: string, n: number): string {
 function toDateInput(iso: string): string {
   return iso ? iso.slice(0, 10) : "";
 }
+// period_start/end are date-only (stored at UTC midnight). Format in UTC so the
+// displayed day doesn't shift back one in negative-offset timezones.
+function fmtDate(iso: string): string {
+  return new Date(iso).toLocaleDateString(undefined, { timeZone: "UTC" });
+}
 
 export function BudgetManager() {
   const [budgets, setBudgets] = useState<BudgetWithAllocations[]>([]);
@@ -59,7 +64,12 @@ export function BudgetManager() {
       </div>
 
       {editing !== null ? (
-        <BudgetForm budget={editing === "new" ? null : editing} onSaved={handleSaved} onCancel={() => setEditing(null)} />
+        <BudgetForm
+          key={editing === "new" ? "new" : editing.id}
+          budget={editing === "new" ? null : editing}
+          onSaved={handleSaved}
+          onCancel={() => setEditing(null)}
+        />
       ) : null}
 
       <AsyncSection
@@ -87,7 +97,7 @@ function BudgetCard({ budget, onEdit, onDelete }: { budget: BudgetWithAllocation
         <div>
           <div className="kt-data-large">{usd(budget.currency, budget.total_budget)}</div>
           <div className="kt-small" style={{ marginTop: "var(--kt-s-1)" }}>
-            {budget.period} · {new Date(budget.period_start).toLocaleDateString()} – {new Date(budget.period_end).toLocaleDateString()}
+            {budget.period} · {fmtDate(budget.period_start)} – {fmtDate(budget.period_end)}
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "var(--kt-s-1)" }}>
@@ -123,15 +133,18 @@ function BudgetCard({ budget, onEdit, onDelete }: { budget: BudgetWithAllocation
 const PERIODS = ["weekly", "monthly", "quarterly", "annual"];
 
 function BudgetForm({ budget, onSaved, onCancel }: { budget: BudgetWithAllocations | null; onSaved: () => void; onCancel: () => void }) {
+  // Build date-only YYYY-MM-DD defaults directly (no local Date -> ISO round
+  // trip, which can shift the day across timezones).
   const now = new Date();
-  const defaultStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const defaultEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const defaultStart = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-01`;
+  const defaultEnd = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate())}`;
 
   const [total, setTotal] = useState(budget ? String(budget.total_budget) : "");
   const [currency, setCurrency] = useState(budget?.currency ?? "USD");
   const [period, setPeriod] = useState(budget?.period ?? "monthly");
-  const [start, setStart] = useState(toDateInput(budget?.period_start ?? defaultStart.toISOString()));
-  const [end, setEnd] = useState(toDateInput(budget?.period_end ?? defaultEnd.toISOString()));
+  const [start, setStart] = useState(budget?.period_start ? toDateInput(budget.period_start) : defaultStart);
+  const [end, setEnd] = useState(budget?.period_end ? toDateInput(budget.period_end) : defaultEnd);
   const [allocations, setAllocations] = useState<{ category: string; allocated_amount: string }[]>([]);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
