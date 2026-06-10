@@ -293,6 +293,55 @@ export function registerKinetiksStateMachines(): void {
       },
     ],
   });
+
+  // ── kinetiks_goals ─────────────────────────────────────────
+  // Goal lifecycle (status). progress_status is a derived health
+  // indicator and is intentionally not modeled here. Goals are
+  // user-owned, so transitions are not actor-restricted; the trigger
+  // (00073) enforces legality at the DB layer.
+  registerStateMachine({
+    entity: "kinetiks_goals",
+    states: ["active", "paused", "completed", "archived"] as const,
+    initial: "active",
+    terminal: ["archived"] as const,
+    transitions: [
+      { from: "active", to: "paused" },
+      { from: "active", to: "completed" },
+      { from: "active", to: "archived" },
+      { from: "paused", to: "active" },
+      { from: "paused", to: "completed" },
+      { from: "paused", to: "archived" },
+      { from: "completed", to: "active" }, // re-open if the metric regresses
+      { from: "completed", to: "archived" },
+    ],
+  });
+
+  // ── kinetiks_budgets ───────────────────────────────────────
+  // Budget approval lifecycle (approval_status). Approval (proposed →
+  // approved) is the highest bar in the spec and is restricted to the
+  // customer; the rest are open to any actor (an Oracle proposer may
+  // draft/propose). The trigger (00073) enforces legality at the DB layer.
+  registerStateMachine({
+    entity: "kinetiks_budgets",
+    states: ["draft", "proposed", "approved", "active", "closed"] as const,
+    initial: "draft",
+    terminal: ["closed"] as const,
+    transitions: [
+      { from: "draft", to: "proposed" },
+      { from: "draft", to: "closed" },
+      {
+        from: "proposed",
+        to: "approved",
+        allow: (actor) => actor.kind === "user",
+        reason: "Only the customer can approve a proposed budget",
+      },
+      { from: "proposed", to: "draft" }, // send back for revision
+      { from: "proposed", to: "closed" },
+      { from: "approved", to: "active" },
+      { from: "approved", to: "closed" },
+      { from: "active", to: "closed" },
+    ],
+  });
 }
 
 /** Test-only escape hatch. */
