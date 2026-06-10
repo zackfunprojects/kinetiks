@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { redirect } from "next/navigation";
@@ -9,12 +10,20 @@ import {
 
 export const dynamic = "force-dynamic";
 
+const ThreadIdSchema = z.string().uuid();
+
 export default async function ThreadPage({
   params,
 }: {
   params: Promise<{ threadId: string }>;
 }) {
-  const { threadId } = await params;
+  // Validate the URL param before it reaches any DB query (CLAUDE.md:
+  // validate client input with Zod first). A non-UUID can never be a real
+  // thread, so redirect rather than round-trip to the database.
+  const { threadId: rawThreadId } = await params;
+  const parsedThreadId = ThreadIdSchema.safeParse(rawThreadId);
+  if (!parsedThreadId.success) redirect("/chat");
+  const threadId = parsedThreadId.data;
 
   const serverClient = createClient();
   const {

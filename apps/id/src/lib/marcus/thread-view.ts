@@ -47,30 +47,36 @@ export async function loadThreadView(
 export function supabaseThreadViewReader(admin: AdminClient): ThreadViewReader {
   return {
     async isThreadOwned(accountId, threadId) {
-      const { data } = await admin
+      const { data, error } = await admin
         .from("kinetiks_marcus_threads")
         .select("id")
         .eq("id", threadId)
         .eq("account_id", accountId)
         .maybeSingle();
+      // A query error must NOT be silently treated as "not owned" — that
+      // would mask a DB outage as a redirect. Throw so the route error
+      // boundary (and Sentry) surface it; this is a spine query.
+      if (error) throw error;
       return data !== null;
     },
     async listThreads(accountId, limit) {
-      const { data } = await admin
+      const { data, error } = await admin
         .from("kinetiks_marcus_threads")
         .select()
         .eq("account_id", accountId)
         .order("pinned", { ascending: false })
         .order("updated_at", { ascending: false })
         .limit(limit);
+      if (error) throw error;
       return (data ?? []) as MarcusThread[];
     },
     async listMessages(threadId) {
-      const { data } = await admin
+      const { data, error } = await admin
         .from("kinetiks_marcus_messages")
         .select()
         .eq("thread_id", threadId)
         .order("created_at", { ascending: true });
+      if (error) throw error;
       return (data ?? []) as MarcusMessage[];
     },
   };
