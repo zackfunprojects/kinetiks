@@ -6,6 +6,7 @@ import { calibrateThreshold } from "./threshold";
 import { analyzeEdits } from "./edit-analyzer";
 import { emitApprovalEvent } from "./events";
 import { emitInsight } from "@/lib/insights";
+import { captureException } from "@/lib/observability/sentry";
 import {
   applyAuthorityGrantApprove,
   applyAuthorityGrantReject,
@@ -184,8 +185,11 @@ export async function processApprovalDecision(
           await generateProposals(admin, approval, proposalEdits);
         }
       } catch (e) {
-        // eslint-disable-next-line no-console
-        console.error("[approvals] edit analysis failed", e);
+        await captureException(e, {
+          tags: { route: "approvals", action: "process_decision", stage: "edit_analysis", app: "id" },
+          user: { id: approval.account_id },
+          extra: { approval_id: approval.id },
+        });
       }
     }
 
@@ -203,8 +207,11 @@ export async function processApprovalDecision(
       try {
         contextEditApplied = await applyContextEditApproval(admin, approval, "accept");
       } catch (e) {
-        // eslint-disable-next-line no-console
-        console.error("[approvals] failed to apply context_edit on approve", e);
+        await captureException(e, {
+          tags: { route: "approvals", action: "process_decision", stage: "context_edit_approve", app: "id" },
+          user: { id: approval.account_id },
+          extra: { approval_id: approval.id },
+        });
       }
     }
 
@@ -296,8 +303,11 @@ export async function processApprovalDecision(
         );
         contextEditDeclined = { layer: result.layer, proposalId: result.proposalId };
       } catch (e) {
-        // eslint-disable-next-line no-console
-        console.error("[approvals] failed to decline context_edit on reject", e);
+        await captureException(e, {
+          tags: { route: "approvals", action: "process_decision", stage: "context_edit_decline", app: "id" },
+          user: { id: approval.account_id },
+          extra: { approval_id: approval.id },
+        });
       }
     }
 
