@@ -36,7 +36,9 @@ import {
   getAuthorityResolver,
   getEscalationHandler,
   getLedgerAppender,
+  getPerActionApprovalHandler,
   type AuthorityResolution,
+  type PerActionApprovalDecision,
   type ResolveAuthorityCtx,
 } from "./authority";
 import { AbortError, backoffMs, isRetryable, resolveRetryPolicy, sleep } from "./retry";
@@ -113,82 +115,135 @@ export class AgentRun {
     );
 
     // Authority resolution happens once per logical call (not per retry).
-    // Phase 4: thread per-call scope + action_input into the resolver
-    // context so the §2.9 flow can pick the narrowest grant and
-    // evaluate constraints / triggers against the actual payload.
-    const authority = await getAuthorityResolver()(
-      tool,
-      this.resolveCtx(input, options),
-    );
+    // For a pre-approved execution — an action the customer already
+    // approved is being carried out — authority is NOT re-resolved.
+    // Re-resolving would re-trigger escalation/gating and loop forever;
+    // the approval-execution path is the only caller allowed to set
+    // `preApproved`.
+    let authority: AuthorityResolution;
+    let approvalIdForExec: string | null = options.approvalId ?? null;
 
-    // ── Phase 4: handle escalated / denied outcomes BEFORE execution ──
-    // These outcomes mean the action MUST NOT execute even if it would
-    // otherwise succeed. The resolver has already established that a
-    // covering grant exists but a check (constraint, rate limit, spend
-    // envelope, or escalation trigger) failed.
-    if (authority.outcome === "escalated") {
-      // handleEscalation MUST surface its own failures — without the
-      // approval row inserted, the customer never sees the escalation
-      // and the action is silently lost. Configuration errors and
-      // Supabase insert errors propagate up so the caller observes a
-      // hard failure rather than a silent drop.
-      const approvalId = await this.handleEscalation(tool, input, authority);
-      this.trace.push({
-        toolName: tool.name,
-        status: "queued_for_approval",
-        errorClass: "queued_for_approval",
-        authorityOutcome: "escalated",
-        attempt: 0,
-        latencyMs: 0,
-      });
-      this.authorityOutcomes.escalated += 1;
-      throw new ToolError(
-        "queued_for_approval",
-        `Action escalated to per-action approval (${authority.reason?.code ?? "trigger_fired"})`,
-        {
-          context: compactContext({
-            tool: tool.name,
-            grant_id: authority.grantId,
-            approval_id: approvalId,
-            reason_code: authority.reason?.code ?? "trigger_fired",
-            trigger_type: authority.reason?.trigger_type,
-          }),
-        },
+    if (options.preApproved) {
+      authority = options.grantId
+        ? { outcome: "grant_covers", grantId: options.grantId }
+        : { outcome: "auto_threshold", grantId: null };
+    } else {
+      // Phase 4: thread per-call scope + action_input into the resolver
+      // context so the §2.9 flow can pick the narrowest grant and
+      // evaluate constraints / triggers against the actual payload.
+      authority = await getAuthorityResolver()(
+        tool,
+        this.resolveCtx(input, options),
       );
-    }
-    if (authority.outcome === "denied") {
-      // For denied: the action is rejected regardless of the ledger
-      // write outcome. A ledger failure here is recorded but does not
-      // stop us from throwing denied_by_authority — the user-facing
-      // outcome is the same either way.
-      try {
-        await this.recordDenial(tool, authority);
-      } catch (ledgerErr) {
-        // eslint-disable-next-line no-console
-        console.error(
-          `[runtime/run] Ledger authority_action_escalated (denied) append failed for tool=${tool.name} grant=${authority.grantId ?? "none"}: ${(ledgerErr as Error)?.message ?? "unknown"}`,
+
+      // ── Phase 4: handle escalated / denied outcomes BEFORE execution ──
+      // These outcomes mean the action MUST NOT execute even if it would
+      // otherwise succeed. The resolver has already established that a
+      // covering grant exists but a check (constraint, rate limit, spend
+      // envelope, or escalation trigger) failed.
+      if (authority.outcome === "escalated") {
+        // handleEscalation MUST surface its own failures — without the
+        // approval row inserted, the customer never sees the escalation
+        // and the action is silently lost. Configuration errors and
+        // Supabase insert errors propagate up so the caller observes a
+        // hard failure rather than a silent drop.
+        const approvalId = await this.handleEscalation(tool, input, authority);
+        this.trace.push({
+          toolName: tool.name,
+          status: "queued_for_approval",
+          errorClass: "queued_for_approval",
+          authorityOutcome: "escalated",
+          attempt: 0,
+          latencyMs: 0,
+        });
+        this.authorityOutcomes.escalated += 1;
+        throw new ToolError(
+          "queued_for_approval",
+          `Action escalated to per-action approval (${authority.reason?.code ?? "trigger_fired"})`,
+          {
+            context: compactContext({
+              tool: tool.name,
+              grant_id: authority.grantId,
+              approval_id: approvalId,
+              reason_code: authority.reason?.code ?? "trigger_fired",
+              trigger_type: authority.reason?.trigger_type,
+            }),
+          },
         );
       }
-      this.trace.push({
-        toolName: tool.name,
-        status: "denied",
-        errorClass: "denied_by_authority",
-        authorityOutcome: "denied",
-        attempt: 0,
-        latencyMs: 0,
-      });
-      this.authorityOutcomes.denied += 1;
-      throw new ToolError(
-        "denied_by_authority",
-        `Action denied by authority resolution (${authority.reason?.code ?? "policy"})`,
-        {
-          context: compactContext({
-            tool: tool.name,
-            grant_id: authority.grantId,
-            reason_code: authority.reason?.code,
-          }),
-        },
-      );
+      if (authority.outcome === "denied") {
+        // For denied: the action is rejected regardless of the ledger
+        // write outcome. A ledger failure here is recorded but does not
+        // stop us from throwing denied_by_authority — the user-facing
+        // outcome is the same either way.
+        try {
+          await this.recordDenial(tool, authority);
+        } catch (ledgerErr) {
+          // eslint-disable-next-line no-console
+          console.error(
+            `[runtime/run] Ledger authority_action_escalated (denied) append failed for tool=${tool.name} grant=${authority.grantId ?? "none"}: ${(ledgerErr as Error)?.message ?? "unknown"}`,
+          );
+        }
+        this.trace.push({
+          toolName: tool.name,
+          status: "denied",
+          errorClass: "denied_by_authority",
+          authorityOutcome: "denied",
+          attempt: 0,
+          latencyMs: 0,
+        });
+        this.authorityOutcomes.denied += 1;
+        throw new ToolError(
+          "denied_by_authority",
+          `Action denied by authority resolution (${authority.reason?.code ?? "policy"})`,
+          {
+            context: compactContext({
+              tool: tool.name,
+              grant_id: authority.grantId,
+              reason_code: authority.reason?.code,
+            }),
+          },
+        );
+      }
+
+      // ── Remediation (Finding 1.2): consequential action with NO grant ──
+      // `auto_threshold` / `fallback` mean the §2.9 resolver found no
+      // grant covering this consequential action. It must NOT execute
+      // without an approval record — route it through the per-action
+      // approval flow. If the flow auto-approves (the tool's confidence
+      // bar is met) we execute, pinning the approval id; otherwise we
+      // throw `queued_for_approval` and the action waits for the
+      // customer. Non-consequential reads never reach this branch.
+      if (
+        tool.isConsequential &&
+        tool.actionClass &&
+        (authority.outcome === "auto_threshold" ||
+          authority.outcome === "fallback")
+      ) {
+        const decision = await this.handlePerActionApproval(tool, input);
+        if (decision.decision === "queued") {
+          this.trace.push({
+            toolName: tool.name,
+            status: "queued_for_approval",
+            errorClass: "queued_for_approval",
+            authorityOutcome: authority.outcome,
+            attempt: 0,
+            latencyMs: 0,
+          });
+          this.authorityOutcomes.queued += 1;
+          throw new ToolError(
+            "queued_for_approval",
+            "Action queued for your approval",
+            {
+              context: compactContext({
+                tool: tool.name,
+                approval_id: decision.approval_id,
+              }),
+            },
+          );
+        }
+        approvalIdForExec = decision.approval_id;
+      }
     }
 
     const baseMetadata: ToolMetadata = {
@@ -214,7 +269,7 @@ export class AgentRun {
           agentRunId: this.runId,
           parentAiCallId: this.parentAiCallId,
           proposalId: options.proposalId ?? null,
-          approvalId: options.approvalId ?? null,
+          approvalId: approvalIdForExec,
           grantId: options.grantId ?? authority.grantId ?? null,
           patternId: options.patternId ?? null,
           metadata: baseMetadata,
@@ -360,6 +415,47 @@ export class AgentRun {
       budgetCategoryId: options?.budgetCategoryId,
       metadata: this.options.metadataDefaults,
     };
+  }
+
+  /**
+   * Remediation (Finding 1.2): route a consequential action that has no
+   * covering grant through the per-action approval flow. Returns the
+   * decision; the caller executes on `auto_approved` and throws
+   * `queued_for_approval` otherwise.
+   *
+   * Fails CLOSED: if the handler is not configured we throw
+   * `configuration_error` rather than executing — a consequential action
+   * must never run without an approval record. This is the opposite of
+   * the pre-remediation behavior, where the absence of a handler let the
+   * action execute unchecked.
+   */
+  private async handlePerActionApproval<TIn, TOut>(
+    tool: AgentTool<TIn, TOut>,
+    input: TIn,
+  ): Promise<PerActionApprovalDecision> {
+    const handler = getPerActionApprovalHandler();
+    if (!handler) {
+      throw new ToolError(
+        "configuration_error",
+        "Per-action approval handler is not configured; refusing to execute a consequential action without an approval",
+        { context: compactContext({ tool: tool.name }) },
+      );
+    }
+    if (!tool.actionClass) {
+      throw new ToolError(
+        "internal_error",
+        "handlePerActionApproval called for a tool without an action_class",
+        { context: { tool: tool.name } },
+      );
+    }
+    return handler.request({
+      account_id: this.accountId,
+      invoked_by_agent: this.invokedByAgent,
+      tool_name: tool.name,
+      action_class: tool.actionClass,
+      action_input: input,
+      auto_approve_threshold: tool.autoApproveThreshold ?? null,
+    });
   }
 
   /**

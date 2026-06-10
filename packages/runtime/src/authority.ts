@@ -359,6 +359,56 @@ export function getEscalationHandler(): EscalationHandler | null {
   return _escalationHandler;
 }
 
+// ── Per-action approval (consequential action with NO covering grant) ──
+
+export interface PerActionApprovalRequest {
+  account_id: string;
+  invoked_by_agent: string;
+  tool_name: string;
+  action_class: string;
+  action_input: unknown;
+  /**
+   * The tool descriptor's `autoApproveThreshold`. `null` means the action
+   * always requires explicit approval regardless of confidence; a number
+   * is the confidence bar above which the per-action flow may auto-approve.
+   */
+  auto_approve_threshold: number | null;
+}
+
+export interface PerActionApprovalDecision {
+  decision: "auto_approved" | "queued";
+  approval_id: string;
+}
+
+/**
+ * Handles a consequential action that resolved to `auto_threshold` /
+ * `fallback` — i.e. no active grant covers it. Per the Approval System
+ * spec and CLAUDE.md, such an action must route through the standard
+ * per-action approval flow and may NEVER execute without an approval
+ * record. The handler creates the approval (auto-approving only when the
+ * tool's confidence bar is met) and returns the decision; the runtime
+ * acts on it: execute when `auto_approved`, otherwise throw
+ * `queued_for_approval`.
+ *
+ * Supabase-backed implementation lives in
+ * apps/id/src/lib/runtime/runtime-boot.ts. If this handler is not
+ * configured the runtime fails CLOSED (throws configuration_error rather
+ * than executing) — the opposite of the pre-remediation behavior.
+ */
+export interface PerActionApprovalHandler {
+  request(input: PerActionApprovalRequest): Promise<PerActionApprovalDecision>;
+}
+
+let _perActionApprovalHandler: PerActionApprovalHandler | null = null;
+export function configurePerActionApprovalHandler(
+  handler: PerActionApprovalHandler | null,
+): void {
+  _perActionApprovalHandler = handler;
+}
+export function getPerActionApprovalHandler(): PerActionApprovalHandler | null {
+  return _perActionApprovalHandler;
+}
+
 // ============================================================
 // Constraint narrowing validator
 // ============================================================
@@ -692,6 +742,7 @@ export function _resetAuthorityAdaptersForTests(): void {
   _judgmentBudgetAdapter = null;
   _ledgerAppender = null;
   _escalationHandler = null;
+  _perActionApprovalHandler = null;
   _resolver = f2StubAuthorityResolver;
 }
 

@@ -10,7 +10,11 @@ import {
   ToolError,
   type ToolCallLogPayload,
 } from "@kinetiks/tools";
-import { configureAuthorityResolver, startAgentRun } from "../index";
+import {
+  configureAuthorityResolver,
+  configurePerActionApprovalHandler,
+  startAgentRun,
+} from "../index";
 
 let captured: ToolCallLogPayload[] = [];
 
@@ -20,6 +24,7 @@ beforeEach(() => {
     captured.push(p);
   });
   configureAuthorityResolver(null); // F2 stub: auto_threshold for everything
+  configurePerActionApprovalHandler(null);
 });
 
 afterEach(() => {
@@ -27,7 +32,21 @@ afterEach(() => {
   _resetActionClassRegistryForTests();
   configureToolCallLogger(null);
   configureAuthorityResolver(null);
+  configurePerActionApprovalHandler(null);
 });
+
+function registerSendEmailClass(): void {
+  registerActionClass({
+    action_class: "noop.send_email",
+    source_app: "noop",
+    description: "Send a noop test email; used as a runtime fixture",
+    constraint_schema: z.object({}),
+    rate_limit_default: null,
+    customer_template: "Send a noop test email.",
+    available_in_default_standing_grants: false,
+    always_requires_budget_attachment: false,
+  });
+}
 
 const readOnly = defineTool({
   name: "noop_read",
@@ -144,23 +163,72 @@ describe("AgentRun.invokeTool", () => {
     expect(captured[0].agentRunId).toBe(run.runId);
   });
 
-  it("invokes the F2 authority stub which records auto_threshold for consequential tools", async () => {
-    registerActionClass({
-      action_class: "noop.send_email",
-      source_app: "noop",
-      description: "Send a noop test email; used as a runtime fixture",
-      constraint_schema: z.object({}),
-      rate_limit_default: null,
-      customer_template: "Send a noop test email.",
-      available_in_default_standing_grants: false,
-      always_requires_budget_attachment: false,
-    });
+  it("fails CLOSED for a consequential tool with no covering grant and no approval handler", async () => {
+    // Remediation (Finding 1.2): the F2 stub resolves to auto_threshold
+    // (no grant). A consequential action must NOT execute without an
+    // approval; with no per-action handler configured the runtime refuses
+    // rather than executing — the opposite of the pre-fix behavior.
+    registerSendEmailClass();
     registerTool(consequential);
     const run = startAgentRun({ accountId: "acc_1", invokedByAgent: "marcus" });
-    await run.invokeTool(consequential, { to: "x@example.com", body: "hi" });
-    expect(captured[0].authorityOutcome).toBe("auto_threshold");
-    expect(captured[0].grantId).toBeNull();
-    expect(run.summary().authorityOutcomes.auto_threshold).toBe(1);
+    await expect(
+      run.invokeTool(consequential, { to: "x@example.com", body: "hi" }),
+    ).rejects.toMatchObject({ errorClass: "configuration_error" });
+    // The tool never executed: no tool_calls row was emitted.
+    expect(captured).toHaveLength(0);
+  });
+
+  it("queues a consequential tool with no covering grant (per-action approval, decision=queued)", async () => {
+    configurePerActionApprovalHandler({
+      request: async () => ({ decision: "queued", approval_id: "appr_1" }),
+    });
+    registerSendEmailClass();
+    registerTool(consequential);
+    const run = startAgentRun({ accountId: "acc_1", invokedByAgent: "marcus" });
+    await expect(
+      run.invokeTool(consequential, { to: "x@example.com", body: "hi" }),
+    ).rejects.toMatchObject({ errorClass: "queued_for_approval" });
+    // Queued, never executed.
+    expect(captured).toHaveLength(0);
+    expect(run.summary().authorityOutcomes.queued).toBe(1);
+    expect(run.summary().trace[0].status).toBe("queued_for_approval");
+  });
+
+  it("executes a consequential tool when the per-action flow auto-approves, pinning the approval id", async () => {
+    let seenThreshold: number | null | undefined;
+    configurePerActionApprovalHandler({
+      request: async (req) => {
+        seenThreshold = req.auto_approve_threshold;
+        return { decision: "auto_approved", approval_id: "appr_2" };
+      },
+    });
+    registerSendEmailClass();
+    registerTool(consequential);
+    const run = startAgentRun({ accountId: "acc_1", invokedByAgent: "marcus" });
+    const out = await run.invokeTool(consequential, {
+      to: "x@example.com",
+      body: "hi",
+    });
+    expect(out).toEqual({ delivered: true });
+    // The approval id is pinned onto the tool_calls row.
+    expect(captured[0].approvalId).toBe("appr_2");
+    // The tool's descriptor threshold reached the handler.
+    expect(seenThreshold).toBe(0.9);
+  });
+
+  it("skips authority resolution AND the gate for a pre-approved execution", async () => {
+    // No handler configured: if the gate ran it would throw. preApproved
+    // must bypass resolution + the gate so an approved action can execute.
+    registerSendEmailClass();
+    registerTool(consequential);
+    const run = startAgentRun({ accountId: "acc_1", invokedByAgent: "marcus" });
+    const out = await run.invokeTool(
+      consequential,
+      { to: "x@example.com", body: "hi" },
+      { preApproved: true, approvalId: "appr_3" },
+    );
+    expect(out).toEqual({ delivered: true });
+    expect(captured[0].approvalId).toBe("appr_3");
   });
 
   it("overrides authority resolution via configureAuthorityResolver (L2a hook)", async () => {

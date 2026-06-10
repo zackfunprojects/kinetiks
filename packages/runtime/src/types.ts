@@ -75,6 +75,15 @@ export interface InvokeToolOptions {
   proposalId?: string;
   grantId?: string;
   patternId?: string;
+  /**
+   * Mark this invocation as the execution of an action the customer has
+   * ALREADY approved (per-action approval or an approved escalation).
+   * Authority resolution is skipped entirely — re-resolving would
+   * re-trigger escalation/gating and loop. Only the approval-execution
+   * path may set this. Pair with `approvalId` (and `grantId` when the
+   * approved action was grant-covered).
+   */
+  preApproved?: boolean;
   /** External AbortSignal override for this single call. */
   signal?: AbortSignal;
 
