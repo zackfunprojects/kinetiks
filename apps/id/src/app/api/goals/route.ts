@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { apiSuccess, apiError } from "@/lib/utils/api-response";
 import { validateCreateGoal, validateUpdateGoal } from "@/lib/goals/schema";
 import type { CreateGoalInput, UpdateGoalInput } from "@/lib/goals/types";
+import { assertTransition } from "@kinetiks/lib/state-machines";
 import { NextRequest } from "next/server";
 
 /**
@@ -111,6 +112,43 @@ export async function PATCH(request: Request) {
   }
 
   const admin = createAdminClient();
+
+  // A status change is a lifecycle transition — enforce it at the server
+  // layer (layer 1) before the write; the 00073 trigger is the DB backstop.
+  if (body.status !== undefined) {
+    const { data: current, error: loadErr } = await admin
+      .from("kinetiks_goals")
+      .select("status")
+      .eq("id", body.id)
+      .eq("account_id", auth.account_id)
+      .maybeSingle();
+    if (loadErr) {
+      return apiError(`Failed to load goal: ${loadErr.message}`, 500);
+    }
+    if (!current) {
+      return apiError("Goal not found", 404);
+    }
+    const from = (current as { status: string }).status;
+    if (from !== body.status) {
+      try {
+        assertTransition({
+          entity: "kinetiks_goals",
+          from,
+          to: body.status,
+          actor: {
+            kind: "user",
+            userId: auth.user_id,
+            accountId: auth.account_id,
+          },
+        });
+      } catch (e) {
+        return apiError(
+          e instanceof Error ? e.message : "Illegal goal status transition",
+          400,
+        );
+      }
+    }
+  }
 
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
   if (body.name !== undefined) updates.name = body.name.trim();
