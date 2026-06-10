@@ -158,21 +158,31 @@ export async function POST(request: Request) {
     return apiError("Failed to create import", 500);
   }
 
-  // Trigger the archivist import pipeline asynchronously
-  try {
-    await fetch(
-      `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/archivist/import`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${process.env.INTERNAL_SERVICE_SECRET || ""}`,
-        },
-        body: JSON.stringify({ import_id: importRecord.id }),
-      }
+  // Trigger the archivist import pipeline asynchronously. Only attempt the
+  // internal call when the secret is configured - sending an empty bearer
+  // would just 401 downstream and mask a missing-config error. Without the
+  // secret the import is still picked up by the CRON.
+  const internalSecret = process.env.INTERNAL_SERVICE_SECRET;
+  if (internalSecret) {
+    try {
+      await fetch(
+        `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/archivist/import`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${internalSecret}`,
+          },
+          body: JSON.stringify({ import_id: importRecord.id }),
+        }
+      );
+    } catch {
+      // Non-blocking - import will be picked up by CRON if API call fails
+    }
+  } else {
+    console.error(
+      "[imports] INTERNAL_SERVICE_SECRET not set; skipping the synchronous archivist trigger (the CRON will pick this import up)",
     );
-  } catch {
-    // Non-blocking - import will be picked up by CRON if API call fails
   }
 
   // Log to ledger (non-blocking)

@@ -32,6 +32,7 @@ import "server-only";
 import { NextResponse } from "next/server";
 import { serverEnv } from "@kinetiks/lib/env";
 
+import { isValidInternalBearer } from "@/lib/auth/internal-bearer";
 import { captureException } from "@/lib/observability/sentry";
 import { authorityAgentInputsSchema } from "@/lib/operators/descriptors";
 import {
@@ -53,8 +54,7 @@ export async function POST(request: Request) {
       { status: 500 },
     );
   }
-  const auth = request.headers.get("authorization");
-  if (auth !== `Bearer ${secret}`) {
+  if (!isValidInternalBearer(request.headers.get("authorization"), secret)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
