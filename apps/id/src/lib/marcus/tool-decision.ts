@@ -10,6 +10,7 @@ import {
 } from "@kinetiks/tools";
 import type { AgentRun } from "@kinetiks/runtime";
 import { platformAvailabilityResolvers } from "@/lib/tools/availability";
+import { captureException, captureMessage } from "@/lib/observability/sentry";
 import type { PreAnalysisBrief } from "./types";
 import type { ToolObservation } from "./pre-analysis";
 
@@ -46,6 +47,15 @@ import type { ToolObservation } from "./pre-analysis";
 
 /** Hard cap on concurrent read-tool invocations per Marcus turn. */
 export const MAX_TOOL_FANOUT = 3;
+
+/**
+ * Prompt-facing message for a tool that failed at runtime. The raw
+ * exception goes to Sentry only — never into the synthesis brief,
+ * where Sonnet could echo internal or upstream error text to the
+ * customer.
+ */
+export const GENERIC_TOOL_RUNTIME_ERROR =
+  "This tool failed to run. Treat this source as unavailable for this turn.";
 
 // ─── Zod schemas ──────────────────────────────────────────
 
@@ -125,10 +135,35 @@ export async function decideAndInvokeTool(
   input: DecideAndInvokeToolInput
 ): Promise<DecideAndInvokeToolResult> {
   const availabilityCtx: AvailabilityContext = { accountId: input.accountId };
-  const manifest = await buildCapabilityManifest(
-    availabilityCtx,
-    platformAvailabilityResolvers
-  );
+
+  // An availability-resolver failure degrades to a skipped tool turn —
+  // the same graceful path as a parse failure — never an aborted
+  // Marcus turn.
+  let manifest;
+  try {
+    manifest = await buildCapabilityManifest(
+      availabilityCtx,
+      platformAvailabilityResolvers
+    );
+  } catch (err) {
+    await captureException(err, {
+      tags: {
+        route: "marcus_tool_decision",
+        action: "tool_decision.manifest",
+        stage: "resolve",
+        app: "id",
+      },
+      user: { id: input.accountId },
+      extra: {},
+    });
+    return {
+      observations: [],
+      decision: {
+        selections: [],
+        reason: "capability manifest unavailable",
+      },
+    };
+  }
 
   if (manifest.tools.length === 0) {
     return {
@@ -158,11 +193,17 @@ export async function decideAndInvokeTool(
     const parsed: unknown = JSON.parse(raw.replace(/```json\s*|```/g, "").trim());
     decision = normalizeDecision(parsed);
   } catch (err) {
-    console.error(
-      `[tool-decision] parse failed; skipping tool turn: ${
-        err instanceof Error ? err.message : String(err)
-      }`
-    );
+    // Parse failure skips the tool turn; Sonnet answers from the brief.
+    await captureException(err, {
+      tags: {
+        route: "marcus_tool_decision",
+        action: "tool_decision.parse",
+        stage: "parse",
+        app: "id",
+      },
+      user: { id: input.accountId },
+      extra: {},
+    });
     return {
       observations: [],
       decision: {
@@ -188,17 +229,31 @@ export async function decideAndInvokeTool(
       | AgentTool<unknown, unknown>
       | undefined;
     if (!tool) {
-      console.error(
-        `[tool-decision] Haiku named an unknown tool '${selection.tool_name}'`
-      );
+      void captureMessage("tool-decision: Haiku selected an unregistered tool", {
+        tags: {
+          route: "marcus_tool_decision",
+          action: "tool_decision.resolve",
+          stage: "validate",
+          app: "id",
+        },
+        user: { id: input.accountId },
+        extra: { tool_name: selection.tool_name },
+      });
       continue;
     }
 
     const inputParse = tool.inputSchema.safeParse(selection.input);
     if (!inputParse.success) {
-      console.error(
-        `[tool-decision] Haiku produced invalid input for ${selection.tool_name}: ${inputParse.error.message}`
-      );
+      void captureMessage("tool-decision: Haiku produced schema-invalid tool input", {
+        tags: {
+          route: "marcus_tool_decision",
+          action: "tool_decision.resolve",
+          stage: "validate",
+          app: "id",
+        },
+        user: { id: input.accountId },
+        extra: { tool_name: selection.tool_name },
+      });
       continue;
     }
 
@@ -216,13 +271,13 @@ export async function decideAndInvokeTool(
     return { observations: [], decision };
   }
 
-  const toInvoke = applyFanoutRules(resolved);
+  const toInvoke = applyFanoutRules(resolved, input.accountId);
 
   // Invoke concurrently. Each invocation maps its own failure to a
   // discriminated observation, so Promise.all never rejects and one
   // tool's failure cannot drop another tool's evidence.
   const observations = await Promise.all(
-    toInvoke.map((r) => invokeSelection(input.agentRun, r))
+    toInvoke.map((r) => invokeSelection(input.agentRun, r, input.accountId))
   );
 
   return { observations, decision };
@@ -231,8 +286,26 @@ export async function decideAndInvokeTool(
 /**
  * Structural fan-out rules (see module doc). Applied AFTER resolution
  * and validation so the rules operate on tools we can actually invoke.
+ * Rule enforcement is expected behavior, not an error — it reports via
+ * captureMessage as a prompt-compliance signal.
  */
-function applyFanoutRules(resolved: ResolvedSelection[]): ResolvedSelection[] {
+function applyFanoutRules(
+  resolved: ResolvedSelection[],
+  accountId: string
+): ResolvedSelection[] {
+  const ruleNotice = (message: string, droppedTools: string[]) => {
+    void captureMessage(message, {
+      tags: {
+        route: "marcus_tool_decision",
+        action: "tool_decision.fanout_rules",
+        stage: "validate",
+        app: "id",
+      },
+      user: { id: accountId },
+      extra: { tool_names: droppedTools },
+    });
+  };
+
   if (resolved.length === 1) {
     // Single selection — read or consequential — invokes as-is. A
     // consequential tool here still routes through authority resolution
@@ -245,15 +318,15 @@ function applyFanoutRules(resolved: ResolvedSelection[]): ResolvedSelection[] {
 
   if (reads.length > 0) {
     if (consequential.length > 0) {
-      console.error(
-        `[tool-decision] dropped consequential tool(s) from multi-selection: ${consequential
-          .map((r) => r.tool.name)
-          .join(", ")} (consequential tools never fan out)`
+      ruleNotice(
+        "tool-decision: dropped consequential tool(s) from multi-selection (consequential tools never fan out)",
+        consequential.map((r) => r.tool.name)
       );
     }
     if (reads.length > MAX_TOOL_FANOUT) {
-      console.error(
-        `[tool-decision] capped read fan-out from ${reads.length} to ${MAX_TOOL_FANOUT}`
+      ruleNotice(
+        "tool-decision: capped read fan-out at MAX_TOOL_FANOUT",
+        reads.slice(MAX_TOOL_FANOUT).map((r) => r.tool.name)
       );
     }
     return reads.slice(0, MAX_TOOL_FANOUT);
@@ -261,8 +334,9 @@ function applyFanoutRules(resolved: ResolvedSelection[]): ResolvedSelection[] {
 
   // All-consequential multi-selection: collapse to the first. It runs
   // single + gated like any consequential call.
-  console.error(
-    `[tool-decision] all-consequential multi-selection collapsed to '${consequential[0].tool.name}'`
+  ruleNotice(
+    "tool-decision: all-consequential multi-selection collapsed to its first entry",
+    consequential.slice(1).map((r) => r.tool.name)
   );
   return consequential.slice(0, 1);
 }
@@ -273,7 +347,8 @@ function applyFanoutRules(resolved: ResolvedSelection[]): ResolvedSelection[] {
  */
 async function invokeSelection(
   agentRun: AgentRun,
-  { selection, tool, input }: ResolvedSelection
+  { selection, tool, input }: ResolvedSelection,
+  accountId: string
 ): Promise<ToolObservation> {
   let output: unknown;
   try {
@@ -299,12 +374,23 @@ async function invokeSelection(
       };
     } else {
       // Runtime threw for another reason (timeout, internal error).
-      // Surface as an observation Sonnet can hedge over.
+      // The raw exception goes to Sentry; the prompt-facing observation
+      // carries only the generic constant so internal/upstream error
+      // text can never surface through Sonnet's response.
+      await captureException(err, {
+        tags: {
+          route: "marcus_tool_decision",
+          action: "tool_decision.invoke",
+          stage: "execute",
+          app: "id",
+        },
+        user: { id: accountId },
+        extra: { tool_name: tool.name },
+      });
       output = {
         status: "error",
         error_class: "runtime_failure",
-        message:
-          err instanceof Error ? err.message : "Unknown runtime failure.",
+        message: GENERIC_TOOL_RUNTIME_ERROR,
       };
     }
   }

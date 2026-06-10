@@ -20,6 +20,13 @@ vi.mock("@/lib/tools/availability", () => ({
   platformAvailabilityResolvers: {},
 }));
 
+// Production reporting goes through the observability helper; mocked so
+// tests can assert capture without touching Sentry.
+vi.mock("@/lib/observability/sentry", () => ({
+  captureException: vi.fn(async () => undefined),
+  captureMessage: vi.fn(async () => undefined),
+}));
+
 import { z } from "zod";
 import {
   buildCapabilityManifest,
@@ -27,11 +34,17 @@ import {
   ToolError,
 } from "@kinetiks/tools";
 import type { AgentRun } from "@kinetiks/runtime";
-import { decideAndInvokeTool, MAX_TOOL_FANOUT } from "../tool-decision";
+import { captureException } from "@/lib/observability/sentry";
+import {
+  decideAndInvokeTool,
+  GENERIC_TOOL_RUNTIME_ERROR,
+  MAX_TOOL_FANOUT,
+} from "../tool-decision";
 import type { PreAnalysisBrief } from "../types";
 
 const mockManifest = vi.mocked(buildCapabilityManifest);
 const mockGetTool = vi.mocked(getTool);
+const mockCaptureException = vi.mocked(captureException);
 
 function emptyBrief(): PreAnalysisBrief {
   return {
@@ -142,6 +155,29 @@ describe("decideAndInvokeTool - no tools registered", () => {
     });
 
     expect(result.observations).toEqual([]);
+  });
+});
+
+describe("decideAndInvokeTool - capability manifest failure", () => {
+  it("degrades to a skipped tool turn instead of rejecting", async () => {
+    mockManifest.mockRejectedValue(new Error("availability resolver exploded"));
+
+    const result = await decideAndInvokeTool({
+      userMessage: "how is traffic?",
+      intent: "question",
+      brief: emptyBrief(),
+      accountId: "acc-1",
+      agentRun: makeAgentRun(() => {
+        throw new Error("should not invoke");
+      }),
+      haikuCaller: async () => {
+        throw new Error("should not reach the Haiku");
+      },
+    });
+
+    expect(result.observations).toEqual([]);
+    expect(result.decision.reason).toBe("capability manifest unavailable");
+    expect(mockCaptureException).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -398,7 +434,9 @@ describe("decideAndInvokeTool - multi-tool fan-out", () => {
     };
     expect(failed.status).toBe("error");
     expect(failed.error_class).toBe("runtime_failure");
-    expect(failed.message).toContain("upstream timeout");
+    // Raw exception text never enters the prompt-facing payload.
+    expect(failed.message).toBe(GENERIC_TOOL_RUNTIME_ERROR);
+    expect(failed.message).not.toContain("upstream timeout");
   });
 
   it("drops unknown tools from the fan-out without dropping the valid ones", async () => {
@@ -537,11 +575,11 @@ describe("decideAndInvokeTool - parse failure", () => {
 });
 
 describe("decideAndInvokeTool - Runtime throws during invokeTool", () => {
-  it("surfaces a structured error observation rather than rethrowing", async () => {
+  it("surfaces a generic error observation and reports the raw error internally", async () => {
     registerTools();
 
     const run = makeAgentRun(async () => {
-      throw new Error("authority denied");
+      throw new Error("authority denied: grant g-123 constraint xyz");
     });
 
     const result = await decideAndInvokeTool({
@@ -564,7 +602,11 @@ describe("decideAndInvokeTool - Runtime throws during invokeTool", () => {
     };
     expect(output.status).toBe("error");
     expect(output.error_class).toBe("runtime_failure");
-    expect(output.message).toContain("authority denied");
+    // The prompt-facing message is the generic constant; the raw
+    // exception goes to Sentry only.
+    expect(output.message).toBe(GENERIC_TOOL_RUNTIME_ERROR);
+    expect(output.message).not.toContain("authority denied");
+    expect(mockCaptureException).toHaveBeenCalledTimes(1);
   });
 });
 
