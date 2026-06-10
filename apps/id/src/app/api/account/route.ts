@@ -93,6 +93,22 @@ export async function DELETE(request: Request) {
   ];
 
   for (const table of tables) {
+    if (table === "kinetiks_ledger") {
+      // The Learning Ledger is append-only (immutability trigger). Full
+      // account erasure is the one path allowed to delete its rows, and
+      // it must go through the guarded RPC that sets the transaction-local
+      // opt-in flag; a raw delete is rejected by the trigger.
+      const { error: eraseError } = await admin.rpc(
+        "kinetiks_erase_account_ledger",
+        { p_account_id: accountId },
+      );
+      if (eraseError) {
+        console.error("Failed to erase ledger:", eraseError.message);
+        return apiError("Failed to delete data from kinetiks_ledger", 500);
+      }
+      continue;
+    }
+
     const { error: deleteError } = await admin
       .from(table)
       .delete()
