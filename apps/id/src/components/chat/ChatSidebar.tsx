@@ -5,6 +5,7 @@ import type { MarcusThread } from "@kinetiks/types";
 import { SidebarToggle, type SidebarPanel } from "./SidebarToggle";
 import { ThreadList } from "./ThreadList";
 import { ApprovalPanel } from "@/components/approvals/ApprovalPanel";
+import { ActivityPanel } from "./ActivityPanel";
 
 interface ChatSidebarProps {
   threads: MarcusThread[];
@@ -49,8 +50,10 @@ export function ChatSidebar({
             onNewThread={onNewThread}
             onSearch={onSearch}
           />
-        ) : (
+        ) : activePanel === "approvals" ? (
           <ApprovalPanel systemName={systemName ?? null} />
+        ) : (
+          <ActivityPanel systemName={systemName ?? null} />
         )}
       </div>
     </div>
