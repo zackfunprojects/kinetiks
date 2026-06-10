@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { apiError, apiSuccess } from "@/lib/utils/api-response";
-import { executeTool, getTool, ToolError } from "@kinetiks/tools";
+import { getTool, ToolError } from "@kinetiks/tools";
+import { startAgentRun } from "@kinetiks/runtime";
 import { platformAvailabilityResolvers } from "@/lib/tools/availability";
 import { captureException } from "@/lib/observability/sentry";
 
@@ -53,21 +54,29 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   try {
-    const output = await executeTool(tool, parsed.data.input, {
+    // Route through the Agent Runtime, not F1's executeTool directly, so
+    // authority resolution runs: a consequential tool with no covering
+    // grant is routed to per-action approval rather than executed. This
+    // closes the bypass where this HTTP surface skipped the membrane.
+    const run = startAgentRun({
       accountId: auth.account_id,
       userId: auth.user_id,
       invokedByAgent: parsed.data.invoked_by_agent,
       correlationId: parsed.data.correlation_id,
       threadId: parsed.data.thread_id,
-      agentRunId: parsed.data.agent_run_id,
       parentAiCallId: parsed.data.parent_ai_call_id,
-      metadata: parsed.data.metadata,
-    }, {
       availability: platformAvailabilityResolvers,
+      metadataDefaults: parsed.data.metadata,
     });
+    const output = await run.invokeTool(tool, parsed.data.input);
     return apiSuccess(output);
   } catch (e) {
     if (e instanceof ToolError) {
+      // A consequential tool with no covering grant queues for approval
+      // instead of executing — a normal outcome, not an error.
+      if (e.errorClass === "queued_for_approval") {
+        return apiSuccess({ queued_for_approval: true, message: e.userMessage });
+      }
       // Friendly user-safe message; structured context goes to Sentry
       // only for unexpected error classes.
       if (e.errorClass === "internal_error" || e.errorClass === "configuration_error") {
