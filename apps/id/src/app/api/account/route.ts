@@ -1,6 +1,7 @@
 import { requireAuth } from "@/lib/auth/require-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { apiSuccess, apiError } from "@/lib/utils/api-response";
+import { captureException } from "@/lib/observability/sentry";
 
 /**
  * PATCH /api/account
@@ -103,7 +104,11 @@ export async function DELETE(request: Request) {
         { p_account_id: accountId },
       );
       if (eraseError) {
-        console.error("Failed to erase ledger:", eraseError.message);
+        await captureException(eraseError, {
+          tags: { route: "/api/account", action: "delete_account", stage: "erase_ledger", app: "id" },
+          user: { id: accountId },
+          extra: { table: "kinetiks_ledger" },
+        });
         return apiError("Failed to delete data from kinetiks_ledger", 500);
       }
       continue;
@@ -115,7 +120,11 @@ export async function DELETE(request: Request) {
       .eq("account_id", accountId);
 
     if (deleteError) {
-      console.error(`Failed to delete from ${table}:`, deleteError.message);
+      await captureException(deleteError, {
+        tags: { route: "/api/account", action: "delete_account", stage: "delete_table", app: "id" },
+        user: { id: accountId },
+        extra: { table },
+      });
       return apiError(`Failed to delete data from ${table}`, 500);
     }
   }
@@ -127,7 +136,10 @@ export async function DELETE(request: Request) {
     .eq("id", accountId);
 
   if (accountDeleteError) {
-    console.error("Failed to delete account:", accountDeleteError.message);
+    await captureException(accountDeleteError, {
+      tags: { route: "/api/account", action: "delete_account", stage: "delete_account_row", app: "id" },
+      user: { id: accountId },
+    });
     return apiError("Failed to delete account record", 500);
   }
 
@@ -135,7 +147,10 @@ export async function DELETE(request: Request) {
   const { error: authDeleteError } = await admin.auth.admin.deleteUser(auth.user_id);
 
   if (authDeleteError) {
-    console.error("Failed to delete auth user:", authDeleteError.message);
+    await captureException(authDeleteError, {
+      tags: { route: "/api/account", action: "delete_account", stage: "delete_auth_user", app: "id" },
+      user: { id: accountId },
+    });
     return apiError("Account data deleted but failed to remove auth user", 500);
   }
 
