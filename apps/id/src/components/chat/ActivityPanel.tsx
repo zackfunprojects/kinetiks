@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { formatRelativeTime } from "@kinetiks/lib";
+// Subpath import keeps the lib barrel (and its node:crypto-backed pii
+// module) out of the client bundle.
+import { formatRelativeTime } from "@kinetiks/lib/format";
 import type { AgentActivitySummary } from "@/lib/activity/aggregate";
 import { isActivityEmpty } from "@/lib/activity/aggregate";
 
