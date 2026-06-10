@@ -30,6 +30,7 @@ import { buildPersonaPrompt } from "./prompts/marcus-persona";
 import { generateActions } from "./action-generator";
 import { assembleResponse } from "./response-assembler";
 import { decideAndInvokeTool } from "./tool-decision";
+import { statusEvent, toolExecStatusEvent } from "./chat-status";
 import type { DataAvailabilityManifest, ActionGenerationResult } from "./types";
 
 /**
@@ -430,13 +431,17 @@ interface ValidationMetadata {
 
 /**
  * Stream a Marcus conversation message through the v2 pipeline.
- * Returns a ReadableStream that emits SSE-formatted text deltas.
+ * Returns a ReadableStream that emits SSE-formatted events.
  *
- * V2 streaming pipeline:
- * - Pre-stream: intent, manifest, memory, pre-analysis brief
- * - Stream: Sonnet with persona prompt + brief adjacent to question
- * - Post-stream: action generation + memory update (parallel)
- * - Stream action footer after response completes
+ * V2 streaming pipeline (B2: the pipeline runs INSIDE the stream so
+ * each boundary emits a typed `status` event the client renders live —
+ * before B2 the pre-stream work was 1.5-3s of silence):
+ * - thread_id event, then status events at the intent / brief /
+ *   tool-decision / per-tool-exec / responding boundaries
+ * - Stream: Sonnet text deltas with persona prompt + brief adjacent to
+ *   the question
+ * - Post-stream: action generation + memory update
+ * - Stream action footer after response completes, then `done`
  */
 export async function streamMarcusMessage(
   admin: SupabaseClient,
@@ -444,7 +449,7 @@ export async function streamMarcusMessage(
   message: string,
   threadId?: string,
   channel: MarcusChannel = "web"
-): Promise<{ stream: ReadableStream; threadId: string; manifest: DataAvailabilityManifest; actionsPromise?: Promise<ActionGenerationResult> }> {
+): Promise<{ stream: ReadableStream; threadId: string; actionsPromise?: Promise<ActionGenerationResult> }> {
   // 1. Get or create thread
   const thread = await getOrCreateThread(admin, accountId, threadId, channel);
 
@@ -461,170 +466,201 @@ export async function streamMarcusMessage(
   };
   const haikuFor = (task: string) => makeHaikuCaller(task, aiContext);
 
-  // 2. Fetch prior history
-  const history = await getRecentThreadMessages(admin, thread.id, 20);
-
-  // 3. Classify intent
-  const recentContent = history.slice(-5).map((m) => m.content);
-  const intent = await classifyIntent(message, recentContent.length > 0 ? recentContent : undefined, aiContext);
-
-  // 4. Save user message
-  await addMessage(admin, thread.id, "user", message, channel);
-
-  // Phase 1.7 — close any prior pending kinetiks_id.marcus_question_resonance
-  // observation for this thread with outcome=1 (the user followed up).
-  closeMarcusTurnObservationForThread(
-    { account_id: accountId, thread_id: thread.id },
-    admin,
-  ).catch(() => undefined);
-
-  // 5. Build data availability manifest
-  const manifest = await buildDataAvailabilityManifest(accountId, admin);
-
-  // 6. Load thread memories
-  const memories = await loadThreadMemories(accountId, thread.id, admin);
-
-  // Format recent messages
-  const recentMessages = history
-    .slice(-6)
-    .map((m) => `${m.role === "user" ? "USER" : "ASSISTANT"}: ${m.content}`)
-    .join("\n");
-
-  // 7. Pre-analysis brief (Haiku) — pre-fetch the platform tool
-  // inventory so the brief includes the canonical capability list.
-  const toolInventory = await buildToolInventoryForBrief({ accountId }).catch(
-    () => undefined,
-  );
-  // D2 Slice 11 — recent undelivered Oracle insights so Sonnet can weave
-  // them into the response. Engine post-processes the response text to
-  // stamp delivered=true on cited insight_ids (see step 11.5).
-  const insightProjections = await loadInsightsForBrief({
-    admin,
-    accountId,
-  }).catch(() => []);
-  const briefInsights = insightProjections.map((p) => ({
-    insight_id: p.insight_id,
-    type: p.type,
-    severity: p.severity,
-    source_app: p.source_app,
-    summary: p.summary,
-  }));
-
-  // Phase 1.7 — kinetiks_id.insight_action_rate observation per surfaced
-  // insight. The brief is the surfacing moment: insights here are
-  // presented to Marcus and (via the response) to the user. A user
-  // accepting an action linked to the insight closes outcome=1; the
-  // archivist sweep closes outcome=0 after the action window. Note:
-  // the "action accepted for insight X" close signal is not yet wired
-  // through the approval pipeline; v1 emits every observation with
-  // outcome=0 via the sweep, exercising the lifecycle.
-  for (const bi of briefInsights) {
-    recordInsightDeliveryObservation(
-      {
-        account_id: accountId,
-        insight_id: bi.insight_id,
-        insight_category: bi.type ?? "recommendation",
-        severity: bi.severity ?? "low",
-        urgency_hint: "this_week",
-      },
-      admin,
-    ).catch(() => undefined);
-  }
-
-  // L1a — passive Pattern Library pre-fetch per Kinetiks Contract Addendum §1.10.
-  const briefPatterns = await loadPatternsForBrief({
-    admin,
-    account_id: accountId,
-  });
-  const { brief, formatted: briefText } = await buildPreAnalysisBrief(
-    message,
-    manifest,
-    memories,
-    intent,
-    recentMessages,
-    haikuFor("marcus.pre_analysis"),
-    toolInventory,
-    briefInsights,
-    briefPatterns,
-  );
-
-  // 7.5. Tool decision + invocation (D1, fan-out per B1). See
-  // processMarcusMessage for the rationale; same pre-decided pattern,
-  // then the brief is re-rendered with one [TOOL OBSERVATIONS] block
-  // per invoked tool for Sonnet.
-  const { observations } = await decideAndInvokeTool({
-    userMessage: message,
-    intent,
-    brief,
-    accountId,
-    agentRun: run,
-    haikuCaller: haikuFor("marcus.tool_decision"),
-  });
-
-  // Phase 1.7.1 — open + close connection_value_per_source observation
-  // per invoked connection-backed tool. Mirror of processMarcusMessage
-  // above; brief inclusion is the deterministic outcome=1 signal. Same
-  // status="ok" gate to keep non-evidence outputs (not_connected,
-  // error, etc.) from inflating the usefulness rate.
-  const connectionEvidenceRequestIds =
-    await recordConnectionEvidenceForObservations(admin, accountId, observations);
-
-  const augmentedBriefText =
-    observations.length > 0
-      ? formatBriefForSonnet(brief, toolInventory, observations)
-      : briefText;
-
-  closeConnectionEvidenceForRequestIds(
-    admin,
-    accountId,
-    connectionEvidenceRequestIds,
-  );
-
-  // 8. Build messages with brief adjacent to question
-  const systemPrompt = buildPersonaPrompt("Marcus");
-
-  const conversationMessages: ConversationMessage[] = [
-    ...history.map((m) => ({
-      role: m.role === "user" ? "user" as const : "assistant" as const,
-      content: m.content,
-    })),
-    {
-      role: "user" as const,
-      content: `${augmentedBriefText}\n\n[USER MESSAGE]\n${message}`,
-    },
-  ];
-
-  // 9. Create streaming response
-  const claudeStream = routeStreamClaude(
-    "marcus.persona_stream",
-    conversationMessages,
-    systemPrompt,
-    {
-      maxTokens: 2048,
-      context: aiContext,
-    },
-  );
-
-  let fullResponse = "";
-  const isFirstExchange = history.length === 0 && !thread.title;
-
   // Promise that resolves with action generation result (for API route to execute)
   let resolveActions: (value: ActionGenerationResult) => void;
   const actionsPromise = new Promise<ActionGenerationResult>((resolve) => {
     resolveActions = resolve;
   });
 
+  // B2 — the entire pre-stream pipeline (steps 2-9) runs INSIDE the
+  // ReadableStream so each boundary can emit a typed status event the
+  // client renders live. Before B2 this work completed before the
+  // Response was even constructed, leaving the customer staring at
+  // 1.5-3s of silence before the first token.
   const readableStream = new ReadableStream({
     async start(controller) {
       const encoder = new TextEncoder();
 
+      // A client disconnect mid-pipeline makes enqueue throw; treat the
+      // stream as closed and let the DB-side work continue silently.
+      let streamClosed = false;
+      const send = (event: object) => {
+        if (streamClosed) return;
+        try {
+          controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify(event)}\n\n`)
+          );
+        } catch {
+          streamClosed = true;
+        }
+      };
+      const close = () => {
+        if (streamClosed) return;
+        streamClosed = true;
+        try {
+          controller.close();
+        } catch {
+          // Already closed by the runtime.
+        }
+      };
+
       // Send thread_id as first event
-      controller.enqueue(
-        encoder.encode(`data: ${JSON.stringify({ type: "thread_id", thread_id: thread.id })}\n\n`)
-      );
+      send({ type: "thread_id", thread_id: thread.id });
 
       try {
-        const stream = await claudeStream;
+        // 2. Fetch prior history
+        const history = await getRecentThreadMessages(admin, thread.id, 20);
+
+        // 3. Classify intent
+        send(statusEvent("intent", "Reading your question"));
+        const recentContent = history.slice(-5).map((m) => m.content);
+        const intent = await classifyIntent(message, recentContent.length > 0 ? recentContent : undefined, aiContext);
+
+        // 4. Save user message
+        await addMessage(admin, thread.id, "user", message, channel);
+
+        // Phase 1.7 — close any prior pending kinetiks_id.marcus_question_resonance
+        // observation for this thread with outcome=1 (the user followed up).
+        closeMarcusTurnObservationForThread(
+          { account_id: accountId, thread_id: thread.id },
+          admin,
+        ).catch(() => undefined);
+
+        // 5. Build data availability manifest
+        send(statusEvent("brief", "Reviewing what I know"));
+        const manifest = await buildDataAvailabilityManifest(accountId, admin);
+
+        // 6. Load thread memories
+        const memories = await loadThreadMemories(accountId, thread.id, admin);
+
+        // Format recent messages
+        const recentMessages = history
+          .slice(-6)
+          .map((m) => `${m.role === "user" ? "USER" : "ASSISTANT"}: ${m.content}`)
+          .join("\n");
+
+        // 7. Pre-analysis brief (Haiku) — pre-fetch the platform tool
+        // inventory so the brief includes the canonical capability list.
+        const toolInventory = await buildToolInventoryForBrief({ accountId }).catch(
+          () => undefined,
+        );
+        // D2 Slice 11 — recent undelivered Oracle insights so Sonnet can weave
+        // them into the response. Engine post-processes the response text to
+        // stamp delivered=true on cited insight_ids (see step 11.5).
+        const insightProjections = await loadInsightsForBrief({
+          admin,
+          accountId,
+        }).catch(() => []);
+        const briefInsights = insightProjections.map((p) => ({
+          insight_id: p.insight_id,
+          type: p.type,
+          severity: p.severity,
+          source_app: p.source_app,
+          summary: p.summary,
+        }));
+
+        // Phase 1.7 — kinetiks_id.insight_action_rate observation per surfaced
+        // insight. The brief is the surfacing moment: insights here are
+        // presented to Marcus and (via the response) to the user. A user
+        // accepting an action linked to the insight closes outcome=1; the
+        // archivist sweep closes outcome=0 after the action window. Note:
+        // the "action accepted for insight X" close signal is not yet wired
+        // through the approval pipeline; v1 emits every observation with
+        // outcome=0 via the sweep, exercising the lifecycle.
+        for (const bi of briefInsights) {
+          recordInsightDeliveryObservation(
+            {
+              account_id: accountId,
+              insight_id: bi.insight_id,
+              insight_category: bi.type ?? "recommendation",
+              severity: bi.severity ?? "low",
+              urgency_hint: "this_week",
+            },
+            admin,
+          ).catch(() => undefined);
+        }
+
+        // L1a — passive Pattern Library pre-fetch per Kinetiks Contract Addendum §1.10.
+        const briefPatterns = await loadPatternsForBrief({
+          admin,
+          account_id: accountId,
+        });
+        const { brief, formatted: briefText } = await buildPreAnalysisBrief(
+          message,
+          manifest,
+          memories,
+          intent,
+          recentMessages,
+          haikuFor("marcus.pre_analysis"),
+          toolInventory,
+          briefInsights,
+          briefPatterns,
+        );
+
+        // 7.5. Tool decision + invocation (D1, fan-out per B1). See
+        // processMarcusMessage for the rationale; same pre-decided pattern,
+        // then the brief is re-rendered with one [TOOL OBSERVATIONS] block
+        // per invoked tool for Sonnet. Each invocation start emits a
+        // tool_exec status ("Checking GA4...") via the hook.
+        send(statusEvent("tool_decision", "Choosing data sources"));
+        const { observations } = await decideAndInvokeTool({
+          userMessage: message,
+          intent,
+          brief,
+          accountId,
+          agentRun: run,
+          haikuCaller: haikuFor("marcus.tool_decision"),
+          onToolInvokeStart: (toolName) => send(toolExecStatusEvent(toolName)),
+        });
+
+        // Phase 1.7.1 — open + close connection_value_per_source observation
+        // per invoked connection-backed tool. Mirror of processMarcusMessage
+        // above; brief inclusion is the deterministic outcome=1 signal. Same
+        // status="ok" gate to keep non-evidence outputs (not_connected,
+        // error, etc.) from inflating the usefulness rate.
+        const connectionEvidenceRequestIds =
+          await recordConnectionEvidenceForObservations(admin, accountId, observations);
+
+        const augmentedBriefText =
+          observations.length > 0
+            ? formatBriefForSonnet(brief, toolInventory, observations)
+            : briefText;
+
+        closeConnectionEvidenceForRequestIds(
+          admin,
+          accountId,
+          connectionEvidenceRequestIds,
+        );
+
+        // 8. Build messages with brief adjacent to question
+        const systemPrompt = buildPersonaPrompt("Marcus");
+
+        const conversationMessages: ConversationMessage[] = [
+          ...history.map((m) => ({
+            role: m.role === "user" ? "user" as const : "assistant" as const,
+            content: m.content,
+          })),
+          {
+            role: "user" as const,
+            content: `${augmentedBriefText}\n\n[USER MESSAGE]\n${message}`,
+          },
+        ];
+
+        // 9. Stream the Sonnet response
+        send(statusEvent("responding", "Writing"));
+        const stream = await routeStreamClaude(
+          "marcus.persona_stream",
+          conversationMessages,
+          systemPrompt,
+          {
+            maxTokens: 2048,
+            context: aiContext,
+          },
+        );
+
+        let fullResponse = "";
+        const isFirstExchange = history.length === 0 && !thread.title;
+
         for await (const event of stream) {
           if (
             event.type === "content_block_delta" &&
@@ -632,9 +668,7 @@ export async function streamMarcusMessage(
           ) {
             const text = event.delta.text;
             fullResponse += text;
-            controller.enqueue(
-              encoder.encode(`data: ${JSON.stringify({ type: "text", text })}\n\n`)
-            );
+            send({ type: "text", text });
           }
         }
 
@@ -676,9 +710,7 @@ export async function streamMarcusMessage(
 
         // Stream action footer if there are actions
         if (actionResult.footer_text) {
-          controller.enqueue(
-            encoder.encode(`data: ${JSON.stringify({ type: "text", text: actionResult.footer_text })}\n\n`)
-          );
+          send({ type: "text", text: actionResult.footer_text });
 
           // Update saved message with action footer using captured ID
           const fullWithFooter = assembleResponse(fullResponse, actionResult);
@@ -732,20 +764,17 @@ export async function streamMarcusMessage(
         run.end();
 
         // Signal completion
-        controller.enqueue(
-          encoder.encode(`data: ${JSON.stringify({ type: "done" })}\n\n`)
-        );
-        controller.close();
+        send({ type: "done" });
+        close();
       } catch (err) {
         resolveActions!({ actions: [], footer_text: "" });
+        run.end();
         const errorMsg = err instanceof Error ? err.message : "Unknown error";
-        controller.enqueue(
-          encoder.encode(`data: ${JSON.stringify({ type: "error", error: errorMsg })}\n\n`)
-        );
-        controller.close();
+        send({ type: "error", error: errorMsg });
+        close();
       }
     },
   });
 
-  return { stream: readableStream, threadId: thread.id, manifest, actionsPromise };
+  return { stream: readableStream, threadId: thread.id, actionsPromise };
 }

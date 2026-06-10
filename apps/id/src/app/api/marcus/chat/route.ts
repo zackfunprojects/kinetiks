@@ -18,6 +18,9 @@ import { apiError } from "@/lib/utils/api-response";
  *
  * SSE events:
  * - { type: "thread_id", thread_id: string } - sent first for new threads
+ * - { type: "status", stage, label, tool_name? } - live pipeline progress
+ *   (B2). Stages: intent | brief | tool_decision | tool_exec | responding.
+ *   tool_exec carries tool_name and a per-tool label ("Checking GA4...").
  * - { type: "text", text: string } - streaming text deltas (includes action footer)
  * - { type: "done" } - response complete
  * - { type: "extraction", disclosure: string, actions: GeneratedAction[] } - post-response action execution
@@ -52,7 +55,7 @@ export async function POST(request: Request) {
 
   try {
     // Stream the Marcus response (v2 pipeline handles pre-analysis, generation, actions, memory)
-    const { stream, threadId, manifest, actionsPromise } = await streamMarcusMessage(
+    const { stream, threadId, actionsPromise } = await streamMarcusMessage(
       admin,
       accountId,
       message.trim(),

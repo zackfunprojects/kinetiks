@@ -367,6 +367,59 @@ describe("decideAndInvokeTool - multi-tool fan-out", () => {
     expect(result.observations).toHaveLength(2);
   });
 
+  it("fires onToolInvokeStart once per tool before its invocation resolves", async () => {
+    registerTools();
+
+    const started: string[] = [];
+    const run = makeAgentRun(async (tool) => {
+      // Both hooks must have fired by the time any invocation runs —
+      // the hook is called synchronously before invokeTool.
+      expect(started.length).toBeGreaterThan(0);
+      return { status: "ok", tool: (tool as { name: string }).name };
+    });
+
+    const result = await decideAndInvokeTool({
+      userMessage: "compare traffic and revenue",
+      intent: "question",
+      brief: emptyBrief(),
+      accountId: "acc-1",
+      agentRun: run,
+      haikuCaller: haikuOk({
+        selections: [selection("ga4_query"), selection("stripe_query")],
+        reason: "two sources",
+      }),
+      onToolInvokeStart: (toolName) => started.push(toolName),
+    });
+
+    expect(started).toEqual(["ga4_query", "stripe_query"]);
+    expect(result.observations).toHaveLength(2);
+  });
+
+  it("a throwing onToolInvokeStart hook never affects the invocation", async () => {
+    registerTools();
+
+    const run = makeAgentRun(async () => ({ status: "ok" }));
+
+    const result = await decideAndInvokeTool({
+      userMessage: "how is traffic?",
+      intent: "question",
+      brief: emptyBrief(),
+      accountId: "acc-1",
+      agentRun: run,
+      haikuCaller: haikuOk({
+        selections: [selection("ga4_query")],
+        reason: "traffic",
+      }),
+      onToolInvokeStart: () => {
+        throw new Error("status channel broke");
+      },
+    });
+
+    expect(run.invokeTool).toHaveBeenCalledTimes(1);
+    expect(result.observations).toHaveLength(1);
+    expect(result.observations[0].output).toEqual({ status: "ok" });
+  });
+
   it("one failing tool does not drop the other tools' evidence", async () => {
     registerTools();
 
