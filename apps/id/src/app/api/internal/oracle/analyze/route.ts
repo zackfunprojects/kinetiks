@@ -15,6 +15,7 @@ import "server-only";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { isValidInternalBearer } from "@/lib/auth/internal-bearer";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { analyzeAccount, type AnalyzeAccountResult } from "@/lib/oracle/runner";
 
@@ -36,8 +37,7 @@ export async function POST(request: Request) {
   if (!secret) {
     return NextResponse.json({ error: "missing_internal_secret" }, { status: 500 });
   }
-  const auth = request.headers.get("authorization");
-  if (auth !== `Bearer ${secret}`) {
+  if (!isValidInternalBearer(request.headers.get("authorization"), secret)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 

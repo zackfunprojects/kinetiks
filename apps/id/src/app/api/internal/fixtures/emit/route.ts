@@ -27,6 +27,7 @@ import * as Sentry from "@sentry/nextjs";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { serverEnv } from "@kinetiks/lib/env";
+import { isValidInternalBearer } from "@/lib/auth/internal-bearer";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getGenerators, FIXTURE_SOURCE_APP } from "@/lib/fixtures";
 import type { FixtureEmission } from "@/lib/fixtures";
@@ -61,8 +62,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const auth = request.headers.get("authorization");
-  if (auth !== `Bearer ${secret}`) {
+  if (!isValidInternalBearer(request.headers.get("authorization"), secret)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
