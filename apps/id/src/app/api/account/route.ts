@@ -1,6 +1,7 @@
 import { requireAuth } from "@/lib/auth/require-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { apiSuccess, apiError } from "@/lib/utils/api-response";
+import { captureException } from "@/lib/observability/sentry";
 
 /**
  * PATCH /api/account
@@ -93,13 +94,37 @@ export async function DELETE(request: Request) {
   ];
 
   for (const table of tables) {
+    if (table === "kinetiks_ledger") {
+      // The Learning Ledger is append-only (immutability trigger). Full
+      // account erasure is the one path allowed to delete its rows, and
+      // it must go through the guarded RPC that sets the transaction-local
+      // opt-in flag; a raw delete is rejected by the trigger.
+      const { error: eraseError } = await admin.rpc(
+        "kinetiks_erase_account_ledger",
+        { p_account_id: accountId },
+      );
+      if (eraseError) {
+        await captureException(eraseError, {
+          tags: { route: "/api/account", action: "delete_account", stage: "erase_ledger", app: "id" },
+          user: { id: accountId },
+          extra: { table: "kinetiks_ledger" },
+        });
+        return apiError("Failed to delete data from kinetiks_ledger", 500);
+      }
+      continue;
+    }
+
     const { error: deleteError } = await admin
       .from(table)
       .delete()
       .eq("account_id", accountId);
 
     if (deleteError) {
-      console.error(`Failed to delete from ${table}:`, deleteError.message);
+      await captureException(deleteError, {
+        tags: { route: "/api/account", action: "delete_account", stage: "delete_table", app: "id" },
+        user: { id: accountId },
+        extra: { table },
+      });
       return apiError(`Failed to delete data from ${table}`, 500);
     }
   }
@@ -111,7 +136,10 @@ export async function DELETE(request: Request) {
     .eq("id", accountId);
 
   if (accountDeleteError) {
-    console.error("Failed to delete account:", accountDeleteError.message);
+    await captureException(accountDeleteError, {
+      tags: { route: "/api/account", action: "delete_account", stage: "delete_account_row", app: "id" },
+      user: { id: accountId },
+    });
     return apiError("Failed to delete account record", 500);
   }
 
@@ -119,7 +147,10 @@ export async function DELETE(request: Request) {
   const { error: authDeleteError } = await admin.auth.admin.deleteUser(auth.user_id);
 
   if (authDeleteError) {
-    console.error("Failed to delete auth user:", authDeleteError.message);
+    await captureException(authDeleteError, {
+      tags: { route: "/api/account", action: "delete_account", stage: "delete_auth_user", app: "id" },
+      user: { id: accountId },
+    });
     return apiError("Account data deleted but failed to remove auth user", 500);
   }
 

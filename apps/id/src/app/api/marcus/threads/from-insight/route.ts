@@ -93,14 +93,18 @@ export async function POST(request: Request) {
     return apiError(`Failed to seed thread: ${msgErr.message}`, 500);
   }
 
-  // 4. Ledger entry (fire-and-forget)
+  // 4. Ledger entry (fire-and-forget). kinetiks_ledger with the real
+  // detail/source_app/source_operator columns; the prior table and
+  // source/data keys did not exist.
   void admin
-    .from("kinetiks_learning_ledger")
+    .from("kinetiks_ledger")
     .insert({
       account_id: auth.account_id,
       event_type: "insight_applied",
-      source: "oracle",
-      data: {
+      source_app: "oracle",
+      source_operator: "oracle",
+      target_layer: null,
+      detail: {
         insight_id: insight.id,
         thread_id: thread.id,
         source_app: insight.source_app,

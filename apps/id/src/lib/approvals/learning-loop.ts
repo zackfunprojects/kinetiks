@@ -361,18 +361,20 @@ export async function flagApproval(
   // Trust contraction - treat as rejection
   await calibrateThreshold(accountId, record.action_category, "rejected");
 
-  // Log to Ledger
+  // Log to Ledger. The columns are detail/source_operator per the
+  // kinetiks_ledger schema (00001); the previous data/attribution keys do
+  // not exist on the table, so this insert had been failing silently.
   await admin.from("kinetiks_ledger").insert({
     account_id: accountId,
     event_type: "approval_flagged",
     source_app: record.source_app,
     target_layer: null,
-    data: {
+    detail: {
       approval_id: approvalId,
       original_status: record.status,
       flag_reason: reason,
     },
-    attribution: "user",
+    source_operator: "user",
   });
 
   await emitApprovalEvent(

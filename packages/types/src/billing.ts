@@ -162,12 +162,37 @@ export interface LedgerEventDetailMap {
   app_activation: { app_name?: string; status?: string };
 
   // ── Approval lifecycle ────────────────────────────────────
+  approval_created: {
+    approval_id?: string;
+    approval_type?: string;
+    confidence_score?: number;
+    auto_approved?: boolean;
+  };
+  approval_auto_approved: {
+    approval_id?: string;
+    approval_type?: string;
+    confidence_score?: number;
+    auto_approved?: boolean;
+  };
+  approval_approved: { approval_id?: string; approval_type?: string };
+  approval_approved_with_edits: { approval_id?: string; approval_type?: string };
   approval_batch_approved: { approval_ids?: string[]; count?: number };
   approval_expired: { approval_id?: string };
   approval_flagged: { approval_id?: string; reason?: string };
   approval_rejected: { approval_id?: string; reason?: string };
 
   // ── Marcus ────────────────────────────────────────────────
+  /** One conversational turn (engine.ts), for confidence-recalibration analytics. */
+  marcus_turn: {
+    thread_id?: string;
+    intent_type?: string;
+    brief_evidence_count?: number;
+    brief_gap_count?: number;
+    memory_count?: number;
+    action_count?: number;
+    response_length?: number;
+    streaming?: boolean;
+  };
   marcus_daily_brief: { thread_id?: string; insight_count?: number };
   marcus_weekly_digest: { thread_id?: string };
   marcus_monthly_review: { thread_id?: string };

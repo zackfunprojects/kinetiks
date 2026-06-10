@@ -338,12 +338,17 @@ export async function processMarcusMessage(
     admin,
   ).catch((err) => console.error("Memory extraction failed", err));
 
-  // 13. Log to Learning Ledger (non-blocking)
-  admin.from("kinetiks_learning_ledger").insert({
+  // 13. Log to Learning Ledger (non-blocking). Target table is
+  // kinetiks_ledger with the detail/source_app/source_operator columns;
+  // the prior kinetiks_learning_ledger table and source/data keys never
+  // existed, so every turn's log had been failing silently.
+  admin.from("kinetiks_ledger").insert({
     account_id: accountId,
-    event_type: "marcus_response_v2",
-    source: "marcus",
-    data: {
+    event_type: "marcus_turn",
+    source_app: "marcus",
+    source_operator: "marcus",
+    target_layer: null,
+    detail: {
       thread_id: thread.id,
       intent_type: intent,
       brief_evidence_count: brief.available_evidence.length,
@@ -681,12 +686,15 @@ export async function streamMarcusMessage(
           admin,
         ).catch((err) => console.error("Memory extraction failed", err));
 
-        // Log to Learning Ledger (non-blocking)
-        admin.from("kinetiks_learning_ledger").insert({
+        // Log to Learning Ledger (non-blocking). See the non-streaming
+        // path above: kinetiks_ledger with detail/source_app/source_operator.
+        admin.from("kinetiks_ledger").insert({
           account_id: accountId,
-          event_type: "marcus_response_v2",
-          source: "marcus",
-          data: {
+          event_type: "marcus_turn",
+          source_app: "marcus",
+          source_operator: "marcus",
+          target_layer: null,
+          detail: {
             thread_id: thread.id,
             intent_type: intent,
             brief_evidence_count: brief.available_evidence.length,
