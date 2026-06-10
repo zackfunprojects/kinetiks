@@ -8,7 +8,7 @@
 -- ============================================================
 
 BEGIN;
-SELECT plan(3);
+SELECT plan(4);
 
 DO $$
 DECLARE
@@ -61,6 +61,27 @@ SELECT is(
   NULL,
   'hook omits account_id when the user has no account'
 );
+
+-- ── Production invoker path: runs under supabase_auth_admin ──
+-- GoTrue invokes the hook as supabase_auth_admin. This verifies the
+-- GRANT EXECUTE plus the account-read RLS policy 00069 creates actually
+-- let the hook run as that role. SET/RESET ROLE are inside the lives_ok
+-- body so the role change is scoped to the call and never leaks into
+-- finish().
+SELECT lives_ok(
+$$
+  SET LOCAL ROLE supabase_auth_admin;
+  SELECT public.custom_access_token_hook(
+    jsonb_build_object(
+      'user_id', '11111111-1111-1111-1111-111111111111',
+      'claims', jsonb_build_object('sub', '11111111-1111-1111-1111-111111111111')
+    )
+  );
+  RESET ROLE;
+$$,
+  'hook executes under supabase_auth_admin with required table read access'
+);
+RESET ROLE;
 
 SELECT * FROM finish();
 ROLLBACK;
