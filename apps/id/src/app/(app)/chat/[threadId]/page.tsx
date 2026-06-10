@@ -2,7 +2,10 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { redirect } from "next/navigation";
 import { ChatLayout } from "@/components/chat/ChatLayout";
-import type { MarcusThread, MarcusMessage } from "@kinetiks/types";
+import {
+  loadThreadView,
+  supabaseThreadViewReader,
+} from "@/lib/marcus/thread-view";
 
 export const dynamic = "force-dynamic";
 
@@ -30,26 +33,22 @@ export default async function ThreadPage({
 
   if (!account) redirect("/login");
 
-  const [{ data: threads }, { data: messages }] = await Promise.all([
-    admin
-      .from("kinetiks_marcus_threads")
-      .select()
-      .eq("account_id", account.id)
-      .order("pinned", { ascending: false })
-      .order("updated_at", { ascending: false })
-      .limit(30),
-    admin
-      .from("kinetiks_marcus_messages")
-      .select()
-      .eq("thread_id", threadId)
-      .order("created_at", { ascending: true }),
-  ]);
+  // Ownership is verified before any of the thread's messages are read. The
+  // admin client bypasses RLS, so a thread id from the URL that does not belong
+  // to this account must never resolve to another tenant's conversation.
+  const view = await loadThreadView(
+    supabaseThreadViewReader(admin),
+    account.id,
+    threadId,
+  );
+
+  if (!view.owned) redirect("/chat");
 
   return (
     <ChatLayout
-      initialThreads={(threads ?? []) as MarcusThread[]}
+      initialThreads={view.threads}
       initialThreadId={threadId}
-      initialMessages={(messages ?? []) as MarcusMessage[]}
+      initialMessages={view.messages}
       systemName={account.system_name}
     />
   );
