@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { buildPreAnalysisBrief } from '../pre-analysis';
+import { buildPreAnalysisBrief, formatBriefForSonnet } from '../pre-analysis';
+import type { ToolObservation } from '../pre-analysis';
 import { generateActions } from '../action-generator';
 import { assembleResponse } from '../response-assembler';
 import { formatMemoriesForContext } from '../memory';
@@ -134,5 +135,102 @@ describe('Pipeline V2 - Bug Report Scenarios', () => {
     expect(formatted).toContain('[CORRECTION] User targets seed stage companies, NOT Series A/B');
     expect(formatted).toContain('[DECISION] User targeting 3 qualified calls per week');
     expect(formatted).toContain('[FACT] User pricing is $15k');
+  });
+});
+
+describe('Pipeline V2 - multi-source synthesis (B1 fan-out)', () => {
+  const briefJson = {
+    available_evidence: [
+      { label: 'competitive', value: '97%', citation: 'Competitive layer: 97% confidence' },
+    ],
+    not_available: ['Close rate history'],
+    memory_facts: ['User pricing is $15k per engagement'],
+    response_shape: {
+      max_sentences: 6,
+      lead_with: 'Whether the pricing change moved revenue',
+      must_flag: [],
+      must_not: ['Promise Harvest actions'],
+    },
+    action_availability: [],
+  };
+
+  function mockHaikuBrief() {
+    return vi.fn().mockResolvedValue({
+      content: [{ text: JSON.stringify(briefJson) }],
+    });
+  }
+
+  it('feeds 2-source observations into the Sonnet-facing prompt for synthesis', async () => {
+    const { brief } = await buildPreAnalysisBrief(
+      'did the pricing change move revenue for my best segment?',
+      manifest,
+      memories,
+      'question',
+      '',
+      mockHaikuBrief(),
+    );
+
+    const observations: ToolObservation[] = [
+      {
+        tool_name: 'stripe_query',
+        reason: 'revenue after the pricing change',
+        output: { status: 'ok', rows: [{ metric: 'mrr', value: 8400, period: 'last_30_days' }] },
+      },
+      {
+        tool_name: 'ga4_query',
+        reason: 'traffic for the best segment',
+        output: { status: 'ok', rows: [{ metric: 'sessions', value: 1200, segment: 'organic' }] },
+      },
+    ];
+
+    const augmented = formatBriefForSonnet(brief, undefined, observations);
+
+    // Both sources reach Sonnet in the same prompt, each in its own block.
+    expect(augmented).toContain('[TOOL OBSERVATIONS - returned by stripe_query;');
+    expect(augmented).toContain('[TOOL OBSERVATIONS - returned by ga4_query;');
+    expect(augmented).toContain('8400');
+    expect(augmented).toContain('1200');
+    // The evidence-only constraint and action prohibition still bound the turn.
+    expect(augmented).toContain('cite ONLY the values below verbatim');
+    expect(augmented).toContain('Do NOT mention actions');
+  });
+
+  it('feeds 3-source observations including a degraded source Sonnet must hedge over', async () => {
+    const { brief } = await buildPreAnalysisBrief(
+      'compare search, traffic, and revenue this month',
+      manifest,
+      memories,
+      'question',
+      '',
+      mockHaikuBrief(),
+    );
+
+    const observations: ToolObservation[] = [
+      {
+        tool_name: 'ga4_query',
+        reason: 'traffic',
+        output: { status: 'ok', rows: [{ metric: 'sessions', value: 1200 }] },
+      },
+      {
+        tool_name: 'gsc_query',
+        reason: 'search',
+        output: { status: 'not_connected', message: 'Search Console is not connected.' },
+      },
+      {
+        tool_name: 'stripe_query',
+        reason: 'revenue',
+        output: { status: 'ok', rows: [{ metric: 'mrr', value: 8400 }] },
+      },
+    ];
+
+    const augmented = formatBriefForSonnet(brief, undefined, observations);
+
+    // All three blocks render; the degraded source carries its honest
+    // status so Sonnet can hedge instead of fabricating search numbers.
+    expect(augmented).toContain('[TOOL OBSERVATIONS - returned by ga4_query;');
+    expect(augmented).toContain('[TOOL OBSERVATIONS - returned by gsc_query;');
+    expect(augmented).toContain('[TOOL OBSERVATIONS - returned by stripe_query;');
+    expect(augmented).toContain('not_connected');
+    expect(augmented).toContain('8400');
   });
 });

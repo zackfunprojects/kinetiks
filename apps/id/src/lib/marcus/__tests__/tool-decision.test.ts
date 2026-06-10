@@ -20,6 +20,13 @@ vi.mock("@/lib/tools/availability", () => ({
   platformAvailabilityResolvers: {},
 }));
 
+// Production reporting goes through the observability helper; mocked so
+// tests can assert capture without touching Sentry.
+vi.mock("@/lib/observability/sentry", () => ({
+  captureException: vi.fn(async () => undefined),
+  captureMessage: vi.fn(async () => undefined),
+}));
+
 import { z } from "zod";
 import {
   buildCapabilityManifest,
@@ -27,11 +34,17 @@ import {
   ToolError,
 } from "@kinetiks/tools";
 import type { AgentRun } from "@kinetiks/runtime";
-import { decideAndInvokeTool } from "../tool-decision";
+import { captureException } from "@/lib/observability/sentry";
+import {
+  decideAndInvokeTool,
+  GENERIC_TOOL_RUNTIME_ERROR,
+  MAX_TOOL_FANOUT,
+} from "../tool-decision";
 import type { PreAnalysisBrief } from "../types";
 
 const mockManifest = vi.mocked(buildCapabilityManifest);
 const mockGetTool = vi.mocked(getTool);
+const mockCaptureException = vi.mocked(captureException);
 
 function emptyBrief(): PreAnalysisBrief {
   return {
@@ -54,22 +67,65 @@ function makeAgentRun(invokeImpl: (tool: unknown, input: unknown) => unknown): A
   } as unknown as AgentRun;
 }
 
-const fakeTool = {
-  name: "ga4_query",
-  description: "Query GA4",
-  inputSchema: z.object({
-    metric: z.enum(["ga4_sessions"] as ["ga4_sessions"]),
-    date_range: z.enum(["last_7_days"] as ["last_7_days"]),
-  }),
-  outputSchema: z.unknown(),
-  isConsequential: false,
-  autoApproveThreshold: null,
-  availability: { kind: "always" as const },
-  execute: vi.fn(),
+function makeTool(name: string, opts: { isConsequential?: boolean } = {}) {
+  return {
+    name,
+    description: `Tool ${name}`,
+    inputSchema: z.object({
+      metric: z.string(),
+      date_range: z.string(),
+    }),
+    outputSchema: z.unknown(),
+    isConsequential: opts.isConsequential ?? false,
+    autoApproveThreshold: null,
+    availability: { kind: "always" as const },
+    execute: vi.fn(),
+  };
+}
+
+const ga4Tool = makeTool("ga4_query");
+const stripeTool = makeTool("stripe_query");
+const gscTool = makeTool("gsc_query");
+const slackTool = makeTool("slack_post", { isConsequential: true });
+const emailTool = makeTool("send_email", { isConsequential: true });
+
+const TOOLS_BY_NAME: Record<string, unknown> = {
+  ga4_query: ga4Tool,
+  stripe_query: stripeTool,
+  gsc_query: gscTool,
+  slack_post: slackTool,
+  send_email: emailTool,
 };
+
+/** Register the full fixture toolset in the manifest + getTool mocks. */
+function registerTools() {
+  mockManifest.mockResolvedValue({
+    tools: Object.values(TOOLS_BY_NAME).map((t) => {
+      const tool = t as { name: string; description: string; isConsequential: boolean };
+      return {
+        name: tool.name,
+        description: tool.description,
+        isConsequential: tool.isConsequential,
+      };
+    }),
+    action_classes: [],
+    operators: [],
+  } as never);
+  mockGetTool.mockImplementation(
+    (name: string) => TOOLS_BY_NAME[name] as never,
+  );
+}
+
+const validInput = { metric: "sessions", date_range: "last_7_days" };
 
 const haikuOk = (decision: object) => async () => ({
   content: [{ text: JSON.stringify(decision) }],
+});
+
+const selection = (tool_name: string, input: unknown = validInput, reason = `use ${tool_name}`) => ({
+  tool_name,
+  input,
+  reason,
 });
 
 beforeEach(() => {
@@ -82,7 +138,7 @@ afterEach(() => {
 });
 
 describe("decideAndInvokeTool - no tools registered", () => {
-  it("returns observation: null when the registry is empty", async () => {
+  it("returns no observations when the registry is empty", async () => {
     mockManifest.mockResolvedValue({
       tools: [],
       action_classes: [],
@@ -95,26 +151,39 @@ describe("decideAndInvokeTool - no tools registered", () => {
       brief: emptyBrief(),
       accountId: "acc-1",
       agentRun: makeAgentRun(() => null),
-      haikuCaller: haikuOk({ tool_name: null, input: null, reason: "n/a" }),
+      haikuCaller: haikuOk({ selections: [], reason: "n/a" }),
     });
 
-    expect(result.observation).toBeNull();
+    expect(result.observations).toEqual([]);
+  });
+});
+
+describe("decideAndInvokeTool - capability manifest failure", () => {
+  it("degrades to a skipped tool turn instead of rejecting", async () => {
+    mockManifest.mockRejectedValue(new Error("availability resolver exploded"));
+
+    const result = await decideAndInvokeTool({
+      userMessage: "how is traffic?",
+      intent: "question",
+      brief: emptyBrief(),
+      accountId: "acc-1",
+      agentRun: makeAgentRun(() => {
+        throw new Error("should not invoke");
+      }),
+      haikuCaller: async () => {
+        throw new Error("should not reach the Haiku");
+      },
+    });
+
+    expect(result.observations).toEqual([]);
+    expect(result.decision.reason).toBe("capability manifest unavailable");
+    expect(mockCaptureException).toHaveBeenCalledTimes(1);
   });
 });
 
 describe("decideAndInvokeTool - Haiku picks no tool", () => {
-  it("returns observation: null when tool_name is null", async () => {
-    mockManifest.mockResolvedValue({
-      tools: [
-        {
-          name: "ga4_query",
-          description: "Query GA4",
-          isConsequential: false,
-        },
-      ],
-      action_classes: [],
-      operators: [],
-    } as never);
+  it("returns no observations when selections is empty", async () => {
+    registerTools();
 
     const result = await decideAndInvokeTool({
       userMessage: "tell me about Saturn",
@@ -125,31 +194,19 @@ describe("decideAndInvokeTool - Haiku picks no tool", () => {
         throw new Error("should not invoke");
       }),
       haikuCaller: haikuOk({
-        tool_name: null,
-        input: null,
+        selections: [],
         reason: "no tool fits planetary trivia",
       }),
     });
 
-    expect(result.observation).toBeNull();
-    expect(result.decision.tool_name).toBeNull();
+    expect(result.observations).toEqual([]);
+    expect(result.decision.selections).toEqual([]);
   });
 });
 
-describe("decideAndInvokeTool - Haiku picks ga4_query", () => {
-  it("invokes the tool via AgentRun and returns the observation", async () => {
-    mockManifest.mockResolvedValue({
-      tools: [
-        {
-          name: "ga4_query",
-          description: "Query GA4",
-          isConsequential: false,
-        },
-      ],
-      action_classes: [],
-      operators: [],
-    } as never);
-    mockGetTool.mockReturnValue(fakeTool as never);
+describe("decideAndInvokeTool - single read tool", () => {
+  it("invokes the tool via AgentRun and returns one observation", async () => {
+    registerTools();
 
     const toolOutput = {
       status: "ok" as const,
@@ -164,38 +221,22 @@ describe("decideAndInvokeTool - Haiku picks ga4_query", () => {
       accountId: "acc-1",
       agentRun: run,
       haikuCaller: haikuOk({
-        tool_name: "ga4_query",
-        input: { metric: "ga4_sessions", date_range: "last_7_days" },
-        reason: "traffic query matches ga4_query",
+        selections: [selection("ga4_query", validInput, "traffic query matches ga4_query")],
+        reason: "single source answers this",
       }),
     });
 
-    expect(result.decision.tool_name).toBe("ga4_query");
-    expect(result.observation).not.toBeNull();
-    expect(result.observation?.tool_name).toBe("ga4_query");
-    expect(result.observation?.output).toEqual(toolOutput);
+    expect(result.decision.selections).toHaveLength(1);
+    expect(result.observations).toHaveLength(1);
+    expect(result.observations[0].tool_name).toBe("ga4_query");
+    expect(result.observations[0].output).toEqual(toolOutput);
     expect(run.invokeTool).toHaveBeenCalledTimes(1);
   });
-});
 
-describe("decideAndInvokeTool - input fails schema validation", () => {
-  it("declines invocation when the proposed input does not match the schema", async () => {
-    mockManifest.mockResolvedValue({
-      tools: [
-        {
-          name: "ga4_query",
-          description: "Query GA4",
-          isConsequential: false,
-        },
-      ],
-      action_classes: [],
-      operators: [],
-    } as never);
-    mockGetTool.mockReturnValue(fakeTool as never);
+  it("normalizes the legacy single-tool shape and invokes it", async () => {
+    registerTools();
 
-    const run = makeAgentRun(() => {
-      throw new Error("should not invoke");
-    });
+    const run = makeAgentRun(async () => ({ status: "ok", rows: [] }));
 
     const result = await decideAndInvokeTool({
       userMessage: "how is traffic this week?",
@@ -203,34 +244,21 @@ describe("decideAndInvokeTool - input fails schema validation", () => {
       brief: emptyBrief(),
       accountId: "acc-1",
       agentRun: run,
+      // Legacy D1 shape: { tool_name, input, reason } with no selections array.
       haikuCaller: haikuOk({
         tool_name: "ga4_query",
-        // metric is misspelled — schema requires literal "ga4_sessions"
-        input: { metric: "ga4_session", date_range: "last_7_days" },
+        input: validInput,
         reason: "traffic query",
       }),
     });
 
-    expect(result.observation).toBeNull();
-    expect(run.invokeTool).not.toHaveBeenCalled();
+    expect(result.observations).toHaveLength(1);
+    expect(result.observations[0].tool_name).toBe("ga4_query");
+    expect(run.invokeTool).toHaveBeenCalledTimes(1);
   });
-});
 
-describe("decideAndInvokeTool - unknown tool name", () => {
-  it("declines invocation when Haiku names a tool the registry does not have", async () => {
-    mockManifest.mockResolvedValue({
-      tools: [
-        {
-          name: "ga4_query",
-          description: "Query GA4",
-          isConsequential: false,
-        },
-      ],
-      action_classes: [],
-      operators: [],
-    } as never);
-    // getTool returns undefined (it does not throw) for an unknown name.
-    mockGetTool.mockReturnValue(undefined as never);
+  it("returns no observations for the legacy null tool_name shape", async () => {
+    registerTools();
 
     const result = await decideAndInvokeTool({
       userMessage: "hi",
@@ -240,30 +268,296 @@ describe("decideAndInvokeTool - unknown tool name", () => {
       agentRun: makeAgentRun(() => {
         throw new Error("should not invoke");
       }),
+      haikuCaller: haikuOk({ tool_name: null, input: null, reason: "nothing fits" }),
+    });
+
+    expect(result.observations).toEqual([]);
+  });
+});
+
+describe("decideAndInvokeTool - multi-tool fan-out", () => {
+  it("invokes two read tools and returns observations in selection order", async () => {
+    registerTools();
+
+    const outputs: Record<string, unknown> = {
+      ga4_query: { status: "ok", rows: [{ value: 1200 }] },
+      stripe_query: { status: "ok", rows: [{ value: 8400 }] },
+    };
+    const run = makeAgentRun(async (tool) => outputs[(tool as { name: string }).name]);
+
+    const result = await decideAndInvokeTool({
+      userMessage: "did the pricing change move revenue for my best segment?",
+      intent: "question",
+      brief: emptyBrief(),
+      accountId: "acc-1",
+      agentRun: run,
       haikuCaller: haikuOk({
-        tool_name: "phantom_tool",
-        input: {},
-        reason: "made up",
+        selections: [
+          selection("stripe_query", validInput, "revenue evidence"),
+          selection("ga4_query", validInput, "traffic evidence"),
+        ],
+        reason: "question spans revenue and traffic",
       }),
     });
 
-    expect(result.observation).toBeNull();
+    expect(run.invokeTool).toHaveBeenCalledTimes(2);
+    expect(result.observations).toHaveLength(2);
+    expect(result.observations.map((o) => o.tool_name)).toEqual([
+      "stripe_query",
+      "ga4_query",
+    ]);
+    expect(result.observations[0].output).toEqual(outputs.stripe_query);
+    expect(result.observations[1].output).toEqual(outputs.ga4_query);
+  });
+
+  it("invokes three read tools concurrently (all start before any resolves)", async () => {
+    registerTools();
+
+    const started: string[] = [];
+    const resolvers: Array<() => void> = [];
+    const run = makeAgentRun((tool) => {
+      started.push((tool as { name: string }).name);
+      return new Promise((resolve) => {
+        resolvers.push(() => resolve({ status: "ok", tool: (tool as { name: string }).name }));
+      });
+    });
+
+    const resultPromise = decideAndInvokeTool({
+      userMessage: "compare search, traffic, and revenue this month",
+      intent: "question",
+      brief: emptyBrief(),
+      accountId: "acc-1",
+      agentRun: run,
+      haikuCaller: haikuOk({
+        selections: [
+          selection("ga4_query"),
+          selection("gsc_query"),
+          selection("stripe_query"),
+        ],
+        reason: "three sources",
+      }),
+    });
+
+    // Let the invocations start. All three must have begun before any
+    // resolves — the sequential pattern would show only one started.
+    await vi.waitFor(() => {
+      expect(started).toHaveLength(3);
+    });
+    expect(started).toEqual(["ga4_query", "gsc_query", "stripe_query"]);
+
+    resolvers.forEach((resolve) => resolve());
+    const result = await resultPromise;
+    expect(result.observations).toHaveLength(3);
+  });
+
+  it("caps the fan-out at MAX_TOOL_FANOUT read tools", async () => {
+    registerTools();
+
+    const run = makeAgentRun(async () => ({ status: "ok" }));
+
+    const result = await decideAndInvokeTool({
+      userMessage: "everything about my business",
+      intent: "question",
+      brief: emptyBrief(),
+      accountId: "acc-1",
+      agentRun: run,
+      haikuCaller: haikuOk({
+        selections: [
+          selection("ga4_query", { metric: "sessions", date_range: "a" }),
+          selection("gsc_query", { metric: "clicks", date_range: "b" }),
+          selection("stripe_query", { metric: "revenue", date_range: "c" }),
+          selection("ga4_query", { metric: "conversions", date_range: "d" }),
+        ],
+        reason: "broad sweep",
+      }),
+    });
+
+    expect(MAX_TOOL_FANOUT).toBe(3);
+    expect(run.invokeTool).toHaveBeenCalledTimes(MAX_TOOL_FANOUT);
+    expect(result.observations).toHaveLength(MAX_TOOL_FANOUT);
+  });
+
+  it("allows the same tool twice with different inputs, deduping identical pairs", async () => {
+    registerTools();
+
+    const run = makeAgentRun(async (_tool, input) => ({ status: "ok", input }));
+
+    const result = await decideAndInvokeTool({
+      userMessage: "sessions and conversions this week",
+      intent: "question",
+      brief: emptyBrief(),
+      accountId: "acc-1",
+      agentRun: run,
+      haikuCaller: haikuOk({
+        selections: [
+          selection("ga4_query", { metric: "sessions", date_range: "last_7_days" }),
+          selection("ga4_query", { metric: "conversions", date_range: "last_7_days" }),
+          // Exact duplicate of the first selection — must be deduped.
+          selection("ga4_query", { metric: "sessions", date_range: "last_7_days" }),
+        ],
+        reason: "two GA4 metrics",
+      }),
+    });
+
+    expect(run.invokeTool).toHaveBeenCalledTimes(2);
+    expect(result.observations).toHaveLength(2);
+  });
+
+  it("one failing tool does not drop the other tools' evidence", async () => {
+    registerTools();
+
+    const run = makeAgentRun(async (tool) => {
+      if ((tool as { name: string }).name === "gsc_query") {
+        throw new Error("upstream timeout");
+      }
+      return { status: "ok", rows: [{ value: 7 }] };
+    });
+
+    const result = await decideAndInvokeTool({
+      userMessage: "compare search and traffic",
+      intent: "question",
+      brief: emptyBrief(),
+      accountId: "acc-1",
+      agentRun: run,
+      haikuCaller: haikuOk({
+        selections: [selection("ga4_query"), selection("gsc_query")],
+        reason: "two sources",
+      }),
+    });
+
+    expect(result.observations).toHaveLength(2);
+    expect(result.observations[0].output).toEqual({ status: "ok", rows: [{ value: 7 }] });
+    const failed = result.observations[1].output as {
+      status: string;
+      error_class: string;
+      message: string;
+    };
+    expect(failed.status).toBe("error");
+    expect(failed.error_class).toBe("runtime_failure");
+    // Raw exception text never enters the prompt-facing payload.
+    expect(failed.message).toBe(GENERIC_TOOL_RUNTIME_ERROR);
+    expect(failed.message).not.toContain("upstream timeout");
+  });
+
+  it("drops unknown tools from the fan-out without dropping the valid ones", async () => {
+    registerTools();
+
+    const run = makeAgentRun(async () => ({ status: "ok" }));
+
+    const result = await decideAndInvokeTool({
+      userMessage: "traffic plus something imaginary",
+      intent: "question",
+      brief: emptyBrief(),
+      accountId: "acc-1",
+      agentRun: run,
+      haikuCaller: haikuOk({
+        selections: [selection("phantom_tool", {}), selection("ga4_query")],
+        reason: "one real, one hallucinated",
+      }),
+    });
+
+    expect(run.invokeTool).toHaveBeenCalledTimes(1);
+    expect(result.observations).toHaveLength(1);
+    expect(result.observations[0].tool_name).toBe("ga4_query");
+  });
+
+  it("drops selections whose input fails the tool schema, keeping the rest", async () => {
+    registerTools();
+
+    const run = makeAgentRun(async () => ({ status: "ok" }));
+
+    const result = await decideAndInvokeTool({
+      userMessage: "search and traffic",
+      intent: "question",
+      brief: emptyBrief(),
+      accountId: "acc-1",
+      agentRun: run,
+      haikuCaller: haikuOk({
+        selections: [
+          selection("gsc_query", { metric: 42 }), // invalid: metric must be a string
+          selection("ga4_query"),
+        ],
+        reason: "two sources",
+      }),
+    });
+
+    expect(run.invokeTool).toHaveBeenCalledTimes(1);
+    expect(result.observations).toHaveLength(1);
+    expect(result.observations[0].tool_name).toBe("ga4_query");
+  });
+});
+
+describe("decideAndInvokeTool - consequential tools never fan out", () => {
+  it("invokes a sole consequential selection (single + gated path preserved)", async () => {
+    registerTools();
+
+    const run = makeAgentRun(async () => ({ status: "sent" }));
+
+    const result = await decideAndInvokeTool({
+      userMessage: "post to slack that we hit our goal",
+      intent: "action",
+      brief: emptyBrief(),
+      accountId: "acc-1",
+      agentRun: run,
+      haikuCaller: haikuOk({
+        selections: [selection("slack_post")],
+        reason: "explicit action request",
+      }),
+    });
+
+    expect(run.invokeTool).toHaveBeenCalledTimes(1);
+    expect(result.observations).toHaveLength(1);
+    expect(result.observations[0].tool_name).toBe("slack_post");
+  });
+
+  it("drops consequential tools from a mixed multi-selection", async () => {
+    registerTools();
+
+    const run = makeAgentRun(async () => ({ status: "ok" }));
+
+    const result = await decideAndInvokeTool({
+      userMessage: "check traffic and post the result to slack",
+      intent: "question",
+      brief: emptyBrief(),
+      accountId: "acc-1",
+      agentRun: run,
+      haikuCaller: haikuOk({
+        selections: [selection("ga4_query"), selection("slack_post")],
+        reason: "read plus action",
+      }),
+    });
+
+    expect(run.invokeTool).toHaveBeenCalledTimes(1);
+    expect(result.observations).toHaveLength(1);
+    expect(result.observations[0].tool_name).toBe("ga4_query");
+  });
+
+  it("collapses an all-consequential multi-selection to its first entry", async () => {
+    registerTools();
+
+    const run = makeAgentRun(async () => ({ status: "sent" }));
+
+    const result = await decideAndInvokeTool({
+      userMessage: "post to slack and email the team",
+      intent: "action",
+      brief: emptyBrief(),
+      accountId: "acc-1",
+      agentRun: run,
+      haikuCaller: haikuOk({
+        selections: [selection("slack_post"), selection("send_email")],
+        reason: "two actions",
+      }),
+    });
+
+    expect(run.invokeTool).toHaveBeenCalledTimes(1);
+    expect(result.observations).toHaveLength(1);
+    expect(result.observations[0].tool_name).toBe("slack_post");
   });
 });
 
 describe("decideAndInvokeTool - parse failure", () => {
-  it("returns observation: null on invalid Haiku JSON", async () => {
-    mockManifest.mockResolvedValue({
-      tools: [
-        {
-          name: "ga4_query",
-          description: "Query GA4",
-          isConsequential: false,
-        },
-      ],
-      action_classes: [],
-      operators: [],
-    } as never);
+  it("returns no observations on invalid Haiku JSON", async () => {
+    registerTools();
 
     const result = await decideAndInvokeTool({
       userMessage: "hi",
@@ -276,27 +570,16 @@ describe("decideAndInvokeTool - parse failure", () => {
       haikuCaller: async () => ({ content: [{ text: "not json at all" }] }),
     });
 
-    expect(result.observation).toBeNull();
+    expect(result.observations).toEqual([]);
   });
 });
 
 describe("decideAndInvokeTool - Runtime throws during invokeTool", () => {
-  it("surfaces a structured error observation rather than rethrowing", async () => {
-    mockManifest.mockResolvedValue({
-      tools: [
-        {
-          name: "ga4_query",
-          description: "Query GA4",
-          isConsequential: false,
-        },
-      ],
-      action_classes: [],
-      operators: [],
-    } as never);
-    mockGetTool.mockReturnValue(fakeTool as never);
+  it("surfaces a generic error observation and reports the raw error internally", async () => {
+    registerTools();
 
     const run = makeAgentRun(async () => {
-      throw new Error("authority denied");
+      throw new Error("authority denied: grant g-123 constraint xyz");
     });
 
     const result = await decideAndInvokeTool({
@@ -306,34 +589,30 @@ describe("decideAndInvokeTool - Runtime throws during invokeTool", () => {
       accountId: "acc-1",
       agentRun: run,
       haikuCaller: haikuOk({
-        tool_name: "ga4_query",
-        input: { metric: "ga4_sessions", date_range: "last_7_days" },
+        selections: [selection("ga4_query")],
         reason: "traffic query",
       }),
     });
 
-    expect(result.observation).not.toBeNull();
-    const output = result.observation?.output as {
+    expect(result.observations).toHaveLength(1);
+    const output = result.observations[0].output as {
       status: string;
       error_class: string;
       message: string;
     };
     expect(output.status).toBe("error");
     expect(output.error_class).toBe("runtime_failure");
-    expect(output.message).toContain("authority denied");
+    // The prompt-facing message is the generic constant; the raw
+    // exception goes to Sentry only.
+    expect(output.message).toBe(GENERIC_TOOL_RUNTIME_ERROR);
+    expect(output.message).not.toContain("authority denied");
+    expect(mockCaptureException).toHaveBeenCalledTimes(1);
   });
 });
 
 describe("decideAndInvokeTool - action queued for approval", () => {
   it("surfaces a truthful queued observation (never implies the action ran)", async () => {
-    mockManifest.mockResolvedValue({
-      tools: [
-        { name: "ga4_query", description: "Query GA4", isConsequential: false },
-      ],
-      action_classes: [],
-      operators: [],
-    } as never);
-    mockGetTool.mockReturnValue(fakeTool as never);
+    registerTools();
 
     const run = makeAgentRun(async () => {
       throw new ToolError(
@@ -344,23 +623,53 @@ describe("decideAndInvokeTool - action queued for approval", () => {
 
     const result = await decideAndInvokeTool({
       userMessage: "post to slack that we hit our goal",
-      intent: "question",
+      intent: "action",
       brief: emptyBrief(),
       accountId: "acc-1",
       agentRun: run,
       haikuCaller: haikuOk({
-        tool_name: "ga4_query",
-        input: { metric: "ga4_sessions", date_range: "last_7_days" },
-        reason: "fixture",
+        selections: [selection("slack_post")],
+        reason: "explicit action request",
       }),
     });
 
-    expect(result.observation).not.toBeNull();
-    const output = result.observation?.output as {
+    expect(result.observations).toHaveLength(1);
+    const output = result.observations[0].output as {
       status: string;
       message: string;
     };
     expect(output.status).toBe("queued_for_approval");
     expect(output.message).toMatch(/has not run yet/);
+  });
+
+  it("surfaces a truthful denied observation", async () => {
+    registerTools();
+
+    const run = makeAgentRun(async () => {
+      throw new ToolError(
+        "denied_by_authority",
+        "Denied by authority settings",
+      );
+    });
+
+    const result = await decideAndInvokeTool({
+      userMessage: "post to slack that we hit our goal",
+      intent: "action",
+      brief: emptyBrief(),
+      accountId: "acc-1",
+      agentRun: run,
+      haikuCaller: haikuOk({
+        selections: [selection("slack_post")],
+        reason: "explicit action request",
+      }),
+    });
+
+    expect(result.observations).toHaveLength(1);
+    const output = result.observations[0].output as {
+      status: string;
+      message: string;
+    };
+    expect(output.status).toBe("denied");
+    expect(output.message).toMatch(/did not run/);
   });
 });

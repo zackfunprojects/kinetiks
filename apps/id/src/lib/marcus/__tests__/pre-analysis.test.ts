@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
-import { buildPreAnalysisBrief } from '../pre-analysis';
-import type { DataAvailabilityManifest, ThreadMemory } from '../types';
+import { buildPreAnalysisBrief, formatBriefForSonnet } from '../pre-analysis';
+import type { ToolObservation } from '../pre-analysis';
+import type { DataAvailabilityManifest, PreAnalysisBrief, ThreadMemory } from '../types';
 
 const manifest: DataAvailabilityManifest = {
   cortex_coverage: {
@@ -88,5 +89,102 @@ describe('buildPreAnalysisBrief', () => {
     expect(brief.response_shape.must_not.some((m) => m.includes('harvest') || m.includes('Harvest'))).toBe(true);
     // Formatted should still be usable
     expect(formatted).toContain('EVIDENCE BRIEF');
+  });
+});
+
+describe('formatBriefForSonnet - tool observations (B1 fan-out)', () => {
+  const baseBrief: PreAnalysisBrief = {
+    available_evidence: [
+      { label: 'competitive', value: '97%', citation: 'Competitive layer at 97% confidence' },
+    ],
+    not_available: ['Pipeline data'],
+    memory_facts: [],
+    response_shape: {
+      max_sentences: 6,
+      lead_with: 'Answer directly',
+      must_flag: [],
+      must_not: [],
+    },
+    action_availability: [],
+  };
+
+  const ga4Observation: ToolObservation = {
+    tool_name: 'ga4_query',
+    reason: 'traffic evidence',
+    output: { status: 'ok', rows: [{ value: 1200, metric: 'sessions' }] },
+  };
+
+  const stripeObservation: ToolObservation = {
+    tool_name: 'stripe_query',
+    reason: 'revenue evidence',
+    output: { status: 'ok', rows: [{ value: 8400, metric: 'mrr' }] },
+  };
+
+  const gscObservation: ToolObservation = {
+    tool_name: 'gsc_query',
+    reason: 'search evidence',
+    output: { status: 'ok', rows: [{ value: 310, metric: 'clicks' }] },
+  };
+
+  function countObservationBlocks(formatted: string): number {
+    return (formatted.match(/\[TOOL OBSERVATIONS - returned by /g) ?? []).length;
+  }
+
+  it('renders no observation block without observations', () => {
+    const formatted = formatBriefForSonnet(baseBrief);
+    expect(countObservationBlocks(formatted)).toBe(0);
+  });
+
+  it('renders a single observation exactly as before (legacy single-object call)', () => {
+    const formatted = formatBriefForSonnet(baseBrief, undefined, ga4Observation);
+    expect(countObservationBlocks(formatted)).toBe(1);
+    expect(formatted).toContain('[TOOL OBSERVATIONS - returned by ga4_query;');
+    expect(formatted).toContain('Reason for selecting this tool: traffic evidence');
+    expect(formatted).toContain('1200');
+    // Array-of-one renders identically to the single-object call.
+    expect(formatBriefForSonnet(baseBrief, undefined, [ga4Observation])).toBe(formatted);
+  });
+
+  it('renders one block per tool for a 2-source turn, preserving order', () => {
+    const formatted = formatBriefForSonnet(baseBrief, undefined, [
+      stripeObservation,
+      ga4Observation,
+    ]);
+
+    expect(countObservationBlocks(formatted)).toBe(2);
+    expect(formatted).toContain('[TOOL OBSERVATIONS - returned by stripe_query;');
+    expect(formatted).toContain('[TOOL OBSERVATIONS - returned by ga4_query;');
+    // Both sources' values reach Sonnet for synthesis.
+    expect(formatted).toContain('8400');
+    expect(formatted).toContain('1200');
+    // Selection order preserved: revenue block precedes traffic block.
+    expect(formatted.indexOf('stripe_query')).toBeLessThan(formatted.indexOf('ga4_query'));
+  });
+
+  it('renders one block per tool for a 3-source turn', () => {
+    const formatted = formatBriefForSonnet(baseBrief, undefined, [
+      ga4Observation,
+      gscObservation,
+      stripeObservation,
+    ]);
+
+    expect(countObservationBlocks(formatted)).toBe(3);
+    expect(formatted).toContain('1200');
+    expect(formatted).toContain('310');
+    expect(formatted).toContain('8400');
+  });
+
+  it('truncates a runaway output per tool without losing the other tools', () => {
+    const huge: ToolObservation = {
+      tool_name: 'gsc_query',
+      reason: 'search evidence',
+      output: { status: 'ok', rows: Array.from({ length: 500 }, (_, i) => ({ page: `/p${i}`, clicks: i })) },
+    };
+    const formatted = formatBriefForSonnet(baseBrief, undefined, [huge, stripeObservation]);
+
+    expect(formatted).toContain('[output truncated]');
+    // The second tool's evidence survives the first tool's truncation.
+    expect(formatted).toContain('[TOOL OBSERVATIONS - returned by stripe_query;');
+    expect(formatted).toContain('8400');
   });
 });
