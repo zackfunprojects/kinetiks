@@ -6,9 +6,14 @@ interface NameSystemProps {
   accountId: string;
   initialName: string;
   onComplete: (name: string) => void;
+  /**
+   * B3 — suppress the built-in heading when a host surface (the
+   * onboarding StepWrapper) supplies its own title.
+   */
+  hideHeader?: boolean;
 }
 
-export function NameSystem({ accountId, initialName, onComplete }: NameSystemProps) {
+export function NameSystem({ accountId, initialName, onComplete, hideHeader }: NameSystemProps) {
   const [name, setName] = useState(initialName);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,28 +51,32 @@ export function NameSystem({ accountId, initialName, onComplete }: NameSystemPro
 
   return (
     <div>
-      <h1
-        style={{
-          fontSize: 28,
-          fontWeight: 700,
-          color: "var(--kt-fg-1)",
-          margin: "0 0 8px",
-          textAlign: "center",
-        }}
-      >
-        Name your GTM system
-      </h1>
-      <p
-        style={{
-          fontSize: 14,
-          color: "var(--kt-fg-2)",
-          margin: "0 0 32px",
-          textAlign: "center",
-          lineHeight: 1.5,
-        }}
-      >
-        This is what talks to you in Chat, shows up in Slack, and sends your emails.
-      </p>
+      {!hideHeader && (
+        <>
+          <h1
+            style={{
+              fontSize: 28,
+              fontWeight: 700,
+              color: "var(--kt-fg-1)",
+              margin: "0 0 8px",
+              textAlign: "center",
+            }}
+          >
+            Name your GTM system
+          </h1>
+          <p
+            style={{
+              fontSize: 14,
+              color: "var(--kt-fg-2)",
+              margin: "0 0 32px",
+              textAlign: "center",
+              lineHeight: 1.5,
+            }}
+          >
+            This is what talks to you in Chat, shows up in Slack, and sends your emails.
+          </p>
+        </>
+      )}
 
       <div style={{ marginBottom: 24 }}>
         <input

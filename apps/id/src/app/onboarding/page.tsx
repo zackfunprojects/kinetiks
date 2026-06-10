@@ -7,6 +7,7 @@ import { OnboardingFlow } from "@/components/onboarding/OnboardingFlow";
 interface Account {
   id: string;
   codename: string;
+  system_name?: string | null;
 }
 
 export default function OnboardingPage() {

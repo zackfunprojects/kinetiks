@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { redirect } from "next/navigation";
 import { ChatLayout } from "@/components/chat/ChatLayout";
+import { loadGreetingCompanyName } from "@/lib/marcus/greeting";
 import type { MarcusThread } from "@kinetiks/types";
 
 export const dynamic = "force-dynamic";
@@ -32,10 +33,15 @@ export default async function ChatPage() {
     .order("updated_at", { ascending: false })
     .limit(30);
 
+  // B3 — side-panel data for the first-run greeting; falls back to
+  // generic copy when the org layer is empty.
+  const greetingCompanyName = await loadGreetingCompanyName(admin, account.id);
+
   return (
     <ChatLayout
       initialThreads={(threads ?? []) as MarcusThread[]}
       systemName={account.system_name}
+      greetingCompanyName={greetingCompanyName}
     />
   );
 }

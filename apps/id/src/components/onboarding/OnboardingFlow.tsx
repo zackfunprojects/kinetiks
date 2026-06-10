@@ -11,11 +11,13 @@ import { ConversationStep } from "./ConversationStep";
 import { CalibrationStep } from "./CalibrationStep";
 import { WritingSampleStep } from "./WritingSampleStep";
 import { AuthorityDefaultsStep } from "./AuthorityDefaultsStep";
+import { NameSystemStep } from "./NameSystemStep";
 import { CompletionStep } from "./CompletionStep";
 
 interface Account {
   id: string;
   codename: string;
+  system_name?: string | null;
 }
 
 interface OnboardingFlowProps {
@@ -28,7 +30,12 @@ interface OnboardingFlowProps {
 // Kinetiks Contract Addendum §2.6. Step 5 (Permissions) advances
 // itself transparently when authority_defaults_reviewed_at is already
 // set, so resume-after-completion is a clean pass-through.
-const STEPS = ["Welcome", "Website", "Questions", "Voice", "Samples", "Permissions", "Done"];
+//
+// B3: Name step inserted between Permissions and Done per the v3 spec
+// ("users name their GTM system at setup"). Step 6 (Name) advances
+// itself transparently when system_name is already set, same resume
+// contract as Permissions.
+const STEPS = ["Welcome", "Website", "Questions", "Voice", "Samples", "Permissions", "Name", "Done"];
 const TOTAL_STEPS = STEPS.length;
 
 export function OnboardingFlow({ account, fromApp, bootstrapKey }: OnboardingFlowProps) {
@@ -37,6 +44,11 @@ export function OnboardingFlow({ account, fromApp, bootstrapKey }: OnboardingFlo
   const [signingOut, setSigningOut] = useState(false);
   const [businessContext, setBusinessContext] = useState("");
   const [crawlData, setCrawlData] = useState<CrawlResult | null>(null);
+  // B3 — the system name chosen (or previously saved). Step 6 skips
+  // itself when this is already set; CompletionStep greets with it.
+  const [systemName, setSystemName] = useState<string | null>(
+    account.system_name ?? null,
+  );
   const hasCheckedResumeRef = useRef(false);
   const router = useRouter();
 
@@ -219,11 +231,26 @@ export function OnboardingFlow({ account, fromApp, bootstrapKey }: OnboardingFlo
       )}
 
       {step === 6 && (
+        <NameSystemStep
+          accountId={account.id}
+          existingName={systemName}
+          onComplete={(name) => {
+            setSystemName(name);
+            advance();
+          }}
+          onBack={goBack}
+          stepNumber={7}
+          totalSteps={TOTAL_STEPS}
+        />
+      )}
+
+      {step === 7 && (
         <CompletionStep
           codename={account.codename}
+          systemName={systemName}
           fromApp={fromApp}
           fillStatus={fillStatus}
-          stepNumber={7}
+          stepNumber={8}
           totalSteps={TOTAL_STEPS}
         />
       )}

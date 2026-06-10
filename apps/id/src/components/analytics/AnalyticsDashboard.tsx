@@ -18,7 +18,7 @@ export function AnalyticsDashboard() {
         <div>
           <h1 className="kt-page-title" style={{ margin: 0 }}>Analytics</h1>
           <p className="kt-body" style={{ margin: "var(--kt-s-1) 0 0" }}>
-            Cross-app performance powered by the Oracle
+            Cross-app performance across your connected sources
           </p>
         </div>
         <DateRangePicker value={dateRange} onChange={setDateRange} />

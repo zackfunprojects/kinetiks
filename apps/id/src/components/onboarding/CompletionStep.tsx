@@ -6,6 +6,8 @@ import { StepWrapper } from "./StepWrapper";
 
 interface CompletionStepProps {
   codename: string;
+  /** B3 — the name the customer just gave their system. */
+  systemName: string | null;
   fromApp: string | null;
   fillStatus: ContextFillStatus | null;
   stepNumber: number;
@@ -51,6 +53,7 @@ function redirect(target: string): void {
 
 export function CompletionStep({
   codename,
+  systemName,
   fromApp,
   fillStatus,
   stepNumber,
@@ -184,7 +187,7 @@ export function CompletionStep({
       )}
 
       <p className="mt-4 text-center text-xs" style={{ color: "var(--kt-fg-3)" }}>
-        To improve your ID further, connect GA4, upload brand assets, or chat with Marcus.
+        To improve your ID further, connect GA4, upload brand assets, or chat with {systemName || "your system"}.
       </p>
 
       <p className="mt-2 text-center text-xs" style={{ color: "var(--kt-fg-3)", fontFamily: "var(--font-mono), monospace" }}>
