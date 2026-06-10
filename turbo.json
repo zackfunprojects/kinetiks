@@ -54,6 +54,9 @@
     "type-check": {
       "dependsOn": ["^build"]
     },
+    "test": {
+      "outputs": []
+    },
     "clean": {
       "cache": false
     }

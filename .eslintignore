@@ -1,0 +1,17 @@
+node_modules
+**/node_modules
+.next
+**/.next
+dist
+**/dist
+.turbo
+**/.turbo
+coverage
+**/coverage
+**/*.d.ts
+packages/supabase/src/types.ts
+# Deno-runtime Edge Functions use URL imports and a separate toolchain.
+supabase/functions
+# Build/config artifacts
+**/.vercel
+next-env.d.ts
