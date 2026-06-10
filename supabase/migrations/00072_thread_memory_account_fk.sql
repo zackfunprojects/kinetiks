@@ -16,9 +16,21 @@
 ALTER TABLE kinetiks_thread_memory
   DROP CONSTRAINT IF EXISTS kinetiks_thread_memory_account_id_fkey;
 
--- Any pre-existing rows were written against the wrong reference; remove
--- those whose account_id is not a real kinetiks_accounts.id before adding
--- the corrected constraint (otherwise the ADD would fail validation).
+-- Backfill before delete: legacy rows stored account_id as the auth.users.id
+-- (the old FK target). Remap those to the owning kinetiks_accounts.id so the
+-- memory data survives the FK repoint. Only rows whose account_id is NOT
+-- already a valid account id are remapped (don't clobber correct rows).
+UPDATE kinetiks_thread_memory tm
+  SET account_id = a.id
+  FROM kinetiks_accounts a
+  WHERE a.user_id = tm.account_id
+    AND NOT EXISTS (
+      SELECT 1 FROM kinetiks_accounts a2 WHERE a2.id = tm.account_id
+    );
+
+-- Anything still unmappable (account_id matches neither an account id nor a
+-- user_id) is genuinely orphaned and must go before the corrected FK is added
+-- (otherwise the ADD CONSTRAINT fails validation).
 DELETE FROM kinetiks_thread_memory tm
   WHERE NOT EXISTS (
     SELECT 1 FROM kinetiks_accounts a WHERE a.id = tm.account_id

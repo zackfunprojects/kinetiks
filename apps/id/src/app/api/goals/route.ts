@@ -141,9 +141,11 @@ export async function PATCH(request: Request) {
             accountId: auth.account_id,
           },
         });
-      } catch (e) {
+      } catch {
+        // Return a generic, user-safe message; never interpolate the raw
+        // state-machine/backend error text into the response.
         return apiError(
-          e instanceof Error ? e.message : "Illegal goal status transition",
+          `Cannot change a ${from} goal to ${body.status}.`,
           400,
         );
       }
