@@ -1,0 +1,47 @@
+# Code CI gate: type-check, lint (architectural guardrails), unit tests.
+#
+# Before this workflow, only supabase-path PRs were gated (rls-tests.yml),
+# so a PR touching app/package code merged with zero automated checks - the
+# ~680 unit tests gated nothing. This runs on every pull request and on
+# pushes to main, so the runtime/approval/tooling logic is actually verified.
+#
+# (RLS pgTAP runs in rls-tests.yml; Edge-function drift in edge-functions-drift.yml.)
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up pnpm
+        # No `version:` here — action-setup reads the pnpm version from the
+        # `packageManager` field in package.json. Pinning both raises
+        # ERR_PNPM_BAD_PM_VERSION.
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type-check
+        run: pnpm type-check
+
+      - name: Lint (architectural guardrails)
+        run: pnpm lint
+
+      - name: Unit tests
+        run: pnpm test

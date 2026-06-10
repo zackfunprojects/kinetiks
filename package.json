@@ -4,8 +4,9 @@
   "scripts": {
     "build": "turbo build",
     "dev": "turbo dev",
-    "lint": "turbo lint",
+    "lint": "eslint \"**/*.{ts,tsx}\"",
     "type-check": "turbo type-check",
+    "test": "turbo run test",
     "clean": "turbo clean",
     "db:types": "supabase gen types typescript --project-id ioptgqtzykqwnebwkioo > packages/supabase/src/types.ts",
     "db:push": "scripts/db-push.sh",
@@ -17,6 +18,11 @@
     "test:rls": "scripts/test-rls.sh"
   },
   "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "eslint": "^8.57.1",
+    "eslint-plugin-jsx-a11y": "^6.9.0",
+    "eslint-plugin-react-hooks": "^4.6.2",
     "turbo": "^2.4.0",
     "typescript": "^5.7.0"
   },
