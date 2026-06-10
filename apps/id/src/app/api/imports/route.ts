@@ -2,6 +2,8 @@ import { requireAuth } from "@/lib/auth/require-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { ImportRecord } from "@kinetiks/types";
 import { apiSuccess, apiError } from "@/lib/utils/api-response";
+import { serverEnv } from "@kinetiks/lib/env";
+import { captureException } from "@/lib/observability/sentry";
 
 const VALID_TYPES = ["content_library", "contacts", "brand_assets", "media_list"];
 const VALID_TARGET_APPS = ["dark_madder", "harvest", "hypothesis", "litmus"];
@@ -162,26 +164,48 @@ export async function POST(request: Request) {
   // internal call when the secret is configured - sending an empty bearer
   // would just 401 downstream and mask a missing-config error. Without the
   // secret the import is still picked up by the CRON.
-  const internalSecret = process.env.INTERNAL_SERVICE_SECRET;
-  if (internalSecret) {
+  const env = serverEnv();
+  if (env.INTERNAL_SERVICE_SECRET) {
     try {
-      await fetch(
-        `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/archivist/import`,
+      const triggerRes = await fetch(
+        `${env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/api/archivist/import`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${internalSecret}`,
+            Authorization: `Bearer ${env.INTERNAL_SERVICE_SECRET}`,
           },
           body: JSON.stringify({ import_id: importRecord.id }),
         }
       );
-    } catch {
-      // Non-blocking - import will be picked up by CRON if API call fails
+      // A non-2xx is a real trigger failure, not success. The import is still
+      // picked up by the CRON, so this is non-blocking - report and move on.
+      if (!triggerRes.ok) {
+        await captureException(
+          new Error(`archivist trigger returned HTTP ${triggerRes.status}`),
+          {
+            tags: { route: "/api/imports", action: "trigger_archivist", stage: "fetch", app: "id" },
+            user: { id: auth.account_id },
+            extra: { import_id: importRecord.id, status: triggerRes.status },
+          },
+        );
+      }
+    } catch (err) {
+      // Non-blocking - the CRON picks the import up if the call throws.
+      await captureException(err, {
+        tags: { route: "/api/imports", action: "trigger_archivist", stage: "fetch", app: "id" },
+        user: { id: auth.account_id },
+        extra: { import_id: importRecord.id },
+      });
     }
   } else {
-    console.error(
-      "[imports] INTERNAL_SERVICE_SECRET not set; skipping the synchronous archivist trigger (the CRON will pick this import up)",
+    await captureException(
+      new Error("INTERNAL_SERVICE_SECRET not set; skipped synchronous archivist trigger"),
+      {
+        tags: { route: "/api/imports", action: "trigger_archivist", stage: "config", app: "id" },
+        user: { id: auth.account_id },
+        extra: { import_id: importRecord.id },
+      },
     );
   }
 
