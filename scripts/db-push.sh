@@ -43,5 +43,8 @@ if [ "$ALLOW_DIRTY" -ne 1 ]; then
 fi
 
 # Forward to supabase CLI. --linked + --yes are the defaults; anything
-# else passed in is preserved.
-exec supabase db push --linked --yes "${forwarded[@]}"
+# else passed in is preserved. The `${arr[@]+"${arr[@]}"}` form is the
+# set -u-safe expansion: it yields nothing when `forwarded` is empty
+# (the common `pnpm db:push` / `--allow-dirty`-only case) instead of
+# tripping "unbound variable".
+exec supabase db push --linked --yes ${forwarded[@]+"${forwarded[@]}"}
