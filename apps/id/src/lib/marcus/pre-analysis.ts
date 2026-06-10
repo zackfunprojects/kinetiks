@@ -3,10 +3,11 @@ import { buildPreAnalysisPrompt } from './prompts/marcus-brief';
 import { formatMemoriesForContext } from './memory';
 
 /**
- * Result of step 7.5's tool invocation, to be rendered into the brief
+ * Result of one step-7.5 tool invocation, to be rendered into the brief
  * adjacent to the user's question. The renderer truncates and structures
  * the payload so Sonnet can cite values verbatim without seeing raw API
- * shapes.
+ * shapes. A fan-out turn (B1) produces several of these — one per
+ * invoked tool — each rendered as its own [TOOL OBSERVATIONS] block.
  */
 export interface ToolObservation {
   tool_name: string;
@@ -18,7 +19,9 @@ export interface ToolObservation {
 
 function formatToolObservations(obs: ToolObservation): string {
   const json = JSON.stringify(obs.output, null, 2);
-  // Cap injected size so a runaway tool output cannot blow the context.
+  // Cap injected size PER TOOL so a runaway tool output cannot blow the
+  // context. Worst case with MAX_TOOL_FANOUT=3 is ~5.4k chars of
+  // observations, well within the turn's budget.
   const TRUNCATE = 1800;
   const truncated =
     json.length > TRUNCATE ? `${json.slice(0, TRUNCATE)}\n... [output truncated]` : json;
@@ -128,12 +131,15 @@ export async function buildPreAnalysisBrief(
  * This sits DIRECTLY ADJACENT to the user's question in the prompt.
  *
  * Exported so engine.ts can re-render the brief AFTER the tool-decision
- * pass (step 7.5), injecting [TOOL OBSERVATIONS] when a tool was invoked.
+ * pass (step 7.5), injecting one [TOOL OBSERVATIONS] block per invoked
+ * tool. Accepts a single observation (legacy callers) or the fan-out
+ * array; a single observation renders byte-identically to the pre-B1
+ * output.
  */
 export function formatBriefForSonnet(
   brief: PreAnalysisBrief,
   toolInventory?: string,
-  toolObservations?: ToolObservation | null,
+  toolObservations?: ToolObservation | ToolObservation[] | null,
 ): string {
   const evidence = brief.available_evidence.length > 0
     ? brief.available_evidence.map((e) => `- ${e.citation}`).join('\n')
@@ -159,9 +165,17 @@ export function formatBriefForSonnet(
     ? `\n\n[PLATFORM CAPABILITIES - the canonical inventory; reference these by name, do not invent tools that are not listed]\n${toolInventory}`
     : '';
 
-  const observationsBlock = toolObservations
-    ? `\n\n[TOOL OBSERVATIONS - returned by ${toolObservations.tool_name}; cite ONLY the values below verbatim; do not extrapolate]\n${formatToolObservations(toolObservations)}`
-    : '';
+  const observationList: ToolObservation[] = !toolObservations
+    ? []
+    : Array.isArray(toolObservations)
+      ? toolObservations
+      : [toolObservations];
+  const observationsBlock = observationList
+    .map(
+      (obs) =>
+        `\n\n[TOOL OBSERVATIONS - returned by ${obs.tool_name}; cite ONLY the values below verbatim; do not extrapolate]\n${formatToolObservations(obs)}`,
+    )
+    .join('');
 
   // D2 Slice 11 — recent Oracle insights. Sonnet may cite by insight_id
   // (UUID); the engine post-processes the response to stamp delivered.

@@ -14,6 +14,7 @@ import {
 } from "./thread-manager";
 import { loadThreadMemories, extractAndPersistMemories } from "./memory";
 import { buildPreAnalysisBrief, formatBriefForSonnet } from "./pre-analysis";
+import type { ToolObservation } from "./pre-analysis";
 import { loadInsightsForBrief } from "@/lib/oracle/insights/reader";
 import { loadPatternsForBrief } from "./patterns-for-brief";
 import { stampDeliveredFromResponse } from "@/lib/oracle/insights/delivery";
@@ -71,6 +72,72 @@ function readToolOutputStatus(
     return typeof status === "string" ? status : undefined;
   }
   return undefined;
+}
+
+/**
+ * Phase 1.7.1 — open a kinetiks_id.connection_value_per_source
+ * observation per invoked tool that surfaced evidence from a
+ * connection-backed provider. With B1 fan-out, each tool in the turn is
+ * its own evidence event, so each qualifying observation gets its own
+ * request id. Returns the request ids so the caller can close them
+ * after the observations are rendered into the brief (brief inclusion
+ * is the deterministic outcome=1 signal).
+ *
+ * Awaited so the close finds the rows; the underlying record helper is
+ * itself try/catch-wrapped and returns silently on failure.
+ *
+ * GATE on each tool output's status="ok". Connection-backed tools
+ * (ga4_query, gsc_query) return a discriminated union: "ok" is the only
+ * branch that actually carries evidence; "not_connected", "no_property",
+ * "no_data", "error" are operational signals. Counting those as
+ * outcome=1 would inflate the usefulness rate.
+ */
+async function recordConnectionEvidenceForObservations(
+  admin: SupabaseClient,
+  accountId: string,
+  observations: ToolObservation[],
+): Promise<string[]> {
+  const requestIds: string[] = [];
+  for (const observation of observations) {
+    if (readToolOutputStatus(observation) !== "ok") continue;
+    const invokedTool = getTool(observation.tool_name);
+    if (!invokedTool?.connection_provider) continue;
+    const requestId = crypto.randomUUID();
+    requestIds.push(requestId);
+    await recordConnectionEvidenceObservation(
+      {
+        account_id: accountId,
+        provider: invokedTool.connection_provider,
+        layer: invokedTool.cortex_layer ?? "none",
+        query_class_hint: invokedTool.name,
+        request_id: requestId,
+      },
+      admin,
+    );
+  }
+  return requestIds;
+}
+
+/**
+ * Close the connection-evidence observations opened above with
+ * outcome=1 (brief inclusion). Fire-and-forget per id; never blocks
+ * the response.
+ */
+function closeConnectionEvidenceForRequestIds(
+  admin: SupabaseClient,
+  accountId: string,
+  requestIds: string[],
+): void {
+  for (const requestId of requestIds) {
+    closeConnectionEvidenceObservation(
+      {
+        account_id: accountId,
+        request_id: requestId,
+        outcome_recorded_via: "marcus_brief_inclusion",
+      },
+      admin,
+    ).catch(() => undefined);
+  }
 }
 
 /**
@@ -197,11 +264,13 @@ export async function processMarcusMessage(
     briefInsights,
     briefPatterns,
   );
-  // 7.5. Tool decision + invocation (D1). A Haiku picks whether any
-  // single registered tool would directly answer the question; if yes,
-  // the Runtime invokes it and we re-render the brief with a
-  // [TOOL OBSERVATIONS] section adjacent to the user's question.
-  const { observation } = await decideAndInvokeTool({
+  // 7.5. Tool decision + invocation (D1, fan-out per B1). A Haiku picks
+  // which registered tools would directly answer the question — up to
+  // three non-consequential reads when the question spans multiple data
+  // sources, one tool otherwise. The Runtime invokes them (concurrently
+  // when several) and we re-render the brief with one
+  // [TOOL OBSERVATIONS] block per tool adjacent to the user's question.
+  const { observations } = await decideAndInvokeTool({
     userMessage: message,
     intent,
     brief,
@@ -210,58 +279,26 @@ export async function processMarcusMessage(
     haikuCaller: haikuFor("marcus.tool_decision"),
   });
 
-  // Phase 1.7.1 — open a kinetiks_id.connection_value_per_source
-  // observation when the invoked tool surfaces evidence from a
-  // connection-backed provider. Awaited so the close below finds the
-  // row; the underlying record helper is itself try/catch-wrapped and
-  // returns silently on failure.
-  //
-  // GATE on the tool output's status="ok". Connection-backed tools
-  // (ga4_query, gsc_query) return a discriminated union: "ok" is the
-  // only branch that actually carries evidence; "not_connected",
-  // "no_property", "no_data", "error" are operational signals. Counting
-  // those as outcome=1 would inflate the usefulness rate.
-  let connectionEvidenceRequestId: string | null = null;
-  const observedStatus = readToolOutputStatus(observation);
-  if (
-    observation &&
-    observation.tool_name &&
-    observedStatus === "ok"
-  ) {
-    const invokedTool = getTool(observation.tool_name);
-    if (invokedTool?.connection_provider) {
-      connectionEvidenceRequestId = crypto.randomUUID();
-      await recordConnectionEvidenceObservation(
-        {
-          account_id: accountId,
-          provider: invokedTool.connection_provider,
-          layer: invokedTool.cortex_layer ?? "none",
-          query_class_hint: invokedTool.name,
-          request_id: connectionEvidenceRequestId,
-        },
-        admin,
-      );
-    }
-  }
+  // Phase 1.7.1 — connection_value_per_source observation per invoked
+  // connection-backed tool with status="ok". See the helper for the
+  // status gate rationale.
+  const connectionEvidenceRequestIds =
+    await recordConnectionEvidenceForObservations(admin, accountId, observations);
 
-  const augmentedBriefText = observation
-    ? formatBriefForSonnet(brief, toolInventory, observation)
-    : briefText;
+  const augmentedBriefText =
+    observations.length > 0
+      ? formatBriefForSonnet(brief, toolInventory, observations)
+      : briefText;
 
   // Phase 1.7.1 — brief inclusion is the deterministic outcome=1 signal
-  // for connection_value_per_source. The tool result has been rendered
+  // for connection_value_per_source. The tool results have been rendered
   // into the prompt above; by definition the data fed into Sonnet's
   // reasoning context. Fire-and-forget; never blocks the response.
-  if (connectionEvidenceRequestId) {
-    closeConnectionEvidenceObservation(
-      {
-        account_id: accountId,
-        request_id: connectionEvidenceRequestId,
-        outcome_recorded_via: "marcus_brief_inclusion",
-      },
-      admin,
-    ).catch(() => undefined);
-  }
+  closeConnectionEvidenceForRequestIds(
+    admin,
+    accountId,
+    connectionEvidenceRequestIds,
+  );
 
   // 8. Response generation (Sonnet) - short persona prompt + brief adjacent to question
   const systemPrompt = buildPersonaPrompt("Marcus");
@@ -354,6 +391,7 @@ export async function processMarcusMessage(
       brief_evidence_count: brief.available_evidence.length,
       brief_gap_count: brief.not_available.length,
       memory_count: memories.length,
+      tool_observation_count: observations.length,
       action_count: actionResult.actions.length,
       response_length: responseText.length,
     },
@@ -510,10 +548,11 @@ export async function streamMarcusMessage(
     briefPatterns,
   );
 
-  // 7.5. Tool decision + invocation (D1). See processMarcusMessage for
-  // the rationale; same pre-decided pattern, then the brief is
-  // re-rendered with a [TOOL OBSERVATIONS] section for Sonnet.
-  const { observation } = await decideAndInvokeTool({
+  // 7.5. Tool decision + invocation (D1, fan-out per B1). See
+  // processMarcusMessage for the rationale; same pre-decided pattern,
+  // then the brief is re-rendered with one [TOOL OBSERVATIONS] block
+  // per invoked tool for Sonnet.
+  const { observations } = await decideAndInvokeTool({
     userMessage: message,
     intent,
     brief,
@@ -523,48 +562,23 @@ export async function streamMarcusMessage(
   });
 
   // Phase 1.7.1 — open + close connection_value_per_source observation
-  // for tools that surface evidence from a connection-backed provider.
-  // Mirror of processMarcusMessage above; brief inclusion is the
-  // deterministic outcome=1 signal. Same status="ok" gate to keep
-  // non-evidence outputs (not_connected, error, etc.) from inflating
-  // the usefulness rate.
-  let streamConnectionEvidenceRequestId: string | null = null;
-  const streamObservedStatus = readToolOutputStatus(observation);
-  if (
-    observation &&
-    observation.tool_name &&
-    streamObservedStatus === "ok"
-  ) {
-    const invokedTool = getTool(observation.tool_name);
-    if (invokedTool?.connection_provider) {
-      streamConnectionEvidenceRequestId = crypto.randomUUID();
-      await recordConnectionEvidenceObservation(
-        {
-          account_id: accountId,
-          provider: invokedTool.connection_provider,
-          layer: invokedTool.cortex_layer ?? "none",
-          query_class_hint: invokedTool.name,
-          request_id: streamConnectionEvidenceRequestId,
-        },
-        admin,
-      );
-    }
-  }
+  // per invoked connection-backed tool. Mirror of processMarcusMessage
+  // above; brief inclusion is the deterministic outcome=1 signal. Same
+  // status="ok" gate to keep non-evidence outputs (not_connected,
+  // error, etc.) from inflating the usefulness rate.
+  const connectionEvidenceRequestIds =
+    await recordConnectionEvidenceForObservations(admin, accountId, observations);
 
-  const augmentedBriefText = observation
-    ? formatBriefForSonnet(brief, toolInventory, observation)
-    : briefText;
+  const augmentedBriefText =
+    observations.length > 0
+      ? formatBriefForSonnet(brief, toolInventory, observations)
+      : briefText;
 
-  if (streamConnectionEvidenceRequestId) {
-    closeConnectionEvidenceObservation(
-      {
-        account_id: accountId,
-        request_id: streamConnectionEvidenceRequestId,
-        outcome_recorded_via: "marcus_brief_inclusion",
-      },
-      admin,
-    ).catch(() => undefined);
-  }
+  closeConnectionEvidenceForRequestIds(
+    admin,
+    accountId,
+    connectionEvidenceRequestIds,
+  );
 
   // 8. Build messages with brief adjacent to question
   const systemPrompt = buildPersonaPrompt("Marcus");
@@ -700,6 +714,7 @@ export async function streamMarcusMessage(
             brief_evidence_count: brief.available_evidence.length,
             brief_gap_count: brief.not_available.length,
             memory_count: memories.length,
+            tool_observation_count: observations.length,
             action_count: actionResult.actions.length,
             response_length: fullResponse.length,
             streaming: true,
