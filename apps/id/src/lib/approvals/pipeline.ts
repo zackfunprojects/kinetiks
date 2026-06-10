@@ -20,7 +20,8 @@ import { getConfidence } from "@/lib/cortex";
  */
 export async function processApproval(
   submission: ApprovalSubmission,
-  accountId: string
+  accountId: string,
+  options?: { forceQueue?: boolean }
 ): Promise<PipelineResult> {
   const admin = createAdminClient();
 
@@ -56,8 +57,11 @@ export async function processApproval(
     agent_confidence: submission.agent_confidence,
   });
 
-  // Step 6: Check auto-approve
+  // Step 6: Check auto-approve. `forceQueue` (set for consequential
+  // tool actions whose descriptor declares autoApproveThreshold=null)
+  // hard-disables auto-approval: the action always waits for the customer.
   const autoApprove =
+    !options?.forceQueue &&
     brandResult.passed &&
     qualityResult.passed &&
     shouldAutoApprove(threshold, confidenceResult.score, approvalType);

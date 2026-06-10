@@ -35,6 +35,8 @@ export {
   getLedgerAppender,
   configureEscalationHandler,
   getEscalationHandler,
+  configurePerActionApprovalHandler,
+  getPerActionApprovalHandler,
   _resetAuthorityAdaptersForTests,
 } from "./authority";
 export type {
@@ -56,6 +58,9 @@ export type {
   EscalationHandler,
   EscalationEnqueueInput,
   EscalationEnqueueResult,
+  PerActionApprovalHandler,
+  PerActionApprovalRequest,
+  PerActionApprovalDecision,
   AuthorityOutcome,
 } from "./authority";
 

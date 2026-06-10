@@ -46,6 +46,7 @@ import {
   configureLedgerHistoryReader,
   configureLLMJudge,
   configureMetricCacheReader,
+  configurePerActionApprovalHandler,
   configureRecentActionCounter,
   configureUsageSummaryReader,
   defaultAuthorityResolver,
@@ -55,11 +56,14 @@ import {
   type LedgerHistoryReader,
   type LLMJudge,
   type MetricCacheReader,
+  type PerActionApprovalHandler,
   type RecentActionCounter,
   type UsageSummaryReader,
 } from "@kinetiks/runtime";
 
 import { supabaseGrantReader } from "@/lib/cortex/authority/resolve";
+import { processApproval } from "@/lib/approvals/pipeline";
+import type { ApprovalSubmission } from "@/lib/approvals/types";
 
 let _booted = false;
 
@@ -75,6 +79,7 @@ export function bootRuntimeAdapters(): void {
   configureJudgmentBudgetAdapter(judgmentBudgetAdapter);
   configureLedgerAppender(ledgerAppender);
   configureEscalationHandler(escalationHandler);
+  configurePerActionApprovalHandler(perActionApprovalHandler);
 
   configureAuthorityResolver(defaultAuthorityResolver);
 
@@ -256,12 +261,20 @@ const escalationHandler: EscalationHandler = {
         approval_class: "standard",
         title: `Action escalated: ${input.tool_name}`,
         description: input.reason.detail,
+        // Canonical re-executable `tool_action` preview: on approval,
+        // processApprovalDecision → executeApprovedAction runs the action
+        // through the runtime (preApproved, with the grant pinned). The
+        // grant covered the action; only this instance was escalated.
         preview: {
-          grant_id: input.grant_id,
-          tool_name: input.tool_name,
-          action_class: input.action_class,
-          action_input: input.action_input,
-          escalation_reason: input.reason,
+          type: "tool_action",
+          content: {
+            tool_name: input.tool_name,
+            action_class: input.action_class,
+            action_input: input.action_input,
+            invoked_by_agent: input.invoked_by_agent,
+            grant_id: input.grant_id,
+            escalation_reason: input.reason,
+          },
         },
         status: "pending",
       })
@@ -275,3 +288,62 @@ const escalationHandler: EscalationHandler = {
     return { approval_id: (data as { id: string }).id };
   },
 };
+
+// ── Per-action approval (consequential action with no covering grant) ──
+//
+// Routes the action through the standard approval pipeline. Tools whose
+// descriptor declares autoApproveThreshold=null always queue (forceQueue);
+// a numeric threshold lets the pipeline auto-approve when the confidence
+// bar is met. The `tool_action` preview carries the re-executable payload
+// so the approve path can run it through the runtime.
+const perActionApprovalHandler: PerActionApprovalHandler = {
+  async request({
+    account_id,
+    invoked_by_agent,
+    tool_name,
+    action_class,
+    action_input,
+    auto_approve_threshold,
+  }) {
+    const submission: ApprovalSubmission = {
+      source_app: "kinetiks_id",
+      source_operator: invoked_by_agent,
+      action_category: action_class,
+      title: humanizeToolName(tool_name),
+      description: `${invoked_by_agent} needs your approval before running this ${action_class} action.`,
+      preview: {
+        type: "tool_action",
+        content: { tool_name, action_class, action_input, invoked_by_agent },
+      },
+      deep_link: "",
+      agent_confidence: 50,
+      changes_strategy: false,
+      affects_multiple_outputs: false,
+      content_length: estimateContentLength(action_input),
+      expires_in_hours: null, // pipeline applies per-approval-type defaults
+    };
+    const result = await processApproval(submission, account_id, {
+      forceQueue: auto_approve_threshold === null,
+    });
+    return {
+      decision: result.auto_approved ? "auto_approved" : "queued",
+      approval_id: result.approval_id,
+    };
+  },
+};
+
+/** "send_slack_notification" → "Send slack notification" (customer-facing). */
+function humanizeToolName(toolName: string): string {
+  const label = toolName.replace(/_/g, " ").trim();
+  return label.length > 0 ? label.charAt(0).toUpperCase() + label.slice(1) : toolName;
+}
+
+/** Sum of string-field lengths; drives the pipeline's specificity heuristic. */
+function estimateContentLength(input: unknown): number {
+  if (typeof input !== "object" || input === null) return 0;
+  let len = 0;
+  for (const v of Object.values(input as Record<string, unknown>)) {
+    if (typeof v === "string") len += v.length;
+  }
+  return len;
+}

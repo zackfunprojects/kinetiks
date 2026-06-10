@@ -6,10 +6,12 @@ import { calibrateThreshold } from "./threshold";
 import { analyzeEdits } from "./edit-analyzer";
 import { emitApprovalEvent } from "./events";
 import { emitInsight } from "@/lib/insights";
+import { captureException } from "@/lib/observability/sentry";
 import {
   applyAuthorityGrantApprove,
   applyAuthorityGrantReject,
 } from "./authority-grant";
+import { executeApprovedAction } from "./execute-approved-action";
 import { proposedGrantPayloadSchema } from "@/lib/operators/descriptors";
 
 /**
@@ -140,40 +142,63 @@ export async function processApprovalDecision(
   if (action.action === "approve") {
     const hasEdits = action.edits !== null && Object.keys(action.edits).length > 0;
 
-    // Update approval record
-    const updates: Record<string, unknown> = {
-      status: "approved",
-      acted_at: now,
-    };
-
-    if (hasEdits) {
-      updates.user_edits = action.edits;
+    // ── Atomically claim the decision (concurrency guard, Finding 2.6) ──
+    // Only the first request flips this row out of 'pending'; concurrent
+    // or double submits get zero rows and return before any side effect
+    // (edit analysis, threshold calibration, ledger, tool execution) can
+    // run twice.
+    const claim: Record<string, unknown> = { status: "approved", acted_at: now };
+    if (hasEdits) claim.user_edits = action.edits;
+    const { data: claimed, error: claimError } = await admin
+      .from("kinetiks_approvals")
+      .update(claim)
+      .eq("id", approval.id)
+      .eq("account_id", approval.account_id)
+      .eq("status", "pending")
+      .select("id");
+    if (claimError) {
+      throw new Error(`Failed to update approval: ${claimError.message}`);
+    }
+    if (!claimed || claimed.length === 0) {
+      // Already decided by a concurrent request (or no longer pending).
+      return;
     }
 
-    // Analyze edits if present
+    // Analyze edits if present. Best-effort enrichment — the decision is
+    // already committed above, so a failure here must not throw.
     let editClassifications = null;
     if (hasEdits && action.edits) {
-      editClassifications = await analyzeEdits(
-        approval.preview.content,
-        action.edits,
-        approval
-      );
-      updates.edit_classification = editClassifications;
-
-      // Generate Proposals for systematic edit patterns
-      const proposalEdits = editClassifications.filter((e) => e.proposal_generated);
-      if (proposalEdits.length > 0) {
-        await generateProposals(admin, approval, proposalEdits);
+      try {
+        editClassifications = await analyzeEdits(
+          approval.preview.content,
+          action.edits,
+          approval,
+        );
+        await admin
+          .from("kinetiks_approvals")
+          .update({ edit_classification: editClassifications })
+          .eq("id", approval.id);
+        const proposalEdits = editClassifications.filter(
+          (e) => e.proposal_generated,
+        );
+        if (proposalEdits.length > 0) {
+          await generateProposals(admin, approval, proposalEdits);
+        }
+      } catch (e) {
+        await captureException(e, {
+          tags: { route: "approvals", action: "process_decision", stage: "edit_analysis", app: "id" },
+          user: { id: approval.account_id },
+          extra: { approval_id: approval.id },
+        });
       }
     }
 
-    const { error: updateError } = await admin
-      .from("kinetiks_approvals")
-      .update(updates)
-      .eq("id", approval.id);
-
-    if (updateError) {
-      throw new Error(`Failed to update approval: ${updateError.message}`);
+    // Remediation (Finding 1.2): if this approval is a re-executable tool
+    // action — a per-action approval or an approved escalation — run it
+    // now through the Agent Runtime. A failure is logged as an Insight and
+    // does NOT revert the approval.
+    if (approval.preview?.type === "tool_action") {
+      await executeApprovedAction(approval);
     }
 
     // If this is a context_edit approval, apply the linked Proposal now.
@@ -182,8 +207,11 @@ export async function processApprovalDecision(
       try {
         contextEditApplied = await applyContextEditApproval(admin, approval, "accept");
       } catch (e) {
-        // eslint-disable-next-line no-console
-        console.error("[approvals] failed to apply context_edit on approve", e);
+        await captureException(e, {
+          tags: { route: "approvals", action: "process_decision", stage: "context_edit_approve", app: "id" },
+          user: { id: approval.account_id },
+          extra: { approval_id: approval.id },
+        });
       }
     }
 
@@ -243,15 +271,25 @@ export async function processApprovalDecision(
       proposal_id: contextEditApplied?.proposalId,
     });
   } else if (action.action === "reject") {
-    // Update approval record
-    await admin
+    // ── Atomically claim the decision (concurrency guard, Finding 2.6) ──
+    const { data: claimed, error: claimError } = await admin
       .from("kinetiks_approvals")
       .update({
         status: "rejected",
         rejection_reason: action.rejection_reason,
         acted_at: now,
       })
-      .eq("id", approval.id);
+      .eq("id", approval.id)
+      .eq("account_id", approval.account_id)
+      .eq("status", "pending")
+      .select("id");
+    if (claimError) {
+      throw new Error(`Failed to update approval: ${claimError.message}`);
+    }
+    if (!claimed || claimed.length === 0) {
+      // Already decided by a concurrent request (or no longer pending).
+      return;
+    }
 
     // If this is a context_edit approval, mark the linked Proposal as declined.
     let contextEditDeclined: { layer: ContextLayer; proposalId: string } | null = null;
@@ -265,8 +303,11 @@ export async function processApprovalDecision(
         );
         contextEditDeclined = { layer: result.layer, proposalId: result.proposalId };
       } catch (e) {
-        // eslint-disable-next-line no-console
-        console.error("[approvals] failed to decline context_edit on reject", e);
+        await captureException(e, {
+          tags: { route: "approvals", action: "process_decision", stage: "context_edit_decline", app: "id" },
+          user: { id: approval.account_id },
+          extra: { approval_id: approval.id },
+        });
       }
     }
 

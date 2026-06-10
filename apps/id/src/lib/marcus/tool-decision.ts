@@ -6,6 +6,7 @@ import {
   type AgentTool,
   type AvailabilityContext,
   getTool,
+  ToolError,
 } from "@kinetiks/tools";
 import type { AgentRun } from "@kinetiks/runtime";
 import { platformAvailabilityResolvers } from "@/lib/tools/availability";
@@ -132,10 +133,13 @@ export async function decideAndInvokeTool(
 
   // Resolve the tool from the platform registry. Not via the manifest's
   // descriptor — we need the AgentTool with .execute + schemas.
-  let tool: AgentTool<unknown, unknown>;
-  try {
-    tool = getTool(decision.tool_name) as AgentTool<unknown, unknown>;
-  } catch {
+  // getTool returns undefined (it does not throw) for an unknown name, so
+  // guard explicitly: a Haiku-hallucinated tool name must skip cleanly,
+  // not crash the turn on the next line.
+  const tool = getTool(decision.tool_name) as
+    | AgentTool<unknown, unknown>
+    | undefined;
+  if (!tool) {
     console.error(
       `[tool-decision] Haiku named an unknown tool '${decision.tool_name}'`
     );
@@ -162,15 +166,34 @@ export async function decideAndInvokeTool(
   try {
     output = await input.agentRun.invokeTool(tool, inputParse.data);
   } catch (err) {
-    // Runtime threw — tool execution failed beyond what its discriminated
-    // output covers (e.g. authority denial, timeout). Surface as an
-    // observation Sonnet can hedge over.
-    output = {
-      status: "error",
-      error_class: "runtime_failure",
-      message:
-        err instanceof Error ? err.message : "Unknown runtime failure.",
-    };
+    if (err instanceof ToolError && err.errorClass === "queued_for_approval") {
+      // A consequential action with no covering grant was queued for the
+      // customer's approval. Surface a truthful observation — Sonnet must
+      // say it is queued and has NOT run, never imply it happened.
+      output = {
+        status: "queued_for_approval",
+        message:
+          "This action was queued for the customer's approval and has not run yet.",
+      };
+    } else if (
+      err instanceof ToolError &&
+      err.errorClass === "denied_by_authority"
+    ) {
+      output = {
+        status: "denied",
+        message:
+          "This action was denied by the customer's authority settings and did not run.",
+      };
+    } else {
+      // Runtime threw for another reason (timeout, internal error).
+      // Surface as an observation Sonnet can hedge over.
+      output = {
+        status: "error",
+        error_class: "runtime_failure",
+        message:
+          err instanceof Error ? err.message : "Unknown runtime failure.",
+      };
+    }
   }
 
   return {

@@ -1,10 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mock @kinetiks/tools surfaces so the decision flow can be exercised
-// without booting the registry.
+// without booting the registry. ToolError is a minimal stand-in so the
+// production `err instanceof ToolError` branch resolves against the same
+// class the tests throw.
 vi.mock("@kinetiks/tools", () => ({
   buildCapabilityManifest: vi.fn(),
   getTool: vi.fn(),
+  ToolError: class ToolError extends Error {
+    errorClass: string;
+    constructor(errorClass: string, message: string) {
+      super(message);
+      this.errorClass = errorClass;
+    }
+  },
 }));
 
 vi.mock("@/lib/tools/availability", () => ({
@@ -15,6 +24,7 @@ import { z } from "zod";
 import {
   buildCapabilityManifest,
   getTool,
+  ToolError,
 } from "@kinetiks/tools";
 import type { AgentRun } from "@kinetiks/runtime";
 import { decideAndInvokeTool } from "../tool-decision";
@@ -219,9 +229,8 @@ describe("decideAndInvokeTool - unknown tool name", () => {
       action_classes: [],
       operators: [],
     } as never);
-    mockGetTool.mockImplementation(() => {
-      throw new Error("Tool not found");
-    });
+    // getTool returns undefined (it does not throw) for an unknown name.
+    mockGetTool.mockReturnValue(undefined as never);
 
     const result = await decideAndInvokeTool({
       userMessage: "hi",
@@ -312,5 +321,46 @@ describe("decideAndInvokeTool - Runtime throws during invokeTool", () => {
     expect(output.status).toBe("error");
     expect(output.error_class).toBe("runtime_failure");
     expect(output.message).toContain("authority denied");
+  });
+});
+
+describe("decideAndInvokeTool - action queued for approval", () => {
+  it("surfaces a truthful queued observation (never implies the action ran)", async () => {
+    mockManifest.mockResolvedValue({
+      tools: [
+        { name: "ga4_query", description: "Query GA4", isConsequential: false },
+      ],
+      action_classes: [],
+      operators: [],
+    } as never);
+    mockGetTool.mockReturnValue(fakeTool as never);
+
+    const run = makeAgentRun(async () => {
+      throw new ToolError(
+        "queued_for_approval",
+        "Action queued for your approval",
+      );
+    });
+
+    const result = await decideAndInvokeTool({
+      userMessage: "post to slack that we hit our goal",
+      intent: "question",
+      brief: emptyBrief(),
+      accountId: "acc-1",
+      agentRun: run,
+      haikuCaller: haikuOk({
+        tool_name: "ga4_query",
+        input: { metric: "ga4_sessions", date_range: "last_7_days" },
+        reason: "fixture",
+      }),
+    });
+
+    expect(result.observation).not.toBeNull();
+    const output = result.observation?.output as {
+      status: string;
+      message: string;
+    };
+    expect(output.status).toBe("queued_for_approval");
+    expect(output.message).toMatch(/has not run yet/);
   });
 });
