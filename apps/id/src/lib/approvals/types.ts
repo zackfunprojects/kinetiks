@@ -36,7 +36,11 @@ export type PreviewType =
   | "social_post"
   | "config_change"
   | "budget"
-  | "context_edit";
+  | "context_edit"
+  // A re-executable consequential tool action awaiting approval. Its
+  // `content` carries { tool_name, action_class, action_input, ... } so
+  // the approve path can run it through the Agent Runtime once approved.
+  | "tool_action";
 
 /** The three approval classes per CLAUDE.md. UI for budget/authority lands in L2b. */
 export type ApprovalClass =
