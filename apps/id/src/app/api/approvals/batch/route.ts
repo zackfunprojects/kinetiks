@@ -49,11 +49,11 @@ export async function POST(request: Request) {
       event_type: "approval_batch_approved",
       source_app: "kinetiks",
       target_layer: null,
-      data: {
+      detail: {
         approved_count: approvedIds.length,
         approval_ids: approvedIds,
       },
-      attribution: "user",
+      source_operator: "user",
     });
   }
 
