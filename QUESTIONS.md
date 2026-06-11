@@ -6,6 +6,23 @@
 
 ## Phase D (communication layer)
 
+### Slack inbound: Events API contract implemented directly, not via @slack/bolt (D3, 2026-06-11)
+
+The plan named "Slack Bolt"; D3 implements the receiver contract
+directly in Next route handlers instead. Every rule the contract
+exists for holds and is unit-tested - raw-body HMAC verification,
+5-minute replay rejection, 3-second ack with post-response processing
+(Vercel waitUntil), retry dedup via claim rows, workers reusing the
+same server actions as the web UI. Bolt itself is a long-running-
+receiver framework that fights the serverless route model (custom
+receiver adapters, double body parsing for signatures) and would add
+cold-start weight for no contract gain at this event volume. If a
+later phase needs Bolt's middleware ecosystem (Socket Mode, OAuth
+install flows at scale), the routes are thin enough to swap the
+receiver without touching the workers. Flag here per "ask when the
+spec is ambiguous" - the tech-stack line in CLAUDE.md still says
+"Slack: Slack Bolt"; update it if this direction is confirmed.
+
 ### System-email daily cap: exact concurrent enforcement — FOLLOW-UP (D2, 2026-06-11)
 
 The 20-sends/24h cap in `lib/email/sender.ts` counts `system_email_sent`

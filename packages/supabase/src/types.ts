@@ -3431,6 +3431,7 @@ export type Database = {
           created_at: string | null
           id: string
           pinned: boolean | null
+          slack_channel_id: string | null
           slack_thread_ts: string | null
           title: string | null
           updated_at: string | null
@@ -3441,6 +3442,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           pinned?: boolean | null
+          slack_channel_id?: string | null
           slack_thread_ts?: string | null
           title?: string | null
           updated_at?: string | null
@@ -3451,6 +3453,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           pinned?: boolean | null
+          slack_channel_id?: string | null
           slack_thread_ts?: string | null
           title?: string | null
           updated_at?: string | null
@@ -4101,6 +4104,41 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "kinetiks_sentinel_reviews_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "kinetiks_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      kinetiks_inbound_events: {
+        Row: {
+          account_id: string
+          created_at: string
+          event_key: string
+          event_type: string
+          id: string
+          source: string
+        }
+        Insert: {
+          account_id: string
+          created_at?: string
+          event_key: string
+          event_type: string
+          id?: string
+          source: string
+        }
+        Update: {
+          account_id?: string
+          created_at?: string
+          event_key?: string
+          event_type?: string
+          id?: string
+          source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kinetiks_inbound_events_account_id_fkey"
             columns: ["account_id"]
             isOneToOne: false
             referencedRelation: "kinetiks_accounts"
