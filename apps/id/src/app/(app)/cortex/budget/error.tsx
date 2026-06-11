@@ -6,5 +6,5 @@ export default function CortexBudgetError(props: {
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  return <SegmentError label="your budget" {...props} />;
+  return <SegmentError label="your budget" route="/cortex/budget" {...props} />;
 }

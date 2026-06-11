@@ -6,5 +6,5 @@ export default function CortexAuthorityError(props: {
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  return <SegmentError label="your authority settings" {...props} />;
+  return <SegmentError label="your authority settings" route="/cortex/authority" {...props} />;
 }

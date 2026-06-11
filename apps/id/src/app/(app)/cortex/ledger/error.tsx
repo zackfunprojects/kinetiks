@@ -6,5 +6,5 @@ export default function CortexLedgerError(props: {
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  return <SegmentError label="your ledger" {...props} />;
+  return <SegmentError label="your ledger" route="/cortex/ledger" {...props} />;
 }

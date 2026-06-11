@@ -6,5 +6,5 @@ export default function CortexIdentityLayerError(props: {
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  return <SegmentError label="this identity layer" {...props} />;
+  return <SegmentError label="this identity layer" route="/cortex/identity/[layer]" {...props} />;
 }

@@ -6,5 +6,5 @@ export default function ChatError(props: {
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  return <SegmentError label="your chats" {...props} />;
+  return <SegmentError label="your chats" route="/chat" {...props} />;
 }

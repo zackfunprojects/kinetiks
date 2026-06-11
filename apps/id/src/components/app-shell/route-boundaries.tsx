@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { ErrorState, Skeleton } from "@kinetiks/ui";
+import { captureException } from "@/lib/observability/sentry";
 
 /**
  * C3b — shared internals for per-segment loading.tsx / error.tsx files.
@@ -35,17 +36,21 @@ export function SegmentLoading({ label }: { label: string }) {
 interface SegmentErrorProps {
   /** Customer-facing surface name, e.g. "your goals". */
   label: string;
+  /** Route path for the Sentry tag, e.g. "/cortex/goals". */
+  route: string;
   error: Error & { digest?: string };
   reset: () => void;
 }
 
-export function SegmentError({ label, error, reset }: SegmentErrorProps) {
+export function SegmentError({ label, route, error, reset }: SegmentErrorProps) {
   useEffect(() => {
-    // Raw detail goes to the console/Sentry, never the UI (same
-    // contract as the chat thread boundary).
-    // eslint-disable-next-line no-console
-    console.error(`[route:${label}] boundary error:`, error);
-  }, [error, label]);
+    // Raw detail goes to Sentry with the canonical shape, never the UI.
+    void captureException(error, {
+      tags: { route, action: "route.render", stage: "render", app: "id" },
+      user: {},
+      extra: { digest: error.digest },
+    });
+  }, [error, route]);
 
   return (
     <ErrorState

@@ -6,5 +6,5 @@ export default function CortexPatternsError(props: {
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  return <SegmentError label="your patterns" {...props} />;
+  return <SegmentError label="your patterns" route="/cortex/patterns" {...props} />;
 }

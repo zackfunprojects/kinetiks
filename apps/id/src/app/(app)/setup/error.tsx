@@ -6,5 +6,5 @@ export default function SetupError(props: {
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  return <SegmentError label="setup" {...props} />;
+  return <SegmentError label="setup" route="/setup" {...props} />;
 }

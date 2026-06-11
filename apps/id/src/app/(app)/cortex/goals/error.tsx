@@ -6,5 +6,5 @@ export default function CortexGoalsError(props: {
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  return <SegmentError label="your goals" {...props} />;
+  return <SegmentError label="your goals" route="/cortex/goals" {...props} />;
 }

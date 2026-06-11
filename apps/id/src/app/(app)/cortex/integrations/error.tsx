@@ -6,5 +6,5 @@ export default function CortexIntegrationsError(props: {
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  return <SegmentError label="your integrations" {...props} />;
+  return <SegmentError label="your integrations" route="/cortex/integrations" {...props} />;
 }

@@ -6,5 +6,5 @@ export default function AnalyticsError(props: {
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  return <SegmentError label="your analytics" {...props} />;
+  return <SegmentError label="your analytics" route="/analytics" {...props} />;
 }

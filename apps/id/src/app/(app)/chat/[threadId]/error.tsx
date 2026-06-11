@@ -2,12 +2,13 @@
 
 import { useEffect } from "react";
 import { ErrorState } from "@kinetiks/ui";
+import { captureException } from "@/lib/observability/sentry";
 
 /**
  * Route error boundary for the chat thread page. The loader's spine queries
  * (ownership check, threads, messages) now throw on DB failure rather than
  * silently degrading, so those failures surface here instead of a blank or
- * misleading redirect. Raw detail goes to the console/Sentry, never the UI.
+ * misleading redirect. Raw detail goes to Sentry, never the UI.
  */
 export default function ChatThreadError({
   error,
@@ -17,8 +18,11 @@ export default function ChatThreadError({
   reset: () => void;
 }) {
   useEffect(() => {
-    // eslint-disable-next-line no-console
-    console.error("[chat/thread] route error:", error);
+    void captureException(error, {
+      tags: { route: "/chat/[threadId]", action: "route.render", stage: "render", app: "id" },
+      user: {},
+      extra: { digest: error.digest },
+    });
   }, [error]);
 
   return (
