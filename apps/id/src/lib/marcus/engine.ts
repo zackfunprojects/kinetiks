@@ -399,7 +399,9 @@ export async function processMarcusMessage(
   // kinetiks_ledger with the detail/source_app/source_operator columns;
   // the prior kinetiks_learning_ledger table and source/data keys never
   // existed, so every turn's log had been failing silently.
-  admin.from("kinetiks_ledger").insert({
+  // Promise.resolve upgrades the PostgREST thenable so the chain gets a
+  // real terminal .catch (PromiseLike has no .catch of its own).
+  Promise.resolve(admin.from("kinetiks_ledger").insert({
     account_id: accountId,
     event_type: "marcus_turn",
     source_app: "marcus",
@@ -415,7 +417,7 @@ export async function processMarcusMessage(
       action_count: actionResult.actions.length,
       response_length: responseText.length,
     },
-  }).then(({ error }) => {
+  })).then(({ error }) => {
     if (error) {
       void captureException(error, {
         tags: { route: "marcus_engine", action: "marcus.ledger_log", stage: "persist", app: "id" },
@@ -423,7 +425,7 @@ export async function processMarcusMessage(
         extra: { thread_id: thread.id },
       });
     }
-  }).catch((err) => {
+  }).catch((err: unknown) => {
     void captureException(err, {
       tags: { route: "marcus_engine", action: "marcus.ledger_log", stage: "persist", app: "id" },
       user: { id: accountId },
@@ -775,7 +777,9 @@ export async function streamMarcusMessage(
 
         // Log to Learning Ledger (non-blocking). See the non-streaming
         // path above: kinetiks_ledger with detail/source_app/source_operator.
-        admin.from("kinetiks_ledger").insert({
+        // Promise.resolve upgrades the PostgREST thenable for a real
+        // terminal .catch.
+        Promise.resolve(admin.from("kinetiks_ledger").insert({
           account_id: accountId,
           event_type: "marcus_turn",
           source_app: "marcus",
@@ -792,7 +796,7 @@ export async function streamMarcusMessage(
             response_length: fullResponse.length,
             streaming: true,
           },
-        }).then(({ error: ledgerError }) => {
+        })).then(({ error: ledgerError }) => {
           if (ledgerError) {
             void captureException(ledgerError, {
               tags: { route: "marcus_engine", action: "marcus.ledger_log", stage: "persist", app: "id" },
@@ -800,7 +804,7 @@ export async function streamMarcusMessage(
               extra: { thread_id: thread.id, streaming: true },
             });
           }
-        }).catch((err) => {
+        }).catch((err: unknown) => {
           void captureException(err, {
             tags: { route: "marcus_engine", action: "marcus.ledger_log", stage: "persist", app: "id" },
             user: { id: accountId },
