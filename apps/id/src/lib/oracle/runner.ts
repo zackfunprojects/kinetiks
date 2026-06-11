@@ -1,19 +1,23 @@
 /**
  * Oracle runner — analyzeAccount() orchestrator.
  *
- * Slice 10. Called by the Node-side /api/internal/oracle/analyze route
- * (which is invoked by the oracle-analysis-cron Edge Function every 30
- * minutes).
+ * Slice 10 + C1. Called by the Node-side /api/internal/oracle/analyze
+ * route (which is invoked by the oracle-analysis-cron Edge Function
+ * every 30 minutes).
  *
  * Per-account flow:
  *   1. Eligibility check (connected sources + recent cache rows)
  *   2. Materialize HubSpot CRM into derived metrics (if connected)
  *   3. Run per-source detectors (anomaly, trend) on each source's series
- *   4. Run cross-source detectors gated on required-source list
+ *   4. Run cross-source + dimensional + correlation detectors (C1) —
+ *      each behind an input builder that returns null until the cache
+ *      holds the data that detector needs (see cross-source-inputs.ts)
  *   5. Apply `MAX_SIGNALS_PER_ACCOUNT` cap (truncate lowest severity)
  *   6. Polish via Haiku (one batched call)
  *   7. Dedup against kinetiks_insights (24h window)
  *   8. Write surviving insights to kinetiks_insights
+ *   8.5. Update goal data from the same cache rows (C1): current_value
+ *        + kinetiks_goal_snapshots, never fatal to the run
  *   9. Stamp kinetiks_oracle_runs with counts + ai_call_id
  */
 
@@ -25,8 +29,34 @@ import {
   detectAnomalies,
   detectTrends,
 } from "./pattern-detector";
+import {
+  detectCrossDimensionDrill,
+  detectMetricCorrelations,
+  detectTopMovers,
+} from "./detectors";
+import {
+  detectChannelReliability,
+  detectConversionVelocity,
+  detectOrganicConverters,
+  detectRoasByChannel,
+  detectSpendEfficiency,
+  detectTrackingGap,
+} from "./detectors/cross-source";
+import {
+  buildChannelReliabilityInput,
+  buildConversionVelocityInput,
+  buildCorrelationInputs,
+  buildDimensionalInputs,
+  buildOrganicConvertersInput,
+  buildRoasByChannelInput,
+  buildSpendEfficiencyInput,
+  buildTrackingGapInput,
+  toDrillInput,
+  toTopMoverInput,
+} from "./cross-source-inputs";
 import { listConnectedSources, loadAccountCacheRows } from "./cache-reader";
 import { aggregateHubspotMetrics } from "./crm-aggregator";
+import { updateGoalData } from "./goal-data";
 import { loadRecentDedupKeys } from "./insights/dedup";
 import { writeInsights } from "./insights/writer";
 import { polishSignals } from "./polish";
@@ -42,6 +72,9 @@ interface RunResultCounts {
   proposals_emitted: number;
   haiku_tokens_in: number;
   haiku_tokens_out: number;
+  /** C1 — goal-data writer outcome for this run. */
+  goals_updated: number;
+  goal_snapshots_written: number;
 }
 
 export interface AnalyzeAccountResult {
@@ -72,6 +105,8 @@ export async function analyzeAccount(
     proposals_emitted: 0,
     haiku_tokens_in: 0,
     haiku_tokens_out: 0,
+    goals_updated: 0,
+    goal_snapshots_written: 0,
   };
 
   const runRowId = await openRunRow(admin, accountId);
@@ -173,7 +208,48 @@ export async function analyzeAccount(
       }
     }
 
-    // 4. Bucket signals counted before cap
+    // 4. Cross-source + dimensional + correlation detectors (C1).
+    // Every builder is data-gated: null means the cache does not yet
+    // hold what that detector needs, and the detector is skipped
+    // without error. The detectors additionally self-gate on
+    // available_sources, so both layers must agree before a signal
+    // can exist.
+    const roasInput = buildRoasByChannelInput(cacheRows, sources);
+    if (roasInput) signals.push(...detectRoasByChannel(roasInput));
+
+    const trackingGapInput = buildTrackingGapInput(cacheRows, sources);
+    if (trackingGapInput) signals.push(...detectTrackingGap(trackingGapInput));
+
+    const spendEfficiencyInput = buildSpendEfficiencyInput();
+    if (spendEfficiencyInput) signals.push(...detectSpendEfficiency(spendEfficiencyInput));
+
+    const organicInput = buildOrganicConvertersInput();
+    if (organicInput) signals.push(...detectOrganicConverters(organicInput));
+
+    const reliabilityInput = buildChannelReliabilityInput();
+    if (reliabilityInput) signals.push(...detectChannelReliability(reliabilityInput));
+
+    const velocityInput = buildConversionVelocityInput();
+    if (velocityInput) signals.push(...detectConversionVelocity(velocityInput));
+
+    // Dimensional pair: drill first, then top-movers with drill's dedup
+    // keys so the more specific drill signal wins the overlap.
+    const dimensionalInputs = buildDimensionalInputs(cacheRows);
+    const drillDedupKeys = new Set<string>();
+    for (const dim of dimensionalInputs) {
+      const drillSignals = detectCrossDimensionDrill(toDrillInput(dim));
+      for (const s of drillSignals) drillDedupKeys.add(s.dedup_key);
+      signals.push(...drillSignals);
+    }
+    for (const dim of dimensionalInputs) {
+      signals.push(...detectTopMovers(toTopMoverInput(dim, drillDedupKeys)));
+    }
+
+    for (const corrInput of buildCorrelationInputs(cacheRows, sources)) {
+      signals.push(...detectMetricCorrelations(corrInput));
+    }
+
+    // 4.5. Bucket signals counted before cap
     counts.signals_total = signals.length;
     for (const s of signals) {
       counts.signals_by_type[s.type] = (counts.signals_by_type[s.type] ?? 0) + 1;
@@ -201,6 +277,12 @@ export async function analyzeAccount(
       });
       counts.insights_written = result.written;
     }
+
+    // 8.5. Goal data (C1) — reuses the cache rows already in hand.
+    // Never fatal: updateGoalData captures per-goal failures itself.
+    const goalResult = await updateGoalData(admin, accountId, cacheRows);
+    counts.goals_updated = goalResult.goals_updated;
+    counts.goal_snapshots_written = goalResult.snapshots_written;
 
     return finalizeSucceeded(admin, runRowId, accountId, counts, startedAt, sources);
   } catch (err) {

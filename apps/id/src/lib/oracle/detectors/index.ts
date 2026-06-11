@@ -1,9 +1,8 @@
 /**
- * Detector barrel.
- *
- * Imports the per-source detectors. The runner imports from here to
- * orchestrate the analysis cycle. Cross-source detectors live in
- * ./cross-source/ (Slice 9).
+ * Detector barrel — the dimensional + correlation detectors (drill,
+ * top-movers, metric-correlations). The runner invokes these via the
+ * C1 input builders in ../cross-source-inputs.ts; the six cross-source
+ * detectors have their own barrel at ./cross-source/.
  */
 
 export { detectCrossDimensionDrill } from "./cross-dimension-drill";

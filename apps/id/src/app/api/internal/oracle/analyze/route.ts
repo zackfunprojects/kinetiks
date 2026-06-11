@@ -73,6 +73,8 @@ export async function POST(request: Request) {
       insights_written: r.counts.insights_written,
       insights_deduped: r.counts.insights_deduped,
       signals_total: r.counts.signals_total,
+      goals_updated: r.counts.goals_updated,
+      goal_snapshots_written: r.counts.goal_snapshots_written,
     })),
   });
 }
@@ -98,6 +100,8 @@ async function analyzeWithTimeout(
               proposals_emitted: 0,
               haiku_tokens_in: 0,
               haiku_tokens_out: 0,
+              goals_updated: 0,
+              goal_snapshots_written: 0,
             },
             duration_ms: PER_ACCOUNT_TIMEOUT_MS,
             sources_evaluated: [],
