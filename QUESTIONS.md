@@ -23,6 +23,25 @@ receiver without touching the workers. Flag here per "ask when the
 spec is ambiguous" - the tech-stack line in CLAUDE.md still says
 "Slack: Slack Bolt"; update it if this direction is confirmed.
 
+
+### Inbound email: proposal routing + reply-thread mapping — FOLLOW-UPS (D4, 2026-06-11)
+
+Two comms-spec capabilities are deliberately staged behind the D4
+inbound pipeline:
+
+1. **Business context → Cortex Proposals** (spec §2.2 routing table).
+   D4 routes ALL relevant extractions through the Insight Store
+   (composition with an existing primitive); high-confidence business
+   context should eventually also submit a Proposal so the Archivist
+   can merge it into the Context Structure. Needs a decision on which
+   categories clear the proposal bar and which layer each maps to.
+2. **Replies to system-sent email → chat-thread continuation** (spec
+   §2.2). Requires storing the Gmail message-id ↔ kinetiks thread
+   mapping at send time (lib/email/sender.ts returns message_id; a
+   mapping table or thread column would close the loop). Today such
+   replies classify as `reply_to_system` and surface as chat-channel
+   insights, which is honest but not thread-continuous.
+
 ### System-email daily cap: exact concurrent enforcement — FOLLOW-UP (D2, 2026-06-11)
 
 The 20-sends/24h cap in `lib/email/sender.ts` counts `system_email_sent`
