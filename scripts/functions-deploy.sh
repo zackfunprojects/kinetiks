@@ -27,7 +27,10 @@ for arg in "$@"; do
     filtered_args+=("$arg")
   fi
 done
-set -- "${filtered_args[@]}"
+# set -u-safe: `${arr[@]+"${arr[@]}"}` yields nothing when filtered_args
+# is empty (no extra args, or only --allow-dirty) instead of tripping
+# "unbound variable".
+set -- ${filtered_args[@]+"${filtered_args[@]}"}
 
 if [ "$ALLOW_DIRTY" -ne 1 ]; then
   if ! bash scripts/check-git-deploy-sync.sh --quiet; then
