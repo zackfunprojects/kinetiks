@@ -88,9 +88,10 @@ export function OnboardingFlow({ account, fromApp, bootstrapKey }: OnboardingFlo
           // Phase 5: a fully-Cartographer-complete customer now resumes
           // to step 5 (Permissions). If they have already reviewed
           // permissions, AuthorityDefaultsStep self-advances to step 6
-          // (Done) via its own /api/onboarding/authority-defaults GET
+          // (Name) via its own /api/onboarding/authority-defaults GET
           // — which authoritatively reads kinetiks_accounts
-          // .authority_defaults_reviewed_at.
+          // .authority_defaults_reviewed_at. If system_name is already
+          // set, NameSystemStep then self-advances to step 7 (Done).
           if (status.aggregate >= 50 && hasVoiceCalibration) {
             setStep(5);
           } else if (status.aggregate >= 30) {
