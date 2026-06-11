@@ -65,6 +65,7 @@ export default async function ThreadPage({
       initialMessages={view.messages}
       systemName={account.system_name}
       greetingCompanyName={greetingCompanyName}
+      accountId={account.id}
     />
   );
 }

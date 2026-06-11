@@ -13,7 +13,7 @@ import { useEffect, useState } from "react";
 
 import { createClient as createBrowserClient } from "@/lib/supabase/client";
 
-export function usePendingApprovalCount(): number {
+export function usePendingApprovalCount(accountId: string): number {
   const [count, setCount] = useState(0);
 
   useEffect(() => {
@@ -37,11 +37,17 @@ export function usePendingApprovalCount(): number {
     void load();
 
     const supabase = createBrowserClient();
+    // Account-scoped channel name + filter per the Realtime contract.
     const channel = supabase
-      .channel("approvals-badge")
+      .channel(`approvals-badge:${accountId}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "kinetiks_approvals" },
+        {
+          event: "*",
+          schema: "public",
+          table: "kinetiks_approvals",
+          filter: `account_id=eq.${accountId}`,
+        },
         () => {
           void load();
         },
@@ -52,7 +58,7 @@ export function usePendingApprovalCount(): number {
       cancelled = true;
       void supabase.removeChannel(channel);
     };
-  }, []);
+  }, [accountId]);
 
   return count;
 }

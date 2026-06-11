@@ -59,7 +59,7 @@ export default async function AppLayout({
       }}
       userEmail={user.email || ""}
     >
-      <DesktopNotificationBridge systemName={systemName} />
+      <DesktopNotificationBridge systemName={systemName} accountId={account.id} />
       {children}
     </AppShell>
   );

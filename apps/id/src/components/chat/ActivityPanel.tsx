@@ -308,13 +308,12 @@ function AlertItem({
           {!alert.read ? (
             <span
               aria-label="Unread"
+              className="kt-status-dot"
               style={{
-                width: 6,
-                height: 6,
                 flexShrink: 0,
-                borderRadius: "var(--kt-radius-full)",
-                background: alert.severity === "urgent" ? "var(--kt-danger)" : "var(--kt-accent)",
                 alignSelf: "center",
+                // .kt-status-dot renders in currentcolor; tone via token.
+                color: alert.severity === "urgent" ? "var(--kt-danger)" : "var(--kt-accent)",
               }}
             />
           ) : null}
