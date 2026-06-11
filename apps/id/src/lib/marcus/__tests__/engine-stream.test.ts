@@ -98,7 +98,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { routeAskClaude, routeStreamClaude } from "@kinetiks/ai";
 import { startAgentRun } from "@kinetiks/runtime";
 import { decideAndInvokeTool } from "../tool-decision";
-import { streamMarcusMessage } from "../engine";
+import { GENERIC_STREAM_FAILURE, streamMarcusMessage } from "../engine";
 
 const mockRouteAskClaude = vi.mocked(routeAskClaude);
 const mockRouteStreamClaude = vi.mocked(routeStreamClaude);
@@ -303,7 +303,10 @@ describe("streamMarcusMessage - SSE status protocol", () => {
     const events = await readAllEvents(stream);
 
     const errorEvent = events.find((e) => e.type === "error");
-    expect(errorEvent?.error).toContain("registry exploded");
+    // The SSE channel carries only the user-safe constant; the raw
+    // exception (which can hold PostgREST/provider text) goes to Sentry.
+    expect(errorEvent?.error).toBe(GENERIC_STREAM_FAILURE);
+    expect(errorEvent?.error).not.toContain("registry exploded");
     expect(events.some((e) => e.type === "text")).toBe(false);
     expect(events.some((e) => e.type === "done")).toBe(false);
 

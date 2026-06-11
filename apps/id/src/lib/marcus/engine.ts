@@ -35,6 +35,14 @@ import { captureException } from "@/lib/observability/sentry";
 import type { DataAvailabilityManifest, ActionGenerationResult } from "./types";
 
 /**
+ * User-safe message for a failed streaming turn. The raw exception is
+ * captured server-side only — it can carry PostgREST or provider text
+ * that must never reach the SSE channel.
+ */
+export const GENERIC_STREAM_FAILURE =
+  "Something went wrong while writing this response. Try again.";
+
+/**
  * Build a task-bound Haiku caller for sub-modules. Each sub-module
  * (pre-analysis, action-generator, memory) is invoked with a caller
  * already tagged with its prompt task, so every `ai_calls` row is
@@ -415,6 +423,12 @@ export async function processMarcusMessage(
         extra: { thread_id: thread.id },
       });
     }
+  }).catch((err) => {
+    void captureException(err, {
+      tags: { route: "marcus_engine", action: "marcus.ledger_log", stage: "persist", app: "id" },
+      user: { id: accountId },
+      extra: { thread_id: thread.id },
+    });
   });
 
   // Auto-title if first exchange
@@ -786,6 +800,12 @@ export async function streamMarcusMessage(
               extra: { thread_id: thread.id, streaming: true },
             });
           }
+        }).catch((err) => {
+          void captureException(err, {
+            tags: { route: "marcus_engine", action: "marcus.ledger_log", stage: "persist", app: "id" },
+            user: { id: accountId },
+            extra: { thread_id: thread.id, streaming: true },
+          });
         });
 
         // Auto-title if first exchange
@@ -802,8 +822,15 @@ export async function streamMarcusMessage(
       } catch (err) {
         resolveActions!({ actions: [], footer_text: "" });
         run.end();
-        const errorMsg = err instanceof Error ? err.message : "Unknown error";
-        send({ type: "error", error: errorMsg });
+        // The raw exception (which can carry PostgREST or provider
+        // detail) goes to Sentry only; the SSE channel gets the
+        // user-safe constant.
+        void captureException(err, {
+          tags: { route: "marcus_engine", action: "marcus.stream", stage: "stream", app: "id" },
+          user: { id: accountId },
+          extra: { thread_id: thread.id, streaming: true },
+        });
+        send({ type: "error", error: GENERIC_STREAM_FAILURE });
         close();
       }
     },
