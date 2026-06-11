@@ -2,6 +2,10 @@
  * Shared fetch helper for dispatcher modules (Slack, Gmail, Calendar,
  * Google OAuth token refresh) per Phase 4 — Chunk 6 CR feedback.
  *
+ * D2: moved from apps/id/src/lib/dispatchers/ into @kinetiks/tools
+ * (ToolError's home) so the @kinetiks/ai slack-dispatcher can share
+ * the exact timeout + error-mapping behavior without duplication.
+ *
  * Adds an AbortController-based timeout to every outbound API call so
  * a stalled upstream cannot hang the runtime indefinitely, and maps
  * the timeout / network / parse failure modes onto ToolError shapes
@@ -11,9 +15,7 @@
  * unhandled promise rejections.
  */
 
-import "server-only";
-
-import { ToolError } from "@kinetiks/tools";
+import { ToolError } from "./types";
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 

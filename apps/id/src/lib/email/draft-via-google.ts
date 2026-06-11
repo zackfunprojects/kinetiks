@@ -22,32 +22,17 @@
 
 import "server-only";
 
-import { ToolError } from "@kinetiks/tools";
-
-import { getGoogleWorkspaceAccessToken } from "@/lib/connections/google-workspace-token";
 import {
   classifyHttpStatus,
   fetchWithTimeout,
   parseJsonOrToolError,
-} from "@/lib/dispatchers/fetch-with-timeout";
+  ToolError,
+} from "@kinetiks/tools";
+
+import { getGoogleWorkspaceAccessToken } from "@/lib/connections/google-workspace-token";
+import { buildMimeMessage } from "@/lib/email/mime";
 
 const GMAIL_DRAFTS_URL = "https://gmail.googleapis.com/gmail/v1/users/me/drafts";
-
-/**
- * Strip CR/LF and other control characters from header values before
- * MIME composition. Header injection is a classic email-tool attack:
- * a carefully-crafted subject like `"hi\r\nBcc: attacker@x"` would
- * otherwise inject an extra header into the outgoing draft. Collapse
- * any control char to nothing and trim — RFC 2822 header values
- * forbid bare CR/LF entirely, so this is lossless for legitimate
- * input.
- */
-function sanitizeHeaderValue(value: string): string {
-  return value
-    // eslint-disable-next-line no-control-regex
-    .replace(/[\x00-\x1F\x7F]+/g, " ")
-    .trim();
-}
 
 export interface DraftEmailInput {
   account_id: string;
@@ -80,31 +65,17 @@ export async function draftEmailViaGoogle(
     account_id: input.account_id,
   });
 
-  // Build an RFC 2822 MIME message and base64url-encode it for the
-  // Gmail API. Plain text only for v1; HTML / attachments are
+  // Compose via the shared hardened MIME builder (lib/email/mime.ts):
+  // header-injection sanitization lives there, alongside the D2 send
+  // path. Plain text only for drafts; HTML / attachments are
   // follow-ups.
-  //
-  // SECURITY: every header value is sanitized before composition.
-  // CR/LF in subject/to/cc/from would otherwise let a caller inject
-  // additional headers (BCC: attacker@..., or full body splicing).
-  // Strip control chars + collapse newlines to spaces; this is the
-  // defense per CLAUDE.md "Never trust client input."
-  const headers: string[] = [
-    `From: ${sanitizeHeaderValue(token.connected_email)}`,
-    `To: ${input.to.map(sanitizeHeaderValue).join(", ")}`,
-  ];
-  if (input.cc && input.cc.length > 0) {
-    headers.push(`Cc: ${input.cc.map(sanitizeHeaderValue).join(", ")}`);
-  }
-  headers.push(`Subject: ${sanitizeHeaderValue(input.subject)}`);
-  headers.push("MIME-Version: 1.0");
-  headers.push("Content-Type: text/plain; charset=utf-8");
-  const raw = `${headers.join("\r\n")}\r\n\r\n${input.body}`;
-  const base64UrlRaw = Buffer.from(raw, "utf8")
-    .toString("base64")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
+  const base64UrlRaw = buildMimeMessage({
+    from: { email: token.connected_email },
+    to: input.to,
+    cc: input.cc,
+    subject: input.subject,
+    text: input.body,
+  });
 
   const response = await fetchWithTimeout({
     url: GMAIL_DRAFTS_URL,

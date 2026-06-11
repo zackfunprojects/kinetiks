@@ -37,16 +37,16 @@
 
 import "server-only";
 
-import { ToolError } from "@kinetiks/tools";
-import { serverEnv } from "@kinetiks/lib/env";
-
-import { decryptCredentials } from "@/lib/connections/encryption";
-import { createAdminClient } from "@/lib/supabase/admin";
 import {
   classifyHttpStatus,
   fetchWithTimeout,
   parseJsonOrToolError,
-} from "@/lib/dispatchers/fetch-with-timeout";
+  ToolError,
+} from "@kinetiks/tools";
+import { serverEnv } from "@kinetiks/lib/env";
+
+import { decryptCredentials } from "@/lib/connections/encryption";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 
