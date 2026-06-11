@@ -6,7 +6,7 @@
  * work afterwards (via runAfterResponse):
  *
  *   - team_id → account resolution through the D1 slack connection
- *   - exactly-once claims (kinetiks_slack_events UNIQUE; Slack
+ *   - exactly-once claims (kinetiks_inbound_events UNIQUE; Slack
  *     retries lose with 23505 and skip)
  *   - mention / DM → Marcus turn on a synced thread
  *     (kinetiks_marcus_threads keyed by account + channel +
@@ -91,8 +91,9 @@ export async function claimSlackEvent(args: {
   eventType: string;
 }): Promise<boolean> {
   const admin = createAdminClient();
-  const { error } = await admin.from("kinetiks_slack_events").insert({
+  const { error } = await admin.from("kinetiks_inbound_events").insert({
     account_id: args.accountId,
+    source: "slack",
     event_key: args.eventKey,
     event_type: args.eventType,
   });

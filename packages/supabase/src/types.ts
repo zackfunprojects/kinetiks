@@ -4111,13 +4111,14 @@ export type Database = {
           },
         ]
       }
-      kinetiks_slack_events: {
+      kinetiks_inbound_events: {
         Row: {
           account_id: string
           created_at: string
           event_key: string
           event_type: string
           id: string
+          source: string
         }
         Insert: {
           account_id: string
@@ -4125,6 +4126,7 @@ export type Database = {
           event_key: string
           event_type: string
           id?: string
+          source: string
         }
         Update: {
           account_id?: string
@@ -4132,10 +4134,11 @@ export type Database = {
           event_key?: string
           event_type?: string
           id?: string
+          source?: string
         }
         Relationships: [
           {
-            foreignKeyName: "kinetiks_slack_events_account_id_fkey"
+            foreignKeyName: "kinetiks_inbound_events_account_id_fkey"
             columns: ["account_id"]
             isOneToOne: false
             referencedRelation: "kinetiks_accounts"

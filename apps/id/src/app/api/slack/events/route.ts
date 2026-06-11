@@ -11,7 +11,7 @@
  *      retry storms.
  *
  * Exactly-once: Slack retries deliveries (x-slack-retry-num); the
- * worker claims each event_id in kinetiks_slack_events, so retries
+ * worker claims each event_id in kinetiks_inbound_events, so retries
  * are acked here and skipped there. Slack is never critical-path —
  * processing failures are captured, never surfaced to Slack as 5xx
  * (which would only trigger more retries).

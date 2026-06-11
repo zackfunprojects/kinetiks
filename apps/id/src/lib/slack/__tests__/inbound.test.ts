@@ -57,7 +57,7 @@ function stubAdmin(options: AdminStubOptions = {}) {
       const eqProvider = vi.fn(() => ({ eq: eqStatus }));
       return { select: vi.fn(() => ({ eq: eqProvider })) };
     }
-    if (table === "kinetiks_slack_events") {
+    if (table === "kinetiks_inbound_events") {
       return {
         insert: vi.fn((row: Record<string, unknown>) => {
           claims.push(row);
@@ -137,6 +137,7 @@ describe("processSlackEvent", () => {
     // Claimed exactly-once under the team-scoped key.
     expect(claims[0]).toMatchObject({
       account_id: "acc-1",
+      source: "slack",
       event_key: "T0TEAM:Ev0001",
       event_type: "app_mention",
     });
