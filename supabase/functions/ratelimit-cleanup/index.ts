@@ -1,7 +1,9 @@
 // Rate Limit Cleanup CRON Edge Function
 //
-// Runs daily. Deletes rate limit rows older than 2 days
-// to prevent unbounded table growth.
+// Runs daily. Deletes rate limit rows older than 2 days, and (D3)
+// Slack inbound event claims older than 7 days - the claim only
+// needs to outlive Slack's retry horizon (~1 hour); 7 days is a
+// comfortable audit margin. Both prevent unbounded table growth.
 //
 // CRON schedule: once daily ("0 3 * * *")
 
@@ -40,8 +42,28 @@ Deno.serve(async () => {
 
   console.log(`Rate limit cleanup: deleted ${count ?? 0} stale rows`);
 
+  // D3: purge Slack event claims past the retry horizon.
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  const { error: slackError, count: slackCount } = await admin
+    .from("kinetiks_slack_events")
+    .delete({ count: "exact" })
+    .lt("created_at", sevenDaysAgo.toISOString());
+  if (slackError) {
+    console.error("Slack event claim cleanup failed:", slackError.message);
+    return new Response(
+      JSON.stringify({ error: slackError.message, rate_limits_deleted: count ?? 0 }),
+      { status: 500, headers: { "Content-Type": "application/json" } }
+    );
+  }
+  console.log(`Slack event claim cleanup: deleted ${slackCount ?? 0} stale rows`);
+
   return new Response(
-    JSON.stringify({ success: true, deleted: count ?? 0 }),
+    JSON.stringify({
+      success: true,
+      deleted: count ?? 0,
+      slack_event_claims_deleted: slackCount ?? 0,
+    }),
     { status: 200, headers: { "Content-Type": "application/json" } }
   );
 });
