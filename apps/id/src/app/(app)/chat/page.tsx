@@ -42,6 +42,7 @@ export default async function ChatPage() {
       initialThreads={(threads ?? []) as MarcusThread[]}
       systemName={account.system_name}
       greetingCompanyName={greetingCompanyName}
+      accountId={account.id}
     />
   );
 }

@@ -56,12 +56,15 @@ function makeRequest(body: unknown): Request {
   });
 }
 
-function stubAdmin(options: { channel?: string | null }) {
+function stubAdmin(options: { channel?: string | null; scheduleError?: boolean }) {
   const from = vi.fn((table: string) => {
     if (table === "kinetiks_marcus_schedules") {
       const maybeSingle = vi.fn(async () => ({
-        data: options.channel === null ? null : { channel: options.channel ?? "email" },
-        error: null,
+        data:
+          options.scheduleError || options.channel === null
+            ? null
+            : { channel: options.channel ?? "email" },
+        error: options.scheduleError ? { message: "db down" } : null,
       }));
       const eqType = vi.fn(() => ({ maybeSingle }));
       const eqAccount = vi.fn(() => ({ eq: eqType }));
@@ -208,6 +211,20 @@ describe("POST /api/marcus/brief — delivery (D2)", () => {
     expect(res.status).toBe(200);
     const payload = (await res.json()) as { data: { delivery: Record<string, string> } };
     expect(payload.data.delivery.email).toBe("failed");
+  });
+
+  it("never defaults to email when the schedule lookup FAILS (CR)", async () => {
+    stubAdmin({ scheduleError: true });
+    const res = await POST(makeRequest({ type: "daily_brief", deliver: true }));
+    expect(res.status).toBe(200);
+    const payload = (await res.json()) as { data: { delivery: Record<string, string> } };
+    expect(payload.data.delivery).toEqual({
+      email: "failed",
+      slack: "failed",
+      in_app: "failed",
+    });
+    expect(sendSystemEmailMock).not.toHaveBeenCalled();
+    expect(deliverSlackDmMock).not.toHaveBeenCalled();
   });
 
   it("defaults to the email leg when no schedule row exists", async () => {

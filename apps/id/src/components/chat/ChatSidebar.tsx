@@ -15,6 +15,7 @@ interface ChatSidebarProps {
   onNewThread: () => void;
   onSearch: (query: string) => void;
   systemName?: string | null;
+  accountId: string;
 }
 
 export function ChatSidebar({
@@ -24,10 +25,11 @@ export function ChatSidebar({
   onNewThread,
   onSearch,
   systemName,
+  accountId,
 }: ChatSidebarProps) {
   const [activePanel, setActivePanel] = useState<SidebarPanel>("chats");
   // D4: the badge the audit found "built but never fed".
-  const approvalCount = usePendingApprovalCount();
+  const approvalCount = usePendingApprovalCount(accountId);
 
   return (
     <div
@@ -58,7 +60,7 @@ export function ChatSidebar({
             onSearch={onSearch}
           />
         ) : activePanel === "approvals" ? (
-          <ApprovalPanel systemName={systemName ?? null} />
+          <ApprovalPanel systemName={systemName ?? null} accountId={accountId} />
         ) : (
           <ActivityPanel systemName={systemName ?? null} />
         )}

@@ -12,6 +12,8 @@ interface ChatLayoutProps {
   systemName: string | null;
   /** B3 — org-layer company name for the first-run greeting. */
   greetingCompanyName?: string | null;
+  /** D4 — scopes the sidebar's Realtime subscriptions per account. */
+  accountId: string;
 }
 
 export function ChatLayout({
@@ -20,6 +22,7 @@ export function ChatLayout({
   initialMessages = [],
   systemName,
   greetingCompanyName = null,
+  accountId,
 }: ChatLayoutProps) {
   const [threads, setThreads] = useState<MarcusThread[]>(initialThreads);
   const [currentThreadId, setCurrentThreadId] = useState<string | undefined>(initialThreadId);
@@ -115,6 +118,7 @@ export function ChatLayout({
         onNewThread={handleNewThread}
         onSearch={handleSearch}
         systemName={systemName}
+        accountId={accountId}
       />
       <ChatArea
         currentThreadId={currentThreadId}

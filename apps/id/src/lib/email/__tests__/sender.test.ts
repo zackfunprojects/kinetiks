@@ -217,6 +217,20 @@ describe("sendSystemEmail — resend fallback", () => {
     expect(payload.to).toEqual(["owner@acme.test"]);
   });
 
+  it("sanitizes control characters out of the Resend from identity (CR)", async () => {
+    stubAdmin({ workspaceStatus: null, systemName: "Kit\r\nBcc: attacker@evil.test" });
+    fetchMock.mockResolvedValueOnce(jsonResponse({ id: "resend-msg-2" }));
+
+    await sendSystemEmail(BASE_INPUT);
+
+    const payload = JSON.parse(
+      String((fetchMock.mock.calls[0]![1] as RequestInit).body),
+    ) as Record<string, unknown>;
+    expect(String(payload.from)).not.toContain("\r");
+    expect(String(payload.from)).not.toContain("\n");
+    expect(String(payload.from)).toContain("via Kinetiks <notifications@kinetiks.test>");
+  });
+
   it("maps unavailable when neither workspace nor Resend is configured", async () => {
     stubAdmin({ workspaceStatus: null });
     mockServerEnv.mockReturnValue({} as never);

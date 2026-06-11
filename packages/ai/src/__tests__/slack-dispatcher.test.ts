@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ToolError } from "@kinetiks/tools";
+
 import {
   _resetSlackDispatcherForTests,
   configureSlackCredentialSource,
@@ -55,6 +57,17 @@ describe("dispatchSlackMessage", () => {
     });
     await expect(dispatchSlackMessage(INPUT)).rejects.toMatchObject({
       errorClass: "transient",
+    });
+  });
+
+  it("preserves a typed ToolError from the credential source (CR)", async () => {
+    configureSlackCredentialSource(async () => {
+      throw new ToolError("configuration_error", "encryption key missing", {
+        context: {},
+      });
+    });
+    await expect(dispatchSlackMessage(INPUT)).rejects.toMatchObject({
+      errorClass: "configuration_error",
     });
   });
 

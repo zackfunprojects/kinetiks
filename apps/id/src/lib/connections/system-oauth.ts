@@ -199,7 +199,8 @@ export interface SystemOAuthExchangeResult {
  * decrypts — change one, change both.
  *
  * Slack credential shape `{ bot_token, scopes, bot_user_id, team_id,
- * team_name }` is the contract the D2 slack-dispatcher reads.
+ * team_name, installer_user_id }` is the contract the D2
+ * slack-dispatcher and the D4 proactive-DM path read.
  */
 export async function exchangeCodeForCredentials(args: {
   provider: SystemConnectionProvider;
@@ -389,6 +390,16 @@ async function exchangeSlackCode(
   const teamId = typeof team.id === "string" ? team.id : null;
   const teamName = typeof team.name === "string" ? team.name : null;
   const botUserId = typeof json.bot_user_id === "string" ? json.bot_user_id : null;
+  // The INSTALLING user's Slack id. In v1 single-user accounts the
+  // installer IS the customer, which makes this the DM target for
+  // proactive delivery (briefs, alerts, approval cards) - Slack
+  // accepts a user id as the channel for DMs. Multi-user teams will
+  // store per-member mappings instead.
+  const authedUser =
+    json.authed_user && typeof json.authed_user === "object"
+      ? (json.authed_user as { id?: unknown })
+      : {};
+  const installerUserId = typeof authedUser.id === "string" ? authedUser.id : null;
   const grantedScopes =
     typeof json.scope === "string" && json.scope.length > 0
       ? json.scope.split(",")
@@ -401,11 +412,13 @@ async function exchangeSlackCode(
       bot_user_id: botUserId ?? undefined,
       team_id: teamId ?? undefined,
       team_name: teamName ?? undefined,
+      installer_user_id: installerUserId ?? undefined,
     },
     metadata: {
       ...(teamId ? { team_id: teamId } : {}),
       ...(teamName ? { team_name: teamName } : {}),
       ...(botUserId ? { bot_user_id: botUserId } : {}),
+      ...(installerUserId ? { installer_user_id: installerUserId } : {}),
     },
     detail: teamName ? `Workspace: ${teamName}` : "Workspace linked",
   };

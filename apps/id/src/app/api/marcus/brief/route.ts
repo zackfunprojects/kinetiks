@@ -27,7 +27,8 @@ const BRIEF_TITLES: Record<MarcusScheduleType, string> = {
  * leg: "sent"/"created" mean it actually happened; "skipped" means
  * the channel preference excluded the leg; "unavailable" means the
  * leg has no working transport (no slack connection / installer
- * mapping); "failed" means it was attempted and captured.
+ * mapping); "failed" means it was attempted (or blocked by an
+ * infrastructure failure) and captured.
  */
 export interface BriefDelivery {
   email: "sent" | "skipped" | "failed";
@@ -135,14 +136,30 @@ async function deliverBrief(args: {
   const { admin, accountId, type, content } = args;
 
   // The schedule's channel decides the email/slack legs. No schedule
-  // row = email-only. The in-app alert is unconditional: the app is
-  // the system's home surface.
-  const { data: schedule } = await admin
+  // ROW = email-only; the in-app alert is unconditional (the app is
+  // the system's home surface). A failed LOOKUP must not default
+  // anywhere (CR: a transient DB error on a slack-only account would
+  // otherwise send email against the customer's preference): both
+  // send legs report failed and nothing external sends.
+  const { data: schedule, error: scheduleError } = await admin
     .from("kinetiks_marcus_schedules")
     .select("channel")
     .eq("account_id", accountId)
     .eq("type", type)
     .maybeSingle();
+  if (scheduleError) {
+    await captureException(scheduleError, {
+      tags: {
+        route: "/api/marcus/brief",
+        action: "brief.deliver",
+        stage: "schedule_lookup",
+        app: "id",
+      },
+      user: { id: accountId },
+      extra: { brief_type: type },
+    });
+    return { email: "failed", slack: "failed", in_app: "failed" };
+  }
   const channel = (schedule?.channel as string | undefined) ?? "email";
   const wantsEmail = channel === "email" || channel === "both";
   const wantsSlack = channel === "slack" || channel === "both";
@@ -184,16 +201,20 @@ async function deliverBrief(args: {
       delivery.email = "sent";
     } catch (err) {
       const errorClass = err instanceof ToolError ? err.errorClass : "unknown";
-      await captureException(err, {
-        tags: {
-          route: "/api/marcus/brief",
-          action: "brief.deliver",
-          stage: "email_send",
-          app: "id",
-        },
-        user: { id: accountId },
-        extra: { brief_type: type, error_class: errorClass },
-      });
+      // Per CLAUDE.md, real throttling (the 20/24h cap) is expected
+      // behavior, maps to a failed leg, and never goes to Sentry.
+      if (errorClass !== "rate_limited") {
+        await captureException(err, {
+          tags: {
+            route: "/api/marcus/brief",
+            action: "brief.deliver",
+            stage: "email_send",
+            app: "id",
+          },
+          user: { id: accountId },
+          extra: { brief_type: type, error_class: errorClass },
+        });
+      }
       delivery.email = "failed";
     }
   }
@@ -210,16 +231,18 @@ async function deliverBrief(args: {
       delivery.slack = outcome;
     } catch (err) {
       const errorClass = err instanceof ToolError ? err.errorClass : "unknown";
-      await captureException(err, {
-        tags: {
-          route: "/api/marcus/brief",
-          action: "brief.deliver",
-          stage: "slack_send",
-          app: "id",
-        },
-        user: { id: accountId },
-        extra: { brief_type: type, error_class: errorClass },
-      });
+      if (errorClass !== "rate_limited") {
+        await captureException(err, {
+          tags: {
+            route: "/api/marcus/brief",
+            action: "brief.deliver",
+            stage: "slack_send",
+            app: "id",
+          },
+          user: { id: accountId },
+          extra: { brief_type: type, error_class: errorClass },
+        });
+      }
       delivery.slack = "failed";
     }
   }

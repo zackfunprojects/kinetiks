@@ -20,13 +20,14 @@ interface StubOptions {
   connection?: { credentials: string | null; status: string } | null;
   connectionError?: { message: string } | null;
   systemName?: string | null;
+  accountMissing?: boolean;
 }
 
 function stubAdmin(options: StubOptions) {
   const from = vi.fn((table: string) => {
     if (table === "kinetiks_accounts") {
       const maybeSingle = vi.fn(async () => ({
-        data: { system_name: options.systemName ?? null },
+        data: options.accountMissing ? null : { system_name: options.systemName ?? null },
         error: null,
       }));
       const eq = vi.fn(() => ({ maybeSingle }));
@@ -87,6 +88,14 @@ describe("resolveSlackSendCredentials", () => {
 
     stubAdmin({ connection: { credentials: null, status: "active" } });
     await expect(resolveSlackSendCredentials("acc-1")).resolves.toBeNull();
+  });
+
+  it("throws when the account row is missing (CR: data integrity, not a silent fallback)", async () => {
+    stubAdmin({
+      connection: { credentials: "blob", status: "active" },
+      accountMissing: true,
+    });
+    await expect(resolveSlackSendCredentials("acc-1")).rejects.toThrow("not found");
   });
 
   it("throws on infrastructure failures (read error, decrypt failure)", async () => {

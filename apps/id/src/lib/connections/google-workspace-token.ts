@@ -37,6 +37,8 @@
 
 import "server-only";
 
+import { z } from "zod";
+
 import {
   classifyHttpStatus,
   fetchWithTimeout,
@@ -68,11 +70,20 @@ export interface GoogleWorkspaceAccessToken {
   connected_email: string;
 }
 
-interface GoogleConnectionCredentials {
-  refresh_token: string;
-  scopes?: string[];
-  email?: string;
-}
+/**
+ * Runtime validation of the decrypted blob (CR: a malformed payload
+ * must fail here as "reconnect", not later as an opaque OAuth error).
+ * Loose on extras so credential-shape additions stay non-breaking.
+ */
+const GoogleConnectionCredentialsSchema = z
+  .object({
+    refresh_token: z.string().min(1),
+    scopes: z.array(z.string()).optional(),
+    email: z.string().optional(),
+  })
+  .passthrough();
+
+type GoogleConnectionCredentials = z.infer<typeof GoogleConnectionCredentialsSchema>;
 
 /** Gmail-scoped token from the `google_workspace` connection. */
 export async function getGoogleWorkspaceAccessToken(args: {
@@ -154,9 +165,9 @@ async function getGoogleAccessTokenForProvider(args: {
     );
   }
 
-  let creds: GoogleConnectionCredentials;
+  let decrypted: unknown;
   try {
-    creds = decryptCredentials(credsRaw) as unknown as GoogleConnectionCredentials;
+    decrypted = decryptCredentials(credsRaw);
   } catch (err) {
     throw new ToolError(
       "permanent",
@@ -164,13 +175,15 @@ async function getGoogleAccessTokenForProvider(args: {
       { context: { account_id: args.account_id, provider: args.provider } },
     );
   }
-  if (!creds.refresh_token) {
+  const parsedCreds = GoogleConnectionCredentialsSchema.safeParse(decrypted);
+  if (!parsedCreds.success) {
     throw new ToolError(
       "unavailable",
-      `${label} credentials missing refresh_token. Reconnect.`,
+      `${label} credentials are malformed (missing refresh_token). Ask the customer to reconnect.`,
       { context: { account_id: args.account_id, provider: args.provider } },
     );
   }
+  const creds: GoogleConnectionCredentials = parsedCreds.data;
 
   // Exchange refresh_token for access_token via Google OAuth v2.
   const body = new URLSearchParams({

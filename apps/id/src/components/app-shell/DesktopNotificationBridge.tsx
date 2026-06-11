@@ -24,18 +24,33 @@ import { useEffect } from "react";
 import { createClient as createBrowserClient } from "@/lib/supabase/client";
 import { getDesktopBridge } from "@/lib/desktop/useIsDesktop";
 
-export function DesktopNotificationBridge({ systemName }: { systemName: string | null }) {
+export function DesktopNotificationBridge({
+  systemName,
+  accountId,
+}: {
+  systemName: string | null;
+  accountId: string;
+}) {
   useEffect(() => {
     const bridge = getDesktopBridge();
     if (!bridge) return;
 
     const displayName = systemName?.trim() || "Kinetiks";
     const supabase = createBrowserClient();
+    // Channel name AND postgres_changes filter are account-scoped per
+    // the CLAUDE.md Realtime contract (CR) - RLS remains the access
+    // boundary; the scoping keeps cross-account signal out of the
+    // channel layer entirely.
     const channel = supabase
-      .channel("desktop-notifications")
+      .channel(`desktop-notifications:${accountId}`)
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "kinetiks_marcus_alerts" },
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "kinetiks_marcus_alerts",
+          filter: `account_id=eq.${accountId}`,
+        },
         (payload) => {
           const row = payload.new as { title?: string; severity?: string };
           if (row.severity !== "urgent" && row.severity !== "warning") return;
@@ -47,7 +62,12 @@ export function DesktopNotificationBridge({ systemName }: { systemName: string |
       )
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "kinetiks_approvals" },
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "kinetiks_approvals",
+          filter: `account_id=eq.${accountId}`,
+        },
         (payload) => {
           const row = payload.new as { title?: string; status?: string };
           if (row.status && row.status !== "pending") return;
@@ -62,7 +82,7 @@ export function DesktopNotificationBridge({ systemName }: { systemName: string |
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [systemName]);
+  }, [systemName, accountId]);
 
   return null;
 }

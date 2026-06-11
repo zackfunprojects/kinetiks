@@ -10,9 +10,10 @@ import { RejectModal } from "./RejectModal";
 
 interface ApprovalPanelProps {
   systemName: string | null;
+  accountId: string;
 }
 
-export function ApprovalPanel({ systemName }: ApprovalPanelProps) {
+export function ApprovalPanel({ systemName, accountId }: ApprovalPanelProps) {
   const [approvals, setApprovals] = useState<ApprovalRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [batchLoading, setBatchLoading] = useState(false);
@@ -56,14 +57,16 @@ export function ApprovalPanel({ systemName }: ApprovalPanelProps) {
 
     // Subscribe to Realtime changes
     const supabase = createBrowserClient();
+    // Account-scoped channel name + filter per the Realtime contract (CR).
     const channel = supabase
-      .channel("approvals-panel")
+      .channel(`approvals-panel:${accountId}`)
       .on(
         "postgres_changes",
         {
           event: "*",
           schema: "public",
           table: "kinetiks_approvals",
+          filter: `account_id=eq.${accountId}`,
         },
         () => {
           // Refetch on any change
@@ -75,7 +78,7 @@ export function ApprovalPanel({ systemName }: ApprovalPanelProps) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [fetchApprovals]);
+  }, [fetchApprovals, accountId]);
 
   const handleApprove = async (id: string, edits?: Record<string, unknown>) => {
     try {
