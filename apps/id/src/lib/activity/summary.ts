@@ -1,5 +1,6 @@
 import "server-only";
 
+import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { captureException } from "@/lib/observability/sentry";
 import {
@@ -12,6 +13,25 @@ import {
 } from "./aggregate";
 
 export type { AgentActivitySummary } from "./aggregate";
+
+// Runtime validation of the Supabase row shapes (no `as` casts) so
+// schema drift surfaces as a captured load failure instead of silent
+// NaN aggregates. Each schema is typed against its interface, so drift
+// between schema and interface fails the type-check.
+const OracleRunRowSchema: z.ZodType<ActivityOracleRunRow> = z.object({
+  started_at: z.string(),
+  status: z.string(),
+  insights_written: z.number().nullable(),
+  sources_evaluated: z.array(z.string()).nullable(),
+});
+
+const LedgerRowSchema: z.ZodType<ActivityLedgerRow> = z.object({
+  event_type: z.string(),
+});
+
+const ToolCallRowSchema: z.ZodType<ActivityToolCallRow> = z.object({
+  tool_name: z.string(),
+});
 
 /** Bounded reads: a summary, not a ledger browser (that is Cortex > Ledger). */
 const LEDGER_ROW_CAP = 1000;
@@ -62,7 +82,7 @@ async function loadOracleRuns(
       .order("started_at", { ascending: false })
       .limit(ORACLE_RUN_ROW_CAP);
     if (error) throw new Error(error.message);
-    return (data ?? []) as ActivityOracleRunRow[];
+    return OracleRunRowSchema.array().parse(data ?? []);
   } catch (err) {
     await captureException(err, {
       tags: {
@@ -92,7 +112,7 @@ async function loadLedgerEvents(
       .in("event_type", [...ACTIVITY_LEDGER_EVENT_TYPES])
       .limit(LEDGER_ROW_CAP);
     if (error) throw new Error(error.message);
-    return (data ?? []) as ActivityLedgerRow[];
+    return LedgerRowSchema.array().parse(data ?? []);
   } catch (err) {
     await captureException(err, {
       tags: {
@@ -122,7 +142,7 @@ async function loadMarcusToolCalls(
       .gte("started_at", since)
       .limit(TOOL_CALL_ROW_CAP);
     if (error) throw new Error(error.message);
-    return (data ?? []) as ActivityToolCallRow[];
+    return ToolCallRowSchema.array().parse(data ?? []);
   } catch (err) {
     await captureException(err, {
       tags: {
