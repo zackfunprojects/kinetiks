@@ -31,6 +31,7 @@ import { generateActions } from "./action-generator";
 import { assembleResponse } from "./response-assembler";
 import { decideAndInvokeTool } from "./tool-decision";
 import { statusEvent, toolExecStatusEvent } from "./chat-status";
+import { captureException } from "@/lib/observability/sentry";
 import type { DataAvailabilityManifest, ActionGenerationResult } from "./types";
 
 /**
@@ -360,7 +361,11 @@ export async function processMarcusMessage(
       responseText,
       briefInsights.map((i) => i.insight_id),
     ).catch((err) =>
-      console.error("[ENGINE] insight delivery stamping failed:", err),
+      captureException(err, {
+        tags: { route: "marcus_engine", action: "marcus.insight_stamp", stage: "persist", app: "id" },
+        user: { id: accountId },
+        extra: { thread_id: thread.id },
+      }),
     );
   }
 
@@ -374,7 +379,13 @@ export async function processMarcusMessage(
     history.length,
     haikuFor("marcus.memory_extract"),
     admin,
-  ).catch((err) => console.error("Memory extraction failed", err));
+  ).catch((err) =>
+    captureException(err, {
+      tags: { route: "marcus_engine", action: "marcus.memory_extract", stage: "persist", app: "id" },
+      user: { id: accountId },
+      extra: { thread_id: thread.id },
+    }),
+  );
 
   // 13. Log to Learning Ledger (non-blocking). Target table is
   // kinetiks_ledger with the detail/source_app/source_operator columns;
@@ -397,7 +408,13 @@ export async function processMarcusMessage(
       response_length: responseText.length,
     },
   }).then(({ error }) => {
-    if (error) console.error("Failed to log to ledger", error);
+    if (error) {
+      void captureException(error, {
+        tags: { route: "marcus_engine", action: "marcus.ledger_log", stage: "persist", app: "id" },
+        user: { id: accountId },
+        extra: { thread_id: thread.id },
+      });
+    }
   });
 
   // Auto-title if first exchange
@@ -697,7 +714,11 @@ export async function streamMarcusMessage(
             fullResponse,
             briefInsights.map((i) => i.insight_id),
           ).catch((err) =>
-            console.error("[ENGINE/stream] insight delivery stamping failed:", err),
+            captureException(err, {
+              tags: { route: "marcus_engine", action: "marcus.insight_stamp", stage: "persist", app: "id" },
+              user: { id: accountId },
+              extra: { thread_id: thread.id, streaming: true },
+            }),
           );
         }
 
@@ -730,7 +751,13 @@ export async function streamMarcusMessage(
           history.length,
           haikuFor("marcus.memory_extract"),
           admin,
-        ).catch((err) => console.error("Memory extraction failed", err));
+        ).catch((err) =>
+          captureException(err, {
+            tags: { route: "marcus_engine", action: "marcus.memory_extract", stage: "persist", app: "id" },
+            user: { id: accountId },
+            extra: { thread_id: thread.id, streaming: true },
+          }),
+        );
 
         // Log to Learning Ledger (non-blocking). See the non-streaming
         // path above: kinetiks_ledger with detail/source_app/source_operator.
@@ -752,7 +779,13 @@ export async function streamMarcusMessage(
             streaming: true,
           },
         }).then(({ error: ledgerError }) => {
-          if (ledgerError) console.error("Failed to log to ledger", ledgerError);
+          if (ledgerError) {
+            void captureException(ledgerError, {
+              tags: { route: "marcus_engine", action: "marcus.ledger_log", stage: "persist", app: "id" },
+              user: { id: accountId },
+              extra: { thread_id: thread.id, streaming: true },
+            });
+          }
         });
 
         // Auto-title if first exchange

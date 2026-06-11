@@ -89,6 +89,11 @@ vi.mock("../tool-decision", () => ({
   decideAndInvokeTool: vi.fn(),
 }));
 
+vi.mock("@/lib/observability/sentry", () => ({
+  captureException: vi.fn(async () => undefined),
+  captureMessage: vi.fn(async () => undefined),
+}));
+
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { routeAskClaude, routeStreamClaude } from "@kinetiks/ai";
 import { startAgentRun } from "@kinetiks/runtime";
