@@ -26,11 +26,12 @@ import { apiSuccess, apiError } from "@/lib/utils/api-response";
 import { createConnectSession } from "@/lib/integrations/nango/client";
 import { getNangoProviderConfig } from "@/lib/integrations/nango/provider-config";
 import { isValidProvider } from "@/lib/connections/providers";
-import type { ConnectionProvider } from "@kinetiks/types";
+import { isSystemProvider } from "@/lib/connections/system-providers";
+import type { AnyConnectionProvider, ConnectionProvider } from "@kinetiks/types";
 
 interface ConnectionListRow {
   id: string;
-  provider: ConnectionProvider;
+  provider: AnyConnectionProvider;
   status: string;
   last_sync_at: string | null;
   metadata: Record<string, unknown>;
@@ -77,6 +78,14 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const provider = body.provider;
+  if (typeof provider === "string" && isSystemProvider(provider)) {
+    // System connections (google_workspace / slack / calendar) use the
+    // direct OAuth path, not Nango. D1.
+    return apiError(
+      `'${provider}' is a system connection. Start it at /api/connections/system/${provider}/start.`,
+      400,
+    );
+  }
   if (typeof provider !== "string" || !isValidProvider(provider)) {
     return apiError("Missing or invalid 'provider' field", 400);
   }
