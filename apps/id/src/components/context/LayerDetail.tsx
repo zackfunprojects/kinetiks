@@ -224,7 +224,7 @@ export function LayerDetail({
     <div>
       <div style={{ marginBottom: 24 }}>
         <Link
-          href="/context"
+          href="/cortex/identity"
           style={{ fontSize: 13, color: "var(--kt-accent)", textDecoration: "none" }}
         >
           &larr; Back to Context
