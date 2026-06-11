@@ -21,6 +21,7 @@ import { askClaude } from "@kinetiks/ai";
 import { ToolError } from "@kinetiks/tools";
 import { serverEnv } from "@kinetiks/lib/env";
 
+import { buildMeetingPrepPrompt } from "@/lib/ai/prompts/meeting-prep";
 import { assembleContext } from "@/lib/marcus/context-assembly";
 import { createInAppAlert, deliverSlackDm } from "@/lib/comms/proactive-delivery";
 import { resolveOwnerEmail, sendSystemEmail } from "@/lib/email/sender";
@@ -40,23 +41,6 @@ export interface MeetingPrepResult {
   briefs_sent: number;
   duplicates: number;
   failures: number;
-}
-
-function buildPrepPrompt(args: {
-  event: UpcomingCalendarEvent;
-  contextSummary: string;
-}): string {
-  const attendees = args.event.attendee_names.join(", ") || "no listed attendees";
-  return `You prepare a meeting brief for a GTM operator. Be concise and useful: 4-7 sentences of prep plus 2-3 suggested talking points. Plain language, no headers, no em dashes.
-
-Meeting: "${args.event.title}" starting ${args.event.start}, attendees: ${attendees}.
-
-What the system knows about the business (context summary):
-"""
-${args.contextSummary.slice(0, 4000)}
-"""
-
-Write the prep brief now. If the context says nothing relevant to these attendees, say what IS known and suggest sensible generic prep - never invent specifics.`;
 }
 
 export async function runMeetingPrep(accountId: string): Promise<MeetingPrepResult> {
@@ -89,42 +73,80 @@ export async function runMeetingPrep(accountId: string): Promise<MeetingPrepResu
 
   const contextSummary = await assembleContext(admin, accountId, "strategic");
   const appUrl = serverEnv().NEXT_PUBLIC_APP_URL ?? "https://kinetiks.ai";
-  const { data: account } = await admin
+  // Loud on lookup failure or a missing row (CR) - the "Kinetiks"
+  // fallback applies only to a legitimately unnamed system.
+  const { data: account, error: accountError } = await admin
     .from("kinetiks_accounts")
     .select("system_name")
     .eq("id", accountId)
     .maybeSingle();
+  if (accountError) {
+    throw new Error(`account read failed: ${accountError.message}`);
+  }
+  if (!account) {
+    throw new Error(`account ${accountId} not found for meeting prep`);
+  }
   const systemName =
-    typeof account?.system_name === "string" && account.system_name.trim()
+    typeof account.system_name === "string" && account.system_name.trim()
       ? account.system_name.trim()
       : "Kinetiks";
+  // The customer's timezone lives on their schedule rows (CR: a
+  // server-local toLocaleTimeString labels the meeting in the
+  // serverless region's zone). Fall back to an explicit UTC label.
+  const { data: tzRow } = await admin
+    .from("kinetiks_marcus_schedules")
+    .select("timezone")
+    .eq("account_id", accountId)
+    .limit(1)
+    .maybeSingle();
+  const timezone =
+    typeof tzRow?.timezone === "string" && tzRow.timezone ? tzRow.timezone : "UTC";
 
   for (const event of events) {
-    // Exactly-once per (event, start): reschedules re-prep.
-    const { error: claimError } = await admin.from("kinetiks_inbound_events").insert({
-      account_id: accountId,
-      source: "calendar",
-      event_key: `gcal_prep:${accountId}:${event.id}:${event.start}`,
-      event_type: "meeting_prep_sent",
-    });
-    if (claimError) {
-      if (claimError.code === PG_UNIQUE_VIOLATION) {
-        result.duplicates += 1;
-        continue;
-      }
-      throw new Error(`prep claim failed: ${claimError.message}`);
-    }
-
     try {
-      const brief = await askClaude(buildPrepPrompt({ event, contextSummary }), {
+      // Generate FIRST, claim SECOND, deliver THIRD (CR): a failed
+      // generation leaves no claim, so the next cycle inside the
+      // window retries instead of silently never prepping the
+      // meeting. The claim still gates every external send
+      // exactly-once per (event, start) - reschedules re-prep; two
+      // concurrent cycles at worst duplicate one Haiku call, never a
+      // delivery.
+      const brief = await askClaude(buildMeetingPrepPrompt({ event, contextSummary }), {
         model: "claude-haiku-4-5-20251001",
         maxTokens: 512,
       });
 
-      const startLabel = new Date(event.start).toLocaleTimeString([], {
-        hour: "numeric",
-        minute: "2-digit",
+      const { error: claimError } = await admin.from("kinetiks_inbound_events").insert({
+        account_id: accountId,
+        source: "calendar",
+        event_key: `gcal_prep:${accountId}:${event.id}:${event.start}`,
+        event_type: "meeting_prep_sent",
       });
+      if (claimError) {
+        if (claimError.code === PG_UNIQUE_VIOLATION) {
+          result.duplicates += 1;
+          continue;
+        }
+        throw new Error(`prep claim failed: ${claimError.message}`);
+      }
+
+      let startLabel: string;
+      try {
+        startLabel = new Date(event.start).toLocaleTimeString("en-US", {
+          hour: "numeric",
+          minute: "2-digit",
+          timeZone: timezone,
+          ...(timezone === "UTC" ? { timeZoneName: "short" } : {}),
+        });
+      } catch {
+        // An invalid stored timezone must not kill the prep.
+        startLabel = new Date(event.start).toLocaleTimeString("en-US", {
+          hour: "numeric",
+          minute: "2-digit",
+          timeZone: "UTC",
+          timeZoneName: "short",
+        });
+      }
       const attendeeLine = event.attendee_names.join(", ") || "you";
 
       // Email leg (best-effort; the in-app alert is the floor).

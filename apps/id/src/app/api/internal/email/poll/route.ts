@@ -14,6 +14,8 @@ import "server-only";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { serverEnv } from "@kinetiks/lib/env";
+
 import { isValidInternalBearer } from "@/lib/auth/internal-bearer";
 import { pollGmailInbox, type PollGmailResult } from "@/lib/email/receive";
 import { captureException } from "@/lib/observability/sentry";
@@ -31,7 +33,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
-  const secret = process.env.INTERNAL_SERVICE_SECRET;
+  const secret = serverEnv().INTERNAL_SERVICE_SECRET;
   if (!secret) {
     return NextResponse.json({ error: "missing_internal_secret" }, { status: 500 });
   }

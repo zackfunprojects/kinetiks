@@ -59,12 +59,21 @@ interface GoogleEvent {
   organizer?: { self?: boolean };
 }
 
-/** Email → display identity without leaking the address. */
+/**
+ * Attendee display identity without the address. Prefer the provided
+ * display name; otherwise reduce the local part to its FIRST name
+ * token only ("jane.doe.smith@x" → "Jane") per the PII rule's
+ * first-name posture (CR: a full local part is name-equivalent and
+ * can carry the whole identity).
+ */
 function attendeeName(attendee: { email?: string; displayName?: string }): string {
   if (attendee.displayName?.trim()) return attendee.displayName.trim();
   const email = attendee.email ?? "";
   const at = email.indexOf("@");
-  return at > 0 ? email.slice(0, at) : "guest";
+  if (at <= 0) return "guest";
+  const first = email.slice(0, at).split(/[._\-+]/)[0] ?? "";
+  if (!first) return "guest";
+  return first.charAt(0).toUpperCase() + first.slice(1).toLowerCase();
 }
 
 /**

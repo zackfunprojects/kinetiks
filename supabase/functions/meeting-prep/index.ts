@@ -44,8 +44,11 @@ Deno.serve(async () => {
     .eq("provider", "calendar")
     .eq("status", "active");
   if (error) {
+    // Detail to the function logs only; the response body stays
+    // generic (CR: no raw PostgREST text in responses).
+    console.error("[meeting-prep] eligibility query failed:", error.message);
     return new Response(
-      JSON.stringify({ error: `eligibility query failed: ${error.message}` }),
+      JSON.stringify({ error: "eligibility_query_failed" }),
       { status: 500, headers: { "Content-Type": "application/json" } },
     );
   }

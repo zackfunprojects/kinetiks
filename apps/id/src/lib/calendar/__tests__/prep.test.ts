@@ -61,6 +61,15 @@ function stubAdmin(options: { claimDuplicate?: boolean } = {}) {
         }),
       };
     }
+    if (table === "kinetiks_marcus_schedules") {
+      const maybeSingle = vi.fn(async () => ({
+        data: { timezone: "America/New_York" },
+        error: null,
+      }));
+      const limit = vi.fn(() => ({ maybeSingle }));
+      const eq = vi.fn(() => ({ limit }));
+      return { select: vi.fn(() => ({ eq })) };
+    }
     // kinetiks_accounts
     const maybeSingle = vi.fn(async () => ({
       data: { system_name: "Kit" },
@@ -131,12 +140,34 @@ describe("runMeetingPrep", () => {
     );
   });
 
-  it("skips already-prepped events via the claim", async () => {
+  it("skips delivery for already-prepped events via the claim (CR: claim gates sends, not generation)", async () => {
     stubAdmin({ claimDuplicate: true });
     const result = await runMeetingPrep("acc-1");
     expect(result.duplicates).toBe(1);
     expect(result.briefs_sent).toBe(0);
-    expect(askClaudeMock).not.toHaveBeenCalled();
+    // Generation may run (worst case: one duplicate Haiku call), but
+    // nothing external sends on a duplicate claim.
+    expect(sendEmailMock).not.toHaveBeenCalled();
+    expect(slackDmMock).not.toHaveBeenCalled();
+    expect(alertMock).not.toHaveBeenCalled();
+  });
+
+  it("leaves no claim when generation fails, so the next cycle retries (CR)", async () => {
+    const { claims } = stubAdmin();
+    askClaudeMock.mockRejectedValueOnce(new Error("model unavailable"));
+    const result = await runMeetingPrep("acc-1");
+    expect(result.failures).toBe(1);
+    expect(claims).toHaveLength(0);
+    expect(sendEmailMock).not.toHaveBeenCalled();
+  });
+
+  it("formats the meeting time in the customer's schedule timezone (CR)", async () => {
+    stubAdmin();
+    await runMeetingPrep("acc-1");
+    // 15:30Z in America/New_York (June, EDT) = 11:30 AM.
+    const alertArgs = alertMock.mock.calls[0]![0] as { title: string };
+    expect(alertArgs.title).toContain("11:30");
+    expect(alertArgs.title).not.toContain("15:30");
   });
 
   it("keeps the in-app floor when email and slack legs fail", async () => {
