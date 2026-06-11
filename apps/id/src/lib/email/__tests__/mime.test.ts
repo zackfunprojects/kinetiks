@@ -82,30 +82,43 @@ describe("buildMimeMessage", () => {
     const htmlIdx = decoded.indexOf("<p>rich version</p>");
     expect(textIdx).toBeGreaterThan(-1);
     expect(htmlIdx).toBeGreaterThan(textIdx);
-    // Boundary opens and closes, is high-entropy (CR: never derived
-    // from content), and appears in neither part's payload.
+    // Boundary is high-entropy (CR: never derived from content) and
+    // cleanly delimits the message: splitting on it yields exactly
+    // [headers, text part, html part, terminator] with both payloads
+    // intact - which is only possible when the boundary appears in
+    // neither part's content.
     const boundary = /boundary="([^"]+)"/.exec(decoded)?.[1];
     expect(boundary).toMatch(/^kt-[0-9a-f]{24}$/);
-    expect(decoded).toContain(`--${boundary}--`);
-    expect("plain version").not.toContain(boundary as string);
+    const segments = decoded.split(`--${boundary}`);
+    expect(segments).toHaveLength(4);
+    expect(segments[1]).toContain("plain version");
+    expect(segments[2]).toContain("<p>rich version</p>");
+    expect(segments[3]!.trim()).toBe("--");
   });
 
-  it("re-rolls the boundary until it collides with neither part", () => {
-    // Brute assertion via shape: two builds of identical content get
-    // different boundaries (randomness), both absent from the body.
+  it("generates fresh random boundaries that never match boundary-shaped body content", () => {
+    const text = "text kt-deadbeef pattern";
+    const html = "<p>html kt-cafebabe pattern</p>";
     const build = () =>
       decode(
         buildMimeMessage({
           from: { email: "kit@acme.test" },
           to: ["owner@acme.test"],
           subject: "Brief",
-          text: "text kt-deadbeef pattern",
-          html: "<p>html</p>",
+          text,
+          html,
         }),
       );
     const b1 = /boundary="([^"]+)"/.exec(build())?.[1];
     const b2 = /boundary="([^"]+)"/.exec(build())?.[1];
+    // Random per build...
     expect(b1).not.toBe(b2);
+    // ...and absent from the deliberately boundary-shaped content
+    // (the re-roll loop's guarantee, asserted against the real body).
+    expect(text).not.toContain(b1 as string);
+    expect(text).not.toContain(b2 as string);
+    expect(html).not.toContain(b1 as string);
+    expect(html).not.toContain(b2 as string);
   });
 
   it("base64url output carries no padding or unsafe chars", () => {
