@@ -10,6 +10,8 @@ interface ChatLayoutProps {
   initialThreadId?: string;
   initialMessages?: MarcusMessage[];
   systemName: string | null;
+  /** B3 — org-layer company name for the first-run greeting. */
+  greetingCompanyName?: string | null;
 }
 
 export function ChatLayout({
@@ -17,6 +19,7 @@ export function ChatLayout({
   initialThreadId,
   initialMessages = [],
   systemName,
+  greetingCompanyName = null,
 }: ChatLayoutProps) {
   const [threads, setThreads] = useState<MarcusThread[]>(initialThreads);
   const [currentThreadId, setCurrentThreadId] = useState<string | undefined>(initialThreadId);
@@ -120,6 +123,7 @@ export function ChatLayout({
         onThreadCreated={handleThreadCreated}
         onRefreshThreads={handleRefreshThreads}
         systemName={systemName}
+        greetingCompanyName={greetingCompanyName}
       />
     </div>
   );

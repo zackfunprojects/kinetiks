@@ -129,11 +129,23 @@ async function readAllEvents(stream: ReadableStream): Promise<SseEvent[]> {
   return events;
 }
 
-function makeAdminStub(): SupabaseClient {
+function makeAdminStub(systemName: string | null = "Atlas"): SupabaseClient {
   return {
     from: vi.fn((table: string) => {
       if (table === "kinetiks_ledger") {
         return { insert: vi.fn(() => Promise.resolve({ error: null })) };
+      }
+      if (table === "kinetiks_accounts") {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              maybeSingle: vi.fn(async () => ({
+                data: { system_name: systemName },
+                error: null,
+              })),
+            })),
+          })),
+        };
       }
       return {
         update: vi.fn(() => ({ eq: vi.fn(() => Promise.resolve({ error: null })) })),
@@ -287,6 +299,33 @@ describe("streamMarcusMessage - SSE status protocol", () => {
       "tool_exec",
       "responding",
     ]);
+  });
+
+  it("speaks as the account's named system, never as Marcus (B3)", async () => {
+    const { stream } = await streamMarcusMessage(
+      makeAdminStub("Atlas"),
+      "acc-1",
+      "how is traffic?",
+    );
+    await readAllEvents(stream);
+
+    expect(mockRouteStreamClaude).toHaveBeenCalledTimes(1);
+    const systemPrompt = mockRouteStreamClaude.mock.calls[0][2] as string;
+    expect(systemPrompt).toContain("You are Atlas");
+    // The internal operator name never reaches the persona identity.
+    expect(systemPrompt).not.toContain("You are Marcus");
+  });
+
+  it("falls back to Kinetiks before the system is named (B3)", async () => {
+    const { stream } = await streamMarcusMessage(
+      makeAdminStub(null),
+      "acc-1",
+      "how is traffic?",
+    );
+    await readAllEvents(stream);
+
+    const systemPrompt = mockRouteStreamClaude.mock.calls[0][2] as string;
+    expect(systemPrompt).toContain("You are Kinetiks");
   });
 
   it("emits an error event and resolves actionsPromise empty when the pipeline throws", async () => {

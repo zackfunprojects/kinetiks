@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { redirect } from "next/navigation";
 import { ChatLayout } from "@/components/chat/ChatLayout";
+import { loadGreetingCompanyName } from "@/lib/marcus/greeting";
 import {
   loadThreadView,
   supabaseThreadViewReader,
@@ -53,12 +54,17 @@ export default async function ThreadPage({
 
   if (!view.owned) redirect("/chat");
 
+  // B3 — the greeting shows when the customer starts a new thread from
+  // this view, so the company context rides along here too.
+  const greetingCompanyName = await loadGreetingCompanyName(admin, account.id);
+
   return (
     <ChatLayout
       initialThreads={view.threads}
       initialThreadId={threadId}
       initialMessages={view.messages}
       systemName={account.system_name}
+      greetingCompanyName={greetingCompanyName}
     />
   );
 }

@@ -20,7 +20,7 @@ export async function POST() {
   // Check if account already exists
   const { data: existing } = await admin
     .from("kinetiks_accounts")
-    .select("id, codename")
+    .select("id, codename, system_name")
     .eq("user_id", user.id)
     .single();
 
@@ -56,7 +56,7 @@ export async function POST() {
     // Handle unique constraint race: re-query to see if another request created it
     const { data: raceAccount } = await admin
       .from("kinetiks_accounts")
-      .select("id, codename")
+      .select("id, codename, system_name")
       .eq("user_id", user.id)
       .single();
 

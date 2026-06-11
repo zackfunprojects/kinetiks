@@ -151,6 +151,37 @@ function closeConnectionEvidenceForRequestIds(
 }
 
 /**
+ * B3 — resolve the customer's named system identity for the persona
+ * prompt. Falls back to "Kinetiks" when the account has not named its
+ * system yet (or the read fails); the internal operator name "Marcus"
+ * never reaches a customer surface.
+ */
+async function loadSystemName(
+  admin: SupabaseClient,
+  accountId: string,
+): Promise<string> {
+  try {
+    const { data, error } = await admin
+      .from("kinetiks_accounts")
+      .select("system_name")
+      .eq("id", accountId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    const name = (data as { system_name?: string | null } | null)?.system_name;
+    return typeof name === "string" && name.trim() ? name.trim() : "Kinetiks";
+  } catch (err) {
+    // Side-panel read: fall back to the default identity, but the
+    // failure itself is operationally visible.
+    void captureException(err, {
+      tags: { route: "marcus_engine", action: "marcus.system_name", stage: "select", app: "id" },
+      user: { id: accountId },
+      extra: {},
+    });
+    return "Kinetiks";
+  }
+}
+
+/**
  * Process a Marcus conversation message through the v2 pipeline.
  *
  * V2 Pipeline:
@@ -213,6 +244,11 @@ export async function processMarcusMessage(
 
   // 5. Build data availability manifest
   const manifest = await buildDataAvailabilityManifest(accountId, admin);
+
+  // 5.5. B3 — load the customer's named system identity. The persona
+  // speaks as the name chosen at setup; "Kinetiks" is the pre-naming
+  // fallback only. The user never sees the internal name "Marcus".
+  const systemName = await loadSystemName(admin, accountId);
 
   // 6. Load thread memories
   const memories = await loadThreadMemories(accountId, thread.id, admin);
@@ -311,7 +347,7 @@ export async function processMarcusMessage(
   );
 
   // 8. Response generation (Sonnet) - short persona prompt + brief adjacent to question
-  const systemPrompt = buildPersonaPrompt("Marcus");
+  const systemPrompt = buildPersonaPrompt(systemName);
 
   const conversationMessages: ConversationMessage[] = [
     ...history.map((m) => ({
@@ -563,6 +599,11 @@ export async function streamMarcusMessage(
         send(statusEvent("brief", "Reviewing what I know"));
         const manifest = await buildDataAvailabilityManifest(accountId, admin);
 
+        // 5.5. B3 — load the customer's named system identity. The
+        // persona speaks as the name chosen at setup; "Kinetiks" is the
+        // pre-naming fallback only.
+        const systemName = await loadSystemName(admin, accountId);
+
         // 6. Load thread memories
         const memories = await loadThreadMemories(accountId, thread.id, admin);
 
@@ -666,7 +707,7 @@ export async function streamMarcusMessage(
         );
 
         // 8. Build messages with brief adjacent to question
-        const systemPrompt = buildPersonaPrompt("Marcus");
+        const systemPrompt = buildPersonaPrompt(systemName);
 
         const conversationMessages: ConversationMessage[] = [
           ...history.map((m) => ({

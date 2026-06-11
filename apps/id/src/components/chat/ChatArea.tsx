@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { MarcusMessage } from "@kinetiks/types";
 import { MessageBubble } from "./MessageBubble";
 import { filterSlashCommands, type AppCommand } from "@/lib/commands/registry";
+import { buildFirstRunGreeting } from "@/lib/marcus/greeting-copy";
 
 interface ChatAreaProps {
   currentThreadId?: string;
@@ -13,6 +14,8 @@ interface ChatAreaProps {
   onThreadCreated: (threadId: string) => void;
   onRefreshThreads: () => void;
   systemName: string | null;
+  /** B3 — org-layer company name; personalizes the first-run greeting. */
+  greetingCompanyName?: string | null;
 }
 
 const STARTERS = [
@@ -29,6 +32,7 @@ export function ChatArea({
   onThreadCreated,
   onRefreshThreads,
   systemName,
+  greetingCompanyName = null,
 }: ChatAreaProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -255,7 +259,7 @@ export function ChatArea({
               <div style={{ textAlign: "center", maxWidth: 460 }}>
                 <div className="kt-voice-display" style={{ marginBottom: "var(--kt-s-2)" }}>{systemName || "Kinetiks"}</div>
                 <p className="kt-body" style={{ margin: 0 }}>
-                  I&apos;m ready. Ask about your goals, your traffic, or what to focus on, and I&apos;ll work from what I know about your business.
+                  {buildFirstRunGreeting(greetingCompanyName)}
                 </p>
               </div>
             </div>
