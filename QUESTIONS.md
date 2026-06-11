@@ -23,6 +23,18 @@ receiver without touching the workers. Flag here per "ask when the
 spec is ambiguous" - the tech-stack line in CLAUDE.md still says
 "Slack: Slack Bolt"; update it if this direction is confirmed.
 
+### System-email daily cap: exact concurrent enforcement — FOLLOW-UP (D2, 2026-06-11)
+
+The 20-sends/24h cap in `lib/email/sender.ts` counts `system_email_sent`
+Ledger rows before sending. Under concurrency, two parallel sends can
+both pass the check (TOCTOU) and overshoot by the in-flight count -
+bounded by realistic callers (user actions + 15-minute crons) to ~1-2.
+Exact enforcement needs an atomic reservation; the Ledger cannot serve
+(append-only - a pre-insert that then fails to send would be a false
+"sent" record), and an advisory lock held across an external API call
+is its own hazard. Phase E2's spend-envelope daily aggregation faces
+the identical atomicity problem; land the shared atomic counter there
+and point the email cap at it.
 
 ### Microsoft 365 system connection — DEFERRED (D1, 2026-06-11)
 

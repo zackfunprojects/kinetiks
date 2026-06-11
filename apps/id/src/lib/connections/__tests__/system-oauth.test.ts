@@ -224,6 +224,7 @@ describe("exchangeCodeForCredentials — slack", () => {
         scope: "chat:write,im:write",
         bot_user_id: "U0BOT",
         team: { id: "T0TEAM", name: "Acme" },
+        authed_user: { id: "U0OWNER" },
       }),
     );
 
@@ -239,11 +240,13 @@ describe("exchangeCodeForCredentials — slack", () => {
       bot_user_id: "U0BOT",
       team_id: "T0TEAM",
       team_name: "Acme",
+      installer_user_id: "U0OWNER",
     });
     expect(result.metadata).toEqual({
       team_id: "T0TEAM",
       team_name: "Acme",
       bot_user_id: "U0BOT",
+      installer_user_id: "U0OWNER",
     });
     expect(result.detail).toBe("Workspace: Acme");
     expect(JSON.stringify(result.metadata)).not.toContain("xoxb");

@@ -42,7 +42,7 @@ import {
 import { serverEnv } from "@kinetiks/lib/env";
 
 import { getGoogleWorkspaceAccessToken } from "@/lib/connections/google-workspace-token";
-import { buildMimeMessage } from "@/lib/email/mime";
+import { buildMimeMessage, sanitizeHeaderValue } from "@/lib/email/mime";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 const GMAIL_SEND_URL =
@@ -336,7 +336,10 @@ async function sendViaResend(
       body: JSON.stringify({
         // Display name is the system identity, the domain is honest
         // about the transport when it is not the customer's own.
-        from: `${systemName.replace(/"/g, "")} via Kinetiks <${fromAddress}>`,
+        // Full header sanitization (CR): control chars in an
+        // account-configured name must not reach provider header
+        // parsing.
+        from: `${sanitizeHeaderValue(systemName).replace(/"/g, "")} via Kinetiks <${fromAddress}>`,
         to: input.to,
         subject: input.subject,
         text: input.text,

@@ -109,6 +109,10 @@ export async function dispatchSlackMessage(
   try {
     credentials = await credentialSource(input.account_id);
   } catch (err) {
+    // Preserve a typed upstream failure (CR): a source that throws
+    // ToolError("configuration_error" | "unavailable" | ...) keeps
+    // its semantics; only untyped failures map to transient.
+    if (err instanceof ToolError) throw err;
     throw new ToolError(
       "transient",
       `Slack credential source failed: ${(err as Error)?.message ?? "unknown"}`,

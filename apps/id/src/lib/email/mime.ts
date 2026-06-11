@@ -15,6 +15,8 @@
 
 import "server-only";
 
+import { randomBytes } from "node:crypto";
+
 /**
  * Strip CR/LF and other control characters from header values before
  * MIME composition.
@@ -74,8 +76,14 @@ export function buildMimeMessage(input: BuildMimeMessageInput): string {
   let raw: string;
   if (input.html) {
     // multipart/alternative: text part first (lowest fidelity), HTML
-    // last, per RFC 2046 §5.1.4 ordering.
-    const boundary = `kt-${Buffer.from(input.subject).toString("hex").slice(0, 16)}-${input.text.length.toString(16)}`;
+    // last, per RFC 2046 §5.1.4 ordering. The boundary is
+    // high-entropy and re-rolled until it appears in neither part
+    // (CR: a content-derived boundary could collide with the body
+    // and break MIME parsing).
+    let boundary = `kt-${randomBytes(12).toString("hex")}`;
+    while (input.text.includes(boundary) || input.html.includes(boundary)) {
+      boundary = `kt-${randomBytes(12).toString("hex")}`;
+    }
     headers.push(`Content-Type: multipart/alternative; boundary="${boundary}"`);
     raw = [
       headers.join("\r\n"),

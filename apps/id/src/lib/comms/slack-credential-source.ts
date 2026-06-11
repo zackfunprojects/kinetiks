@@ -63,8 +63,10 @@ export async function resolveSlackSendCredentials(
     return null;
   }
 
-  // The named identity. Fallback mirrors loadSystemName in the Marcus
-  // engine: "Kinetiks", never the internal operator name.
+  // The named identity. A missing account ROW for an id we hold a
+  // connection against is a data-integrity failure and throws (CR);
+  // the "Kinetiks" fallback applies only to a legitimately unnamed
+  // system - never the internal operator name.
   const { data: account, error: accountError } = await admin
     .from("kinetiks_accounts")
     .select("system_name")
@@ -73,8 +75,11 @@ export async function resolveSlackSendCredentials(
   if (accountError) {
     throw new Error(`account read failed: ${accountError.message}`);
   }
+  if (!account) {
+    throw new Error(`account ${accountId} not found for slack credential resolution`);
+  }
   const systemName =
-    typeof account?.system_name === "string" && account.system_name.trim()
+    typeof account.system_name === "string" && account.system_name.trim()
       ? account.system_name.trim()
       : "Kinetiks";
 
