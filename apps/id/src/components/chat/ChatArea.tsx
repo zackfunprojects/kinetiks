@@ -36,6 +36,9 @@ export function ChatArea({
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingText, setStreamingText] = useState("");
+  // B2 — live pipeline status ("Checking GA4...") streamed by the engine
+  // before the first token. Cleared as soon as text starts arriving.
+  const [statusLabel, setStatusLabel] = useState<string | null>(null);
   // Once the customer engages (types or sends), starter chips stay dismissed
   // even if the composer is later cleared.
   const [hasTyped, setHasTyped] = useState(false);
@@ -48,7 +51,7 @@ export function ChatArea({
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  useEffect(scrollToBottom, [messages, streamingText]);
+  useEffect(scrollToBottom, [messages, streamingText, statusLabel]);
 
   useEffect(() => {
     return () => {
@@ -81,6 +84,7 @@ export function ChatArea({
       setInput("");
       setIsStreaming(true);
       setStreamingText("");
+      setStatusLabel(null);
 
       abortControllerRef.current?.abort();
       const controller = new AbortController();
@@ -124,9 +128,14 @@ export function ChatArea({
             if (event.type === "thread_id") {
               threadId = event.thread_id;
               if (!currentThreadId) onThreadCreated(threadId);
+            } else if (event.type === "status") {
+              // Live pipeline progress; superseded by the next status or
+              // by the first text delta.
+              if (typeof event.label === "string") setStatusLabel(event.label);
             } else if (event.type === "text") {
               fullText += event.text;
               setStreamingText(fullText);
+              setStatusLabel(null);
             } else if (event.type === "extraction") {
               if (event.disclosure) {
                 fullText += `\n\n---\n${event.disclosure}`;
@@ -197,6 +206,7 @@ export function ChatArea({
       } finally {
         setIsStreaming(false);
         setStreamingText("");
+        setStatusLabel(null);
       }
     },
     [input, isStreaming, currentThreadId, messages, onMessagesChange, onThreadCreated, onRefreshThreads],
@@ -262,6 +272,25 @@ export function ChatArea({
           ))}
 
           {streamingText ? <MessageBubble role="marcus" content={streamingText} isStreaming /> : null}
+
+          {/* B2 — live agent status before the first token. */}
+          {isStreaming && !streamingText && statusLabel ? (
+            <div
+              role="status"
+              aria-live="polite"
+              aria-busy="true"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "var(--kt-s-2)",
+                marginBottom: "var(--kt-s-4)",
+                color: "var(--kt-fg-3)",
+                fontSize: "var(--kt-fs-13)",
+              }}
+            >
+              <span>{statusLabel}...</span>
+            </div>
+          ) : null}
 
           <div ref={messagesEndRef} />
         </div>

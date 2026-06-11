@@ -104,6 +104,12 @@ export interface DecideAndInvokeToolInput {
   agentRun: AgentRun;
   /** Caller-supplied Haiku invoker, already tagged with task=marcus.tool_decision. */
   haikuCaller: (prompt: string) => Promise<{ content: Array<{ text: string }> }>;
+  /**
+   * B2 — called once per tool immediately before its invocation starts,
+   * so the streaming pipeline can surface live "Checking GA4..." status.
+   * Must never throw; failures here must not affect the invocation.
+   */
+  onToolInvokeStart?: (toolName: string) => void;
 }
 
 export interface DecideAndInvokeToolResult {
@@ -277,7 +283,14 @@ export async function decideAndInvokeTool(
   // discriminated observation, so Promise.all never rejects and one
   // tool's failure cannot drop another tool's evidence.
   const observations = await Promise.all(
-    toInvoke.map((r) => invokeSelection(input.agentRun, r, input.accountId))
+    toInvoke.map((r) => {
+      try {
+        input.onToolInvokeStart?.(r.tool.name);
+      } catch {
+        // Status emission must never affect the invocation.
+      }
+      return invokeSelection(input.agentRun, r, input.accountId);
+    })
   );
 
   return { observations, decision };
