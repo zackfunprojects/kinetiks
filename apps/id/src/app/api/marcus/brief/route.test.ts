@@ -24,13 +24,19 @@ vi.mock("@/lib/ai/prompts/marcus-brief", () => ({
   buildMonthlyReviewPrompt: vi.fn(async () => "prompt"),
 }));
 
-const { sendSystemEmailMock, resolveOwnerEmailMock } = vi.hoisted(() => ({
+const { sendSystemEmailMock, resolveOwnerEmailMock, deliverSlackDmMock, createInAppAlertMock } = vi.hoisted(() => ({
   sendSystemEmailMock: vi.fn(),
   resolveOwnerEmailMock: vi.fn(),
+  deliverSlackDmMock: vi.fn(),
+  createInAppAlertMock: vi.fn(),
 }));
 vi.mock("@/lib/email/sender", () => ({
   sendSystemEmail: sendSystemEmailMock,
   resolveOwnerEmail: resolveOwnerEmailMock,
+}));
+vi.mock("@/lib/comms/proactive-delivery", () => ({
+  deliverSlackDm: deliverSlackDmMock,
+  createInAppAlert: createInAppAlertMock,
 }));
 
 import { ToolError } from "@kinetiks/tools";
@@ -94,6 +100,8 @@ beforeEach(() => {
   } as never);
   resolveOwnerEmailMock.mockResolvedValue("owner@acme.test");
   sendSystemEmailMock.mockResolvedValue({ provider: "gmail", message_id: "m1" });
+  deliverSlackDmMock.mockResolvedValue("sent");
+  createInAppAlertMock.mockResolvedValue("alert-1");
 });
 
 describe("POST /api/marcus/brief — delivery (D2)", () => {
@@ -112,7 +120,21 @@ describe("POST /api/marcus/brief — delivery (D2)", () => {
     const res = await POST(makeRequest({ type: "daily_brief", deliver: true }));
     expect(res.status).toBe(200);
     const payload = (await res.json()) as { data: { delivery: Record<string, string> } };
-    expect(payload.data.delivery).toEqual({ email: "sent", slack: "skipped" });
+    expect(payload.data.delivery).toEqual({
+      email: "sent",
+      slack: "skipped",
+      in_app: "created",
+    });
+    // The in-app alert is the brief itself, with the actually-sent
+    // channels on the record.
+    expect(createInAppAlertMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        account_id: "acc-1",
+        title: "Daily Brief",
+        severity: "info",
+        delivered_via: ["in_app", "email"],
+      }),
+    );
 
     expect(sendSystemEmailMock).toHaveBeenCalledTimes(1);
     const sent = sendSystemEmailMock.mock.calls[0]![0] as Record<string, unknown>;
@@ -125,24 +147,55 @@ describe("POST /api/marcus/brief — delivery (D2)", () => {
     expect(String(sent.html)).toContain("<p");
   });
 
-  it("slack-only schedules report honestly instead of pretending", async () => {
+  it("slack-only schedules DM the customer as the named system (D4)", async () => {
     stubAdmin({ channel: "slack" });
     const res = await POST(makeRequest({ type: "weekly_digest", deliver: true }));
     const payload = (await res.json()) as { data: { delivery: Record<string, string> } };
     expect(payload.data.delivery).toEqual({
       email: "skipped",
-      slack: "not_available_yet",
+      slack: "sent",
+      in_app: "created",
     });
     expect(sendSystemEmailMock).not.toHaveBeenCalled();
+    expect(deliverSlackDmMock).toHaveBeenCalledWith(
+      expect.objectContaining({ account_id: "acc-1" }),
+    );
+    const dm = deliverSlackDmMock.mock.calls[0]![0] as { body: string };
+    expect(dm.body).toContain("Weekly Digest");
+    expect(dm.body).toContain("Pipeline steady");
   });
 
-  it("channel both delivers email and reports the slack leg honestly", async () => {
+  it("reports unavailable when the workspace has no installer mapping", async () => {
+    stubAdmin({ channel: "slack" });
+    deliverSlackDmMock.mockResolvedValueOnce("unavailable");
+    const res = await POST(makeRequest({ type: "weekly_digest", deliver: true }));
+    const payload = (await res.json()) as { data: { delivery: Record<string, string> } };
+    expect(payload.data.delivery.slack).toBe("unavailable");
+  });
+
+  it("channel both delivers every leg", async () => {
     stubAdmin({ channel: "both" });
     const res = await POST(makeRequest({ type: "daily_brief", deliver: true }));
     const payload = (await res.json()) as { data: { delivery: Record<string, string> } };
     expect(payload.data.delivery).toEqual({
       email: "sent",
-      slack: "not_available_yet",
+      slack: "sent",
+      in_app: "created",
+    });
+    expect(createInAppAlertMock).toHaveBeenCalledWith(
+      expect.objectContaining({ delivered_via: ["in_app", "email", "slack"] }),
+    );
+  });
+
+  it("isolates leg failures: a slack crash never blocks email or the alert", async () => {
+    stubAdmin({ channel: "both" });
+    deliverSlackDmMock.mockRejectedValueOnce(new Error("slack down"));
+    const res = await POST(makeRequest({ type: "daily_brief", deliver: true }));
+    const payload = (await res.json()) as { data: { delivery: Record<string, string> } };
+    expect(payload.data.delivery).toEqual({
+      email: "sent",
+      slack: "failed",
+      in_app: "created",
     });
   });
 
