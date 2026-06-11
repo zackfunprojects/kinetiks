@@ -46,6 +46,13 @@ describe("add_calendar_event tool", () => {
     expect(addCalendarEventTool.autoApproveThreshold).toBeNull();
   });
 
+  it("requires the calendar system connection (D1)", () => {
+    expect(addCalendarEventTool.availability).toEqual({
+      kind: "connection_required",
+      provider: "calendar",
+    });
+  });
+
   it("derives an idempotency key from title + start/end times", () => {
     const key = addCalendarEventTool.idempotencyKeyFrom?.({
       title: "Acme onboarding sync",

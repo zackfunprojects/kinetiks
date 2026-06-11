@@ -66,7 +66,12 @@ export const draftEmailTool = defineTool({
   isConsequential: true,
   actionClass: "kinetiks_id.draft_email",
   autoApproveThreshold: null,
-  availability: { kind: "always" },
+  // D1: only offered once the customer has connected Google Workspace
+  // (Cortex → Integrations → System Connections). Before D1 this was
+  // "always" while no user could create the connection the dispatcher
+  // reads — the audit's "governed tools point at uncreatable
+  // connections" gap.
+  availability: { kind: "connection_required", provider: "google_workspace" },
   idempotencyKeyFrom: (input: {
     to: string[];
     subject: string;

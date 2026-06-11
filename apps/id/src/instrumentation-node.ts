@@ -28,6 +28,7 @@ import { bootOperatorRegistry } from "./lib/operators/registry-boot";
 import { bootToolRegistry } from "./lib/tools/registry-boot";
 import { bootRuntimeAdapters } from "./lib/runtime/runtime-boot";
 import { assertProviderConfigValid } from "./lib/integrations/nango/provider-config";
+import { assertSystemProviderConfigValid } from "./lib/connections/system-providers";
 import "./lib/integrations/nango/handlers/boot";
 
 export function bootNodeInstrumentation(): void {
@@ -64,4 +65,8 @@ export function bootNodeInstrumentation(): void {
   // providers would fail at the first connect attempt; failing here
   // at startup is loud and obvious.
   assertProviderConfigValid();
+  // D1: same guarantee for the system connection registry (the direct
+  // OAuth side): every system provider declares scopes, and the
+  // system set is disjoint from the Nango data-provider set.
+  assertSystemProviderConfigValid();
 }

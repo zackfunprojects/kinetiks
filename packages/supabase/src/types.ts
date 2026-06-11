@@ -4291,7 +4291,6 @@ export type Database = {
           calendar_connected: boolean | null
           created_at: string | null
           email_address: string | null
-          email_credentials: Json | null
           email_provider: string | null
           id: string
           slack_bot_user_id: string | null
@@ -4304,7 +4303,6 @@ export type Database = {
           calendar_connected?: boolean | null
           created_at?: string | null
           email_address?: string | null
-          email_credentials?: Json | null
           email_provider?: string | null
           id?: string
           slack_bot_user_id?: string | null
@@ -4317,7 +4315,6 @@ export type Database = {
           calendar_connected?: boolean | null
           created_at?: string | null
           email_address?: string | null
-          email_credentials?: Json | null
           email_provider?: string | null
           id?: string
           slack_bot_user_id?: string | null

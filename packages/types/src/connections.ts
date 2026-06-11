@@ -35,6 +35,42 @@ export type ConnectionProvider =
   | "instagram"
   | "tiktok";
 
+/**
+ * Phase D1 — system connections (the communication layer's identity
+ * surfaces, per docs/specs/agent-communication-layer-spec.md).
+ *
+ * These do NOT go through Nango. They use the direct OAuth path in
+ * `apps/id/src/app/api/connections/system/[provider]/...` with
+ * AES-256-GCM-encrypted token custody in
+ * `kinetiks_connections.credentials` (the google-workspace-token.ts
+ * pattern). Nango stays the broker for data providers only; system
+ * connections carry send/act tokens the platform itself must hold to
+ * speak as the customer's named system.
+ *
+ *   - `google_workspace`: Gmail send/read/modify as the system
+ *     identity. Backs the `draft_email` tool (D1) and outbound email
+ *     (D2) plus inbound polling (D4).
+ *   - `calendar`: Google Calendar events. A SEPARATE OAuth grant from
+ *     google_workspace so the customer can revoke calendar access
+ *     independently (spec §4.3) without breaking email.
+ *   - `slack`: workspace bot token via Slack OAuth v2. Backs
+ *     send_slack_notification (D2) and the Bolt inbound surface (D3).
+ *
+ * Microsoft 365 is deferred until an Azure app registration exists;
+ * see QUESTIONS.md. The registry in
+ * `apps/id/src/lib/connections/system-providers.ts` is the seam where
+ * it slots in.
+ */
+export type SystemConnectionProvider = "google_workspace" | "slack" | "calendar";
+
+/**
+ * Any value that may appear in `kinetiks_connections.provider`. Data
+ * providers connect via Nango Connect; system providers via the
+ * direct OAuth path. The two sets are disjoint — asserted at boot by
+ * `assertSystemProviderConfigValid()`.
+ */
+export type AnyConnectionProvider = ConnectionProvider | SystemConnectionProvider;
+
 export type ConnectionStatus = "pending" | "active" | "error" | "revoked";
 
 export type ConnectionAuthType = "oauth" | "api_key";
@@ -42,13 +78,16 @@ export type ConnectionAuthType = "oauth" | "api_key";
 export interface ConnectionRecord {
   id: string;
   account_id: string;
-  provider: ConnectionProvider;
+  provider: AnyConnectionProvider;
   status: ConnectionStatus;
   /**
-   * Legacy field: AES-256-GCM encrypted credentials JSON. Null for
-   * every Nango-managed connection from Phase 7 forward. Kept on
-   * the type so any pre-existing legacy rows (zero in production)
-   * remain typed accurately.
+   * AES-256-GCM encrypted credentials JSON (base64-packed
+   * iv+authTag+ciphertext). Null for every Nango-managed data
+   * connection — Nango vaults those tokens. Set for system
+   * connections (google_workspace / slack / calendar), whose tokens
+   * the platform holds directly; decrypted only inside Edge Functions
+   * and server-side dispatchers, never in client or feature code.
+   * Nulled out again on revoke so tokens do not outlive the grant.
    */
   credentials: string | null;
   /**
@@ -78,7 +117,7 @@ export interface ConnectionRecord {
 export interface ConnectionPublic {
   id: string;
   account_id: string;
-  provider: ConnectionProvider;
+  provider: AnyConnectionProvider;
   status: ConnectionStatus;
   last_sync_at: string | null;
   metadata: Record<string, unknown>;

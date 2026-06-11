@@ -609,10 +609,12 @@ The 2026 platform layer plus the 2027 extensions.
 
 ## Connection Framework Patterns
 
-- All external OAuth runs through the Connection Framework (`@kinetiks/cortex/connections`). We never implement OAuth ourselves outside this module.
-- Tokens are encrypted at rest with `KINETIKS_ENCRYPTION_KEY`. Decryption happens only in Edge Functions and the Agent Runtime, never in client code or feature code.
-- Connections run through Nango. Each provider declares a sync handler in `apps/id/src/lib/integrations/nango/handlers/` that calls `registerNangoHandler()` and writes results to `kinetiks_metric_cache`. Handlers are side-imported at boot via `handlers/boot.ts` (loaded from `instrumentation-node.ts`).
-- A provider without a registered Nango handler is dead weight - the Nango sync webhook has nothing to dispatch to. The Kinetiks `ConnectionProvider` list must map 1:1 to the Nango integration ids; `assertProviderConfigValid()` fails loudly at boot otherwise.
+Two connection families share `kinetiks_connections`, with disjoint provider sets (asserted at boot):
+
+- **Data connections (Nango).** The ten `ConnectionProvider` values. Nango owns OAuth and token refresh; we store only `nango_connection_id`. Each provider declares a sync handler in `apps/id/src/lib/integrations/nango/handlers/` that calls `registerNangoHandler()` and writes results to `kinetiks_metric_cache`. Handlers are side-imported at boot via `handlers/boot.ts` (loaded from `instrumentation-node.ts`).
+- **System connections (direct OAuth, Phase D1).** The `SystemConnectionProvider` values (`google_workspace`, `slack`, `calendar`) — the communication layer's identity surfaces. The platform itself holds these tokens (it must send/act as the customer's named system), so OAuth runs through `apps/id/src/app/api/connections/system/[provider]/...` with AES-256-GCM-encrypted custody in `kinetiks_connections.credentials` (`KINETIKS_ENCRYPTION_KEY`). Decryption happens only in Edge Functions and server-side dispatchers, never in client code or feature code. Credentials are nulled on revoke. Registry: `apps/id/src/lib/connections/system-providers.ts`.
+- A data provider without a registered Nango handler is dead weight - the Nango sync webhook has nothing to dispatch to. The `ConnectionProvider` list must map 1:1 to the Nango integration ids; `assertProviderConfigValid()` fails loudly at boot otherwise. `assertSystemProviderConfigValid()` does the same for the system set (scopes declared, sets disjoint).
+- One live (non-revoked) connection per `(account_id, provider)` - enforced by partial unique index (migration 00075). Revoked rows are history; reads filter `status <> 'revoked'` and order by `created_at desc limit 1`.
 - On reconnect failure, set `kinetiks_connections.status = 'expired'` and surface a banner in the connections UI. Never retry indefinitely.
 
 ---

@@ -65,7 +65,9 @@ export const addCalendarEventTool = defineTool({
   isConsequential: true,
   actionClass: "kinetiks_id.add_calendar_event",
   autoApproveThreshold: null,
-  availability: { kind: "always" },
+  // D1: only offered once the customer has connected Google Calendar
+  // (its own connection, revocable independently of email).
+  availability: { kind: "connection_required", provider: "calendar" },
   idempotencyKeyFrom: (input: {
     title: string;
     start_time: string;

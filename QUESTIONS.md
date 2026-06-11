@@ -4,6 +4,23 @@
 
 ---
 
+## Phase D (communication layer)
+
+### Microsoft 365 system connection — DEFERRED (D1, 2026-06-11)
+
+The comms spec (§2.1, §4.1) names Microsoft 365 as a peer email/calendar
+provider, but no Azure app registration exists (no `MICROSOFT_365_*`
+credentials configured anywhere, including production). D1 ships Google
+Workspace + Google Calendar + Slack fully real and leaves M365 as an
+explicit seam: one entry in
+`apps/id/src/lib/connections/system-providers.ts` plus a `microsoft`
+oauth kind in `system-oauth.ts` when the registration exists. Building
+the Graph integration now would be untestable dead code — the exact
+Phase 6 failure shape the 2026-06-09 audit flagged. Needs: Zack to
+create the Azure app registration when M365 demand is real.
+
+---
+
 ## Pattern Library Phase 1 (L1a)
 
 ### Discriminated-union refactor of `LedgerEntry.detail`

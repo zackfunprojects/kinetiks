@@ -22,7 +22,14 @@ import {
   triggerSync,
 } from "@/lib/integrations/nango/client";
 import { getNangoProviderConfig } from "@/lib/integrations/nango/provider-config";
-import type { ConnectionPublic, ConnectionProvider } from "@kinetiks/types";
+import { isSystemProvider } from "@/lib/connections/system-providers";
+import { revokeSystemCredentials } from "@/lib/connections/system-oauth";
+import { decryptCredentials } from "@/lib/connections/encryption";
+import type {
+  ConnectionPublic,
+  ConnectionProvider,
+  AnyConnectionProvider,
+} from "@kinetiks/types";
 
 const GENERIC_LOAD_CONNECTION_ERROR =
   "We couldn't load that connection. Try again in a moment.";
@@ -50,6 +57,7 @@ interface ConnectionRow {
   account_id: string;
   provider: string;
   status: string;
+  credentials: string | null;
   nango_connection_id: string | null;
   nango_provider_config_key: string | null;
   last_sync_at: string | null;
@@ -73,7 +81,7 @@ async function fetchConnectionByIdAndAccount(args: {
   const { data, error } = await args.admin
     .from("kinetiks_connections")
     .select(
-      "id, account_id, provider, status, nango_connection_id, nango_provider_config_key, last_sync_at, metadata, created_at",
+      "id, account_id, provider, status, credentials, nango_connection_id, nango_provider_config_key, last_sync_at, metadata, created_at",
     )
     .eq("id", args.id)
     .eq("account_id", args.account_id)
@@ -108,7 +116,7 @@ export async function GET(request: Request, { params }: RouteParams): Promise<Re
   const publicConnection: ConnectionPublic = {
     id: connection.id,
     account_id: connection.account_id,
-    provider: connection.provider as ConnectionProvider,
+    provider: connection.provider as AnyConnectionProvider,
     status: connection.status as ConnectionPublic["status"],
     last_sync_at: connection.last_sync_at,
     metadata: connection.metadata ?? {},
@@ -136,13 +144,21 @@ export async function DELETE(request: Request, { params }: RouteParams): Promise
     return apiSuccess({ deleted: true, already_revoked: true });
   }
 
-  // Best-effort Nango revoke. We always flip our local row regardless
-  // of the Nango outcome: if Nango fails (transient network issue,
-  // already-deleted on their side), the customer's connection is
-  // still revoked on our side. A `connection.deleted` webhook may
-  // arrive later as confirmation; the auth handler treats that as
-  // idempotent.
+  // Best-effort provider-side revoke. We always flip our local row
+  // regardless of the upstream outcome: if the provider call fails
+  // (transient network issue, already-deleted on their side), the
+  // customer's connection is still revoked on our side.
+  //
+  //  - Nango data connections: nango.deleteConnection(); a
+  //    `connection.deleted` webhook may arrive later as confirmation
+  //    and the auth handler treats it as idempotent.
+  //  - System connections (D1): revoke the OAuth grant at the
+  //    provider (Google token revoke / Slack auth.revoke) using the
+  //    decrypted credentials, then NULL the credentials column so
+  //    encrypted tokens do not outlive the connection.
   let nangoOutcome: "deleted" | "skipped" | "failed" = "skipped";
+  let systemRevokeOutcome: "revoked" | "skipped" | "failed" = "skipped";
+  const isSystemConnection = isSystemProvider(connection.provider);
   if (connection.nango_connection_id && connection.nango_provider_config_key) {
     try {
       await nangoDeleteConnection({
@@ -168,6 +184,28 @@ export async function DELETE(request: Request, { params }: RouteParams): Promise
       nangoOutcome = "failed";
       // Fall through and revoke locally anyway.
     }
+  } else if (connection.credentials && isSystemProvider(connection.provider)) {
+    try {
+      systemRevokeOutcome = await revokeSystemCredentials({
+        provider: connection.provider,
+        credentials: decryptCredentials(connection.credentials),
+      });
+    } catch (err) {
+      // Decrypt failure (rotated key, corrupt blob): the upstream
+      // grant survives but the local row still flips and the
+      // credentials are nulled below.
+      Sentry.captureException(err, {
+        tags: {
+          route: "connections/[id].DELETE",
+          action: "system_revoke",
+          stage: "provider_revoke",
+          app: "id",
+        },
+        user: { id: auth.account_id },
+        extra: { connection_id: connection.id, provider: connection.provider },
+      });
+      systemRevokeOutcome = "failed";
+    }
   }
 
   const nowIso = new Date().toISOString();
@@ -175,11 +213,14 @@ export async function DELETE(request: Request, { params }: RouteParams): Promise
     .from("kinetiks_connections")
     .update({
       status: "revoked",
+      ...(isSystemConnection ? { credentials: null } : {}),
       metadata: {
         ...(connection.metadata ?? {}),
         revoked_at: nowIso,
         revocation_reason: "customer_revoked",
-        nango_delete_outcome: nangoOutcome,
+        ...(isSystemConnection
+          ? { system_revoke_outcome: systemRevokeOutcome }
+          : { nango_delete_outcome: nangoOutcome }),
       },
     })
     .eq("id", connectionId)
@@ -211,6 +252,9 @@ export async function DELETE(request: Request, { params }: RouteParams): Promise
       provider: connection.provider,
       nango_connection_id: connection.nango_connection_id,
       revocation_reason: "customer_revoked",
+      ...(isSystemConnection
+        ? { method: "direct_oauth", system_revoke_outcome: systemRevokeOutcome }
+        : {}),
     },
   });
   if (ledgerError) {
@@ -227,7 +271,12 @@ export async function DELETE(request: Request, { params }: RouteParams): Promise
     // Local row already revoked. Don't fail the request.
   }
 
-  return apiSuccess({ deleted: true, nango_outcome: nangoOutcome });
+  return apiSuccess({
+    deleted: true,
+    ...(isSystemConnection
+      ? { system_revoke_outcome: systemRevokeOutcome }
+      : { nango_outcome: nangoOutcome }),
+  });
 }
 
 export async function PATCH(request: Request, { params }: RouteParams): Promise<Response> {

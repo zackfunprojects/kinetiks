@@ -1,33 +1,43 @@
 /**
- * Google Workspace access-token helper per Phase 4 — Chunk 6.
+ * Google access-token helper — Phase 4 Chunk 6, generalized in D1.
  *
- * Fetches the per-account Google Workspace connection row from
+ * Fetches the per-account Google connection row from
  * `kinetiks_connections`, decrypts the credentials, and exchanges the
  * stored refresh_token for a short-lived access_token via Google's
  * OAuth2 token endpoint. Returns the access_token + token type so the
  * Gmail and Calendar dispatchers can authorize their REST calls.
  *
- * Connection row convention:
- *   provider = "google_workspace"
+ * Two Google-backed system providers share this helper:
+ *   - `google_workspace` (Gmail send/read/modify) → draft_email tool,
+ *     D2 outbound email, D4 inbound polling
+ *   - `calendar` (Calendar events) → add_calendar_event tool, D4
+ *     meeting prep
+ * They are SEPARATE connections with separate refresh tokens so the
+ * customer can revoke either independently (comms spec §4.3).
+ *
+ * Connection row convention (written by the D1 callback route):
+ *   provider = "google_workspace" | "calendar"
  *   status = "active"
  *   credentials = encryptCredentials({
  *     refresh_token: string,
- *     scopes: string[],          // e.g. ["https://www.googleapis.com/auth/gmail.compose", "calendar.events"]
- *     email: string              // the connected Gmail address (for logs)
+ *     scopes: string[],
+ *     email: string              // the connected address (for logs)
  *   })
  *
- * Per CLAUDE.md: OAuth tokens never leave server boundaries unencrypted;
- * they live in `kinetiks_connections.credentials` and are decrypted
- * only here and inside Edge Functions. Never logged.
+ * Per CLAUDE.md: OAuth tokens never leave server boundaries
+ * unencrypted; they live in `kinetiks_connections.credentials` and
+ * are decrypted only here and inside Edge Functions. Never logged.
  *
  * Token-refresh failure modes are mapped to ToolError shape so the
- * runtime can react: configuration_error for env misconfig, unavailable
- * for missing connection rows, transient for network/5xx, permanent
- * for OAuth error responses (invalid_grant means the customer revoked
- * Google access).
+ * runtime can react: configuration_error for env misconfig,
+ * unavailable for missing connection rows, transient for network/5xx,
+ * permanent for OAuth error responses (invalid_grant means the
+ * customer revoked Google access).
  */
 
 import "server-only";
+
+import { z } from "zod";
 
 import { ToolError } from "@kinetiks/tools";
 import { serverEnv } from "@kinetiks/lib/env";
@@ -42,6 +52,13 @@ import {
 
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 
+type GoogleSystemProvider = "google_workspace" | "calendar";
+
+const PROVIDER_LABEL: Record<GoogleSystemProvider, string> = {
+  google_workspace: "Google Workspace",
+  calendar: "Google Calendar",
+};
+
 export interface GoogleWorkspaceAccessToken {
   /** Short-lived access token. Expires per `expires_in` (typically 3600s). */
   access_token: string;
@@ -49,58 +66,90 @@ export interface GoogleWorkspaceAccessToken {
   token_type: string;
   /** Seconds until the access token expires. */
   expires_in: number;
-  /** Email of the connected Workspace account; safe to log. */
+  /** Email of the connected account; safe to log. */
   connected_email: string;
 }
 
-interface GoogleWorkspaceCredentials {
-  refresh_token: string;
-  scopes?: string[];
-  email?: string;
-}
+/**
+ * Runtime validation of the decrypted blob (CR: a malformed payload
+ * must fail here as "reconnect", not later as an opaque OAuth error).
+ * Loose on extras so credential-shape additions stay non-breaking.
+ */
+const GoogleConnectionCredentialsSchema = z
+  .object({
+    refresh_token: z.string().min(1),
+    scopes: z.array(z.string()).optional(),
+    email: z.string().optional(),
+  })
+  .passthrough();
 
+type GoogleConnectionCredentials = z.infer<typeof GoogleConnectionCredentialsSchema>;
+
+/** Gmail-scoped token from the `google_workspace` connection. */
 export async function getGoogleWorkspaceAccessToken(args: {
   account_id: string;
 }): Promise<GoogleWorkspaceAccessToken> {
+  return getGoogleAccessTokenForProvider({ ...args, provider: "google_workspace" });
+}
+
+/** Calendar-scoped token from the `calendar` connection. */
+export async function getGoogleCalendarAccessToken(args: {
+  account_id: string;
+}): Promise<GoogleWorkspaceAccessToken> {
+  return getGoogleAccessTokenForProvider({ ...args, provider: "calendar" });
+}
+
+async function getGoogleAccessTokenForProvider(args: {
+  account_id: string;
+  provider: GoogleSystemProvider;
+}): Promise<GoogleWorkspaceAccessToken> {
+  const label = PROVIDER_LABEL[args.provider];
   const env = serverEnv();
   if (!env.GOOGLE_WORKSPACE_CLIENT_ID || !env.GOOGLE_WORKSPACE_CLIENT_SECRET) {
     throw new ToolError(
       "configuration_error",
-      "GOOGLE_WORKSPACE_CLIENT_ID/SECRET are not configured; Google Workspace tools cannot run",
-      { context: { account_id: args.account_id } },
+      `GOOGLE_WORKSPACE_CLIENT_ID/SECRET are not configured; ${label} tools cannot run`,
+      { context: { account_id: args.account_id, provider: args.provider } },
     );
   }
 
+  // Latest non-revoked row. The partial unique index on
+  // (account_id, provider) WHERE status <> 'revoked' guarantees at
+  // most one; order+limit keeps this read safe even against
+  // pre-index history (a bare maybeSingle() errors on multiple rows).
   const admin = createAdminClient();
   const { data, error } = await admin
     .from("kinetiks_connections")
     .select("credentials, status")
     .eq("account_id", args.account_id)
-    .eq("provider", "google_workspace")
+    .eq("provider", args.provider)
+    .neq("status", "revoked")
+    .order("created_at", { ascending: false })
+    .limit(1)
     .maybeSingle();
 
   if (error) {
     throw new ToolError(
       "transient",
-      `Failed to read kinetiks_connections for google_workspace: ${error.message}`,
-      { context: { account_id: args.account_id } },
+      `Failed to read kinetiks_connections for ${args.provider}: ${error.message}`,
+      { context: { account_id: args.account_id, provider: args.provider } },
     );
   }
   if (!data) {
     throw new ToolError(
       "unavailable",
-      "Google Workspace is not connected for this account. Ask the customer to connect Google Workspace in Settings → Connections.",
-      { context: { account_id: args.account_id, provider: "google_workspace" } },
+      `${label} is not connected for this account. Ask the customer to connect ${label} in Cortex → Integrations.`,
+      { context: { account_id: args.account_id, provider: args.provider } },
     );
   }
   if (data.status !== "active") {
     throw new ToolError(
       "unavailable",
-      `Google Workspace connection status is "${data.status}" (expected "active"). Ask the customer to reconnect.`,
+      `${label} connection status is "${data.status}" (expected "active"). Ask the customer to reconnect.`,
       {
         context: {
           account_id: args.account_id,
-          provider: "google_workspace",
+          provider: args.provider,
           status: String(data.status ?? "unknown"),
         },
       },
@@ -111,28 +160,30 @@ export async function getGoogleWorkspaceAccessToken(args: {
   if (typeof credsRaw !== "string" || credsRaw.length === 0) {
     throw new ToolError(
       "unavailable",
-      "Google Workspace connection has no encrypted credentials. Ask the customer to reconnect.",
-      { context: { account_id: args.account_id } },
+      `${label} connection has no encrypted credentials. Ask the customer to reconnect.`,
+      { context: { account_id: args.account_id, provider: args.provider } },
     );
   }
 
-  let creds: GoogleWorkspaceCredentials;
+  let decrypted: unknown;
   try {
-    creds = decryptCredentials(credsRaw) as unknown as GoogleWorkspaceCredentials;
+    decrypted = decryptCredentials(credsRaw);
   } catch (err) {
     throw new ToolError(
       "permanent",
-      `Failed to decrypt Google Workspace credentials: ${(err as Error)?.message ?? "unknown"}`,
-      { context: { account_id: args.account_id } },
+      `Failed to decrypt ${label} credentials: ${(err as Error)?.message ?? "unknown"}`,
+      { context: { account_id: args.account_id, provider: args.provider } },
     );
   }
-  if (!creds.refresh_token) {
+  const parsedCreds = GoogleConnectionCredentialsSchema.safeParse(decrypted);
+  if (!parsedCreds.success) {
     throw new ToolError(
       "unavailable",
-      "Google Workspace credentials missing refresh_token. Reconnect.",
-      { context: { account_id: args.account_id } },
+      `${label} credentials are malformed (missing refresh_token). Ask the customer to reconnect.`,
+      { context: { account_id: args.account_id, provider: args.provider } },
     );
   }
+  const creds: GoogleConnectionCredentials = parsedCreds.data;
 
   // Exchange refresh_token for access_token via Google OAuth v2.
   const body = new URLSearchParams({
@@ -149,7 +200,7 @@ export async function getGoogleWorkspaceAccessToken(args: {
       body: body.toString(),
     },
     tool: "google_workspace_token_refresh",
-    context: { account_id: args.account_id },
+    context: { account_id: args.account_id, provider: args.provider },
   });
 
   const json = await parseJsonOrToolError<
@@ -161,7 +212,7 @@ export async function getGoogleWorkspaceAccessToken(args: {
     | { error: string; error_description?: string }
   >(response, {
     tool: "google_workspace_token_refresh",
-    context: { account_id: args.account_id },
+    context: { account_id: args.account_id, provider: args.provider },
   });
 
   if (!response.ok || "error" in json) {
@@ -180,10 +231,11 @@ export async function getGoogleWorkspaceAccessToken(args: {
     }
     throw new ToolError(
       errorClass,
-      `Google OAuth refresh failed (${code}). ${"error_description" in json && json.error_description ? json.error_description : "Ask the customer to reconnect Google Workspace."}`,
+      `Google OAuth refresh failed (${code}). ${"error_description" in json && json.error_description ? json.error_description : `Ask the customer to reconnect ${label}.`}`,
       {
         context: {
           account_id: args.account_id,
+          provider: args.provider,
           oauth_error: code,
           http_status: response.status,
         },

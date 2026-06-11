@@ -45,6 +45,8 @@ export type {
 export { CONTEXT_BUDGETS } from "./marcus";
 export type {
   ConnectionProvider,
+  SystemConnectionProvider,
+  AnyConnectionProvider,
   ConnectionStatus,
   ConnectionAuthType,
   ConnectionRecord,

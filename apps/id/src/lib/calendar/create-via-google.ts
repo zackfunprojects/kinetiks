@@ -19,7 +19,7 @@ import "server-only";
 
 import { ToolError } from "@kinetiks/tools";
 
-import { getGoogleWorkspaceAccessToken } from "@/lib/connections/google-workspace-token";
+import { getGoogleCalendarAccessToken } from "@/lib/connections/google-workspace-token";
 import {
   classifyHttpStatus,
   fetchWithTimeout,
@@ -70,7 +70,10 @@ export interface CreateCalendarEventOutput {
 export async function createCalendarEventViaGoogle(
   input: CreateCalendarEventInput,
 ): Promise<CreateCalendarEventOutput> {
-  const token = await getGoogleWorkspaceAccessToken({
+  // D1: calendar rides its OWN connection (provider "calendar"), a
+  // separate OAuth grant from google_workspace so the customer can
+  // revoke calendar access without breaking email (comms spec §4.3).
+  const token = await getGoogleCalendarAccessToken({
     account_id: input.account_id,
   });
 
