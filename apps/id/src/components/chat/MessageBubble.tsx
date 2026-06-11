@@ -3,11 +3,18 @@
 import type { ExtractedAction } from "@kinetiks/types";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@kinetiks/ui";
+import {
+  parseContextUsed,
+  provenanceChipLabel,
+  stripInsightCitations,
+} from "@/lib/marcus/provenance";
 
 interface MessageBubbleProps {
   role: "user" | "marcus";
   content: string;
   extractedActions?: ExtractedAction[] | null;
+  /** B4 — tool provenance persisted on the message (context_used). */
+  contextUsed?: Record<string, unknown> | null;
   timestamp?: string;
   isStreaming?: boolean;
 }
@@ -16,6 +23,7 @@ export function MessageBubble({
   role,
   content,
   extractedActions,
+  contextUsed,
   timestamp,
   isStreaming,
 }: MessageBubbleProps) {
@@ -23,6 +31,12 @@ export function MessageBubble({
   const [copied, setCopied] = useState(false);
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isUser = role === "user";
+
+  // B4 — the customer never sees raw insight_id UUIDs; the citation
+  // mechanism stays server-side (the engine stamps delivery against
+  // the SAVED text, which keeps the ids).
+  const displayContent = isUser ? content : stripInsightCitations(content);
+  const provenance = isUser ? [] : parseContextUsed(contextUsed);
 
   useEffect(() => {
     return () => {
@@ -32,7 +46,7 @@ export function MessageBubble({
 
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(content);
+      await navigator.clipboard.writeText(displayContent);
       setCopied(true);
       if (copyTimer.current) clearTimeout(copyTimer.current);
       copyTimer.current = setTimeout(() => setCopied(false), 1500);
@@ -63,7 +77,7 @@ export function MessageBubble({
         }}
       >
         <div style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-          {content}
+          {displayContent}
           {isStreaming && (
             <span
               style={{
@@ -78,6 +92,36 @@ export function MessageBubble({
             />
           )}
         </div>
+
+        {/* B4 — provenance chips: which sources fed this response. */}
+        {provenance.length > 0 && !isStreaming && (
+          <div
+            aria-label="Sources consulted"
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: "var(--kt-s-1)",
+              marginTop: "var(--kt-s-2)",
+            }}
+          >
+            {provenance.map((entry, i) => (
+              <span
+                key={`${entry.tool_name}-${i}`}
+                className="kt-data-inline"
+                style={{
+                  padding: "0 var(--kt-s-2)",
+                  border: "1px solid var(--kt-border-2)",
+                  borderRadius: "var(--kt-radius-full)",
+                  color: "var(--kt-fg-3)",
+                  fontSize: "var(--kt-fs-11)",
+                  lineHeight: 1.8,
+                }}
+              >
+                {provenanceChipLabel(entry)}
+              </span>
+            ))}
+          </div>
+        )}
 
         {extractedActions && extractedActions.length > 0 && (
           <div style={{ marginTop: 8, borderTop: "1px solid var(--kt-border-2)", paddingTop: 8 }}>

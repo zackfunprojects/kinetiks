@@ -31,6 +31,7 @@ import { generateActions } from "./action-generator";
 import { assembleResponse } from "./response-assembler";
 import { decideAndInvokeTool } from "./tool-decision";
 import { statusEvent, toolExecStatusEvent } from "./chat-status";
+import { buildContextUsed } from "./provenance";
 import { captureException } from "@/lib/observability/sentry";
 import type { DataAvailabilityManifest, ActionGenerationResult } from "./types";
 
@@ -377,8 +378,18 @@ export async function processMarcusMessage(
   // 10. Assemble response + action footer
   const finalResponse = assembleResponse(responseText, actionResult);
 
-  // 11. Save Marcus response BEFORE mutating thread memory
-  const marcusMessage = await addMessage(admin, thread.id, "marcus", finalResponse, channel);
+  // 11. Save Marcus response BEFORE mutating thread memory. B4 — the
+  // turn's tool provenance (names + statuses only, never payloads)
+  // persists in context_used so the UI can render provenance chips.
+  const marcusMessage = await addMessage(
+    admin,
+    thread.id,
+    "marcus",
+    finalResponse,
+    channel,
+    undefined,
+    buildContextUsed(observations),
+  );
 
   // Phase 1.7 — record kinetiks_id.marcus_question_resonance observation.
   // The next user turn in this thread (within the configured window)
@@ -746,8 +757,17 @@ export async function streamMarcusMessage(
           }
         }
 
-        // Save complete response (before action footer)
-        const savedMessage = await addMessage(admin, thread.id, "marcus", fullResponse, channel);
+        // Save complete response (before action footer). B4 — persist
+        // the turn's tool provenance in context_used for the UI chips.
+        const savedMessage = await addMessage(
+          admin,
+          thread.id,
+          "marcus",
+          fullResponse,
+          channel,
+          undefined,
+          buildContextUsed(observations),
+        );
 
         // Phase 1.7 — record kinetiks_id.marcus_question_resonance observation.
         recordMarcusTurnObservation(

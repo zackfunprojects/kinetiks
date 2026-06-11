@@ -123,6 +123,10 @@ export function ChatArea({
         let fullText = "";
         let threadId: string = currentThreadId ?? "";
         let lineBuffer = "";
+        // B4 — tools the engine reported via tool_exec status events;
+        // attached to the optimistic message so provenance chips show
+        // immediately (the persisted row carries the full context_used).
+        const liveTools: string[] = [];
 
         // Shared so the trailing (newline-less) buffer runs the same logic and
         // doesn't drop a final thread_id / extraction / error event.
@@ -136,6 +140,9 @@ export function ChatArea({
               // Live pipeline progress; superseded by the next status or
               // by the first text delta.
               if (typeof event.label === "string") setStatusLabel(event.label);
+              if (event.stage === "tool_exec" && typeof event.tool_name === "string") {
+                liveTools.push(event.tool_name);
+              }
             } else if (event.type === "text") {
               fullText += event.text;
               setStreamingText(fullText);
@@ -185,7 +192,10 @@ export function ChatArea({
           content: fullText,
           channel: "web",
           extracted_actions: null,
-          context_used: null,
+          context_used:
+            liveTools.length > 0
+              ? { tools: liveTools.map((tool_name) => ({ tool_name })) }
+              : null,
           created_at: new Date().toISOString(),
         };
         onMessagesChange([...messages, userMsg, marcusMsg]);
@@ -271,6 +281,7 @@ export function ChatArea({
               role={msg.role}
               content={msg.content}
               extractedActions={msg.extracted_actions}
+              contextUsed={msg.context_used}
               timestamp={msg.created_at}
             />
           ))}

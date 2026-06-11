@@ -1,6 +1,6 @@
 "use client";
 
-export type SidebarPanel = "chats" | "approvals";
+export type SidebarPanel = "chats" | "approvals" | "activity";
 
 interface SidebarToggleProps {
   active: SidebarPanel;
@@ -29,6 +29,11 @@ export function SidebarToggle({ active, onToggle, approvalCount = 0 }: SidebarTo
         active={active === "approvals"}
         onClick={() => onToggle("approvals")}
         badge={approvalCount > 0 ? approvalCount : undefined}
+      />
+      <ToggleButton
+        label="Activity"
+        active={active === "activity"}
+        onClick={() => onToggle("activity")}
       />
     </div>
   );
