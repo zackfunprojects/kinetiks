@@ -4,8 +4,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@kinetiks/lib/env", () => ({
   serverEnv: vi.fn(() => ({ SLACK_SIGNING_SECRET: "test-signing-secret" })),
 }));
+const { captureExceptionMock } = vi.hoisted(() => ({
+  captureExceptionMock: vi.fn(async () => undefined),
+}));
 vi.mock("@/lib/observability/sentry", () => ({
-  captureException: vi.fn(async () => undefined),
+  captureException: captureExceptionMock,
 }));
 
 const { processSlackEventMock, runAfterResponseMock } = vi.hoisted(() => ({
@@ -81,6 +84,12 @@ describe("POST /api/slack/events", () => {
     mockServerEnv.mockReturnValue({} as never);
     const res = await POST(signedRequest(JSON.stringify({ type: "event_callback" })));
     expect(res.status).toBe(500);
+    expect(captureExceptionMock).toHaveBeenCalledWith(
+      expect.any(Error),
+      expect.objectContaining({
+        tags: expect.objectContaining({ stage: "configuration" }),
+      }),
+    );
   });
 
   it("acks an event_callback immediately and processes after the response", async () => {
