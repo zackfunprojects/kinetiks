@@ -37,6 +37,8 @@
 
 import "server-only";
 
+import { z } from "zod";
+
 import { ToolError } from "@kinetiks/tools";
 import { serverEnv } from "@kinetiks/lib/env";
 
