@@ -4,7 +4,7 @@ const { dispatchSlackMessageMock } = vi.hoisted(() => ({
   dispatchSlackMessageMock: vi.fn(),
 }));
 
-vi.mock("@/lib/slack/dispatch", () => ({
+vi.mock("@kinetiks/ai/slack-dispatcher", () => ({
   dispatchSlackMessage: dispatchSlackMessageMock,
 }));
 
@@ -48,6 +48,13 @@ describe("send_slack_notification tool", () => {
     expect(sendSlackNotificationTool.autoApproveThreshold).toBeNull();
   });
 
+  it("requires the slack system connection (D2)", () => {
+    expect(sendSlackNotificationTool.availability).toEqual({
+      kind: "connection_required",
+      provider: "slack",
+    });
+  });
+
   it("derives an idempotency key from the channel + length + body prefix", () => {
     const key = sendSlackNotificationTool.idempotencyKeyFrom?.({
       channel: "C-acme",
@@ -78,6 +85,7 @@ describe("send_slack_notification tool", () => {
     expect(result).toEqual({ channel: "C-acme", ts: "1700000000.000100" });
     expect(dispatchSlackMessageMock).toHaveBeenCalledTimes(1);
     expect(dispatchSlackMessageMock).toHaveBeenCalledWith({
+      account_id: ctx.accountId,
       channel: "C-acme",
       body: "Dashboard updated.",
       thread_ts: undefined,
