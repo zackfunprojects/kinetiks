@@ -32,7 +32,16 @@ import { assembleResponse } from "./response-assembler";
 import { decideAndInvokeTool } from "./tool-decision";
 import { statusEvent, toolExecStatusEvent } from "./chat-status";
 import { buildContextUsed } from "./provenance";
+import { captureException } from "@/lib/observability/sentry";
 import type { DataAvailabilityManifest, ActionGenerationResult } from "./types";
+
+/**
+ * User-safe message for a failed streaming turn. The raw exception is
+ * captured server-side only — it can carry PostgREST or provider text
+ * that must never reach the SSE channel.
+ */
+export const GENERIC_STREAM_FAILURE =
+  "Something went wrong while writing this response. Try again.";
 
 /**
  * Build a task-bound Haiku caller for sub-modules. Each sub-module
@@ -153,14 +162,22 @@ async function loadSystemName(
   accountId: string,
 ): Promise<string> {
   try {
-    const { data } = await admin
+    const { data, error } = await admin
       .from("kinetiks_accounts")
       .select("system_name")
       .eq("id", accountId)
       .maybeSingle();
+    if (error) throw new Error(error.message);
     const name = (data as { system_name?: string | null } | null)?.system_name;
     return typeof name === "string" && name.trim() ? name.trim() : "Kinetiks";
-  } catch {
+  } catch (err) {
+    // Side-panel read: fall back to the default identity, but the
+    // failure itself is operationally visible.
+    void captureException(err, {
+      tags: { route: "marcus_engine", action: "marcus.system_name", stage: "select", app: "id" },
+      user: { id: accountId },
+      extra: {},
+    });
     return "Kinetiks";
   }
 }
@@ -399,7 +416,11 @@ export async function processMarcusMessage(
       responseText,
       briefInsights.map((i) => i.insight_id),
     ).catch((err) =>
-      console.error("[ENGINE] insight delivery stamping failed:", err),
+      captureException(err, {
+        tags: { route: "marcus_engine", action: "marcus.insight_stamp", stage: "persist", app: "id" },
+        user: { id: accountId },
+        extra: { thread_id: thread.id },
+      }),
     );
   }
 
@@ -413,13 +434,21 @@ export async function processMarcusMessage(
     history.length,
     haikuFor("marcus.memory_extract"),
     admin,
-  ).catch((err) => console.error("Memory extraction failed", err));
+  ).catch((err) =>
+    captureException(err, {
+      tags: { route: "marcus_engine", action: "marcus.memory_extract", stage: "persist", app: "id" },
+      user: { id: accountId },
+      extra: { thread_id: thread.id },
+    }),
+  );
 
   // 13. Log to Learning Ledger (non-blocking). Target table is
   // kinetiks_ledger with the detail/source_app/source_operator columns;
   // the prior kinetiks_learning_ledger table and source/data keys never
   // existed, so every turn's log had been failing silently.
-  admin.from("kinetiks_ledger").insert({
+  // Promise.resolve upgrades the PostgREST thenable so the chain gets a
+  // real terminal .catch (PromiseLike has no .catch of its own).
+  Promise.resolve(admin.from("kinetiks_ledger").insert({
     account_id: accountId,
     event_type: "marcus_turn",
     source_app: "marcus",
@@ -435,8 +464,20 @@ export async function processMarcusMessage(
       action_count: actionResult.actions.length,
       response_length: responseText.length,
     },
-  }).then(({ error }) => {
-    if (error) console.error("Failed to log to ledger", error);
+  })).then(({ error }) => {
+    if (error) {
+      void captureException(error, {
+        tags: { route: "marcus_engine", action: "marcus.ledger_log", stage: "persist", app: "id" },
+        user: { id: accountId },
+        extra: { thread_id: thread.id },
+      });
+    }
+  }).catch((err: unknown) => {
+    void captureException(err, {
+      tags: { route: "marcus_engine", action: "marcus.ledger_log", stage: "persist", app: "id" },
+      user: { id: accountId },
+      extra: { thread_id: thread.id },
+    });
   });
 
   // Auto-title if first exchange
@@ -750,7 +791,11 @@ export async function streamMarcusMessage(
             fullResponse,
             briefInsights.map((i) => i.insight_id),
           ).catch((err) =>
-            console.error("[ENGINE/stream] insight delivery stamping failed:", err),
+            captureException(err, {
+              tags: { route: "marcus_engine", action: "marcus.insight_stamp", stage: "persist", app: "id" },
+              user: { id: accountId },
+              extra: { thread_id: thread.id, streaming: true },
+            }),
           );
         }
 
@@ -783,11 +828,19 @@ export async function streamMarcusMessage(
           history.length,
           haikuFor("marcus.memory_extract"),
           admin,
-        ).catch((err) => console.error("Memory extraction failed", err));
+        ).catch((err) =>
+          captureException(err, {
+            tags: { route: "marcus_engine", action: "marcus.memory_extract", stage: "persist", app: "id" },
+            user: { id: accountId },
+            extra: { thread_id: thread.id, streaming: true },
+          }),
+        );
 
         // Log to Learning Ledger (non-blocking). See the non-streaming
         // path above: kinetiks_ledger with detail/source_app/source_operator.
-        admin.from("kinetiks_ledger").insert({
+        // Promise.resolve upgrades the PostgREST thenable for a real
+        // terminal .catch.
+        Promise.resolve(admin.from("kinetiks_ledger").insert({
           account_id: accountId,
           event_type: "marcus_turn",
           source_app: "marcus",
@@ -804,8 +857,20 @@ export async function streamMarcusMessage(
             response_length: fullResponse.length,
             streaming: true,
           },
-        }).then(({ error: ledgerError }) => {
-          if (ledgerError) console.error("Failed to log to ledger", ledgerError);
+        })).then(({ error: ledgerError }) => {
+          if (ledgerError) {
+            void captureException(ledgerError, {
+              tags: { route: "marcus_engine", action: "marcus.ledger_log", stage: "persist", app: "id" },
+              user: { id: accountId },
+              extra: { thread_id: thread.id, streaming: true },
+            });
+          }
+        }).catch((err: unknown) => {
+          void captureException(err, {
+            tags: { route: "marcus_engine", action: "marcus.ledger_log", stage: "persist", app: "id" },
+            user: { id: accountId },
+            extra: { thread_id: thread.id, streaming: true },
+          });
         });
 
         // Auto-title if first exchange
@@ -822,8 +887,15 @@ export async function streamMarcusMessage(
       } catch (err) {
         resolveActions!({ actions: [], footer_text: "" });
         run.end();
-        const errorMsg = err instanceof Error ? err.message : "Unknown error";
-        send({ type: "error", error: errorMsg });
+        // The raw exception (which can carry PostgREST or provider
+        // detail) goes to Sentry only; the SSE channel gets the
+        // user-safe constant.
+        void captureException(err, {
+          tags: { route: "marcus_engine", action: "marcus.stream", stage: "stream", app: "id" },
+          user: { id: accountId },
+          extra: { thread_id: thread.id, streaming: true },
+        });
+        send({ type: "error", error: GENERIC_STREAM_FAILURE });
         close();
       }
     },
