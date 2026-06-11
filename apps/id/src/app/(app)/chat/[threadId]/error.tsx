@@ -18,11 +18,11 @@ export default function ChatThreadError({
   reset: () => void;
 }) {
   useEffect(() => {
-    void captureException(error, {
+    captureException(error, {
       tags: { route: "/chat/[threadId]", action: "route.render", stage: "render", app: "id" },
       user: {},
       extra: { digest: error.digest },
-    });
+    }).catch(() => undefined);
   }, [error]);
 
   return (

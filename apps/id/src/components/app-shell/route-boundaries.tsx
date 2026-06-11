@@ -45,11 +45,11 @@ interface SegmentErrorProps {
 export function SegmentError({ label, route, error, reset }: SegmentErrorProps) {
   useEffect(() => {
     // Raw detail goes to Sentry with the canonical shape, never the UI.
-    void captureException(error, {
+    captureException(error, {
       tags: { route, action: "route.render", stage: "render", app: "id" },
       user: {},
       extra: { digest: error.digest },
-    });
+    }).catch(() => undefined);
   }, [error, route]);
 
   return (
