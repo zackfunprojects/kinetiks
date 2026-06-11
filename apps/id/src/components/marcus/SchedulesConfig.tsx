@@ -55,7 +55,7 @@ export function SchedulesConfig({ schedules }: SchedulesConfigProps) {
   // Track separate saving states for toggle and send-now to prevent collisions
   const [savingToggle, setSavingToggle] = useState<string | null>(null);
   const [savingSendNow, setSavingSendNow] = useState<string | null>(null);
-  const [sendNowStatus, setSendNowStatus] = useState<Record<string, "success" | "error" | undefined>>({});
+  const [sendNowStatus, setSendNowStatus] = useState<Record<string, "success" | "generated" | "error" | undefined>>({});
 
   const handleToggle = async (schedule: MarcusSchedule) => {
     setSavingToggle(schedule.id);
@@ -77,6 +77,10 @@ export function SchedulesConfig({ schedules }: SchedulesConfigProps) {
     }
   };
 
+  // D2: Send Now delivers (deliver: true). Statuses reflect what the
+  // route reports per leg - "Sent" only when the email actually left;
+  // slack-only schedules get an honest "generated" until Slack DM
+  // delivery lands (D4).
   const handleSendNow = async (type: string) => {
     setSavingSendNow(type);
     setSendNowStatus((prev) => ({ ...prev, [type]: undefined }));
@@ -84,9 +88,23 @@ export function SchedulesConfig({ schedules }: SchedulesConfigProps) {
       const res = await fetch("/api/marcus/brief", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type }),
+        body: JSON.stringify({ type, deliver: true }),
       });
-      setSendNowStatus((prev) => ({ ...prev, [type]: res.ok ? "success" : "error" }));
+      if (!res.ok) {
+        setSendNowStatus((prev) => ({ ...prev, [type]: "error" }));
+        return;
+      }
+      const payload = (await res.json()) as {
+        data?: { delivery?: { email?: string; slack?: string } };
+      };
+      const delivery = payload.data?.delivery;
+      const status =
+        delivery?.email === "sent"
+          ? "success"
+          : delivery?.email === "failed"
+            ? "error"
+            : "generated";
+      setSendNowStatus((prev) => ({ ...prev, [type]: status }));
     } catch {
       setSendNowStatus((prev) => ({ ...prev, [type]: "error" }));
     } finally {
@@ -96,7 +114,8 @@ export function SchedulesConfig({ schedules }: SchedulesConfigProps) {
 
   function getSendNowLabel(type: string): string {
     if (savingSendNow === type) return "Sending...";
-    if (sendNowStatus[type] === "success") return "Sent";
+    if (sendNowStatus[type] === "success") return "Sent to your email";
+    if (sendNowStatus[type] === "generated") return "Generated (Slack delivery soon)";
     if (sendNowStatus[type] === "error") return "Failed";
     return "Send Now";
   }
