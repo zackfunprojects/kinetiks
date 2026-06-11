@@ -30,7 +30,7 @@ const BRIEF_TITLES: Record<MarcusScheduleType, string> = {
  */
 interface BriefDelivery {
   email: "sent" | "skipped" | "failed";
-  slack: "not_available_yet" | "skipped";
+  slack: "not_available_yet" | "skipped" | "failed";
 }
 
 /**
@@ -132,14 +132,30 @@ async function deliverBrief(args: {
 }): Promise<BriefDelivery> {
   const { admin, accountId, type, content } = args;
 
-  // The schedule's channel decides the legs. No schedule row =
-  // email-only (the one deliverable channel today).
-  const { data: schedule } = await admin
+  // The schedule's channel decides the legs. No schedule ROW =
+  // email-only (the one deliverable channel today). A failed LOOKUP
+  // must not default anywhere (CR: a transient DB error on a
+  // slack-only account would otherwise send email against the
+  // customer's preference): both legs report failed, nothing sends.
+  const { data: schedule, error: scheduleError } = await admin
     .from("kinetiks_marcus_schedules")
     .select("channel")
     .eq("account_id", accountId)
     .eq("type", type)
     .maybeSingle();
+  if (scheduleError) {
+    await captureException(scheduleError, {
+      tags: {
+        route: "/api/marcus/brief",
+        action: "brief.deliver",
+        stage: "schedule_lookup",
+        app: "id",
+      },
+      user: { id: accountId },
+      extra: { brief_type: type },
+    });
+    return { email: "failed", slack: "failed" };
+  }
   const channel = (schedule?.channel as string | undefined) ?? "email";
   const wantsEmail = channel === "email" || channel === "both";
   const wantsSlack = channel === "slack" || channel === "both";
@@ -180,16 +196,20 @@ async function deliverBrief(args: {
       delivery.email = "sent";
     } catch (err) {
       const errorClass = err instanceof ToolError ? err.errorClass : "unknown";
-      await captureException(err, {
-        tags: {
-          route: "/api/marcus/brief",
-          action: "brief.deliver",
-          stage: "email_send",
-          app: "id",
-        },
-        user: { id: accountId },
-        extra: { brief_type: type, error_class: errorClass },
-      });
+      // Per CLAUDE.md, real throttling (the 20/24h cap) is expected
+      // behavior, maps to a failed leg, and never goes to Sentry.
+      if (errorClass !== "rate_limited") {
+        await captureException(err, {
+          tags: {
+            route: "/api/marcus/brief",
+            action: "brief.deliver",
+            stage: "email_send",
+            app: "id",
+          },
+          user: { id: accountId },
+          extra: { brief_type: type, error_class: errorClass },
+        });
+      }
       delivery.email = "failed";
     }
   }

@@ -82,10 +82,30 @@ describe("buildMimeMessage", () => {
     const htmlIdx = decoded.indexOf("<p>rich version</p>");
     expect(textIdx).toBeGreaterThan(-1);
     expect(htmlIdx).toBeGreaterThan(textIdx);
-    // Boundary opens and closes.
+    // Boundary opens and closes, is high-entropy (CR: never derived
+    // from content), and appears in neither part's payload.
     const boundary = /boundary="([^"]+)"/.exec(decoded)?.[1];
-    expect(boundary).toBeTruthy();
+    expect(boundary).toMatch(/^kt-[0-9a-f]{24}$/);
     expect(decoded).toContain(`--${boundary}--`);
+    expect("plain version").not.toContain(boundary as string);
+  });
+
+  it("re-rolls the boundary until it collides with neither part", () => {
+    // Brute assertion via shape: two builds of identical content get
+    // different boundaries (randomness), both absent from the body.
+    const build = () =>
+      decode(
+        buildMimeMessage({
+          from: { email: "kit@acme.test" },
+          to: ["owner@acme.test"],
+          subject: "Brief",
+          text: "text kt-deadbeef pattern",
+          html: "<p>html</p>",
+        }),
+      );
+    const b1 = /boundary="([^"]+)"/.exec(build())?.[1];
+    const b2 = /boundary="([^"]+)"/.exec(build())?.[1];
+    expect(b1).not.toBe(b2);
   });
 
   it("base64url output carries no padding or unsafe chars", () => {
