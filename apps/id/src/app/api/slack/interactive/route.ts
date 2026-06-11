@@ -52,7 +52,17 @@ interface ViewSubmissionPayload {
 export async function POST(request: Request): Promise<Response> {
   const env = serverEnv();
   if (!env.SLACK_SIGNING_SECRET) {
-    return NextResponse.json({ error: "slack_not_configured" }, { status: 503 });
+    // Configuration error: 500 + Sentry per CLAUDE.md.
+    await captureException(new Error("SLACK_SIGNING_SECRET is not configured"), {
+      tags: {
+        route: "/api/slack/interactive",
+        action: "slack.approval",
+        stage: "configuration",
+        app: "id",
+      },
+      extra: {},
+    });
+    return NextResponse.json({ error: "slack_not_configured" }, { status: 500 });
   }
 
   const rawBody = await request.text();

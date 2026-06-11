@@ -29,8 +29,19 @@ import { captureException } from "@/lib/observability/sentry";
 export async function POST(request: Request): Promise<Response> {
   const env = serverEnv();
   if (!env.SLACK_SIGNING_SECRET) {
-    // Deployment without the Slack app configured: refuse loudly.
-    return NextResponse.json({ error: "slack_not_configured" }, { status: 503 });
+    // A deployment receiving Slack traffic without the signing secret
+    // is misconfigured: 500 + Sentry per CLAUDE.md ("configuration
+    // errors map to 500 and go to Sentry").
+    await captureException(new Error("SLACK_SIGNING_SECRET is not configured"), {
+      tags: {
+        route: "/api/slack/events",
+        action: "slack.inbound",
+        stage: "configuration",
+        app: "id",
+      },
+      extra: {},
+    });
+    return NextResponse.json({ error: "slack_not_configured" }, { status: 500 });
   }
 
   const rawBody = await request.text();
