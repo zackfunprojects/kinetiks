@@ -10,6 +10,7 @@ const emptyInput = {
   oracleRuns: [],
   ledgerEvents: [],
   toolCalls: [],
+  alerts: [],
 };
 
 describe("aggregateActivity", () => {
@@ -21,7 +22,26 @@ describe("aggregateActivity", () => {
     expect(summary.archivist.proposals_resolved).toBe(0);
     expect(summary.conversation.turns).toBe(0);
     expect(summary.authority.actions_under_grants).toBe(0);
+    expect(summary.alerts.unread_count).toBe(0);
     expect(isActivityEmpty(summary)).toBe(true);
+  });
+
+  it("counts unread alerts and keeps the panel non-empty while any exist (D4)", () => {
+    const alert = {
+      id: "al-1",
+      title: "Daily Brief",
+      body: "Pipeline steady.",
+      severity: "info",
+      read: false,
+      created_at: "2026-06-11T08:00:00Z",
+    };
+    const summary = aggregateActivity({
+      ...emptyInput,
+      alerts: [alert, { ...alert, id: "al-2", read: true }],
+    });
+    expect(summary.alerts.unread_count).toBe(1);
+    expect(summary.alerts.latest).toHaveLength(2);
+    expect(isActivityEmpty(summary)).toBe(false);
   });
 
   it("aggregates oracle runs: counts, insights, distinct sources, last run", () => {

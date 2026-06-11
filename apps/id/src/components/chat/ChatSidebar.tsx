@@ -6,6 +6,7 @@ import { SidebarToggle, type SidebarPanel } from "./SidebarToggle";
 import { ThreadList } from "./ThreadList";
 import { ApprovalPanel } from "@/components/approvals/ApprovalPanel";
 import { ActivityPanel } from "./ActivityPanel";
+import { usePendingApprovalCount } from "./usePendingApprovalCount";
 
 interface ChatSidebarProps {
   threads: MarcusThread[];
@@ -14,6 +15,7 @@ interface ChatSidebarProps {
   onNewThread: () => void;
   onSearch: (query: string) => void;
   systemName?: string | null;
+  accountId: string;
 }
 
 export function ChatSidebar({
@@ -23,8 +25,11 @@ export function ChatSidebar({
   onNewThread,
   onSearch,
   systemName,
+  accountId,
 }: ChatSidebarProps) {
   const [activePanel, setActivePanel] = useState<SidebarPanel>("chats");
+  // D4: the badge the audit found "built but never fed".
+  const approvalCount = usePendingApprovalCount(accountId);
 
   return (
     <div
@@ -38,7 +43,11 @@ export function ChatSidebar({
       }}
     >
       <div style={{ padding: "12px 12px 0" }}>
-        <SidebarToggle active={activePanel} onToggle={setActivePanel} />
+        <SidebarToggle
+          active={activePanel}
+          onToggle={setActivePanel}
+          approvalCount={approvalCount}
+        />
       </div>
 
       <div style={{ flex: 1, overflow: "hidden" }}>
@@ -51,7 +60,7 @@ export function ChatSidebar({
             onSearch={onSearch}
           />
         ) : activePanel === "approvals" ? (
-          <ApprovalPanel systemName={systemName ?? null} />
+          <ApprovalPanel systemName={systemName ?? null} accountId={accountId} />
         ) : (
           <ActivityPanel systemName={systemName ?? null} />
         )}

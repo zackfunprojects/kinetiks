@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/app-shell/AppShell";
+import { DesktopNotificationBridge } from "@/components/app-shell/DesktopNotificationBridge";
 
 export default async function AppLayout({
   children,
@@ -58,6 +59,7 @@ export default async function AppLayout({
       }}
       userEmail={user.email || ""}
     >
+      <DesktopNotificationBridge systemName={systemName} accountId={account.id} />
       {children}
     </AppShell>
   );

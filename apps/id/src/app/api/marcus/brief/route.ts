@@ -11,6 +11,7 @@ import {
 } from "@/lib/ai/prompts/marcus-brief";
 import { briefContentTemplate } from "@/lib/email/templates";
 import { resolveOwnerEmail, sendSystemEmail } from "@/lib/email/sender";
+import { createInAppAlert, deliverSlackDm } from "@/lib/comms/proactive-delivery";
 import { captureException } from "@/lib/observability/sentry";
 import type { MarcusScheduleType } from "@kinetiks/types";
 import { apiSuccess, apiError } from "@/lib/utils/api-response";
@@ -22,15 +23,17 @@ const BRIEF_TITLES: Record<MarcusScheduleType, string> = {
 };
 
 /**
- * What happened to each leg of a deliver:true request.
- *   email: sent | skipped (schedule channel is slack-only) | failed
- *   slack: DM delivery needs the customer's Slack user mapping, which
- *          lands with the inbound surface (D3/D4) — honest status
- *          until then.
+ * What happened to each leg of a deliver:true request. Honest per
+ * leg: "sent"/"created" mean it actually happened; "skipped" means
+ * the channel preference excluded the leg; "unavailable" means the
+ * leg has no working transport (no slack connection / installer
+ * mapping); "failed" means it was attempted (or blocked by an
+ * infrastructure failure) and captured.
  */
-interface BriefDelivery {
+export interface BriefDelivery {
   email: "sent" | "skipped" | "failed";
-  slack: "not_available_yet" | "skipped" | "failed";
+  slack: "sent" | "skipped" | "unavailable" | "failed";
+  in_app: "created" | "failed";
 }
 
 /**
@@ -132,11 +135,12 @@ async function deliverBrief(args: {
 }): Promise<BriefDelivery> {
   const { admin, accountId, type, content } = args;
 
-  // The schedule's channel decides the legs. No schedule ROW =
-  // email-only (the one deliverable channel today). A failed LOOKUP
-  // must not default anywhere (CR: a transient DB error on a
-  // slack-only account would otherwise send email against the
-  // customer's preference): both legs report failed, nothing sends.
+  // The schedule's channel decides the email/slack legs. No schedule
+  // ROW = email-only; the in-app alert is unconditional (the app is
+  // the system's home surface). A failed LOOKUP must not default
+  // anywhere (CR: a transient DB error on a slack-only account would
+  // otherwise send email against the customer's preference): both
+  // send legs report failed and nothing external sends.
   const { data: schedule, error: scheduleError } = await admin
     .from("kinetiks_marcus_schedules")
     .select("channel")
@@ -154,7 +158,7 @@ async function deliverBrief(args: {
       user: { id: accountId },
       extra: { brief_type: type },
     });
-    return { email: "failed", slack: "failed" };
+    return { email: "failed", slack: "failed", in_app: "failed" };
   }
   const channel = (schedule?.channel as string | undefined) ?? "email";
   const wantsEmail = channel === "email" || channel === "both";
@@ -162,22 +166,23 @@ async function deliverBrief(args: {
 
   const delivery: BriefDelivery = {
     email: wantsEmail ? "failed" : "skipped",
-    slack: wantsSlack ? "not_available_yet" : "skipped",
+    slack: wantsSlack ? "failed" : "skipped",
+    in_app: "failed",
   };
+
+  const appUrl = serverEnv().NEXT_PUBLIC_APP_URL ?? "https://kinetiks.ai";
+  const { data: account } = await admin
+    .from("kinetiks_accounts")
+    .select("system_name")
+    .eq("id", accountId)
+    .maybeSingle();
+  const systemName =
+    typeof account?.system_name === "string" && account.system_name.trim()
+      ? account.system_name.trim()
+      : "Kinetiks";
 
   if (wantsEmail) {
     try {
-      const { data: account } = await admin
-        .from("kinetiks_accounts")
-        .select("system_name")
-        .eq("id", accountId)
-        .maybeSingle();
-      const systemName =
-        typeof account?.system_name === "string" && account.system_name.trim()
-          ? account.system_name.trim()
-          : "Kinetiks";
-      const appUrl = serverEnv().NEXT_PUBLIC_APP_URL ?? "https://kinetiks.ai";
-
       const rendered = briefContentTemplate({
         systemName,
         appUrl,
@@ -212,6 +217,62 @@ async function deliverBrief(args: {
       }
       delivery.email = "failed";
     }
+  }
+
+  if (wantsSlack) {
+    try {
+      // DM the customer as the named system (D4): the brief body plus
+      // a link back. "unavailable" = no live connection or no
+      // installer mapping - reported, never faked.
+      const outcome = await deliverSlackDm({
+        account_id: accountId,
+        body: `*${BRIEF_TITLES[type]}*\n\n${content}\n\n<${appUrl}/chat|Open ${systemName}>`,
+      });
+      delivery.slack = outcome;
+    } catch (err) {
+      const errorClass = err instanceof ToolError ? err.errorClass : "unknown";
+      if (errorClass !== "rate_limited") {
+        await captureException(err, {
+          tags: {
+            route: "/api/marcus/brief",
+            action: "brief.deliver",
+            stage: "slack_send",
+            app: "id",
+          },
+          user: { id: accountId },
+          extra: { brief_type: type, error_class: errorClass },
+        });
+      }
+      delivery.slack = "failed";
+    }
+  }
+
+  try {
+    await createInAppAlert({
+      account_id: accountId,
+      title: BRIEF_TITLES[type],
+      body: content,
+      severity: "info",
+      trigger_type: "gap",
+      delivered_via: [
+        "in_app",
+        ...(delivery.email === "sent" ? ["email"] : []),
+        ...(delivery.slack === "sent" ? ["slack"] : []),
+      ],
+    });
+    delivery.in_app = "created";
+  } catch (err) {
+    await captureException(err, {
+      tags: {
+        route: "/api/marcus/brief",
+        action: "brief.deliver",
+        stage: "in_app_alert",
+        app: "id",
+      },
+      user: { id: accountId },
+      extra: { brief_type: type },
+    });
+    delivery.in_app = "failed";
   }
 
   return delivery;

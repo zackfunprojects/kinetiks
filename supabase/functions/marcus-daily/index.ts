@@ -75,6 +75,9 @@ Deno.serve(async () => {
         body: JSON.stringify({
           type: "daily_brief",
           account_id: schedule.account_id,
+          // D4: the route owns delivery (email / Slack DM / in-app
+          // alert) and reports each leg honestly.
+          deliver: true,
         }),
       });
 
@@ -83,24 +86,19 @@ Deno.serve(async () => {
         continue;
       }
 
-      const { content } = await response.json();
-      const briefContent = content ?? "";
+      const payload = await response.json();
+      const data = payload?.data ?? payload;
+      const briefContent = data?.content ?? "";
+      // Per-leg delivery report from the route (D4). Absent only if
+      // the route predates deliver support; treat as nothing sent.
+      const delivery = data?.delivery ?? null;
+      const delivered = Boolean(
+        delivery &&
+          (delivery.email === "sent" ||
+            delivery.slack === "sent" ||
+            delivery.in_app === "created"),
+      );
 
-      // Deliver the brief via the configured channel
-      if (briefContent && schedule.channel !== "email") {
-        const { error: alertErr } = await admin.from("kinetiks_marcus_alerts").insert({
-          account_id: schedule.account_id,
-          trigger_type: "gap",
-          severity: "info",
-          title: "Daily Brief",
-          body: briefContent,
-          source_app: "marcus",
-          delivered_via: [schedule.channel],
-        });
-        if (alertErr) {
-          console.error(`[marcus-daily] Alert insert failed for schedule ${schedule.id}:`, alertErr);
-        }
-      }
 
       // Log to ledger
       const { error: ledgerErr } = await admin.from("kinetiks_ledger").insert({
@@ -110,7 +108,11 @@ Deno.serve(async () => {
         detail: {
           brief_content_length: briefContent.length,
           channel: schedule.channel,
-          delivered: briefContent.length > 0,
+          // D4: true only when a leg actually delivered (email sent,
+          // Slack DM sent, or in-app alert created) - never "content
+          // was generated".
+          delivered,
+          delivery,
         },
       });
       if (ledgerErr) {
