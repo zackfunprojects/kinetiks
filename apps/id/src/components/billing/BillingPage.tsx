@@ -8,11 +8,13 @@ import { PLAN_DETAILS } from "@/lib/billing/plans";
 
 interface BillingPageProps {
   billing: BillingRecord | null;
+  /** C2 — the SettingsModal section supplies its own heading. */
+  hideHeader?: boolean;
 }
 
 const PLANS: BillingPlan[] = ["free", "starter", "pro", "team"];
 
-export function BillingPage({ billing }: BillingPageProps) {
+export function BillingPage({ billing, hideHeader }: BillingPageProps) {
   const [loadingPortal, setLoadingPortal] = useState(false);
   const [portalError, setPortalError] = useState<string | null>(null);
 
@@ -42,14 +44,16 @@ export function BillingPage({ billing }: BillingPageProps) {
 
   return (
     <div>
-      <div style={{ marginBottom: 32 }}>
-        <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: "var(--kt-fg-1)" }}>
-          Billing
-        </h1>
-        <p style={{ margin: "4px 0 0", fontSize: 14, color: "var(--kt-fg-2)" }}>
-          Manage your subscription and payment details
-        </p>
-      </div>
+      {!hideHeader && (
+        <div style={{ marginBottom: 32 }}>
+          <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: "var(--kt-fg-1)" }}>
+            Billing
+          </h1>
+          <p style={{ margin: "4px 0 0", fontSize: 14, color: "var(--kt-fg-2)" }}>
+            Manage your subscription and payment details
+          </p>
+        </div>
+      )}
 
       {/* Current plan + seeds */}
       <div
