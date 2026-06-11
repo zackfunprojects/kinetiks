@@ -44,6 +44,13 @@ describe("draft_email tool", () => {
     expect(draftEmailTool.autoApproveThreshold).toBeNull();
   });
 
+  it("requires the google_workspace system connection (D1)", () => {
+    expect(draftEmailTool.availability).toEqual({
+      kind: "connection_required",
+      provider: "google_workspace",
+    });
+  });
+
   it("derives an idempotency key from sorted recipients + subject prefix + body length", () => {
     const key = draftEmailTool.idempotencyKeyFrom?.({
       to: ["zoe@acme.com", "ann@acme.com"],
