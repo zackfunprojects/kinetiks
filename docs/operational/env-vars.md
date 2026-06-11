@@ -48,7 +48,7 @@ Supabase on every Edge Function. Do not set them manually.
 | `SUPABASE_SERVICE_ROLE_KEY` | yes | n/a (auto) | Service-role key. Never logged. |
 | `ANTHROPIC_API_KEY` | yes | no | Marcus + every Haiku call routes through here. |
 | `KINETIKS_ENCRYPTION_KEY` | yes | no | 32-byte hex. AES-256-GCM key for OAuth tokens at rest. Generate once with `openssl rand -hex 32`; rotating it invalidates every stored OAuth token. **Currently missing from Vercel — this is the most critical gap.** |
-| `INTERNAL_SERVICE_SECRET` | yes | yes | Shared bearer Edge Functions use when calling back into apps/id (e.g. `metric-cache-cron` → `/api/internal/...`). Same exact value on both sides. Generate with any password manager, 32+ chars. |
+| `INTERNAL_SERVICE_SECRET` | yes | yes | Shared bearer Edge Functions use when calling back into apps/id (e.g. `oracle-analysis-cron` → `/api/internal/...`). Same exact value on both sides. Generate with any password manager, 32+ chars. |
 | `NEXT_PUBLIC_APP_URL` | yes | no | Production: `https://kinetiks.ai`. Used in OAuth redirects + email templates. |
 
 ## Required for specific integrations
@@ -62,7 +62,7 @@ rest of the app keeps running. Order roughly by importance.
 | `NEXT_PUBLIC_NANGO_PUBLIC_KEY` | yes | no | Client-side Connect UI (`@nangohq/frontend`). Safe to ship to browser. Get from Nango dashboard → API Keys → Public Key. |
 | `NEXT_PUBLIC_NANGO_HOST` | yes (optional) | no | Nango API base URL override. Default `https://api.nango.dev` (Nango Cloud). |
 | `NANGO_WEBHOOK_SECRET` | yes | yes | HMAC-SHA256 verification for inbound webhooks at `/api/integrations/nango/webhook`. Generate in the Nango dashboard → Settings → Webhooks. |
-| `IDENTITY_API_URL` | no | yes | Where `metric-cache-cron` (Deno) calls into apps/id (Node). Default `https://kinetiks.ai`. Only needed on the Supabase Edge Function side. |
+| `IDENTITY_API_URL` | no | yes | Where Deno Edge Functions (e.g. `oracle-analysis-cron`) call into apps/id (Node). Default `https://kinetiks.ai`. Only needed on the Supabase Edge Function side. `metric-cache-cron` was retired in migration 00074: Nango sync has written the cache directly since Phase 7, and the cron's refresh route no longer exists. |
 | `KINETIKS_ID_API_URL` | no | yes | Where `authority-defaults-diff-cron` (Phase 5) calls into apps/id. Default `https://kinetiks.ai`. |
 | `HARVEST_API_URL` | no | yes | Where `gmail-sync-cron` / `sequence-cron` call Harvest. Default `https://hv.kinetiks.ai`. |
 | `RESEND_API_KEY` | yes | no | Transactional email send (briefs, system identity). |
