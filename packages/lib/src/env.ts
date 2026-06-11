@@ -68,6 +68,10 @@ export const kinetiksServerEnvSchema = z.object({
   FIRECRAWL_API_KEY: z.string().optional(),
   PEOPLE_DATA_LABS_API_KEY: z.string().optional(),
   RESEND_API_KEY: z.string().optional(),
+  // D2: the From address for the Resend fallback path of system email
+  // (used when an account has no google_workspace connection). Must
+  // be on a Resend-verified domain. Defaults at the call site.
+  RESEND_FROM_EMAIL: envFragments.email.optional(),
 
   // OAuth providers (optional)
   GA4_CLIENT_ID: z.string().optional(),
@@ -86,6 +90,9 @@ export const kinetiksServerEnvSchema = z.object({
   MICROSOFT_365_CLIENT_ID: z.string().optional(),
   MICROSOFT_365_CLIENT_SECRET: z.string().optional(),
 
+  // D2: no longer read by the outbound dispatcher (per-account bot
+  // tokens come from the slack system connection). Retained in the
+  // schema for any external tooling that still sets it; safe to unset.
   SLACK_BOT_TOKEN: z.string().optional(),
   SLACK_SIGNING_SECRET: z.string().optional(),
   SLACK_APP_TOKEN: z.string().optional(),

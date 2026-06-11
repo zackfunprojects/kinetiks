@@ -118,6 +118,36 @@ export function meetingPrepTemplate(
   };
 }
 
+/**
+ * D2 — wraps a Sonnet-generated brief (free-form prose) for email
+ * delivery. The generators produce one content blob, not the
+ * structured fields of dailyBriefTemplate; this renders it safely:
+ * escape everything, double newlines become paragraphs, single
+ * newlines become line breaks. No markdown parsing - the prose reads
+ * fine as paragraphs and parsing would only widen the injection
+ * surface.
+ */
+export function briefContentTemplate(
+  data: TemplateData & {
+    briefTitle: string;
+    content: string;
+  }
+): { subject: string; html: string; text: string } {
+  const paragraphs = escapeHtml(data.content)
+    .split(/\n{2,}/)
+    .map((p) => `<p style="margin:0 0 16px;line-height:1.6;color:${EMAIL_PALETTE.fg2}">${p.replace(/\n/g, "<br>")}</p>`)
+    .join("");
+  return {
+    subject: `${data.systemName} - ${data.briefTitle}`,
+    text: `${data.content}\n\nOpen ${data.systemName}: ${data.appUrl}/chat`,
+    html: wrapTemplate(data, `
+      <h2 style="margin:0 0 16px;color:${EMAIL_PALETTE.fg1}">${escapeHtml(data.briefTitle)}</h2>
+      ${paragraphs}
+      <a href="${escapeHtml(data.appUrl)}/chat" style="display:inline-block;padding:10px 24px;background:${EMAIL_PALETTE.bgInverse};color:${EMAIL_PALETTE.fgOnInverse};border-radius:8px;text-decoration:none;font-weight:500">Open ${escapeHtml(data.systemName)}</a>
+    `),
+  };
+}
+
 function wrapTemplate(data: TemplateData, body: string): string {
   return `
 <!DOCTYPE html>
@@ -126,13 +156,13 @@ function wrapTemplate(data: TemplateData, body: string): string {
 <body style="margin:0;padding:0;background:${EMAIL_PALETTE.bgBase};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
   <div style="max-width:600px;margin:0 auto;padding:32px 24px">
     <div style="margin-bottom:24px">
-      <span style="font-family:'DM Serif Display',Georgia,serif;font-weight:400;font-size:17px;color:${EMAIL_PALETTE.fg1}">${data.systemName}</span>
+      <span style="font-family:'DM Serif Display',Georgia,serif;font-weight:400;font-size:17px;color:${EMAIL_PALETTE.fg1}">${escapeHtml(data.systemName)}</span>
     </div>
     <div style="color:${EMAIL_PALETTE.fg1};font-size:15px">
       ${body}
     </div>
     <div style="margin-top:32px;padding-top:16px;border-top:1px solid ${EMAIL_PALETTE.border1};font-size:12px;color:${EMAIL_PALETTE.fg4}">
-      Sent by ${data.systemName} via <a href="${data.appUrl}" style="color:${EMAIL_PALETTE.accent};text-decoration:none">Kinetiks</a>
+      Sent by ${escapeHtml(data.systemName)} via <a href="${escapeHtml(data.appUrl)}" style="color:${EMAIL_PALETTE.accent};text-decoration:none">Kinetiks</a>
     </div>
   </div>
 </body>

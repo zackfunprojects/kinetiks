@@ -17,14 +17,14 @@
 
 import "server-only";
 
-import { ToolError } from "@kinetiks/tools";
-
-import { getGoogleCalendarAccessToken } from "@/lib/connections/google-workspace-token";
 import {
   classifyHttpStatus,
   fetchWithTimeout,
   parseJsonOrToolError,
-} from "@/lib/dispatchers/fetch-with-timeout";
+  ToolError,
+} from "@kinetiks/tools";
+
+import { getGoogleCalendarAccessToken } from "@/lib/connections/google-workspace-token";
 
 interface CalendarUrlInput {
   calendar_id: string;

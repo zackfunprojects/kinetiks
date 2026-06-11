@@ -29,6 +29,8 @@ import { bootToolRegistry } from "./lib/tools/registry-boot";
 import { bootRuntimeAdapters } from "./lib/runtime/runtime-boot";
 import { assertProviderConfigValid } from "./lib/integrations/nango/provider-config";
 import { assertSystemProviderConfigValid } from "./lib/connections/system-providers";
+import { configureSlackCredentialSource } from "@kinetiks/ai/slack-dispatcher";
+import { resolveSlackSendCredentials } from "./lib/comms/slack-credential-source";
 import "./lib/integrations/nango/handlers/boot";
 
 export function bootNodeInstrumentation(): void {
@@ -69,4 +71,9 @@ export function bootNodeInstrumentation(): void {
   // OAuth side): every system provider declares scopes, and the
   // system set is disjoint from the Nango data-provider set.
   assertSystemProviderConfigValid();
+  // D2: the @kinetiks/ai slack-dispatcher resolves per-account bot
+  // tokens through this seam (D1 slack connection + system name).
+  // Unconfigured = every dispatch fails closed with
+  // configuration_error; it never falls back to a global env token.
+  configureSlackCredentialSource(resolveSlackSendCredentials);
 }

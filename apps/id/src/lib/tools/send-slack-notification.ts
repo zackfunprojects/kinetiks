@@ -18,7 +18,7 @@
 import { z } from "zod";
 import { defineTool, ToolError } from "@kinetiks/tools";
 
-import { dispatchSlackMessage } from "@/lib/slack/dispatch";
+import { dispatchSlackMessage } from "@kinetiks/ai/slack-dispatcher";
 
 export const sendSlackNotificationTool = defineTool({
   name: "send_slack_notification",
@@ -61,7 +61,11 @@ export const sendSlackNotificationTool = defineTool({
   isConsequential: true,
   actionClass: "kinetiks_id.send_slack_notification",
   autoApproveThreshold: null,
-  availability: { kind: "always" },
+  // D2: only offered once the customer has connected Slack (Cortex →
+  // Integrations → System Connections). The dispatcher resolves that
+  // connection's encrypted bot token per account; there is no global
+  // workspace token anymore.
+  availability: { kind: "connection_required", provider: "slack" },
   // Phase 4 — CR fix: one channel per invocation makes the
   // tool-level idempotency check sufficient. A multi-channel loop +
   // partial failure + retry could otherwise double-post to channels
@@ -76,7 +80,14 @@ export const sendSlackNotificationTool = defineTool({
     // identical retries into one idempotency bucket without leaking
     // the full body into the key.
     `${input.channel}:${input.message_length}:${input.body.slice(0, 32)}`,
-  execute: async (input) => {
+  execute: async (input, ctx) => {
+    if (!ctx.accountId) {
+      throw new ToolError(
+        "configuration_error",
+        "send_slack_notification: ToolExecutionContext.accountId missing",
+        { context: { tool: "send_slack_notification" } },
+      );
+    }
     // SECURITY: validate the caller's `message_length` against the
     // actual body length. The grant's max_message_length constraint
     // gates message_length at the resolver layer; if the caller
@@ -104,8 +115,10 @@ export const sendSlackNotificationTool = defineTool({
     // grant's `channels` allowlist against action_input.channels —
     // executors before this tool wrap `channel` into `channels:
     // [channel]` for the resolver context. The dispatcher only
-    // cares about the single-channel post.
+    // cares about the single-channel post, sent as the account's
+    // named system via its own connection.
     const result = await dispatchSlackMessage({
+      account_id: ctx.accountId,
       channel: input.channel,
       body: input.body,
       thread_ts: input.thread_ts,

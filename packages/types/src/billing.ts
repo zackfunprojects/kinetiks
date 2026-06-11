@@ -592,6 +592,19 @@ export interface LedgerEventDetailMap {
     error_message: string;
     duration_ms: number;
   };
+  /**
+   * D2 — one row per outbound email the named system identity sends
+   * (lib/email/sender.ts). Doubles as the counter behind the
+   * 20-sends/24h cap (comms spec §2.4). PII rules: no addresses, no
+   * subject text, no body content — counts and lengths only.
+   */
+  system_email_sent: {
+    kind: "brief" | "alert" | "summary";
+    provider: "gmail" | "resend";
+    recipient_count: number;
+    subject_length: number;
+    body_length: number;
+  };
 }
 
 /** Canonical revocation reasons recorded on `authority_grant_revoked`. */

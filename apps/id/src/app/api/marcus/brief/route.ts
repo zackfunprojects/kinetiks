@@ -1,22 +1,54 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { askClaude } from "@kinetiks/ai";
+import { serverEnv } from "@kinetiks/lib/env";
+import { ToolError } from "@kinetiks/tools";
 import { assembleContext } from "@/lib/marcus/context-assembly";
 import {
   buildDailyBriefPrompt,
   buildWeeklyDigestPrompt,
   buildMonthlyReviewPrompt,
 } from "@/lib/ai/prompts/marcus-brief";
+import { briefContentTemplate } from "@/lib/email/templates";
+import { resolveOwnerEmail, sendSystemEmail } from "@/lib/email/sender";
+import { captureException } from "@/lib/observability/sentry";
 import type { MarcusScheduleType } from "@kinetiks/types";
 import { apiSuccess, apiError } from "@/lib/utils/api-response";
+
+const BRIEF_TITLES: Record<MarcusScheduleType, string> = {
+  daily_brief: "Daily Brief",
+  weekly_digest: "Weekly Digest",
+  monthly_review: "Monthly Review",
+};
+
+/**
+ * What happened to each leg of a deliver:true request.
+ *   email: sent | skipped (schedule channel is slack-only) | failed
+ *   slack: DM delivery needs the customer's Slack user mapping, which
+ *          lands with the inbound surface (D3/D4) — honest status
+ *          until then.
+ */
+interface BriefDelivery {
+  email: "sent" | "skipped" | "failed";
+  slack: "not_available_yet" | "skipped" | "failed";
+}
 
 /**
  * POST /api/marcus/brief
  *
- * Generate a scheduled brief on demand.
- * Called by users (preview) or CRON Edge Functions (delivery).
+ * Generate a scheduled brief on demand — and, since D2, optionally
+ * deliver it ("Send now" actually sends).
  *
- * Body: { type: 'daily_brief' | 'weekly_digest' | 'monthly_review', account_id?: string }
+ * Body: {
+ *   type: 'daily_brief' | 'weekly_digest' | 'monthly_review',
+ *   account_id?: string,   // internal callers only
+ *   deliver?: boolean      // false/absent = preview-only (pre-D2 behavior)
+ * }
+ *
+ * Delivery is explicit user intent (the Send-now button), so it sends
+ * without an approval card per comms spec §2.4 ("the user explicitly
+ * asked"); the sender still enforces the internal-recipient policy
+ * and the 20/24h cap regardless of caller.
  */
 export async function POST(request: Request) {
   const { auth, error } = await requireAuth(request, { permissions: "read-only", allowInternal: true });
@@ -32,6 +64,7 @@ export async function POST(request: Request) {
     type?: MarcusScheduleType;
     account_id?: string;
   };
+  const deliver = body.deliver === true;
 
   const validTypes: MarcusScheduleType[] = [
     "daily_brief",
@@ -83,7 +116,105 @@ export async function POST(request: Request) {
     maxTokens: type === "monthly_review" ? 4096 : 2048,
   });
 
-  return apiSuccess({ type, content });
+  if (!deliver) {
+    return apiSuccess({ type, content });
+  }
+
+  const delivery = await deliverBrief({ admin, accountId, type, content });
+  return apiSuccess({ type, content, delivery });
+}
+
+async function deliverBrief(args: {
+  admin: ReturnType<typeof createAdminClient>;
+  accountId: string;
+  type: MarcusScheduleType;
+  content: string;
+}): Promise<BriefDelivery> {
+  const { admin, accountId, type, content } = args;
+
+  // The schedule's channel decides the legs. No schedule ROW =
+  // email-only (the one deliverable channel today). A failed LOOKUP
+  // must not default anywhere (CR: a transient DB error on a
+  // slack-only account would otherwise send email against the
+  // customer's preference): both legs report failed, nothing sends.
+  const { data: schedule, error: scheduleError } = await admin
+    .from("kinetiks_marcus_schedules")
+    .select("channel")
+    .eq("account_id", accountId)
+    .eq("type", type)
+    .maybeSingle();
+  if (scheduleError) {
+    await captureException(scheduleError, {
+      tags: {
+        route: "/api/marcus/brief",
+        action: "brief.deliver",
+        stage: "schedule_lookup",
+        app: "id",
+      },
+      user: { id: accountId },
+      extra: { brief_type: type },
+    });
+    return { email: "failed", slack: "failed" };
+  }
+  const channel = (schedule?.channel as string | undefined) ?? "email";
+  const wantsEmail = channel === "email" || channel === "both";
+  const wantsSlack = channel === "slack" || channel === "both";
+
+  const delivery: BriefDelivery = {
+    email: wantsEmail ? "failed" : "skipped",
+    slack: wantsSlack ? "not_available_yet" : "skipped",
+  };
+
+  if (wantsEmail) {
+    try {
+      const { data: account } = await admin
+        .from("kinetiks_accounts")
+        .select("system_name")
+        .eq("id", accountId)
+        .maybeSingle();
+      const systemName =
+        typeof account?.system_name === "string" && account.system_name.trim()
+          ? account.system_name.trim()
+          : "Kinetiks";
+      const appUrl = serverEnv().NEXT_PUBLIC_APP_URL ?? "https://kinetiks.ai";
+
+      const rendered = briefContentTemplate({
+        systemName,
+        appUrl,
+        briefTitle: BRIEF_TITLES[type],
+        content,
+      });
+      const ownerEmail = await resolveOwnerEmail(accountId);
+      await sendSystemEmail({
+        account_id: accountId,
+        to: [ownerEmail],
+        subject: rendered.subject,
+        text: rendered.text,
+        html: rendered.html,
+        kind: "brief",
+      });
+      delivery.email = "sent";
+    } catch (err) {
+      const errorClass = err instanceof ToolError ? err.errorClass : "unknown";
+      // Per CLAUDE.md, real throttling (the 20/24h cap) is expected
+      // behavior, maps to a failed leg, and never goes to Sentry.
+      if (errorClass !== "rate_limited") {
+        await captureException(err, {
+          tags: {
+            route: "/api/marcus/brief",
+            action: "brief.deliver",
+            stage: "email_send",
+            app: "id",
+          },
+          user: { id: accountId },
+          extra: { brief_type: type, error_class: errorClass },
+        });
+      }
+      delivery.email = "failed";
+    }
+  }
+
+  return delivery;
 }
 
 async function getRecentActivity(

@@ -95,3 +95,10 @@ export type {
   ActionClassCapability,
   OperatorCapability,
 } from "./capabilities";
+
+export {
+  fetchWithTimeout,
+  parseJsonOrToolError,
+  classifyHttpStatus,
+} from "./fetch-with-timeout";
+export type { FetchWithTimeoutInput } from "./fetch-with-timeout";

@@ -245,6 +245,9 @@ importers:
       '@anthropic-ai/sdk':
         specifier: ^0.39.0
         version: 0.39.0
+      '@kinetiks/tools':
+        specifier: workspace:*
+        version: link:../tools
     devDependencies:
       '@types/node':
         specifier: ^20.0.0
@@ -252,6 +255,9 @@ importers:
       typescript:
         specifier: ^5.7.0
         version: 5.9.3
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@20.19.37)(jsdom@25.0.1)(lightningcss@1.32.0)(terser@5.47.1)
 
   packages/cortex:
     dependencies:
