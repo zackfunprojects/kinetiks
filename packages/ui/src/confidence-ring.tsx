@@ -1,12 +1,16 @@
 import type { CSSProperties } from "react";
 import { cn } from "./cn";
 
-export type ConfidenceRingSize = "sm" | "md" | "lg";
+export type ConfidenceRingSize = "sm" | "md" | "lg" | "xl" | "hero";
 
 const DIMENSIONS: Record<ConfidenceRingSize, { px: number; strokePx: number; fontSize: string }> = {
   sm: { px: 18, strokePx: 2.5, fontSize: "var(--kt-fs-11)" },
   md: { px: 24, strokePx: 3, fontSize: "var(--kt-fs-12)" },
   lg: { px: 40, strokePx: 4, fontSize: "var(--kt-fs-14)" },
+  // C3a — hero sizes for the Cortex Identity surfaces (layer detail,
+  // overview centerpiece), so the app-local duplicate could retire.
+  xl: { px: 64, strokePx: 6, fontSize: "var(--kt-fs-17)" },
+  hero: { px: 96, strokePx: 8, fontSize: "var(--kt-fs-24)" },
 };
 
 export type ConfidenceRingTone = "auto" | "accent" | "success" | "warning" | "danger";

@@ -14,18 +14,6 @@
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-@keyframes kt-cursor-blink {
-  0%, 100% { opacity: 1; }
-  50%      { opacity: 0; }
-}
-.kt-cursor {
-  display: inline-block;
-  width: 0.55ch;
-  background-color: var(--kt-fg-1);
-  margin-left: 1px;
-  animation: kt-cursor-blink 1s steps(1) infinite;
-}
-
 @keyframes kt-fade-in {
   from { opacity: 0; transform: translateY(4px); }
   to   { opacity: 1; transform: translateY(0); }

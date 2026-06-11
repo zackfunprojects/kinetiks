@@ -257,6 +257,7 @@
   --kt-dur-2: 200ms;
   --kt-dur-3: 320ms;
   --kt-dur-4: 600ms;
+  --kt-dur-cursor: 1s;   /* §6.4 streaming cursor blink cadence */
 
   --kt-ease-standard: cubic-bezier(0.22, 0.61, 0.36, 1);
   --kt-ease-emphasis: cubic-bezier(0.32, 0.72, 0, 1);

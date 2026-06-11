@@ -2,8 +2,7 @@
 
 import { useState } from "react";
 import type { BillingRecord, BillingPlan } from "@kinetiks/types";
-import { Card } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
+import { Card, Badge } from "@kinetiks/ui";
 import { PLAN_DETAILS } from "@/lib/billing/plans";
 
 interface BillingPageProps {

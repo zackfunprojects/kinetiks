@@ -3,8 +3,7 @@
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import type { LedgerEntry, ContextLayer, LedgerEventType } from "@kinetiks/types";
 import { Pill, Button } from "@kinetiks/ui";
-import { Badge } from "@/components/ui/Badge";
-import { Pagination } from "@/components/ui/Pagination";
+import { Badge, Pagination } from "@kinetiks/ui";
 import { LAYER_DISPLAY_NAMES } from "@/lib/utils/layer-display";
 
 const EVENT_TYPES: Array<{ value: LedgerEventType; label: string }> = [

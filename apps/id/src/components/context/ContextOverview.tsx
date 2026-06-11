@@ -2,7 +2,7 @@
 
 import type { ContextLayer } from "@kinetiks/types";
 import type { ConfidenceScores } from "@/lib/cortex";
-import { ConfidenceRing } from "@/components/ui/ConfidenceRing";
+import { ConfidenceRing } from "@kinetiks/ui";
 import { LayerCard } from "./LayerCard";
 
 const LAYERS: ContextLayer[] = [
@@ -51,7 +51,7 @@ export function ContextOverview({ layers, confidence }: ContextOverviewProps) {
           borderRadius: 12,
         }}
       >
-        <ConfidenceRing score={confidence.aggregate} size={100} strokeWidth={8} />
+        <ConfidenceRing value={confidence.aggregate / 100} size="hero" showLabel ariaLabel="Overall confidence" />
         <div>
           <p style={{ margin: 0, fontSize: 16, fontWeight: 600, color: "var(--kt-fg-1)" }}>
             Overall Confidence: {Math.round(confidence.aggregate)}%

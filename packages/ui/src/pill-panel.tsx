@@ -49,12 +49,12 @@ const sectionHeader: React.CSSProperties = {
   fontSize: 11,
   fontWeight: 600,
   fontFamily: "var(--font-mono, monospace), monospace",
-  color: "var(--text-tertiary, #484f58)",
+  color: "var(--text-tertiary, var(--kt-fg-3))",
   textTransform: "uppercase",
   letterSpacing: 0.5,
 };
 
-const sectionBorder = "1px solid var(--border-muted, #21262d)";
+const sectionBorder = "1px solid var(--border-muted, var(--kt-bg-muted))";
 
 export function PillPanel({
   codename,
@@ -77,10 +77,10 @@ export function PillPanel({
         position: "absolute",
         bottom: 48,
         left: 0,
-        background: "var(--bg-surface-overlay, #2d333b)",
+        background: "var(--bg-surface-overlay, var(--kt-border-1))",
         borderRadius: 8,
-        border: "1px solid var(--border-default, #30363d)",
-        boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
+        border: "1px solid var(--border-default, var(--kt-border-2))",
+        boxShadow: "var(--kt-shadow-lg)",
         width: 320,
         maxHeight: "70vh",
         overflowY: "auto",
@@ -104,7 +104,7 @@ export function PillPanel({
             width: 48,
             height: 48,
             borderRadius: "50%",
-            background: `conic-gradient(var(--accent, #e6edf3) ${confidenceScore * 3.6}deg, var(--border-default, #30363d) 0deg)`,
+            background: `conic-gradient(var(--accent, var(--kt-fg-1)) ${confidenceScore * 3.6}deg, var(--border-default, var(--kt-border-2)) 0deg)`,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -116,24 +116,24 @@ export function PillPanel({
               width: 38,
               height: 38,
               borderRadius: "50%",
-              background: "var(--bg-surface-overlay, #2d333b)",
+              background: "var(--bg-surface-overlay, var(--kt-border-1))",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               fontSize: 12,
               fontWeight: 700,
               fontFamily: "var(--font-mono, monospace), monospace",
-              color: "var(--accent, #e6edf3)",
+              color: "var(--accent, var(--kt-fg-1))",
             }}
           >
             {confidenceScore}%
           </div>
         </div>
         <div>
-          <p style={{ margin: 0, fontSize: 14, fontWeight: 600, fontFamily: "var(--font-mono, monospace), monospace", color: "var(--text-primary, #e6edf3)" }}>
+          <p style={{ margin: 0, fontSize: 14, fontWeight: 600, fontFamily: "var(--font-mono, monospace), monospace", color: "var(--text-primary, var(--kt-fg-1))" }}>
             {codename}
           </p>
-          <p style={{ margin: "2px 0 0", fontSize: 11, fontFamily: "var(--font-mono, monospace), monospace", color: "var(--text-tertiary, #484f58)" }}>
+          <p style={{ margin: "2px 0 0", fontSize: 11, fontFamily: "var(--font-mono, monospace), monospace", color: "var(--text-tertiary, var(--kt-fg-3))" }}>
             Your Kinetiks ID
           </p>
         </div>
@@ -153,10 +153,10 @@ export function PillPanel({
                 padding: "4px 0",
               }}
             >
-              <p style={{ margin: 0, fontSize: 12, color: "var(--text-secondary, #8b949e)", lineHeight: 1.3, flex: 1 }}>
+              <p style={{ margin: 0, fontSize: 12, color: "var(--text-secondary, var(--kt-fg-2))", lineHeight: 1.3, flex: 1 }}>
                 {s.suggestion}
               </p>
-              <span style={{ fontSize: 11, color: "var(--accent, #e6edf3)", fontWeight: 600, fontFamily: "var(--font-mono, monospace), monospace", flexShrink: 0, marginLeft: 8 }}>
+              <span style={{ fontSize: 11, color: "var(--accent, var(--kt-fg-1))", fontWeight: 600, fontFamily: "var(--font-mono, monospace), monospace", flexShrink: 0, marginLeft: 8 }}>
                 {s.estimated_impact}
               </span>
             </div>
@@ -182,8 +182,8 @@ export function PillPanel({
                 style={{
                   fontSize: 10,
                   padding: "1px 5px",
-                  background: "var(--accent-muted, rgba(230,237,243,0.1))",
-                  color: "var(--accent, #e6edf3)",
+                  background: "var(--kt-accent-soft)",
+                  color: "var(--accent, var(--kt-fg-1))",
                   borderRadius: 4,
                   fontWeight: 500,
                   fontFamily: "var(--font-mono, monospace), monospace",
@@ -191,7 +191,7 @@ export function PillPanel({
               >
                 {p.target_layer}
               </span>
-              <span style={{ fontSize: 12, color: "var(--text-secondary, #8b949e)" }}>
+              <span style={{ fontSize: 12, color: "var(--text-secondary, var(--kt-fg-2))" }}>
                 {p.action}{p.source_app ? ` from ${p.source_app.replace("_", " ")}` : ""}
               </span>
             </div>
@@ -199,7 +199,7 @@ export function PillPanel({
           {pendingProposals.length > 3 && (
             <a
               href={idBaseUrl}
-              style={{ fontSize: 11, color: "var(--accent, #e6edf3)", textDecoration: "none", display: "block", marginTop: 4, fontFamily: "var(--font-mono, monospace), monospace" }}
+              style={{ fontSize: 11, color: "var(--accent, var(--kt-fg-1))", textDecoration: "none", display: "block", marginTop: 4, fontFamily: "var(--font-mono, monospace), monospace" }}
             >
               View all {pendingProposals.length} items
             </a>
@@ -212,7 +212,7 @@ export function PillPanel({
         <div style={{ padding: "12px 16px", borderBottom: sectionBorder }}>
           <p style={sectionHeader}>Recent Learnings</p>
           {recentRoutings.slice(0, 3).map((r, i) => (
-            <p key={i} style={{ margin: "3px 0", fontSize: 12, color: "var(--text-secondary, #8b949e)" }}>
+            <p key={i} style={{ margin: "3px 0", fontSize: 12, color: "var(--text-secondary, var(--kt-fg-2))" }}>
               {r.relevance_note || `Routed to ${r.target_app.replace("_", " ")}`}
             </p>
           ))}
@@ -241,19 +241,19 @@ export function PillPanel({
       >
         <a
           href={idBaseUrl}
-          style={{ fontSize: 12, color: "var(--accent, #e6edf3)", textDecoration: "none", fontWeight: 500, fontFamily: "var(--font-mono, monospace), monospace" }}
+          style={{ fontSize: 12, color: "var(--accent, var(--kt-fg-1))", textDecoration: "none", fontWeight: 500, fontFamily: "var(--font-mono, monospace), monospace" }}
         >
           view_id
         </a>
         <a
           href={`${idBaseUrl}/billing`}
-          style={{ fontSize: 12, color: "var(--accent, #e6edf3)", textDecoration: "none", fontWeight: 500, fontFamily: "var(--font-mono, monospace), monospace" }}
+          style={{ fontSize: 12, color: "var(--accent, var(--kt-fg-1))", textDecoration: "none", fontWeight: 500, fontFamily: "var(--font-mono, monospace), monospace" }}
         >
           billing
         </a>
         <a
           href={`${idBaseUrl}/connections`}
-          style={{ fontSize: 12, color: "var(--accent, #e6edf3)", textDecoration: "none", fontWeight: 500, fontFamily: "var(--font-mono, monospace), monospace" }}
+          style={{ fontSize: 12, color: "var(--accent, var(--kt-fg-1))", textDecoration: "none", fontWeight: 500, fontFamily: "var(--font-mono, monospace), monospace" }}
         >
           connections
         </a>

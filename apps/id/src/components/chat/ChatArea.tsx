@@ -283,10 +283,11 @@ export function ChatArea({
               extractedActions={msg.extracted_actions}
               contextUsed={msg.context_used}
               timestamp={msg.created_at}
+              systemName={systemName}
             />
           ))}
 
-          {streamingText ? <MessageBubble role="marcus" content={streamingText} isStreaming /> : null}
+          {streamingText ? <MessageBubble role="marcus" content={streamingText} isStreaming systemName={systemName} /> : null}
 
           {/* B2 — live agent status before the first token. */}
           {isStreaming && !streamingText && statusLabel ? (
