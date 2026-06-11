@@ -58,6 +58,28 @@ describe("computeGoalValue", () => {
     expect(value).toBe(150); // in-period sum, not the 28d scalar
   });
 
+  it("returns 0 when the daily series has no in-period points (just-started goal)", () => {
+    const rows = [
+      row(
+        "ga4",
+        { metric: "ga4_sessions", date_range: "last_90_days", dimensions: ["date"] },
+        [
+          { dimensions: { date: "2026-06-01" }, value: 40 },
+          { dimensions: { date: "2026-06-05" }, value: 50 },
+        ],
+      ),
+      // The 28d scalar would say 999 - the bug this guards against:
+      // a goal starting today must NOT inherit the trailing window.
+      row("ga4", { metric: "ga4_sessions", date_range: "last_28_days" }, scalar(999)),
+    ];
+    const value = computeGoalValue(
+      { metric_key: "ga4_sessions", period_start: "2026-06-11T00:00:00Z" },
+      rows,
+      today,
+    );
+    expect(value).toBe(0);
+  });
+
   it("falls back to the 28d window scalar when no daily series exists", () => {
     const rows = [
       row("meta_ads", { metric: "meta_spend", date_range: "last_28_days" }, scalar(740)),

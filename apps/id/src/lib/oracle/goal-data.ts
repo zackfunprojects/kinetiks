@@ -165,9 +165,10 @@ export function computeGoalValue(
       const start = goal.period_start.slice(0, 10);
       const end = today.toISOString().slice(0, 10);
       const inPeriod = daily.filter((p) => p.date >= start && p.date <= end);
-      if (inPeriod.length > 0) {
-        return round2(inPeriod.reduce((sum, p) => sum + p.value, 0));
-      }
+      // A daily series with zero in-period points IS the answer: the
+      // in-period total is 0 (e.g. a goal that starts today). Falling
+      // through to the 28d window would overstate a just-started goal.
+      return round2(inPeriod.reduce((sum, p) => sum + p.value, 0));
     }
   }
 
