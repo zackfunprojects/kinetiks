@@ -11,6 +11,29 @@
 
 import type { UpcomingCalendarEvent } from "@/lib/calendar/events";
 
+const CONTEXT_SUMMARY_CHAR_CAP = 4000;
+
+/**
+ * Cap the context summary on a sentence boundary (falling back to a
+ * word boundary) so the model never sees a mid-sentence cut (CR).
+ */
+export function truncateContextSummary(
+  summary: string,
+  cap = CONTEXT_SUMMARY_CHAR_CAP,
+): string {
+  if (summary.length <= cap) return summary;
+  const window = summary.slice(0, cap);
+  const lastSentence = Math.max(
+    window.lastIndexOf(". "),
+    window.lastIndexOf(".\n"),
+    window.lastIndexOf("! "),
+    window.lastIndexOf("? "),
+  );
+  if (lastSentence > cap * 0.5) return window.slice(0, lastSentence + 1);
+  const lastWord = window.lastIndexOf(" ");
+  return lastWord > 0 ? window.slice(0, lastWord) : window;
+}
+
 export function buildMeetingPrepPrompt(args: {
   event: UpcomingCalendarEvent;
   contextSummary: string;
@@ -22,7 +45,7 @@ Meeting: "${args.event.title}" starting ${args.event.start}, attendees: ${attend
 
 What the system knows about the business (context summary):
 """
-${args.contextSummary.slice(0, 4000)}
+${truncateContextSummary(args.contextSummary)}
 """
 
 Write the prep brief now. If the context says nothing relevant to these attendees, say what IS known and suggest sensible generic prep - never invent specifics.`;

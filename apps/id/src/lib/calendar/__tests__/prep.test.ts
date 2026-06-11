@@ -42,6 +42,7 @@ vi.mock("@/lib/comms/proactive-delivery", () => ({
 import { ToolError } from "@kinetiks/tools";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { truncateContextSummary } from "@/lib/ai/prompts/meeting-prep";
 import { runMeetingPrep } from "../prep";
 
 const mockCreateAdmin = vi.mocked(createAdminClient);
@@ -198,5 +199,23 @@ describe("runMeetingPrep", () => {
     const result = await runMeetingPrep("acc-1");
     expect(result.events_in_window).toBe(0);
     expect(askClaudeMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("truncateContextSummary", () => {
+  it("returns short summaries untouched and cuts long ones on a sentence boundary", () => {
+    expect(truncateContextSummary("Short.")).toBe("Short.");
+    const sentence = "This is a sentence about the funnel. ";
+    const long = sentence.repeat(200);
+    const cut = truncateContextSummary(long, 400);
+    expect(cut.length).toBeLessThanOrEqual(400);
+    expect(cut.endsWith(".")).toBe(true);
+  });
+
+  it("falls back to a word boundary when no sentence end is in range", () => {
+    const noSentences = ("word ").repeat(300).trim();
+    const cut = truncateContextSummary(noSentences, 100);
+    expect(cut.length).toBeLessThanOrEqual(100);
+    expect(cut.endsWith("word")).toBe(true);
   });
 });
