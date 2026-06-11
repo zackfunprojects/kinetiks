@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Card } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
+import { Card, Badge } from "@kinetiks/ui";
 
 interface AppCardProps {
   appName: string;

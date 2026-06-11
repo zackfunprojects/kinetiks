@@ -1,13 +1,12 @@
 import Link from "next/link";
 import type { ContextLayer } from "@kinetiks/types";
-import { Card } from "@/components/ui/Card";
+import { Card, Badge } from "@kinetiks/ui";
 import {
   LAYER_DISPLAY_NAMES,
   LAYER_DESCRIPTIONS,
   LAYER_ICONS,
   getLayerPreview,
 } from "@/lib/utils/layer-display";
-import { Badge } from "@/components/ui/Badge";
 
 interface LayerCardProps {
   layer: ContextLayer;

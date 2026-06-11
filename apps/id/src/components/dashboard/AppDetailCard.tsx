@@ -2,8 +2,7 @@
 
 import { useState } from "react";
 import type { AppActivation, SynapseRecord } from "@kinetiks/types";
-import { Card } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
+import { Card, Badge } from "@kinetiks/ui";
 import { LAYER_DISPLAY_NAMES } from "@/lib/utils/layer-display";
 import type { ContextLayer } from "@kinetiks/types";
 

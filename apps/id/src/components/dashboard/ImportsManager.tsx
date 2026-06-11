@@ -2,9 +2,7 @@
 
 import { useState } from "react";
 import type { ImportRecord } from "@kinetiks/types";
-import { Card } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
-import { EmptyState } from "@/components/ui/EmptyState";
+import { Card, Badge, EmptyState } from "@kinetiks/ui";
 import { ImportUploadModal } from "./ImportUploadModal";
 
 interface ImportsManagerProps {
@@ -64,8 +62,7 @@ export function ImportsManager({ initialImports }: ImportsManagerProps) {
       {imports.length === 0 ? (
         <EmptyState
           title="No imports yet"
-          description="Upload content libraries, contacts, brand assets, or media lists to enrich your Kinetiks ID."
-          action={{ label: "Upload", href: "#" }}
+          body="Upload content libraries, contacts, brand assets, or media lists to enrich your Kinetiks ID."
         />
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>

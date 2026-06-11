@@ -2,9 +2,7 @@
 
 import { useState } from "react";
 import type { ContextLayer, Proposal } from "@kinetiks/types";
-import { ConfidenceRing } from "@/components/ui/ConfidenceRing";
-import { Badge } from "@/components/ui/Badge";
-import { Card } from "@/components/ui/Card";
+import { ConfidenceRing, Badge, Card } from "@kinetiks/ui";
 import {
   LAYER_DISPLAY_NAMES,
   LAYER_DESCRIPTIONS,
@@ -232,7 +230,7 @@ export function LayerDetail({
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 24 }}>
-        <ConfidenceRing score={confidence} size={64} strokeWidth={5} />
+        <ConfidenceRing value={confidence / 100} size="xl" showLabel ariaLabel="Layer confidence" />
         <div>
           <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: "var(--kt-fg-1)" }}>
             {LAYER_DISPLAY_NAMES[layer]}
