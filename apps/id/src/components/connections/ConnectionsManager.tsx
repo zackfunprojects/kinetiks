@@ -216,7 +216,7 @@ export function ConnectionsManager({
           setToast({ message: json.error ?? "Sync failed", type: "error" });
           return;
         }
-        setToast({ message: "Sync triggered — data should arrive shortly", type: "success" });
+        setToast({ message: "Sync triggered - data should arrive shortly", type: "success" });
         // Sync runs async; refresh after a short delay so last_sync_at
         // catches up.
         setTimeout(() => void refreshConnections(), 3000);

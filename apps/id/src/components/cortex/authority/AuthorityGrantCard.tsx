@@ -387,7 +387,7 @@ export function AuthorityGrantCard({
               Revoked
               {grant.revoked_at &&
                 ` on ${new Date(grant.revoked_at).toLocaleDateString()}`}
-              {grant.revocation_reason && ` — ${grant.revocation_reason}`}
+              {grant.revocation_reason && ` - ${grant.revocation_reason}`}
             </>
           )}
           {grant.status === "expired" && (
