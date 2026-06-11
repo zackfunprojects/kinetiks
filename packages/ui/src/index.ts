@@ -16,6 +16,12 @@ export type { TextareaProps } from "./textarea";
 export { Card } from "./card";
 export type { CardProps, CardVariant } from "./card";
 
+export { Badge } from "./badge";
+export type { BadgeProps, BadgeVariant } from "./badge";
+
+export { Pagination } from "./pagination";
+export type { PaginationProps } from "./pagination";
+
 export { Pill } from "./pill";
 export type { PillProps, PillTone } from "./pill";
 

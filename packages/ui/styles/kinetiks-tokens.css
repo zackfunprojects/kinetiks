@@ -460,6 +460,65 @@ body {
 }
 
 /* ============================================================
+   BADGE — small mono status label (C3a; shared primitive)
+   ============================================================ */
+
+.kt-badge {
+  display: inline-block;
+  padding: 2px var(--kt-s-2);
+  border-radius: var(--kt-radius-1);
+  font-family: var(--kt-font-mono);
+  font-size: var(--kt-fs-11);
+  font-weight: var(--kt-fw-med);
+  line-height: 1.6;
+  letter-spacing: 0.02em;
+  background: var(--kt-bg-muted);
+  color: var(--kt-fg-2);
+  border-left: 2px solid var(--kt-border-1);
+}
+.kt-badge--success {
+  background: var(--kt-success-soft);
+  color: var(--kt-success);
+  border-left-color: var(--kt-success);
+}
+.kt-badge--warning {
+  background: var(--kt-warning-soft);
+  color: var(--kt-warning);
+  border-left-color: var(--kt-warning);
+}
+.kt-badge--error {
+  background: var(--kt-danger-soft);
+  color: var(--kt-danger);
+  border-left-color: var(--kt-danger);
+}
+.kt-badge--accent {
+  background: var(--kt-accent-soft);
+  color: var(--kt-accent);
+  border-left-color: var(--kt-accent);
+}
+
+/* ============================================================
+   STREAMING CURSOR — design spec §6.4: a 2px blinking ink
+   cursor at end-of-text while the system writes. The reduced-
+   motion override below freezes the animation globally.
+   ============================================================ */
+
+@keyframes kt-cursor-blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+
+.kt-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  background-color: var(--kt-fg-1);
+  animation: kt-cursor-blink 1s step-end infinite;
+}
+
+/* ============================================================
    FOCUS RING — applied to all interactive elements
    ============================================================ */
 

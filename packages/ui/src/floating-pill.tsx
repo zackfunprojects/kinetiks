@@ -98,27 +98,27 @@ export function FloatingPill({
           display: "flex",
           alignItems: "center",
           gap: 8,
-          background: "var(--bg-surface, #161b22)",
-          color: "var(--text-primary, #e6edf3)",
-          border: hovered ? "1px solid var(--accent, #e6edf3)" : "1px solid var(--border-default, #30363d)",
+          background: "var(--bg-surface, var(--kt-bg-elevated))",
+          color: "var(--text-primary, var(--kt-fg-1))",
+          border: hovered ? "1px solid var(--accent, var(--kt-fg-1))" : "1px solid var(--border-default, var(--kt-border-2))",
           borderRadius: 8,
           padding: "8px 16px",
           cursor: "pointer",
           fontSize: 13,
           fontWeight: 500,
-          boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
+          boxShadow: "var(--kt-shadow-md)",
           transition: "border-color 0.15s, transform 0.15s",
           transform: hovered ? "scale(1.03)" : "scale(1)",
           position: "relative",
         }}
       >
-        <span style={{ fontWeight: 700, fontFamily: "var(--font-mono, monospace), monospace", color: "var(--logo-accent, #3fb950)", letterSpacing: -0.3 }}>K</span>
+        <span style={{ fontWeight: 700, fontFamily: "var(--font-mono, monospace), monospace", color: "var(--logo-accent, var(--kt-success))", letterSpacing: -0.3 }}>K</span>
         <span style={{ fontFamily: "var(--font-mono, monospace), monospace" }}>{codename}</span>
         <span
           style={{
             padding: "1px 6px",
-            background: "var(--accent-muted, rgba(230,237,243,0.1))",
-            color: "var(--accent, #e6edf3)",
+            background: "var(--kt-accent-soft)",
+            color: "var(--accent, var(--kt-fg-1))",
             borderRadius: 4,
             fontSize: 11,
             fontFamily: "var(--font-mono, monospace), monospace",
@@ -137,8 +137,8 @@ export function FloatingPill({
               width: 10,
               height: 10,
               borderRadius: "50%",
-              background: "var(--error, #f85149)",
-              border: "2px solid var(--bg-surface, #161b22)",
+              background: "var(--error, var(--kt-danger))",
+              border: "2px solid var(--bg-surface, var(--kt-bg-elevated))",
             }}
           />
         )}
