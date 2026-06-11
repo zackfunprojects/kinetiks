@@ -4374,6 +4374,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "kinetiks_thread_memory_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "kinetiks_accounts"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "kinetiks_thread_memory_superseded_by_fkey"
             columns: ["superseded_by"]
             isOneToOne: false
@@ -4680,6 +4687,7 @@ export type Database = {
         Args: {
           p_account_id: string
           p_granted_by: string
+          p_invocation_id: string
           p_proposals: Json
           p_proposed_by_agent: string
         }
@@ -4689,6 +4697,7 @@ export type Database = {
           grant_id: string
         }[]
       }
+      custom_access_token_hook: { Args: { event: Json }; Returns: Json }
       hv_check_suppression: {
         Args: { p_email?: string; p_kinetiks_id: string; p_phone?: string }
         Returns: boolean
@@ -4703,6 +4712,10 @@ export type Database = {
           p_window_start: string
           p_window_type: string
         }
+        Returns: number
+      }
+      kinetiks_erase_account_ledger: {
+        Args: { p_account_id: string }
         Returns: number
       }
       propose_authority_grants: {

@@ -29,6 +29,11 @@ const nextConfig = {
     return [
       { source: "/home", destination: "/chat", permanent: true },
       { source: "/marcus", destination: "/chat", permanent: true },
+      // C2 — billing, API keys, and brief schedules live in the
+      // Settings modal (avatar menu); the chat shell is the landing.
+      { source: "/marcus/schedules", destination: "/chat", permanent: true },
+      { source: "/billing", destination: "/chat", permanent: true },
+      { source: "/settings", destination: "/chat", permanent: true },
       { source: "/context", destination: "/cortex/identity", permanent: true },
       { source: "/context/:layer", destination: "/cortex/identity/:layer", permanent: true },
       { source: "/ledger", destination: "/cortex/ledger", permanent: true },
