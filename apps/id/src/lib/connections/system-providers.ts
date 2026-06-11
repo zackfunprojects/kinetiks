@@ -78,6 +78,10 @@ const SYSTEM_PROVIDERS: Readonly<
       "channels:history",
       "channels:read",
       "chat:write",
+      // Lets the D2 dispatcher post under the customer's chosen
+      // system name (username/icon overrides on chat.postMessage) —
+      // the per-account bot identity the comms spec §3.1 describes.
+      "chat:write.customize",
       "groups:history",
       "groups:read",
       "im:history",
