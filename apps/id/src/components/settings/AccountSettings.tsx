@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@kinetiks/ui";
 import type { AppAccount } from "@/components/app-shell/AppShell";
 
@@ -23,6 +23,12 @@ export function AccountSettings({ account, userEmail }: AccountSettingsProps) {
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (copyTimer.current) clearTimeout(copyTimer.current);
+    };
+  }, []);
 
   async function handleSaveName() {
     setSaving(true);
