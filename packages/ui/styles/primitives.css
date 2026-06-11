@@ -369,22 +369,6 @@
 .kt-avatar img { width: 100%; height: 100%; object-fit: cover; }
 
 /* ============================================================
-   CARD — design spec §6.3. The atomic container.
-   ============================================================ */
-
-.kt-card {
-  background: var(--kt-bg-elevated);
-  border: 1px solid var(--kt-border-1);
-  border-radius: var(--kt-radius-2);
-  padding: 20px;
-  box-shadow: none;
-}
-:root[data-theme="dark"] .kt-card { background: var(--kt-bg-subtle); }
-.kt-card--muted { background: var(--kt-bg-muted); }
-.kt-card--accent { border-color: var(--kt-accent); }
-.kt-card--bare { background: transparent; border: none; padding: 0; border-radius: 0; }
-
-/* ============================================================
    BADGE — small mono status label. Status always pairs color
    with the label text (WCAG; no color-only status).
    ============================================================ */
@@ -425,5 +409,5 @@
   margin-left: 2px;
   vertical-align: text-bottom;
   background-color: var(--kt-fg-1);
-  animation: kt-cursor-blink 1s step-end infinite;
+  animation: kt-cursor-blink var(--kt-dur-cursor) step-end infinite;
 }
