@@ -5,6 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { captureException } from "@/lib/observability/sentry";
 import {
   aggregateActivity,
+  type ActivityAlertRow,
   type ActivityLedgerRow,
   type ActivityOracleRunRow,
   type ActivityToolCallRow,
@@ -33,10 +34,20 @@ const ToolCallRowSchema: z.ZodType<ActivityToolCallRow> = z.object({
   tool_name: z.string(),
 });
 
+const AlertRowSchema: z.ZodType<ActivityAlertRow> = z.object({
+  id: z.string(),
+  title: z.string(),
+  body: z.string(),
+  severity: z.string(),
+  read: z.boolean(),
+  created_at: z.string(),
+});
+
 /** Bounded reads: a summary, not a ledger browser (that is Cortex > Ledger). */
 const LEDGER_ROW_CAP = 1000;
 const TOOL_CALL_ROW_CAP = 200;
 const ORACLE_RUN_ROW_CAP = 50;
+const ALERT_ROW_CAP = 8;
 
 /**
  * B4 — read-only agent-activity summary for the chat rail. Narrates the
@@ -54,10 +65,11 @@ export async function loadAgentActivitySummary(
 ): Promise<AgentActivitySummary> {
   const since = new Date(Date.now() - windowHours * 3600 * 1000).toISOString();
 
-  const [oracleRuns, ledgerEvents, toolCalls] = await Promise.all([
+  const [oracleRuns, ledgerEvents, toolCalls, alerts] = await Promise.all([
     loadOracleRuns(admin, accountId, since),
     loadLedgerEvents(admin, accountId, since),
     loadMarcusToolCalls(admin, accountId, since),
+    loadAlerts(admin, accountId),
   ]);
 
   return aggregateActivity({
@@ -65,7 +77,42 @@ export async function loadAgentActivitySummary(
     oracleRuns,
     ledgerEvents,
     toolCalls,
+    alerts,
   });
+}
+
+/**
+ * D4 — the in-app channel. Deliberately NOT window-bounded: an unread
+ * brief from three days ago is still undelivered communication; it
+ * stays visible until read.
+ */
+async function loadAlerts(
+  admin: SupabaseClient,
+  accountId: string,
+): Promise<ActivityAlertRow[]> {
+  try {
+    const { data, error } = await admin
+      .from("kinetiks_marcus_alerts")
+      .select("id, title, body, severity, read, created_at")
+      .eq("account_id", accountId)
+      .order("read", { ascending: true })
+      .order("created_at", { ascending: false })
+      .limit(ALERT_ROW_CAP);
+    if (error) throw new Error(error.message);
+    return AlertRowSchema.array().parse(data ?? []);
+  } catch (err) {
+    await captureException(err, {
+      tags: {
+        route: "/api/activity/summary",
+        action: "activity.load",
+        stage: "alerts",
+        app: "id",
+      },
+      user: { id: accountId },
+      extra: {},
+    });
+    return [];
+  }
 }
 
 async function loadOracleRuns(

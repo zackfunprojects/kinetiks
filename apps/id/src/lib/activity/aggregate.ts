@@ -19,6 +19,16 @@ export interface ActivityToolCallRow {
   tool_name: string;
 }
 
+/** D4 — an in-app alert row as the Activity panel renders it. */
+export interface ActivityAlertRow {
+  id: string;
+  title: string;
+  body: string;
+  severity: string;
+  read: boolean;
+  created_at: string;
+}
+
 export interface AgentActivitySummary {
   window_hours: number;
   oracle: {
@@ -40,6 +50,11 @@ export interface AgentActivitySummary {
   };
   authority: {
     actions_under_grants: number;
+  };
+  /** D4 — the in-app delivery channel (briefs, urgent alerts). */
+  alerts: {
+    unread_count: number;
+    latest: ActivityAlertRow[];
   };
 }
 
@@ -79,12 +94,13 @@ export interface AggregateActivityInput {
   oracleRuns: ActivityOracleRunRow[];
   ledgerEvents: ActivityLedgerRow[];
   toolCalls: ActivityToolCallRow[];
+  alerts: ActivityAlertRow[];
 }
 
 export function aggregateActivity(
   input: AggregateActivityInput,
 ): AgentActivitySummary {
-  const { windowHours, oracleRuns, ledgerEvents, toolCalls } = input;
+  const { windowHours, oracleRuns, ledgerEvents, toolCalls, alerts } = input;
 
   const completedRuns = oracleRuns.filter((r) => r.status !== "running");
   const sources = new Set<string>();
@@ -134,6 +150,10 @@ export function aggregateActivity(
     authority: {
       actions_under_grants: authorityActions,
     },
+    alerts: {
+      unread_count: alerts.filter((a) => !a.read).length,
+      latest: alerts,
+    },
   };
 }
 
@@ -148,6 +168,7 @@ export function isActivityEmpty(summary: AgentActivitySummary): boolean {
     summary.archivist.maintenance_events === 0 &&
     summary.conversation.turns === 0 &&
     summary.conversation.tool_calls === 0 &&
-    summary.authority.actions_under_grants === 0
+    summary.authority.actions_under_grants === 0 &&
+    summary.alerts.latest.length === 0
   );
 }
