@@ -3066,6 +3066,41 @@ export type Database = {
           },
         ]
       }
+      kinetiks_inbound_events: {
+        Row: {
+          account_id: string
+          created_at: string
+          event_key: string
+          event_type: string
+          id: string
+          source: string
+        }
+        Insert: {
+          account_id: string
+          created_at?: string
+          event_key: string
+          event_type: string
+          id?: string
+          source: string
+        }
+        Update: {
+          account_id?: string
+          created_at?: string
+          event_key?: string
+          event_type?: string
+          id?: string
+          source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kinetiks_inbound_events_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "kinetiks_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       kinetiks_insights: {
         Row: {
           account_id: string
@@ -4104,41 +4139,6 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "kinetiks_sentinel_reviews_account_id_fkey"
-            columns: ["account_id"]
-            isOneToOne: false
-            referencedRelation: "kinetiks_accounts"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      kinetiks_inbound_events: {
-        Row: {
-          account_id: string
-          created_at: string
-          event_key: string
-          event_type: string
-          id: string
-          source: string
-        }
-        Insert: {
-          account_id: string
-          created_at?: string
-          event_key: string
-          event_type: string
-          id?: string
-          source: string
-        }
-        Update: {
-          account_id?: string
-          created_at?: string
-          event_key?: string
-          event_type?: string
-          id?: string
-          source?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "kinetiks_inbound_events_account_id_fkey"
             columns: ["account_id"]
             isOneToOne: false
             referencedRelation: "kinetiks_accounts"

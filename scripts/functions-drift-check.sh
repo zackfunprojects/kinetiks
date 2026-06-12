@@ -46,7 +46,12 @@ done
 # Schedule drift: every repo function should have an entry in the
 # latest cron-schedule migration. A function that exists, is deployed,
 # but is unscheduled is the second flavor of the D1 bug shape.
-schedule_migration="$(ls -1 supabase/migrations/*_edge_function_schedules.sql 2>/dev/null | tail -n1)"
+# The source of truth is the newest migration that CALLS
+# _kt_schedule_edge_function (content-based, not filename-based):
+# follow-up schedule migrations are legal under any descriptive name
+# (e.g. 00078_comms_inbound_schedules.sql), and an applied migration
+# cannot be renamed without desyncing supabase migration history.
+schedule_migration="$(grep -l "_kt_schedule_edge_function('" supabase/migrations/*.sql 2>/dev/null | sort | tail -n1)"
 missing_schedule=()
 if [ -n "$schedule_migration" ]; then
   for fn in "${repo_sorted[@]}"; do
