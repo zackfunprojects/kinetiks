@@ -1,64 +1,76 @@
+/**
+ * POST /api/billing/portal — Stripe Customer Portal session.
+ *
+ * The portal owns everything post-acquisition: plan changes,
+ * cancellation, payment-method updates, invoices. E1 moved this route
+ * onto the shared Stripe client (lib/billing/stripe.ts) and the
+ * canonical observability shape; behavior is unchanged for callers.
+ */
+
 import { requireAuth } from "@/lib/auth/require-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { apiSuccess, apiError } from "@/lib/utils/api-response";
+import { captureException } from "@/lib/observability/sentry";
+import { serverEnv } from "@kinetiks/lib/env";
+import { createPortalSession, stripeConfigured } from "@/lib/billing/stripe";
+
+const GENERIC_PORTAL_ERROR = "We couldn't open the billing portal. Try again.";
+const PORTAL_NOT_CONFIGURED =
+  "Subscriptions aren't available on this deployment yet.";
+const NO_CUSTOMER =
+  "No billing profile yet. Choose a plan first to set one up.";
 
 export async function POST(request: Request) {
   const { auth, error } = await requireAuth(request, { permissions: "admin" });
   if (error) return error;
 
+  if (!stripeConfigured()) {
+    return apiError(PORTAL_NOT_CONFIGURED, 503);
+  }
+
   const admin = createAdminClient();
 
-  const { data: billing } = await admin
+  const { data: billing, error: billingError } = await admin
     .from("kinetiks_billing")
     .select("stripe_customer_id")
     .eq("account_id", auth.account_id)
-    .single();
+    .maybeSingle();
+  if (billingError) {
+    await captureException(new Error(billingError.message), {
+      tags: {
+        route: "/api/billing/portal",
+        action: "billing.portal",
+        stage: "select",
+        app: "id",
+      },
+      user: { id: auth.account_id },
+      extra: {},
+    });
+    return apiError(GENERIC_PORTAL_ERROR, 500);
+  }
 
   if (!billing?.stripe_customer_id) {
-    return apiError("No Stripe customer found. Please contact support.", 400);
+    return apiError(NO_CUSTOMER, 400);
   }
 
-  const stripeKey = process.env.STRIPE_SECRET_KEY;
-  if (!stripeKey) {
-    return apiError("Stripe not configured", 500);
-  }
-
-  // Create Stripe Customer Portal session via API
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 5000);
-
-  let response: Response;
   try {
-    response = await fetch(
-      "https://api.stripe.com/v1/billing_portal/sessions",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${stripeKey}`,
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
-        body: new URLSearchParams({
-          customer: billing.stripe_customer_id,
-          return_url: `${process.env.NEXT_PUBLIC_APP_URL || "https://id.kinetiks.ai"}/billing`,
-        }).toString(),
-        signal: controller.signal,
-      }
-    );
+    const appUrl = serverEnv().NEXT_PUBLIC_APP_URL ?? "https://kinetiks.ai";
+    const session = await createPortalSession({
+      customerId: billing.stripe_customer_id,
+      returnUrl: `${appUrl}/chat`,
+    });
+    return apiSuccess({ url: session.url });
   } catch (err) {
-    const isAbort = err instanceof DOMException && err.name === "AbortError";
-    console.error(
-      "Stripe portal request failed:",
-      isAbort ? "timed out after 5s" : err
-    );
-    return apiError(isAbort ? "Stripe request timed out" : "Failed to reach Stripe", 502);
-  } finally {
-    clearTimeout(timeout);
+    await captureException(err instanceof Error ? err : new Error(String(err)), {
+      tags: {
+        route: "/api/billing/portal",
+        action: "billing.portal",
+        stage: "create_session",
+        app: "id",
+      },
+      user: { id: auth.account_id },
+      extra: {},
+    });
+    return apiError(GENERIC_PORTAL_ERROR, 502);
   }
-
-  if (!response.ok) {
-    return apiError("Failed to create portal session", 500);
-  }
-
-  const session = await response.json();
-  return apiSuccess({ url: session.url });
 }
