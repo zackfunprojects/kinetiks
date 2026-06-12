@@ -4,41 +4,119 @@ import { useState } from "react";
 import type { BillingRecord, BillingPlan } from "@kinetiks/types";
 import { Card, Badge } from "@kinetiks/ui";
 import { PLAN_DETAILS } from "@/lib/billing/plans";
+import { capture } from "@/lib/observability/posthog";
+
+/** Deployment Stripe configuration, from GET /api/billing (E1). */
+export interface BillingConfig {
+  /** API key present — the portal can open for an existing customer. */
+  portal: boolean;
+  /** Which paid plans have a configured Stripe Price. */
+  purchasable: Record<"starter" | "pro" | "team", boolean>;
+}
 
 interface BillingPageProps {
   billing: BillingRecord | null;
+  /** Null when the loader predates E1 (treated as unconfigured). */
+  config?: BillingConfig | null;
   /** C2 — the SettingsModal section supplies its own heading. */
   hideHeader?: boolean;
 }
 
 const PLANS: BillingPlan[] = ["free", "starter", "pro", "team"];
 
-export function BillingPage({ billing, hideHeader }: BillingPageProps) {
-  const [loadingPortal, setLoadingPortal] = useState(false);
-  const [portalError, setPortalError] = useState<string | null>(null);
+export function BillingPage({ billing, config, hideHeader }: BillingPageProps) {
+  const [busy, setBusy] = useState<"portal" | BillingPlan | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const currentPlan = billing?.plan || "free";
   const planInfo = PLAN_DETAILS[currentPlan];
+  // A live subscription means plan changes (and cancellation) belong
+  // to the Stripe portal; Checkout only sells the first subscription.
+  const hasLiveSubscription = Boolean(
+    billing?.stripe_subscription_id && billing.plan_status !== "canceled",
+  );
+  const anyPurchasable = Boolean(
+    config && (config.purchasable.starter || config.purchasable.pro || config.purchasable.team),
+  );
+  const checkoutAvailable = anyPurchasable;
+  const portalAvailable = Boolean(config?.portal && billing?.stripe_customer_id);
 
   async function openPortal() {
-    if (!billing?.stripe_customer_id) return;
-    setLoadingPortal(true);
-    setPortalError(null);
+    if (!portalAvailable || busy) return;
+    setBusy("portal");
+    setActionError(null);
+    void capture("billing.portal_opened", { plan: currentPlan });
     try {
       const res = await fetch("/api/billing/portal", { method: "POST" });
       const body = await res.json().catch(() => null);
       if (!res.ok) {
         throw new Error(body?.error || `Request failed (${res.status})`);
       }
-      if (!body?.url) {
-        throw new Error("No portal URL returned");
-      }
-      window.location.href = body.url;
+      const url = body?.data?.url ?? body?.url;
+      if (!url) throw new Error("No portal URL returned");
+      window.location.href = url;
     } catch (e) {
-      setPortalError(e instanceof Error ? e.message : "Failed to open billing portal");
-    } finally {
-      setLoadingPortal(false);
+      setActionError(e instanceof Error ? e.message : "Failed to open billing portal");
+      setBusy(null);
     }
+  }
+
+  async function startCheckout(plan: BillingPlan) {
+    if (plan === "free" || busy) return;
+    setBusy(plan);
+    setActionError(null);
+    void capture("billing.checkout_started", { plan });
+    try {
+      const res = await fetch("/api/billing/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan }),
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(body?.error || `Request failed (${res.status})`);
+      }
+      const url = body?.data?.url ?? body?.url;
+      if (!url) throw new Error("No checkout URL returned");
+      window.location.href = url;
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : "Failed to start checkout");
+      setBusy(null);
+    }
+  }
+
+  /**
+   * What the action button on a non-current plan card does:
+   *  - live subscription → every change routes to the portal
+   *  - no subscription + paid plan → Checkout (when that price exists)
+   *  - free card while paying → portal (cancel lives there)
+   */
+  function planAction(plan: BillingPlan): {
+    label: string;
+    onClick: () => void;
+    disabled: boolean;
+    emphasized: boolean;
+  } | null {
+    if (plan === currentPlan) return null;
+    const upgrade = PLANS.indexOf(plan) > PLANS.indexOf(currentPlan);
+    if (hasLiveSubscription) {
+      return {
+        label: upgrade ? "Upgrade" : "Downgrade",
+        onClick: openPortal,
+        disabled: !portalAvailable || busy !== null,
+        emphasized: upgrade,
+      };
+    }
+    if (plan === "free") return null; // already free without a subscription
+    const purchasable = Boolean(
+      config?.purchasable[plan as "starter" | "pro" | "team"],
+    );
+    return {
+      label: purchasable ? "Upgrade" : "Not available",
+      onClick: () => void startCheckout(plan),
+      disabled: !purchasable || busy !== null,
+      emphasized: purchasable,
+    };
   }
 
   return (
@@ -105,18 +183,19 @@ export function BillingPage({ billing, hideHeader }: BillingPageProps) {
               <p style={{ margin: "8px 0 0" }}>
                 <button
                   onClick={openPortal}
-                  disabled={loadingPortal}
+                  disabled={!portalAvailable || busy !== null}
+                  aria-busy={busy === "portal"}
                   style={{
                     padding: 0,
                     border: "none",
                     background: "none",
                     color: "var(--kt-accent)",
                     fontSize: 13,
-                    cursor: "pointer",
+                    cursor: portalAvailable && !busy ? "pointer" : "not-allowed",
                     textDecoration: "underline",
                   }}
                 >
-                  {loadingPortal ? "Loading..." : "Manage in Stripe"}
+                  {busy === "portal" ? "Loading..." : "Manage in Stripe"}
                 </button>
               </p>
             </>
@@ -132,6 +211,12 @@ export function BillingPage({ billing, hideHeader }: BillingPageProps) {
       <h3 style={{ margin: "0 0 16px", fontSize: 16, fontWeight: 600, color: "var(--kt-fg-1)" }}>
         Plans
       </h3>
+      {config && !checkoutAvailable && !hasLiveSubscription && (
+        <p style={{ margin: "0 0 16px", fontSize: 13, color: "var(--kt-fg-3)" }}>
+          Subscriptions aren&apos;t configured for this deployment yet. Plan
+          upgrades will appear here once they are.
+        </p>
+      )}
       <div
         style={{
           display: "grid",
@@ -143,6 +228,7 @@ export function BillingPage({ billing, hideHeader }: BillingPageProps) {
         {PLANS.map((plan) => {
           const details = PLAN_DETAILS[plan];
           const isCurrent = plan === currentPlan;
+          const action = planAction(plan);
           return (
             <Card
               key={plan}
@@ -196,29 +282,37 @@ export function BillingPage({ billing, hideHeader }: BillingPageProps) {
                   </li>
                 ))}
               </ul>
-              {!isCurrent && (
+              {action && (
                 <button
-                  onClick={openPortal}
-                  disabled={loadingPortal || !billing?.stripe_customer_id}
+                  onClick={action.onClick}
+                  disabled={action.disabled}
+                  aria-busy={busy === plan}
                   style={{
                     width: "100%",
                     padding: "8px 0",
-                    background: PLANS.indexOf(plan) > PLANS.indexOf(currentPlan) ? "var(--kt-accent-hover)" : "var(--kt-bg-subtle)",
-                    color: PLANS.indexOf(plan) > PLANS.indexOf(currentPlan) ? "var(--kt-fg-on-inverse)" : "var(--kt-fg-2)",
-                    border: PLANS.indexOf(plan) > PLANS.indexOf(currentPlan) ? "none" : "1px solid var(--kt-border-1)",
+                    background: action.emphasized ? "var(--kt-accent-hover)" : "var(--kt-bg-subtle)",
+                    color: action.emphasized ? "var(--kt-fg-on-inverse)" : "var(--kt-fg-2)",
+                    border: action.emphasized ? "none" : "1px solid var(--kt-border-1)",
                     borderRadius: 8,
                     fontSize: 13,
                     fontWeight: 600,
-                    cursor: "pointer",
+                    cursor: action.disabled ? "not-allowed" : "pointer",
+                    opacity: action.disabled && action.label !== "Not available" ? 0.7 : 1,
                   }}
                 >
-                  {PLANS.indexOf(plan) > PLANS.indexOf(currentPlan) ? "Upgrade" : "Downgrade"}
+                  {busy === plan ? "Redirecting..." : action.label}
                 </button>
               )}
             </Card>
           );
         })}
       </div>
+
+      {actionError && (
+        <p role="alert" style={{ margin: "0 0 24px", fontSize: 13, color: "var(--kt-danger)" }}>
+          {actionError}
+        </p>
+      )}
 
       {/* Manage subscription */}
       {billing?.stripe_customer_id && (
@@ -229,12 +323,13 @@ export function BillingPage({ billing, hideHeader }: BillingPageProps) {
                 Manage Subscription
               </h4>
               <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--kt-fg-2)" }}>
-                View invoices, update payment method, or cancel your plan
+                View invoices, update payment method, change or cancel your plan
               </p>
             </div>
             <button
               onClick={openPortal}
-              disabled={loadingPortal}
+              disabled={!portalAvailable || busy !== null}
+              aria-busy={busy === "portal"}
               style={{
                 padding: "8px 20px",
                 background: "var(--kt-accent-hover)",
@@ -243,17 +338,12 @@ export function BillingPage({ billing, hideHeader }: BillingPageProps) {
                 borderRadius: 8,
                 fontSize: 14,
                 fontWeight: 500,
-                cursor: loadingPortal ? "not-allowed" : "pointer",
+                cursor: portalAvailable && busy === null ? "pointer" : "not-allowed",
               }}
             >
-              {loadingPortal ? "Loading..." : "Open Stripe Portal"}
+              {busy === "portal" ? "Loading..." : "Open Stripe Portal"}
             </button>
           </div>
-          {portalError && (
-            <p role="alert" style={{ margin: "12px 0 0", fontSize: 13, color: "var(--kt-danger)" }}>
-              {portalError}
-            </p>
-          )}
         </Card>
       )}
     </div>
