@@ -12,6 +12,7 @@ import {
 } from "@kinetiks/tools";
 import {
   configureAuthorityResolver,
+  configureDailySpendCounter,
   configurePerActionApprovalHandler,
   startAgentRun,
 } from "../index";
@@ -33,6 +34,7 @@ afterEach(() => {
   configureToolCallLogger(null);
   configureAuthorityResolver(null);
   configurePerActionApprovalHandler(null);
+  configureDailySpendCounter(null);
 });
 
 function registerSendEmailClass(): void {
@@ -295,5 +297,139 @@ describe("startAgentRun validation", () => {
       // @ts-expect-error testing runtime validation
       startAgentRun({ accountId: "acc_1" }),
     ).toThrow(/invokedByAgent/);
+  });
+});
+
+
+// ─────────────────────────────────────────────
+// E2 — spend reservation release on terminal failure
+// ─────────────────────────────────────────────
+
+describe("AgentRun spend reservation release", () => {
+  const RESERVATION = {
+    counter_key: "authority_spend:g_1",
+    day_utc: "2026-06-12",
+    amount: 25,
+    currency: "USD",
+  };
+
+  function spendCoveredResolver() {
+    configureAuthorityResolver(async () => ({
+      outcome: "grant_covers" as const,
+      grantId: "g_1",
+      spendReservation: { ...RESERVATION },
+    }));
+  }
+
+  it("releases the reservation when execution fails terminally", async () => {
+    registerSendEmailClass();
+    const failing = defineTool({
+      name: "noop_fail_spend",
+      description: "Always fails permanently",
+      inputSchema: z.object({ spend_amount: z.number() }),
+      outputSchema: z.object({}),
+      isConsequential: true,
+      actionClass: "noop.send_email",
+      autoApproveThreshold: null,
+      availability: { kind: "always" },
+      idempotencyKeyFrom: (input: { spend_amount: number }) => String(input.spend_amount),
+      execute: async () => {
+        throw new ToolError("invalid_input", "permanent failure");
+      },
+    });
+    registerTool(failing);
+    spendCoveredResolver();
+
+    const releases: Array<Record<string, unknown>> = [];
+    configureDailySpendCounter({
+      async reserve() {
+        throw new Error("resolver is mocked; reserve must not be called");
+      },
+      async release(args) {
+        releases.push({ ...args });
+      },
+    });
+
+    const run = startAgentRun({ accountId: "acc_1", invokedByAgent: "test" });
+    await expect(
+      run.invokeTool(failing, { spend_amount: 25 }),
+    ).rejects.toMatchObject({ errorClass: "invalid_input" });
+
+    expect(releases).toHaveLength(1);
+    expect(releases[0]).toEqual({
+      account_id: "acc_1",
+      counter_key: RESERVATION.counter_key,
+      day_utc: RESERVATION.day_utc,
+      amount: RESERVATION.amount,
+    });
+  });
+
+  it("keeps the reservation when execution succeeds", async () => {
+    registerSendEmailClass();
+    const succeeding = defineTool({
+      name: "noop_ok_spend",
+      description: "Succeeds for the spend reservation test",
+      inputSchema: z.object({ spend_amount: z.number() }),
+      outputSchema: z.object({ ok: z.boolean() }),
+      isConsequential: true,
+      actionClass: "noop.send_email",
+      autoApproveThreshold: null,
+      availability: { kind: "always" },
+      idempotencyKeyFrom: (input: { spend_amount: number }) => String(input.spend_amount),
+      execute: async () => ({ ok: true }),
+    });
+    registerTool(succeeding);
+    spendCoveredResolver();
+
+    const releases: unknown[] = [];
+    configureDailySpendCounter({
+      async reserve() {
+        throw new Error("resolver is mocked; reserve must not be called");
+      },
+      async release(args) {
+        releases.push(args);
+      },
+    });
+
+    const run = startAgentRun({ accountId: "acc_1", invokedByAgent: "test" });
+    await expect(
+      run.invokeTool(succeeding, { spend_amount: 25 }),
+    ).resolves.toEqual({ ok: true });
+    expect(releases).toHaveLength(0);
+  });
+
+  it("a failed release never masks the original tool error", async () => {
+    registerSendEmailClass();
+    const failing = defineTool({
+      name: "noop_fail_spend_2",
+      description: "Always fails permanently",
+      inputSchema: z.object({ spend_amount: z.number() }),
+      outputSchema: z.object({}),
+      isConsequential: true,
+      actionClass: "noop.send_email",
+      autoApproveThreshold: null,
+      availability: { kind: "always" },
+      idempotencyKeyFrom: (input: { spend_amount: number }) => String(input.spend_amount),
+      execute: async () => {
+        throw new ToolError("invalid_input", "the real failure");
+      },
+    });
+    registerTool(failing);
+    spendCoveredResolver();
+    configureDailySpendCounter({
+      async reserve() {
+        return { reserved: true, total_after: 25 };
+      },
+      async release() {
+        throw new Error("release outage");
+      },
+    });
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const run = startAgentRun({ accountId: "acc_1", invokedByAgent: "test" });
+    await expect(
+      run.invokeTool(failing, { spend_amount: 25 }),
+    ).rejects.toMatchObject({ message: "the real failure" });
+    expect(errorSpy).toHaveBeenCalled();
+    errorSpy.mockRestore();
   });
 });
