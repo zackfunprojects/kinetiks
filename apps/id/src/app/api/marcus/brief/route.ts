@@ -12,6 +12,7 @@ import {
 import { briefContentTemplate } from "@/lib/email/templates";
 import { resolveOwnerEmail, sendSystemEmail } from "@/lib/email/sender";
 import { createInAppAlert, deliverSlackDm } from "@/lib/comms/proactive-delivery";
+import { buildAuthorityActivitySummary } from "@/lib/cortex/authority/digest";
 import { captureException } from "@/lib/observability/sentry";
 import type { MarcusScheduleType } from "@kinetiks/types";
 import { apiSuccess, apiError } from "@/lib/utils/api-response";
@@ -342,6 +343,19 @@ async function getRecentActivity(
 
   if (confidence) {
     parts.push(`Current confidence: ${confidence.aggregate}%`);
+  }
+
+  // E3 — the periodic authority digest (addendum §2.9/§2.10): what ran
+  // under the customer's permissions this period, escalations, spend,
+  // and the judgment-budget pressure callout. Null when the account
+  // has no authority surface; a failed read degrades to absent.
+  const authorityBlock = await buildAuthorityActivitySummary(
+    admin as never,
+    accountId,
+    since,
+  );
+  if (authorityBlock) {
+    parts.push(authorityBlock);
   }
 
   return parts.length > 0

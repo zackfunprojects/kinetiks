@@ -34,6 +34,9 @@ vi.mock("@/lib/email/sender", () => ({
   sendSystemEmail: sendSystemEmailMock,
   resolveOwnerEmail: resolveOwnerEmailMock,
 }));
+vi.mock("@/lib/cortex/authority/digest", () => ({
+  buildAuthorityActivitySummary: vi.fn(async () => null),
+}));
 vi.mock("@/lib/comms/proactive-delivery", () => ({
   deliverSlackDm: deliverSlackDmMock,
   createInAppAlert: createInAppAlertMock,

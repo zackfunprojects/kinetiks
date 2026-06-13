@@ -8,7 +8,7 @@
  * `/api/internal/workflows/archivist-maintenance/run`, which runs
  * this workflow against the batch.
  *
- * Four steps, all `target_type: "internal_operator"` against the
+ * Five steps, all `target_type: "internal_operator"` against the
  * Archivist operator. Each step's input is derived from the
  * dispatch-context metadata (`account_ids`); the operator's executor
  * branches on `step`. Calibration is hour-gated inside the executor
@@ -39,7 +39,7 @@ function readAccountIds(metadata: Readonly<Record<string, unknown>> | undefined)
 export const archivistMaintenance: WorkflowDefinition = {
   key: "kinetiks_id.archivist_maintenance",
   description:
-    "Six-hour Cortex / Pattern Library maintenance run. Steps: clean Cortex layers → Pattern Library time-decay sweep → deferred-emission close → empirical decay calibration (00:00 UTC tick only).",
+    "Six-hour Cortex / Pattern Library maintenance run. Steps: clean Cortex layers → Pattern Library time-decay sweep → deferred-emission close → empirical decay calibration (00:00 UTC tick only) → authority usage_summary rollup.",
   tasks: [
     {
       key: "clean",
@@ -96,6 +96,20 @@ export const archivistMaintenance: WorkflowDefinition = {
         step: "calibrate",
         account_ids: readAccountIds(ctx.metadata),
         only_at_utc_hour: 0,
+      }),
+    },
+    {
+      key: "usage_rollup",
+      label: "Authority grant usage_summary rollup (action counts, spend, escalations)",
+      target_type: "internal_operator",
+      target_app: KINETIKS_ID_APP_KEY,
+      target_capability: "archivist",
+      input: (
+        _upstream: Record<string, unknown>,
+        ctx: WorkflowDispatchContext,
+      ): ArchivistInput => ({
+        step: "usage_rollup",
+        account_ids: readAccountIds(ctx.metadata),
       }),
     },
   ],

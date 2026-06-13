@@ -14,12 +14,12 @@
  *     computed_at: string
  *   }
  *
- * The rollup runs nightly (intended cadence). Phase 4 ships the
- * function; wiring into the Archivist maintenance workflow lands
- * alongside the Chunk 8 UI or earlier as a follow-up task. Until
- * wired, the resolver's pacing trigger reads the live counter for
- * sub-day windows and the (initially empty) usage_summary for daily+
- * windows — accurate, just less efficient than steady-state.
+ * E3 wired the rollup into the Archivist maintenance workflow as the
+ * `usage_rollup` step (every 6h batch run, scoped to the batch's
+ * account_ids), and `total_spend_under_grant` became real: it sums
+ * `detail.spend_amount` from authority_action_taken entries (written
+ * by the runtime since E2 for spend-bearing actions under a daily
+ * envelope reservation).
  *
  * Server-side only.
  */
@@ -42,6 +42,14 @@ export interface RollupResult {
   errors: number;
 }
 
+export interface RollupOptions {
+  /**
+   * Scope the rollup to these accounts (the Archivist batch). Omitted
+   * = all accounts (manual/ops invocation).
+   */
+  account_ids?: string[];
+}
+
 /**
  * Roll up Ledger events into each non-terminal grant's `usage_summary`.
  *
@@ -54,16 +62,20 @@ export interface RollupResult {
  * O(N) over non-terminal grants per nightly run; the index
  * `idx_ledger_grant_event_created` makes the per-grant scan efficient.
  */
-export async function rollUpUsageSummaries(): Promise<RollupResult> {
+export async function rollUpUsageSummaries(
+  options: RollupOptions = {},
+): Promise<RollupResult> {
   const admin = createAdminClient();
 
-  const { data: grants, error: grantsErr } = await (
-    admin as unknown as SupabaseClient
-  )
+  let grantsQuery = (admin as unknown as SupabaseClient)
     .from("kinetiks_authority_grants")
     .select("id, granted_at")
     .in("status", ["proposed", "active", "paused"])
     .not("granted_at", "is", null);
+  if (options.account_ids && options.account_ids.length > 0) {
+    grantsQuery = grantsQuery.in("account_id", options.account_ids);
+  }
+  const { data: grants, error: grantsErr } = await grantsQuery;
 
   if (grantsErr) {
     throw new Error(`[authority/usage-rollup] grants fetch: ${grantsErr.message}`);
@@ -95,6 +107,7 @@ export async function rollUpUsageSummaries(): Promise<RollupResult> {
       const rows = (events ?? []) as RollupRow[];
       const action_counts: Record<string, number> = {};
       let escalations_triggered = 0;
+      let total_spend_under_grant = 0;
       for (const e of rows) {
         if (e.event_type === "authority_action_taken") {
           const cls =
@@ -102,6 +115,12 @@ export async function rollUpUsageSummaries(): Promise<RollupResult> {
               ? e.detail.action_class
               : "unknown";
           action_counts[cls] = (action_counts[cls] ?? 0) + 1;
+          // E2 records spend_amount on spend-bearing actions; entries
+          // that predate it (or non-spend actions) simply contribute 0.
+          const spend = e.detail?.spend_amount;
+          if (typeof spend === "number" && Number.isFinite(spend) && spend > 0) {
+            total_spend_under_grant += spend;
+          }
         } else if (e.event_type === "authority_action_escalated") {
           escalations_triggered += 1;
         }
@@ -110,8 +129,7 @@ export async function rollUpUsageSummaries(): Promise<RollupResult> {
 
       const usage_summary: AuthorityUsageSummary = {
         action_counts,
-        // v1: no spend-bearing classes ship to production; always 0.
-        total_spend_under_grant: 0,
+        total_spend_under_grant: Math.round(total_spend_under_grant * 100) / 100,
         escalations_triggered,
         outcome_metrics: {},
         computed_at: new Date().toISOString(),
