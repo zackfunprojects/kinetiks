@@ -605,6 +605,16 @@ export interface LedgerEventDetailMap {
     subject_length: number;
     body_length: number;
   };
+  /**
+   * E3 — an agent caller explicitly requested pattern types its
+   * read_apps allowlist does not permit (lib/cortex/patterns/list.ts).
+   * Registry keys only, never pattern content.
+   */
+  pattern_read_denied: {
+    caller_app: string;
+    denied_pattern_types: string[];
+    denied_count: number;
+  };
 }
 
 /** Canonical revocation reasons recorded on `authority_grant_revoked`. */

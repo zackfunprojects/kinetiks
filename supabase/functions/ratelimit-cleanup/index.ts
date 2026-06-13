@@ -1,10 +1,11 @@
 // Rate Limit Cleanup CRON Edge Function
 //
-// Runs daily. Deletes rate limit rows older than 2 days, and (D3)
-// inbound event claims (Slack/Gmail/calendar dedup) older than 7
-// days - claims only need to outlive each source's retry horizon;
-// 7 days is a comfortable audit margin. Both prevent unbounded
-// table growth.
+// Runs daily. Deletes rate limit rows older than 2 days, (D3)
+// inbound event claims (Slack/Gmail/calendar/Stripe dedup) older
+// than 7 days - claims only need to outlive each source's retry
+// horizon - and (E3) daily counter buckets (spend envelopes, email
+// cap) older than 7 days; a counter only governs its own UTC day,
+// the margin is audit comfort. All prevent unbounded table growth.
 //
 // CRON schedule: once daily ("0 3 * * *")
 
@@ -59,11 +60,32 @@ Deno.serve(async () => {
   }
   console.log(`Inbound event claim cleanup: deleted ${slackCount ?? 0} stale rows`);
 
+  // E3: purge daily counter buckets past their day (spend envelopes,
+  // system-email cap). A bucket is only consulted for its own UTC day;
+  // 7 days keeps a short audit window.
+  const { error: counterError, count: counterCount } = await admin
+    .from("kinetiks_daily_counters")
+    .delete({ count: "exact" })
+    .lt("created_at", sevenDaysAgo.toISOString());
+  if (counterError) {
+    console.error("Daily counter cleanup failed:", counterError.message);
+    return new Response(
+      JSON.stringify({
+        error: counterError.message,
+        rate_limits_deleted: count ?? 0,
+        inbound_event_claims_deleted: slackCount ?? 0,
+      }),
+      { status: 500, headers: { "Content-Type": "application/json" } }
+    );
+  }
+  console.log(`Daily counter cleanup: deleted ${counterCount ?? 0} stale rows`);
+
   return new Response(
     JSON.stringify({
       success: true,
       deleted: count ?? 0,
       inbound_event_claims_deleted: slackCount ?? 0,
+      daily_counters_deleted: counterCount ?? 0,
     }),
     { status: 200, headers: { "Content-Type": "application/json" } }
   );

@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { listGrants } from "@/lib/cortex/authority/list";
 import { AuthorityManager } from "@/components/cortex/authority/AuthorityManager";
+import { AuthorityRealtimeRefresh } from "@/components/cortex/authority/AuthorityRealtimeRefresh";
 import { captureException } from "@/lib/observability/sentry";
 
 export const dynamic = "force-dynamic";
@@ -172,6 +173,7 @@ export default async function AuthorityPage() {
 
   return (
     <Layout systemName={account.system_name as string | null}>
+      <AuthorityRealtimeRefresh accountId={account.id as string} />
       <AuthorityManager
         grants={grantsPage.items}
         recentActivity={recentActivity}

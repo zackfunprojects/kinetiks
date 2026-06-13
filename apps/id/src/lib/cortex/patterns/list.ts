@@ -91,16 +91,32 @@ export async function listPatterns(
 
   // Defense-in-depth: when an agent app asks for specific pattern_types,
   // intersect with read_apps allowance. Types outside the allowance are
-  // silently dropped (the read allowlist is enforced at this layer per
-  // §1.5).
+  // dropped, and (E3) the drop is LEDGERED for agent callers: the
+  // allowlist is a contract boundary, and a denial with no audit trail
+  // is enforcement the customer can never see. Unregistered keys are
+  // typos, not denials; customer_ui visibility filtering is routine
+  // surface scoping. Neither writes an entry.
+  let deniedTypes: string[] = [];
   const requestedTypes = input.pattern_types && input.pattern_types.length > 0
     ? input.pattern_types.filter((t) => {
         const d = getPatternType(t);
         if (!d) return false;
         if (input.caller_app === "customer_ui") return d.customer_visible;
-        return d.read_apps.includes(input.caller_app);
+        if (!d.read_apps.includes(input.caller_app)) {
+          deniedTypes.push(t);
+          return false;
+        }
+        return true;
       })
     : visibleByContext;
+
+  if (deniedTypes.length > 0 && input.caller_app !== "customer_ui") {
+    await recordPatternReadDenial(admin, {
+      account_id: input.account_id,
+      caller_app: input.caller_app,
+      denied_pattern_types: deniedTypes,
+    });
+  }
 
   if (requestedTypes.length === 0) {
     return { patterns: [], total: 0 };
@@ -160,4 +176,46 @@ export async function listPatterns(
   }));
 
   return { patterns: projected, total: typeof count === "number" ? count : projected.length };
+}
+
+
+/**
+ * E3 — append-only audit entry for an allowlist denial. Best-effort:
+ * the read result is identical whether the entry lands or not, so a
+ * Ledger failure degrades to Sentry, never to a failed read.
+ */
+async function recordPatternReadDenial(
+  admin: AdminLike,
+  args: {
+    account_id: string;
+    caller_app: string;
+    denied_pattern_types: string[];
+  },
+): Promise<void> {
+  try {
+    const { error } = await admin.from("kinetiks_ledger").insert({
+      account_id: args.account_id,
+      event_type: "pattern_read_denied",
+      source_app: "kinetiks_id",
+      source_operator: "pattern_read_allowlist",
+      detail: {
+        caller_app: args.caller_app,
+        denied_pattern_types: args.denied_pattern_types.slice(0, 20),
+        denied_count: args.denied_pattern_types.length,
+      },
+    });
+    if (error) throw new Error(error.message);
+  } catch (err) {
+    const { captureException } = await import("@/lib/observability/sentry");
+    await captureException(err instanceof Error ? err : new Error(String(err)), {
+      tags: {
+        route: "lib/cortex/patterns/list",
+        action: "pattern_read_denied",
+        stage: "ledger",
+        app: "id",
+      },
+      user: { id: args.account_id },
+      extra: { callerApp: args.caller_app },
+    });
+  }
 }
