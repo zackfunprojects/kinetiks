@@ -17,8 +17,12 @@
  * here at startup, not at runtime.
  */
 
-import { configureAICallLogger } from "@kinetiks/ai";
+import { configureAICallLogger, configureModelAssignmentReader } from "@kinetiks/ai";
 import { supabaseAICallLogger } from "./lib/ai/logger";
+import {
+  supabaseModelAssignmentReader,
+  refreshModelAssignments,
+} from "./lib/ai/model-assignment-reader";
 import { registerKinetiksPromptTasks } from "./lib/ai/task-registry";
 import { registerKinetiksStateMachines } from "./lib/state-machines-init";
 import { bootPatternTypeRegistry } from "./lib/patterns/registry-boot";
@@ -35,6 +39,12 @@ import "./lib/integrations/nango/handlers/boot";
 
 export function bootNodeInstrumentation(): void {
   configureAICallLogger(supabaseAICallLogger);
+  // Adaptive model selection: back @kinetiks/ai role resolution with the
+  // live kinetiks_model_assignments mapping (seed fallback until the
+  // first refresh completes). Fire-and-forget — getModel serves the seed
+  // synchronously meanwhile, so boot never blocks on this read.
+  configureModelAssignmentReader(supabaseModelAssignmentReader);
+  void refreshModelAssignments();
   registerKinetiksPromptTasks();
   registerKinetiksStateMachines();
   // Boot order is non-negotiable per the cross-registry validator at

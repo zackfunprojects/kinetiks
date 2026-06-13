@@ -641,6 +641,30 @@ export interface LedgerEventDetailMap {
     /** Stripe's retry counter for the failing invoice, when present. */
     attempt_count: number | null;
   };
+  /**
+   * Adaptive model selection — the detect → propose → approve flip loop.
+   * Model ids are public identifiers, not PII. `model_flip_proposed` is
+   * written by the discovery cron; `_approved`/`_rejected` by the
+   * operator decision path.
+   */
+  model_flip_proposed: {
+    role: "fast" | "balanced" | "deep";
+    from_model: string;
+    to_model: string;
+    family: "haiku" | "sonnet" | "opus";
+  };
+  model_flip_approved: {
+    role: "fast" | "balanced" | "deep";
+    from_model: string;
+    to_model: string;
+    family: "haiku" | "sonnet" | "opus";
+  };
+  model_flip_rejected: {
+    role: "fast" | "balanced" | "deep";
+    from_model: string;
+    to_model: string;
+    family: "haiku" | "sonnet" | "opus";
+  };
 }
 
 /** Canonical revocation reasons recorded on `authority_grant_revoked`. */

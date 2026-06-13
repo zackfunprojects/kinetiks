@@ -40,13 +40,22 @@ export type PreviewType =
   // A re-executable consequential tool action awaiting approval. Its
   // `content` carries { tool_name, action_class, action_input, ... } so
   // the approve path can run it through the Agent Runtime once approved.
-  | "tool_action";
+  | "tool_action"
+  // An operator-reviewed platform model flip (adaptive model selection).
+  // `content` carries { proposal_id, role, from_model, to_model, family,
+  // released_at, est_cost_delta_usd }; approving applies it to
+  // kinetiks_model_assignments.
+  | "model_flip";
 
 /** The three approval classes per CLAUDE.md. UI for budget/authority lands in L2b. */
 export type ApprovalClass =
   | "standard"
   | "budget_proposal"
-  | "authority_grant_proposal";
+  | "authority_grant_proposal"
+  // Operator-only platform decision (adaptive model selection): swap the
+  // model a role resolves to. Never auto-approves; never in a customer
+  // queue (gated to the platform operator account).
+  | "model_flip_proposal";
 
 export type EditClassificationType =
   | "tone_adjustment"
