@@ -113,12 +113,11 @@ export const kinetiksServerEnvSchema = z.object({
   NEXT_PUBLIC_APP_URL: envFragments.optionalUrl,
   KINETIKS_ENCRYPTION_KEY: envFragments.nonEmpty,
 
-  // Adaptive model selection: the account that reviews platform model-
-  // flip proposals (an operator decision, not a customer one). Optional —
-  // when unset, single-tenant deployments fall back to the sole account;
-  // multi-account deployments must set it so proposals never land in a
-  // customer's queue.
-  PLATFORM_OPERATOR_ACCOUNT_ID: z.string().uuid().optional(),
+  // Admin panel: comma-separated auth.users ids that boot seeds into
+  // kinetiks_admins as superusers (the bootstrap for the first admin(s);
+  // the table is the source of truth thereafter). Optional — unset means
+  // no bootstrap, and admins are managed entirely in-table.
+  ADMIN_BOOTSTRAP_USER_IDS: z.string().optional(),
 
   // Internal service-to-service auth (Edge Functions → Node API routes).
   // Optional locally; required in production for the metric-cache-cron and

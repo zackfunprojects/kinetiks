@@ -24,6 +24,7 @@ import {
   refreshModelAssignments,
 } from "./lib/ai/model-assignment-reader";
 import { registerKinetiksPromptTasks } from "./lib/ai/task-registry";
+import { bootstrapAdmins } from "./lib/auth/admin";
 import { registerKinetiksStateMachines } from "./lib/state-machines-init";
 import { bootPatternTypeRegistry } from "./lib/patterns/registry-boot";
 import { bootActionClassRegistry } from "./lib/action-classes/registry-boot";
@@ -45,6 +46,9 @@ export function bootNodeInstrumentation(): void {
   // synchronously meanwhile, so boot never blocks on this read.
   configureModelAssignmentReader(supabaseModelAssignmentReader);
   void refreshModelAssignments();
+  // Admin panel: seed the first admin(s) from ADMIN_BOOTSTRAP_USER_IDS.
+  // Fire-and-forget + idempotent; never blocks boot.
+  void bootstrapAdmins();
   registerKinetiksPromptTasks();
   registerKinetiksStateMachines();
   // Boot order is non-negotiable per the cross-registry validator at

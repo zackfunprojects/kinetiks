@@ -12,7 +12,6 @@ import {
   applyAuthorityGrantReject,
 } from "./authority-grant";
 import { executeApprovedAction } from "./execute-approved-action";
-import { executeModelFlip, rejectModelFlip } from "./execute-model-flip";
 import { proposedGrantPayloadSchema } from "@/lib/operators/descriptors";
 
 /**
@@ -202,13 +201,6 @@ export async function processApprovalDecision(
       await executeApprovedAction(approval);
     }
 
-    // Adaptive model selection: an approved model flip swaps the model a
-    // role resolves to (kinetiks_model_assignments) and refreshes the
-    // resolver snapshot. A failure here is logged, not reverted.
-    if (approval.preview?.type === "model_flip") {
-      await executeModelFlip(approval);
-    }
-
     // If this is a context_edit approval, apply the linked Proposal now.
     let contextEditApplied: { layer: ContextLayer; proposalId: string; applied: boolean } | null = null;
     if (approval.preview?.type === "context_edit") {
@@ -297,12 +289,6 @@ export async function processApprovalDecision(
     if (!claimed || claimed.length === 0) {
       // Already decided by a concurrent request (or no longer pending).
       return;
-    }
-
-    // Adaptive model selection: a rejected flip records the operator's
-    // reason (calibration) and seeds the discovery cooldown.
-    if (approval.preview?.type === "model_flip") {
-      await rejectModelFlip(approval, action.rejection_reason);
     }
 
     // If this is a context_edit approval, mark the linked Proposal as declined.
