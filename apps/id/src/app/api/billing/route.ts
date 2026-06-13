@@ -2,6 +2,7 @@ import { requireAuth } from "@/lib/auth/require-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { apiSuccess, apiError } from "@/lib/utils/api-response";
 import { captureException } from "@/lib/observability/sentry";
+import { purchasablePlans, stripeConfigured } from "@/lib/billing/stripe";
 
 const GENERIC_BILLING_LOAD_ERROR = "We couldn't load your billing details. Try again.";
 
@@ -13,6 +14,10 @@ const GENERIC_BILLING_LOAD_ERROR = "We couldn't load your billing details. Try a
  * it server-side; the modal is a client surface). Returns null when no
  * row exists yet (a fresh account before billing init), which the UI
  * renders as the free plan.
+ *
+ * E1 — also reports the deployment's Stripe configuration so the
+ * plan-picker can render an honest "not configured" state (the D1
+ * connections-card precedent) instead of permanently disabled buttons.
  */
 export async function GET(request: Request) {
   const { auth, error } = await requireAuth(request);
@@ -35,5 +40,11 @@ export async function GET(request: Request) {
     return apiError(GENERIC_BILLING_LOAD_ERROR, 500);
   }
 
-  return apiSuccess({ billing: billing ?? null });
+  return apiSuccess({
+    billing: billing ?? null,
+    config: {
+      portal: stripeConfigured(),
+      purchasable: purchasablePlans(),
+    },
+  });
 }

@@ -79,6 +79,16 @@ export const kinetiksServerEnvSchema = z.object({
   GSC_CLIENT_ID: z.string().optional(),
   GSC_CLIENT_SECRET: z.string().optional(),
   STRIPE_SECRET_KEY: z.string().optional(),
+  // E1: subscription billing (Checkout + webhook). All optional — when
+  // unset, the billing UI renders an honest "not configured" state and
+  // the checkout/webhook routes refuse with a configuration error.
+  // STRIPE_WEBHOOK_SECRET is the signing secret of the Stripe webhook
+  // endpoint pointed at /api/billing/webhook. The three price ids map
+  // the paid BillingPlan tiers to Stripe Prices (recurring, monthly).
+  STRIPE_WEBHOOK_SECRET: z.string().optional(),
+  STRIPE_PRICE_STARTER: z.string().optional(),
+  STRIPE_PRICE_PRO: z.string().optional(),
+  STRIPE_PRICE_TEAM: z.string().optional(),
   GOOGLE_ADS_CLIENT_ID: z.string().optional(),
   GOOGLE_ADS_CLIENT_SECRET: z.string().optional(),
   META_ADS_ACCESS_TOKEN: z.string().optional(),

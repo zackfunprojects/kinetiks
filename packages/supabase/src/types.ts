@@ -2157,6 +2157,7 @@ export type Database = {
           plan_status: string | null
           seeds_balance: number | null
           stripe_customer_id: string | null
+          stripe_subscription_id: string | null
           updated_at: string | null
         }
         Insert: {
@@ -2169,6 +2170,7 @@ export type Database = {
           plan_status?: string | null
           seeds_balance?: number | null
           stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -2181,6 +2183,7 @@ export type Database = {
           plan_status?: string | null
           seeds_balance?: number | null
           stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
           updated_at?: string | null
         }
         Relationships: [

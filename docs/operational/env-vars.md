@@ -75,6 +75,9 @@ rest of the app keeps running. Order roughly by importance.
 | `SLACK_BOT_TOKEN` | no (retired, D2) | no | No code reads this anymore: the `@kinetiks/ai/slack-dispatcher` resolves each account's encrypted bot token from its D1 `slack` connection. Safe to remove from Vercel. |
 | `SLACK_SIGNING_SECRET` | yes (D3) | no | Slack inbound webhook verification (`/api/slack/events`, lands in D3). |
 | `SLACK_APP_TOKEN` | no | no | Socket-mode only; not used — inbound goes through the public events URL (D3). |
+| `STRIPE_SECRET_KEY` | yes (E1) | no | **Subscription billing (E1), not analytics** (Stripe *metrics* flow through Nango). Enables customer creation, Checkout, and the Billing Portal at `/api/billing/*`. Stripe dashboard → Developers → API keys → Secret key. Unset = the plan-picker renders "Subscriptions aren't configured for this deployment yet." |
+| `STRIPE_WEBHOOK_SECRET` | yes (E1) | no | Signing secret for the webhook endpoint at `/api/billing/webhook`. Stripe dashboard → Developers → Webhooks → Add endpoint `https://kinetiks.ai/api/billing/webhook`, subscribe to `checkout.session.completed`, `customer.subscription.created/updated/deleted`, `invoice.paid`, `invoice.payment_failed`; copy the `whsec_...` secret. Unset while the endpoint is called = 500 + Sentry (configuration error, never a silent pass). |
+| `STRIPE_PRICE_STARTER` / `STRIPE_PRICE_PRO` / `STRIPE_PRICE_TEAM` | yes (E1) | no | Stripe Price ids (recurring, monthly) for the three paid tiers — create Products/Prices in the Stripe dashboard matching `lib/billing/plans.ts` ($29/$79/$199). A missing price renders that tier "Not available" in the plan-picker; the others stay purchasable. |
 
 ## Optional observability
 
