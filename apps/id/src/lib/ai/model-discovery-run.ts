@@ -19,12 +19,12 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { listAnthropicModels } from "@kinetiks/ai";
-import { serverEnv } from "@kinetiks/lib/env";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { captureException } from "@/lib/observability/sentry";
 import { resolveOwnerEmail, sendSystemEmail } from "@/lib/email/sender";
 import { deliverSlackDm } from "@/lib/comms/proactive-delivery";
+import { resolveOperatorAccountId } from "./platform-operator";
 import {
   selectModelCandidates,
   type AssignmentState,
@@ -42,21 +42,6 @@ export interface DiscoveryResult {
   skipped: number;
   /** null when no operator account could be resolved (nothing proposed). */
   operator_account_id: string | null;
-}
-
-/**
- * The account that reviews platform model-flip proposals. Explicit env
- * wins; otherwise single-tenant fallback to the sole account. Returns
- * null when ambiguous (multi-account, no env) — the caller then proposes
- * nothing rather than guessing which customer should decide.
- */
-async function resolveOperatorAccountId(admin: SupabaseClient): Promise<string | null> {
-  const configured = serverEnv().PLATFORM_OPERATOR_ACCOUNT_ID;
-  if (configured) return configured;
-  const { data, error } = await admin.from("kinetiks_accounts").select("id").limit(2);
-  if (error) return null;
-  const rows = (data ?? []) as Array<{ id: string }>;
-  return rows.length === 1 ? rows[0].id : null;
 }
 
 async function recentVolumeForRole(admin: SupabaseClient, role: string): Promise<number> {
@@ -209,12 +194,17 @@ export async function runModelDiscovery(): Promise<DiscoveryResult> {
       }
       const approvalId = (apprRow as { id: string }).id;
 
-      await admin
+      const { error: linkErr } = await admin
         .from("kinetiks_model_flip_proposals")
         .update({ approval_id: approvalId })
         .eq("id", proposalId);
+      if (linkErr) {
+        throw new Error(`proposal↔approval link failed: ${linkErr.message}`);
+      }
 
-      await admin.from("kinetiks_ledger").insert({
+      // The proposal is logged to the Ledger; a silent PostgREST error
+      // here would lose the model_flip_proposed record, so check it.
+      const { error: ledgerErr } = await admin.from("kinetiks_ledger").insert({
         account_id: operatorId,
         event_type: "model_flip_proposed",
         source_app: "kinetiks_id",
@@ -226,6 +216,9 @@ export async function runModelDiscovery(): Promise<DiscoveryResult> {
           family: candidate.family,
         },
       });
+      if (ledgerErr) {
+        throw new Error(`model_flip_proposed ledger insert failed: ${ledgerErr.message}`);
+      }
 
       await notifyOperator(operatorId, candidate.role, summary);
       proposed += 1;

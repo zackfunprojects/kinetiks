@@ -24,6 +24,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { captureException } from "@/lib/observability/sentry";
 import { refreshModelAssignments } from "@/lib/ai/model-assignment-reader";
+import { resolveOperatorAccountId } from "@/lib/ai/platform-operator";
 import type { ApprovalRecord } from "./types";
 
 interface ModelFlipPreview {
@@ -59,6 +60,29 @@ function readPreview(approval: ApprovalRecord): ModelFlipPreview | null {
   };
 }
 
+/**
+ * Defense-in-depth: a model flip is a platform-wide mutation. Verify the
+ * approval belongs to the platform operator account before touching the
+ * mapping — never apply one from a customer account, even if a malformed
+ * proposal somehow landed there. Returns true when authorized.
+ */
+async function assertOperatorApproval(
+  approval: ApprovalRecord,
+  stage: string,
+): Promise<boolean> {
+  const operatorId = await resolveOperatorAccountId();
+  if (operatorId !== null && approval.account_id === operatorId) return true;
+  await captureException(
+    new Error("model_flip executor invoked from a non-operator account; refused"),
+    {
+      tags: { route: "approvals", action: "model_flip_execute", stage, app: "id" },
+      user: { id: approval.account_id },
+      extra: { approval_id: approval.id },
+    },
+  );
+  return false;
+}
+
 /** Apply an approved flip to the live assignment mapping. */
 export async function executeModelFlip(approval: ApprovalRecord): Promise<void> {
   const preview = readPreview(approval);
@@ -70,6 +94,7 @@ export async function executeModelFlip(approval: ApprovalRecord): Promise<void> 
     });
     return;
   }
+  if (!(await assertOperatorApproval(approval, "authz_apply"))) return;
 
   const admin = createAdminClient() as unknown as SupabaseClient;
   const now = new Date().toISOString();
@@ -88,10 +113,11 @@ export async function executeModelFlip(approval: ApprovalRecord): Promise<void> 
       .eq("role", preview.role);
     if (assignErr) throw new Error(`assignment update failed: ${assignErr.message}`);
 
-    await admin
+    const { error: propErr } = await admin
       .from("kinetiks_model_flip_proposals")
       .update({ status: "approved", decided_at: now })
       .eq("id", preview.proposal_id);
+    if (propErr) throw new Error(`proposal status update failed: ${propErr.message}`);
 
     const { error: ledgerErr } = await admin.from("kinetiks_ledger").insert({
       account_id: approval.account_id,
@@ -125,14 +151,16 @@ export async function rejectModelFlip(
 ): Promise<void> {
   const preview = readPreview(approval);
   if (!preview) return;
+  if (!(await assertOperatorApproval(approval, "authz_reject"))) return;
   const admin = createAdminClient() as unknown as SupabaseClient;
   const now = new Date().toISOString();
   try {
-    await admin
+    const { error: propErr } = await admin
       .from("kinetiks_model_flip_proposals")
       .update({ status: "rejected", decided_at: now, reject_reason: reason })
       .eq("id", preview.proposal_id);
-    await admin.from("kinetiks_ledger").insert({
+    if (propErr) throw new Error(`proposal rejection update failed: ${propErr.message}`);
+    const { error: ledgerErr } = await admin.from("kinetiks_ledger").insert({
       account_id: approval.account_id,
       event_type: "model_flip_rejected",
       source_app: "kinetiks_id",
@@ -144,6 +172,7 @@ export async function rejectModelFlip(
         family: preview.family,
       },
     });
+    if (ledgerErr) throw new Error(`model_flip_rejected ledger insert failed: ${ledgerErr.message}`);
   } catch (err) {
     await captureException(err, {
       tags: { route: "approvals", action: "model_flip_reject", stage: "apply", app: "id" },
