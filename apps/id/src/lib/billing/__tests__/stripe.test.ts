@@ -225,6 +225,9 @@ describe("stripe API calls", () => {
     expect(body).toContain("mode=subscription");
     expect(body).toContain("client_reference_id=acc-1");
     expect(body).toContain("line_items%5B0%5D%5Bprice%5D=price_pro");
+    // A double-clicked Upgrade replays the same session, not a second one.
+    const headers = init.headers as Record<string, string>;
+    expect(headers["Idempotency-Key"]).toBe("kinetiks-checkout-acc-1-price_pro");
   });
 
   it("throws StripeApiError carrying upstream status and message", async () => {

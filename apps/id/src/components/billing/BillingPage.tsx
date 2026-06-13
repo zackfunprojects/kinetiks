@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { BillingRecord, BillingPlan } from "@kinetiks/types";
-import { Card, Badge } from "@kinetiks/ui";
+import { Card, Badge, Button } from "@kinetiks/ui";
 import { PLAN_DETAILS } from "@/lib/billing/plans";
 import { capture } from "@/lib/observability/posthog";
 
@@ -96,6 +96,10 @@ export function BillingPage({ billing, config, hideHeader }: BillingPageProps) {
     onClick: () => void;
     disabled: boolean;
     emphasized: boolean;
+    /** Which async flow the CTA triggers, so the card can detect its
+     *  own in-flight state ("portal" actions set busy="portal", not the
+     *  plan key). */
+    mode: "portal" | "checkout";
   } | null {
     if (plan === currentPlan) return null;
     const upgrade = PLANS.indexOf(plan) > PLANS.indexOf(currentPlan);
@@ -105,6 +109,7 @@ export function BillingPage({ billing, config, hideHeader }: BillingPageProps) {
         onClick: openPortal,
         disabled: !portalAvailable || busy !== null,
         emphasized: upgrade,
+        mode: "portal",
       };
     }
     if (plan === "free") return null; // already free without a subscription
@@ -116,6 +121,7 @@ export function BillingPage({ billing, config, hideHeader }: BillingPageProps) {
       onClick: () => void startCheckout(plan),
       disabled: !purchasable || busy !== null,
       emphasized: purchasable,
+      mode: "checkout",
     };
   }
 
@@ -180,24 +186,17 @@ export function BillingPage({ billing, config, hideHeader }: BillingPageProps) {
               <span style={{ fontSize: 18, fontWeight: 600, color: "var(--kt-fg-1)", fontFamily: "var(--font-mono), monospace" }}>
                 **** {billing.payment_method_last4}
               </span>
-              <p style={{ margin: "8px 0 0" }}>
-                <button
+              <div style={{ marginTop: 8 }}>
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={openPortal}
                   disabled={!portalAvailable || busy !== null}
-                  aria-busy={busy === "portal"}
-                  style={{
-                    padding: 0,
-                    border: "none",
-                    background: "none",
-                    color: "var(--kt-accent)",
-                    fontSize: 13,
-                    cursor: portalAvailable && !busy ? "pointer" : "not-allowed",
-                    textDecoration: "underline",
-                  }}
+                  loading={busy === "portal"}
                 >
                   {busy === "portal" ? "Loading..." : "Manage in Stripe"}
-                </button>
-              </p>
+                </Button>
+              </div>
             </>
           ) : (
             <p style={{ margin: 0, fontSize: 13, color: "var(--kt-fg-3)" }}>
@@ -211,7 +210,7 @@ export function BillingPage({ billing, config, hideHeader }: BillingPageProps) {
       <h3 style={{ margin: "0 0 16px", fontSize: 16, fontWeight: 600, color: "var(--kt-fg-1)" }}>
         Plans
       </h3>
-      {config && !checkoutAvailable && !hasLiveSubscription && (
+      {!checkoutAvailable && !hasLiveSubscription && (
         <p style={{ margin: "0 0 16px", fontSize: 13, color: "var(--kt-fg-3)" }}>
           Subscriptions aren&apos;t configured for this deployment yet. Plan
           upgrades will appear here once they are.
@@ -229,6 +228,11 @@ export function BillingPage({ billing, config, hideHeader }: BillingPageProps) {
           const details = PLAN_DETAILS[plan];
           const isCurrent = plan === currentPlan;
           const action = planAction(plan);
+          // Portal-routed CTAs set busy="portal"; checkout CTAs set
+          // busy=<plan>. Reflect whichever applies to this card so the
+          // redirect shows a visible in-flight state.
+          const actionBusy =
+            action?.mode === "portal" ? busy === "portal" : busy === plan;
           return (
             <Card
               key={plan}
@@ -283,25 +287,16 @@ export function BillingPage({ billing, config, hideHeader }: BillingPageProps) {
                 ))}
               </ul>
               {action && (
-                <button
+                <Button
+                  variant={action.emphasized ? "accent" : "secondary"}
+                  size="sm"
                   onClick={action.onClick}
                   disabled={action.disabled}
-                  aria-busy={busy === plan}
-                  style={{
-                    width: "100%",
-                    padding: "8px 0",
-                    background: action.emphasized ? "var(--kt-accent-hover)" : "var(--kt-bg-subtle)",
-                    color: action.emphasized ? "var(--kt-fg-on-inverse)" : "var(--kt-fg-2)",
-                    border: action.emphasized ? "none" : "1px solid var(--kt-border-1)",
-                    borderRadius: 8,
-                    fontSize: 13,
-                    fontWeight: 600,
-                    cursor: action.disabled ? "not-allowed" : "pointer",
-                    opacity: action.disabled && action.label !== "Not available" ? 0.7 : 1,
-                  }}
+                  loading={actionBusy}
+                  style={{ width: "100%" }}
                 >
-                  {busy === plan ? "Redirecting..." : action.label}
-                </button>
+                  {actionBusy ? "Redirecting..." : action.label}
+                </Button>
               )}
             </Card>
           );
@@ -326,23 +321,14 @@ export function BillingPage({ billing, config, hideHeader }: BillingPageProps) {
                 View invoices, update payment method, change or cancel your plan
               </p>
             </div>
-            <button
+            <Button
+              variant="accent"
               onClick={openPortal}
               disabled={!portalAvailable || busy !== null}
-              aria-busy={busy === "portal"}
-              style={{
-                padding: "8px 20px",
-                background: "var(--kt-accent-hover)",
-                color: "var(--kt-fg-on-inverse)",
-                border: "none",
-                borderRadius: 8,
-                fontSize: 14,
-                fontWeight: 500,
-                cursor: portalAvailable && busy === null ? "pointer" : "not-allowed",
-              }}
+              loading={busy === "portal"}
             >
               {busy === "portal" ? "Loading..." : "Open Stripe Portal"}
-            </button>
+            </Button>
           </div>
         </Card>
       )}

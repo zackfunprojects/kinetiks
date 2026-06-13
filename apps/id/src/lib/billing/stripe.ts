@@ -298,6 +298,13 @@ export async function createCheckoutSession(args: {
       cancel_url: args.cancelUrl,
       subscription_data: { metadata: { kinetiks_account_id: args.accountId } },
     },
+    // A double-clicked Upgrade (or a retried request) must not mint two
+    // Checkout Sessions. Scope the key to (account, price): all params
+    // above are deterministic for that pair, so Stripe replays the
+    // original session for 24h instead of opening a second one. A
+    // genuine later re-subscribe to the same plan (after the key ages
+    // out) gets a fresh session.
+    idempotencyKey: `kinetiks-checkout-${args.accountId}-${args.priceId}`,
   });
 }
 
