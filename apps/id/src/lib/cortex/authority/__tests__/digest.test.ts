@@ -99,6 +99,35 @@ describe("renderAuthorityActivityBlock", () => {
     expect(block).toContain("Actions taken under permissions this period: none");
   });
 
+  it("appends an explicit 'may understate' note when the event read was truncated", () => {
+    const block = renderAuthorityActivityBlock({
+      grants: [ACTIVE_GRANT],
+      windowEvents: [
+        {
+          event_type: "authority_action_taken",
+          detail: { action_class: "kinetiks_id.send_slack_notification" },
+        },
+      ],
+      judgmentSpendToday: [],
+      truncated: true,
+    });
+    expect(block).toContain("may understate");
+  });
+
+  it("omits the truncation note on the normal full-drain path", () => {
+    const block = renderAuthorityActivityBlock({
+      grants: [ACTIVE_GRANT],
+      windowEvents: [
+        {
+          event_type: "authority_action_taken",
+          detail: { action_class: "kinetiks_id.send_slack_notification" },
+        },
+      ],
+      judgmentSpendToday: [],
+    });
+    expect(block).not.toContain("may understate");
+  });
+
   it("raises the §2.10 budget-pressure callout at the threshold", () => {
     registerBudgetedClass(5);
     const spent = 5 * JUDGMENT_BUDGET_PRESSURE_THRESHOLD;

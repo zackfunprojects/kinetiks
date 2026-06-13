@@ -24,18 +24,25 @@ vi.mock("@/lib/ai/prompts/marcus-brief", () => ({
   buildMonthlyReviewPrompt: vi.fn(async () => "prompt"),
 }));
 
-const { sendSystemEmailMock, resolveOwnerEmailMock, deliverSlackDmMock, createInAppAlertMock } = vi.hoisted(() => ({
+const {
+  sendSystemEmailMock,
+  resolveOwnerEmailMock,
+  deliverSlackDmMock,
+  createInAppAlertMock,
+  buildAuthorityActivitySummaryMock,
+} = vi.hoisted(() => ({
   sendSystemEmailMock: vi.fn(),
   resolveOwnerEmailMock: vi.fn(),
   deliverSlackDmMock: vi.fn(),
   createInAppAlertMock: vi.fn(),
+  buildAuthorityActivitySummaryMock: vi.fn(),
 }));
 vi.mock("@/lib/email/sender", () => ({
   sendSystemEmail: sendSystemEmailMock,
   resolveOwnerEmail: resolveOwnerEmailMock,
 }));
 vi.mock("@/lib/cortex/authority/digest", () => ({
-  buildAuthorityActivitySummary: vi.fn(async () => null),
+  buildAuthorityActivitySummary: buildAuthorityActivitySummaryMock,
 }));
 vi.mock("@/lib/comms/proactive-delivery", () => ({
   deliverSlackDm: deliverSlackDmMock,
@@ -46,10 +53,12 @@ import { ToolError } from "@kinetiks/tools";
 
 import { requireAuth } from "@/lib/auth/require-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { buildDailyBriefPrompt } from "@/lib/ai/prompts/marcus-brief";
 import { POST } from "./route";
 
 const mockRequireAuth = vi.mocked(requireAuth);
 const mockCreateAdmin = vi.mocked(createAdminClient);
+const mockBuildDailyBriefPrompt = vi.mocked(buildDailyBriefPrompt);
 
 function makeRequest(body: unknown): Request {
   return new Request("https://id.kinetiks.test/api/marcus/brief", {
@@ -108,6 +117,8 @@ beforeEach(() => {
   sendSystemEmailMock.mockResolvedValue({ provider: "gmail", message_id: "m1" });
   deliverSlackDmMock.mockResolvedValue("sent");
   createInAppAlertMock.mockResolvedValue("alert-1");
+  // Default: no authority surface (the prior inline mock's behavior).
+  buildAuthorityActivitySummaryMock.mockResolvedValue(null);
 });
 
 describe("POST /api/marcus/brief — delivery (D2)", () => {
@@ -119,6 +130,21 @@ describe("POST /api/marcus/brief — delivery (D2)", () => {
     expect(payload.data.content).toContain("Pipeline steady");
     expect(payload.data.delivery).toBeUndefined();
     expect(sendSystemEmailMock).not.toHaveBeenCalled();
+  });
+
+  it("weaves the authority digest block into the brief prompt when present", async () => {
+    stubAdmin({});
+    buildAuthorityActivitySummaryMock.mockResolvedValueOnce(
+      "Permissions and authority activity:\n- Active permissions: 1 (Acme Q1 LinkedIn Campaign)",
+    );
+    const res = await POST(makeRequest({ type: "daily_brief" }));
+    expect(res.status).toBe(200);
+    // The digest is folded into recentActivity — the 2nd arg the brief
+    // prompt builder receives — not dropped on the floor.
+    expect(mockBuildDailyBriefPrompt).toHaveBeenCalledTimes(1);
+    const recentActivity = mockBuildDailyBriefPrompt.mock.calls[0]![1] as string;
+    expect(recentActivity).toContain("Permissions and authority activity:");
+    expect(recentActivity).toContain("Acme Q1 LinkedIn Campaign");
   });
 
   it("deliver:true sends the rendered brief to the owner via the system sender", async () => {

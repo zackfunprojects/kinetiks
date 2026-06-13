@@ -67,6 +67,15 @@ export async function rollUpUsageSummaries(
 ): Promise<RollupResult> {
   const admin = createAdminClient();
 
+  // An explicitly empty account scope means "no accounts", NOT "all
+  // accounts". Falling through to the unfiltered query below would roll
+  // up every account's grants — a cross-account write triggered by a
+  // batch whose metadata happened to yield []. Undefined still means
+  // all-accounts (manual/ops invocation).
+  if (options.account_ids && options.account_ids.length === 0) {
+    return { grants_updated: 0, events_rolled: 0, errors: 0 };
+  }
+
   let grantsQuery = (admin as unknown as SupabaseClient)
     .from("kinetiks_authority_grants")
     .select("id, granted_at")

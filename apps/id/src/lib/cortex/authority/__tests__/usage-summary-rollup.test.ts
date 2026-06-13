@@ -127,6 +127,17 @@ describe("rollUpUsageSummaries", () => {
     expect(grantFilters[0].accounts).toEqual(["acc_1", "acc_2"]);
   });
 
+  it("treats an explicitly empty account scope as no-op, never a global rollup", async () => {
+    // A batch whose metadata yielded [] must NOT fall through to an
+    // unfiltered (cross-account) rollup.
+    const { updates, grantFilters } = stubAdmin({ grants: [], eventsByGrant: {} });
+    const result = await rollUpUsageSummaries({ account_ids: [] });
+    expect(result).toEqual({ grants_updated: 0, events_rolled: 0, errors: 0 });
+    // The grants query was never built — no scan, no writes.
+    expect(grantFilters).toHaveLength(0);
+    expect(updates).toHaveLength(0);
+  });
+
   it("ignores malformed spend values rather than corrupting the total", async () => {
     const { updates } = stubAdmin({
       grants: [{ id: "g_1", granted_at: "2026-06-01T00:00:00Z" }],

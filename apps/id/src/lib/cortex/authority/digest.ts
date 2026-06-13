@@ -50,7 +50,18 @@ export interface AuthorityActivityInputs {
   grants: GrantRow[];
   windowEvents: LedgerEventRow[];
   judgmentSpendToday: JudgmentSpendRow[];
+  /**
+   * True when the event read hit its page backstop and the totals below
+   * cover only the most recent slice of the window. Surfaced explicitly
+   * so the digest never presents a partial figure as a complete-period
+   * total. False/absent for the normal full-drain path.
+   */
+  truncated?: boolean;
 }
+
+/** Keyset page size + runaway backstop for the window-event drain. */
+const EVENT_PAGE_SIZE = 1000;
+const MAX_EVENT_PAGES = 50;
 
 /**
  * Pure renderer — unit-tested directly. Aggregates the window's
@@ -150,10 +161,81 @@ export function renderAuthorityActivityBlock(
     }
   }
 
+  if (inputs.truncated) {
+    lines.push(
+      "Note: activity was high this period; the figures above cover the most recent actions and may understate the full total.",
+    );
+  }
+
   if (lines.length === 0) return null;
   return ["Permissions and authority activity:", ...lines.map((l) => `- ${l}`)].join(
     "\n",
   );
+}
+
+interface WindowEventCursor {
+  created_at: string;
+  id: string;
+}
+
+type WindowEventsResult =
+  | { rows: LedgerEventRow[]; truncated: boolean; error?: undefined }
+  | { rows: LedgerEventRow[]; truncated: false; error: { message: string } };
+
+/**
+ * Fully drain the window's authority events with keyset pagination over
+ * `(created_at, id)` (CLAUDE.md: keyset on every unbounded ledger read).
+ * A single capped `.limit()` would non-deterministically truncate a
+ * high-activity account's totals; this walks the whole window in stable
+ * order. The page backstop is a runaway guard, not a cost cap — when it
+ * trips, the caller surfaces an explicit "may understate" note.
+ */
+async function fetchWindowEvents(
+  admin: SupabaseClient,
+  accountId: string,
+  since: Date,
+): Promise<WindowEventsResult> {
+  const rows: LedgerEventRow[] = [];
+  let cursor: WindowEventCursor | null = null;
+
+  for (let page = 0; page < MAX_EVENT_PAGES; page++) {
+    let query = admin
+      .from("kinetiks_ledger")
+      .select("event_type, detail, created_at, id")
+      .eq("account_id", accountId)
+      .in("event_type", ["authority_action_taken", "authority_action_escalated"])
+      .gte("created_at", since.toISOString());
+    if (cursor) {
+      // WHERE (created_at, id) > (cursor) via OR composition — the same
+      // strict-greater-than keyset idiom as cortex/authority/list.ts,
+      // ascending so the window walks forward to completion.
+      query = query.or(
+        `created_at.gt.${cursor.created_at},and(created_at.eq.${cursor.created_at},id.gt.${cursor.id})`,
+      );
+    }
+    query = query
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true })
+      .limit(EVENT_PAGE_SIZE);
+
+    const { data, error } = await query;
+    if (error) return { rows, truncated: false, error };
+
+    const pageRows = (data ?? []) as Array<
+      LedgerEventRow & { created_at: string; id: string }
+    >;
+    for (const r of pageRows) {
+      rows.push({ event_type: r.event_type, detail: r.detail });
+    }
+    if (pageRows.length < EVENT_PAGE_SIZE) {
+      return { rows, truncated: false };
+    }
+    const last = pageRows[pageRows.length - 1];
+    cursor = { created_at: last.created_at, id: last.id };
+  }
+
+  // Backstop tripped: return what we have, flagged truncated.
+  return { rows, truncated: true };
 }
 
 /**
@@ -165,19 +247,16 @@ export async function buildAuthorityActivitySummary(
   accountId: string,
   since: Date,
 ): Promise<string | null> {
-  const [grantsRes, eventsRes, spendRes] = await Promise.all([
+  const [grantsRes, eventsResult, spendRes] = await Promise.all([
     admin
       .from("kinetiks_authority_grants")
       .select("id, status, scope_description")
       .eq("account_id", accountId)
       .in("status", ["active", "paused"]),
-    admin
-      .from("kinetiks_ledger")
-      .select("event_type, detail")
-      .eq("account_id", accountId)
-      .in("event_type", ["authority_action_taken", "authority_action_escalated"])
-      .gte("created_at", since.toISOString())
-      .limit(500),
+    // Full-drain keyset read of the window's authority events — the
+    // totals must cover the whole window deterministically, not a
+    // single capped/unordered slice.
+    fetchWindowEvents(admin, accountId, since),
     admin
       .from("kinetiks_ai_calls")
       .select("task, cost_usd")
@@ -193,13 +272,17 @@ export async function buildAuthorityActivitySummary(
   // Side-panel posture: a failed read degrades to an absent digest
   // block (never a failed brief — the brief is the spine), captured
   // with a stage tag per the side-panel rule.
-  const readError = grantsRes.error ?? eventsRes.error ?? spendRes.error;
+  const readError = grantsRes.error ?? eventsResult.error ?? spendRes.error;
   if (readError) {
     await captureException(new Error(readError.message), {
       tags: {
         route: "lib/cortex/authority/digest",
         action: "authority.digest",
-        stage: grantsRes.error ? "grants" : eventsRes.error ? "events" : "judgment_spend",
+        stage: grantsRes.error
+          ? "grants"
+          : eventsResult.error
+            ? "events"
+            : "judgment_spend",
         app: "id",
       },
       user: { id: accountId },
@@ -210,7 +293,8 @@ export async function buildAuthorityActivitySummary(
 
   return renderAuthorityActivityBlock({
     grants: (grantsRes.data ?? []) as GrantRow[],
-    windowEvents: (eventsRes.data ?? []) as LedgerEventRow[],
+    windowEvents: eventsResult.rows,
     judgmentSpendToday: (spendRes.data ?? []) as JudgmentSpendRow[],
+    truncated: eventsResult.truncated,
   });
 }
