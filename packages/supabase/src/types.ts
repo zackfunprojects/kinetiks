@@ -2047,6 +2047,7 @@ export type Database = {
       kinetiks_authority_grants: {
         Row: {
           account_id: string
+          budget_category: string | null
           created_at: string
           default_origin_app: string | null
           default_origin_key: string | null
@@ -2074,6 +2075,7 @@ export type Database = {
         }
         Insert: {
           account_id: string
+          budget_category?: string | null
           created_at?: string
           default_origin_app?: string | null
           default_origin_key?: string | null
@@ -2101,6 +2103,7 @@ export type Database = {
         }
         Update: {
           account_id?: string
+          budget_category?: string | null
           created_at?: string
           default_origin_app?: string | null
           default_origin_key?: string | null
@@ -2800,6 +2803,47 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "kinetiks_crm_entities_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "kinetiks_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      kinetiks_daily_counters: {
+        Row: {
+          account_id: string
+          amount: number
+          counter_key: string
+          created_at: string
+          day_utc: string
+          id: string
+          team_scope_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          account_id: string
+          amount?: number
+          counter_key: string
+          created_at?: string
+          day_utc: string
+          id?: string
+          team_scope_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          account_id?: string
+          amount?: number
+          counter_key?: string
+          created_at?: string
+          day_utc?: string
+          id?: string
+          team_scope_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kinetiks_daily_counters_account_id_fkey"
             columns: ["account_id"]
             isOneToOne: false
             referencedRelation: "kinetiks_accounts"
@@ -4716,6 +4760,25 @@ export type Database = {
       _kt_schedule_edge_function: {
         Args: { p_cron: string; p_function_slug: string; p_name: string }
         Returns: undefined
+      }
+      _kt_release_daily_counter: {
+        Args: {
+          p_account_id: string
+          p_counter_key: string
+          p_day: string
+          p_amount: number
+        }
+        Returns: number
+      }
+      _kt_reserve_daily_counter: {
+        Args: {
+          p_account_id: string
+          p_counter_key: string
+          p_day: string
+          p_amount: number
+          p_cap: number
+        }
+        Returns: number
       }
       _kt_try_advisory_lock: { Args: { p_key: string }; Returns: boolean }
       accept_default_standing_grants: {
