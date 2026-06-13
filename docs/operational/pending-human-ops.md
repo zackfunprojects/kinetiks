@@ -26,20 +26,24 @@ run logs in the Supabase dashboard for a 200 (not the env-guard 500).
 
 ---
 
-## 2. [P2] Set `PLATFORM_OPERATOR_ACCOUNT_ID` on Vercel (project: kinetiks-id)
+## 2. [P1] Set `ADMIN_BOOTSTRAP_USER_IDS` on Vercel (project: kinetiks-id)
 
-The account that reviews **model-flip proposals** (adaptive model selection).
-Unset today is fine — single-tenant falls back to the sole account. **Set it
-once prod has more than one account**, so a model-flip proposal routes to you
-and never lands in a customer's Approvals queue.
+The admin panel (`/admin`) gates on membership in `kinetiks_admins`. Boot
+seeds the first admin(s) from this env var so you can reach the panel without
+a manual SQL insert; after that, admins are managed in-table.
+
+(This replaces the old `PLATFORM_OPERATOR_ACCOUNT_ID` — model-flip review moved
+off the customer Approvals queue into the admin panel, so that var is gone.)
 
 - Vercel → kinetiks-id → Settings → Environment Variables → add
-  `PLATFORM_OPERATOR_ACCOUNT_ID` = your `kinetiks_accounts.id` (Production).
-- Redeploy (or it picks up on the next deploy).
+  `ADMIN_BOOTSTRAP_USER_IDS` = your `auth.users.id` (comma-separated for
+  multiple). Production. Redeploy.
 
-Find your account id:
+Find your auth user id:
 ```sql
-select id, codename, display_name from kinetiks_accounts order by created_at;
+select u.id, u.email, a.codename
+from auth.users u left join kinetiks_accounts a on a.user_id = u.id
+order by u.created_at;
 ```
 
 ---

@@ -24,6 +24,8 @@ import {
   refreshModelAssignments,
 } from "./lib/ai/model-assignment-reader";
 import { registerKinetiksPromptTasks } from "./lib/ai/task-registry";
+import { bootstrapAdmins } from "./lib/auth/admin";
+import { captureException } from "./lib/observability/sentry";
 import { registerKinetiksStateMachines } from "./lib/state-machines-init";
 import { bootPatternTypeRegistry } from "./lib/patterns/registry-boot";
 import { bootActionClassRegistry } from "./lib/action-classes/registry-boot";
@@ -45,6 +47,16 @@ export function bootNodeInstrumentation(): void {
   // synchronously meanwhile, so boot never blocks on this read.
   configureModelAssignmentReader(supabaseModelAssignmentReader);
   void refreshModelAssignments();
+  // Admin panel: seed the first admin(s) from ADMIN_BOOTSTRAP_USER_IDS.
+  // Fire-and-forget + idempotent; never blocks boot. bootstrapAdmins
+  // captures per-id failures internally; this .catch is the backstop for
+  // a top-level throw so the rejection is never silently swallowed.
+  void bootstrapAdmins().catch((err) => {
+    void captureException(err, {
+      tags: { route: "boot", action: "admin_bootstrap", stage: "invoke", app: "id" },
+      extra: {},
+    });
+  });
   registerKinetiksPromptTasks();
   registerKinetiksStateMachines();
   // Boot order is non-negotiable per the cross-registry validator at
