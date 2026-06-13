@@ -39,6 +39,15 @@ vi.mock("@/lib/operators/executors/authority-agent/persist", () => ({
   persistProposals: persistProposalsMock,
 }));
 
+// E2: the executor loads the active-Budget snapshot for the §2.11
+// envelope check. The fixture envelopes are non-spend, so "no active
+// Budget" is the simplest truthful stub.
+vi.mock("@/lib/cortex/authority/budget-context", () => ({
+  loadBudgetValidationContext: vi
+    .fn()
+    .mockResolvedValue({ remaining_by_category: null }),
+}));
+
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({
     from: () => ({

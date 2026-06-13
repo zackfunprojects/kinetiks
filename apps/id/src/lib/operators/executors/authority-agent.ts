@@ -50,6 +50,7 @@ import {
 import { buildEvidenceBrief } from "./authority-agent/evidence";
 import { persistProposals } from "./authority-agent/persist";
 import { validateEnvelope } from "./authority-agent/validate";
+import { loadBudgetValidationContext } from "@/lib/cortex/authority/budget-context";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { captureException } from "@/lib/observability/sentry";
 
@@ -85,11 +86,14 @@ export const authorityAgentExecute: OperatorExecutor = async (rawInput) => {
     );
   }
 
-  // 1. Evidence brief.
+  // 1. Evidence brief + the active Budget snapshot (E2 — the §2.11
+  //    envelope ≤ Budget-category inputs; the prompt sees what fits,
+  //    the validator enforces it).
   const brief = await buildEvidenceBrief({
     account_id: input.account_id,
     caller_app: "kinetiks_id",
   });
+  const budgetContext = await loadBudgetValidationContext(input.account_id);
 
   // 2-4. Sonnet propose + retry-once on validation failure.
   const action_class_catalog = renderActionClassCatalog(
@@ -104,6 +108,7 @@ export const authorityAgentExecute: OperatorExecutor = async (rawInput) => {
     const user = buildAuthorityProposeUserPrompt({
       request_payload: input,
       evidence_brief: brief,
+      budget_remaining_by_category: budgetContext.remaining_by_category,
       prior_attempt_errors: lastErrors,
     });
     const raw = await routeAskClaude(
@@ -124,7 +129,7 @@ export const authorityAgentExecute: OperatorExecutor = async (rawInput) => {
       continue;
     }
 
-    const validation = validateEnvelope(parsed.envelope);
+    const validation = validateEnvelope(parsed.envelope, budgetContext);
     if (!validation.ok) {
       lastErrors = validation.errors;
       continue;

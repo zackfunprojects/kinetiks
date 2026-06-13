@@ -225,8 +225,14 @@ async function applyAuthorityGrantEditAndApprove(
   // reasoning + evidence so the successor proposal carries them
   // forward; the agent doesn't rerun the LLM here.
   const preview = (args.approval.preview ?? {}) as {
-    content?: { grant_id?: string; reasoning?: string; evidence?: unknown };
+    content?: {
+      grant_id?: string;
+      grant?: { budget_category?: string | null };
+      reasoning?: string;
+      evidence?: unknown;
+    };
     grant_id?: string;
+    grant?: { budget_category?: string | null };
     reasoning?: string;
     evidence?: unknown;
   };
@@ -260,6 +266,15 @@ async function applyAuthorityGrantEditAndApprove(
         // original. Nesting is for Workflow-inside-Program, not for
         // edit history.
         parent_grant_id: null,
+        // E2: edits inherit the original's Budget attachment unless the
+        // customer's payload explicitly carries one (pre-E2 edit UIs
+        // omit the field; losing the attachment would orphan a
+        // spend-bearing grant from its category).
+        budget_category:
+          args.replacement.budget_category ??
+          preview.grant?.budget_category ??
+          preview.content?.grant?.budget_category ??
+          null,
       },
       approval_title: args.replacement.scope_description,
       approval_description: `${args.replacement.granted_capabilities.length} permission${

@@ -331,7 +331,7 @@ export async function narrowGrant(
   // intact. Read-then-act mirrors the revokeGrant pattern.
   const { data: current, error: readErr } = await admin
     .from("kinetiks_authority_grants")
-    .select("status")
+    .select("status, budget_category")
     .eq("id", args.grant_id)
     .eq("account_id", args.account_id)
     .maybeSingle();
@@ -374,7 +374,19 @@ export async function narrowGrant(
   // endpoint must not be a bypass for it. parent_grant_id is forced
   // to null below so the §2.8 subset rules trivially pass.
   const successor_grant_id = crypto.randomUUID();
-  const successor = { ...args.successor, parent_grant_id: null };
+  // E2: a narrowed successor inherits the predecessor's Budget category
+  // unless the caller explicitly carries one. Narrowing only TIGHTENS
+  // an envelope the customer already approved against a Budget, so the
+  // validator runs WITHOUT a fresh Budget snapshot here - a Budget that
+  // shrank since the original approval must never block the customer
+  // from narrowing (reducing) authority.
+  const successor = {
+    ...args.successor,
+    parent_grant_id: null,
+    budget_category:
+      args.successor.budget_category ??
+      ((current as { budget_category?: string | null }).budget_category ?? null),
+  };
   // Synthesize the envelope the validator expects (invocation_id +
   // request_type are required for the type, but the validator only
   // reads `proposed_grants`; the wrapper fields are bookkeeping).
