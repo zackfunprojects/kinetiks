@@ -9,11 +9,17 @@
 --   2. Service-role-only posture: authenticated users see and write
 --      NOTHING (default deny, no policies by design) and cannot
 --      execute the RPCs.
---   3. Per-(account, key, day) bucket isolation.
+--   3. Per-(account, key, day) bucket isolation — including the
+--      cross-tenant case: a second account reserving on a (key, day)
+--      the first already used gets a wholly independent bucket, and the
+--      first account's bucket is untouched. Isolation on this
+--      service-role table is enforced by the RPC's account_id keying +
+--      UNIQUE(account_id, counter_key, day_utc), not by user RLS (which
+--      is default-deny for everyone).
 -- ============================================================
 
 BEGIN;
-SELECT plan(12);
+SELECT plan(15);
 
 DO $$
 DECLARE
@@ -96,6 +102,43 @@ SELECT throws_ok(
   'P0001',
   NULL,
   'daily_counters: zero/negative amounts are rejected'
+);
+
+-- 1b. Cross-tenant bucket isolation. A SECOND account reserves on the
+-- exact (counter_key, day_utc) erin already used on 2026-06-13 (where
+-- erin's bucket = 100, at cap). With per-account keying it is a fresh
+-- bucket: alex's reservation succeeds to its own cap and erin's bucket
+-- is untouched.
+DO $$
+DECLARE
+  alex_user uuid := '36666666-6666-6666-6666-666666666666';
+  alex_account uuid;
+BEGIN
+  alex_account := _kt_test_seed_account(alex_user, 'se-alex');
+  PERFORM set_config('test.alex_account', alex_account::text, true);
+END $$;
+
+SELECT is(
+  _kt_reserve_daily_counter(
+    current_setting('test.alex_account')::uuid,
+    'authority_spend:g_test', '2026-06-13'::date, 100, 100
+  ),
+  100::numeric,
+  'daily_counters: account B reserves the full cap on a (key, day) account A already used — independent bucket'
+);
+SELECT is(
+  (SELECT amount FROM kinetiks_daily_counters
+   WHERE account_id = current_setting('test.erin_account')::uuid
+     AND counter_key = 'authority_spend:g_test'
+     AND day_utc = '2026-06-13'),
+  100::numeric,
+  'daily_counters: account A''s bucket on the shared (key, day) is untouched by account B'
+);
+SELECT is(
+  (SELECT count(*)::int FROM kinetiks_daily_counters
+   WHERE counter_key = 'authority_spend:g_test' AND day_utc = '2026-06-13'),
+  2,
+  'daily_counters: the shared (key, day) holds one isolated row per account'
 );
 
 -- 2. Authenticated users: default deny + no RPC execute.

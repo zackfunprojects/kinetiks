@@ -226,7 +226,13 @@ BEGIN
     IF v_parent_ref IS NOT NULL
        AND NOT (v_parent_ref = ANY(v_known_ids))
        AND NOT EXISTS (
-         SELECT 1 FROM kinetiks_authority_grants WHERE id = v_parent_ref
+         -- Scope the parent lookup to THIS account: a child must never
+         -- link to a parent grant owned by another tenant. Cross-account
+         -- linkage is a critical bug (CLAUDE.md). An out-of-account
+         -- parent_ref falls through to the exception below exactly as a
+         -- non-existent id would.
+         SELECT 1 FROM kinetiks_authority_grants
+         WHERE id = v_parent_ref AND account_id = p_account_id
        )
     THEN
       RAISE EXCEPTION
