@@ -63,7 +63,8 @@ rest of the app keeps running. Order roughly by importance.
 | `NEXT_PUBLIC_NANGO_HOST` | yes (optional) | no | Nango API base URL override. Default `https://api.nango.dev` (Nango Cloud). |
 | `NANGO_WEBHOOK_SECRET` | yes | yes | HMAC-SHA256 verification for inbound webhooks at `/api/integrations/nango/webhook`. Generate in the Nango dashboard → Settings → Webhooks. |
 | `IDENTITY_API_URL` | no | yes | Where Deno Edge Functions (e.g. `oracle-analysis-cron`) call into apps/id (Node). Default `https://kinetiks.ai`. Only needed on the Supabase Edge Function side. `metric-cache-cron` was retired in migration 00074: Nango sync has written the cache directly since Phase 7, and the cron's refresh route no longer exists. |
-| `KINETIKS_ID_API_URL` | no | yes | Where `authority-defaults-diff-cron` (Phase 5) calls into apps/id. Default `https://kinetiks.ai`. |
+| `KINETIKS_ID_API_URL` | no | yes | Where `authority-defaults-diff-cron` (Phase 5) and `model-discovery-cron` call into apps/id. **No default — fail closed** to avoid dev/staging crons routing at production. |
+| `PLATFORM_OPERATOR_ACCOUNT_ID` | yes (optional) | no | Adaptive model selection: the account that reviews platform model-flip proposals. Unset → single-tenant deployments fall back to the sole account; multi-account deployments **must** set it so proposals never land in a customer's Approvals queue. UUID of the operator's `kinetiks_accounts.id`. |
 | `HARVEST_API_URL` | no | yes | Where `gmail-sync-cron` / `sequence-cron` call Harvest. Default `https://hv.kinetiks.ai`. |
 | `RESEND_API_KEY` | yes | no | Transactional email send - the fallback path of `lib/email/sender.ts` (D2) when an account has no `google_workspace` connection. |
 | `RESEND_FROM_EMAIL` | yes (with Resend) | no | From address for the Resend fallback (must be on a Resend-verified domain). Default `notifications@kinetiks.ai`. The display name is always the customer's system name ("Kit via Kinetiks"). |

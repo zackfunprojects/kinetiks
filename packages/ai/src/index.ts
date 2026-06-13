@@ -57,6 +57,11 @@ export type {
   ModelAssignmentReader,
 } from "./models";
 
+// Live Anthropic Models API (discovery source of truth). Server-side;
+// uses the SDK client so feature code never imports @anthropic-ai/sdk.
+export { listAnthropicModels } from "./models-api";
+export type { AnthropicModelInfo } from "./models-api";
+
 // Knowledge module system — marketing methodology for agent operators.
 //
 // The loader uses Node-only `fs/promises` and `path`, so the runtime
