@@ -1,6 +1,29 @@
 -- Shared pgTAP setup. Source this once before running tests.
 CREATE EXTENSION IF NOT EXISTS pgtap;
 
+-- ============================================================
+-- Production-parity table privileges (2026-06-12 incident).
+--
+-- The hosted Supabase platform grants table privileges to anon /
+-- authenticated and gates access with RLS — RLS is the tenant
+-- boundary these suites exist to verify. Supabase CLI v2.106.0's
+-- local stack stopped applying those default grants to
+-- migration-created tables, so every suite failed with 42501
+-- ("permission denied for table ...") before any RLS logic ran.
+-- Re-asserting the grants here makes the suites' precondition
+-- explicit instead of image-dependent: the tests exercise RLS
+-- denials (zero rows / RLS errors), never raw privilege denials.
+--
+-- Deliberately NOT granted: function EXECUTE. Postgres defaults
+-- functions to PUBLIC-executable and individual migrations REVOKE
+-- the service-role-only RPCs (propose_authority_grants, the daily
+-- counter RPCs); a blanket function grant here would undo those
+-- deliberate revocations and break their pgTAP assertions.
+-- ============================================================
+GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
+
 -- Test helpers: create a seeded user + account pair under a chosen UUID.
 -- Used by every cross-tenant test. The created records are rolled back by
 -- the wrapping BEGIN/ROLLBACK in the test file.
