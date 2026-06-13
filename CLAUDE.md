@@ -113,7 +113,7 @@ The connection layer no longer uses a `registerExtractor()` pattern. Connections
 ```
 kinetiks/
   apps/
-    id/                          # kinetiks.ai - Core app (Chat, Analytics, Cortex)
+    id/                          # id.kinetiks.ai - Core app (Chat, Analytics, Cortex)
     desktop/                     # Electron wrapper for desktop
     hv/                          # hv.kinetiks.ai - Harvest (outbound engine)
     dm/                          # dm.kinetiks.ai - Dark Madder (content engine) [migrating]
@@ -178,7 +178,7 @@ Never duplicate code across packages. If the same logic is needed in two places,
 
 Each app deploys separately. Push to main rebuilds only apps with changes (Turborepo remote caching).
 
-- `apps/id` -> kinetiks.ai
+- `apps/id` -> id.kinetiks.ai (the apex `kinetiks.ai` is the marketing/landing site; the Core app and all its `/api` routes serve from `id.kinetiks.ai`)
 - `apps/hv` -> hv.kinetiks.ai
 - `apps/dm` -> dm.kinetiks.ai
 - `apps/ht` -> ht.kinetiks.ai

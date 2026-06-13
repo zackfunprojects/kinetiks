@@ -3609,6 +3609,98 @@ export type Database = {
           },
         ]
       }
+      kinetiks_model_assignments: {
+        Row: {
+          approved_by: string | null
+          assigned_model_id: string
+          created_at: string
+          family: string
+          frozen: boolean
+          id: string
+          released_at: string | null
+          role: string
+          source: string
+          updated_at: string
+        }
+        Insert: {
+          approved_by?: string | null
+          assigned_model_id: string
+          created_at?: string
+          family: string
+          frozen?: boolean
+          id?: string
+          released_at?: string | null
+          role: string
+          source?: string
+          updated_at?: string
+        }
+        Update: {
+          approved_by?: string | null
+          assigned_model_id?: string
+          created_at?: string
+          family?: string
+          frozen?: boolean
+          id?: string
+          released_at?: string | null
+          role?: string
+          source?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kinetiks_model_assignments_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "kinetiks_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      kinetiks_model_flip_proposals: {
+        Row: {
+          approval_id: string | null
+          created_at: string
+          decided_at: string | null
+          est_cost_delta_usd: number | null
+          family: string
+          from_model: string
+          id: string
+          reject_reason: string | null
+          released_at: string | null
+          role: string
+          status: string
+          to_model: string
+        }
+        Insert: {
+          approval_id?: string | null
+          created_at?: string
+          decided_at?: string | null
+          est_cost_delta_usd?: number | null
+          family: string
+          from_model: string
+          id?: string
+          reject_reason?: string | null
+          released_at?: string | null
+          role: string
+          status?: string
+          to_model: string
+        }
+        Update: {
+          approval_id?: string | null
+          created_at?: string
+          decided_at?: string | null
+          est_cost_delta_usd?: number | null
+          family?: string
+          from_model?: string
+          id?: string
+          reject_reason?: string | null
+          released_at?: string | null
+          role?: string
+          status?: string
+          to_model?: string
+        }
+        Relationships: []
+      }
       kinetiks_oracle_insights: {
         Row: {
           account_id: string
@@ -4760,32 +4852,32 @@ export type Database = {
         Returns: Json
       }
       _kt_release_advisory_lock: { Args: { p_key: string }; Returns: boolean }
-      _kt_schedule_edge_function: {
-        Args: { p_cron: string; p_function_slug: string; p_name: string }
-        Returns: undefined
-      }
       _kt_release_daily_counter: {
         Args: {
           p_account_id: string
+          p_amount: number
           p_counter_key: string
           p_day: string
-          p_amount: number
         }
         Returns: number
       }
       _kt_reserve_daily_counter: {
         Args: {
           p_account_id: string
-          p_counter_key: string
-          p_day: string
           p_amount: number
           p_cap: number
+          p_counter_key: string
+          p_day: string
         }
         // RETURNS numeric, but the function RETURNs NULL when the
         // reservation would exceed p_cap (migration 00080). The Supabase
         // generator can't infer that from the signature; this is a
         // surgical correction so the cap-refusal path stays type-visible.
         Returns: number | null
+      }
+      _kt_schedule_edge_function: {
+        Args: { p_cron: string; p_function_slug: string; p_name: string }
+        Returns: undefined
       }
       _kt_try_advisory_lock: { Args: { p_key: string }; Returns: boolean }
       accept_default_standing_grants: {
