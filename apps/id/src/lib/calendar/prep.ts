@@ -112,7 +112,7 @@ export async function runMeetingPrep(accountId: string): Promise<MeetingPrepResu
       // concurrent cycles at worst duplicate one Haiku call, never a
       // delivery.
       const brief = await askClaude(buildMeetingPrepPrompt({ event, contextSummary }), {
-        model: "claude-haiku-4-5-20251001",
+        role: "fast",
         maxTokens: 512,
       });
 

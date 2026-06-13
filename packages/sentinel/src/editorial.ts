@@ -120,7 +120,7 @@ ${JSON.stringify(context.competitive, null, 2)}`;
 
     const response = await askClaude(prompt, {
       system: systemPrompt,
-      model: "claude-sonnet-4-20250514",
+      role: "balanced",
       maxTokens: 2048,
     });
 

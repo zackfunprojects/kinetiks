@@ -226,7 +226,7 @@ async function parseWithAi(
     `Target layer: ${targetLayer}\nExpected fields: ${schema}\n\nContent to parse:\n\n${truncated}`,
     {
       system: systemPrompt,
-      model: "claude-haiku-4-5-20251001",
+      role: "fast",
       maxTokens: 4096,
     }
   );
@@ -409,7 +409,7 @@ async function analyzeContentLibrary(
 
   const response = await askClaude(combinedContent, {
     system: ARCHIVIST_CONTENT_ANALYSIS_SYSTEM,
-    model: "claude-haiku-4-5-20251001",
+    role: "fast",
     maxTokens: 4096,
   });
 

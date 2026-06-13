@@ -105,7 +105,7 @@ async function parseCommandIntent(message: string): Promise<ParsedCommandIntent>
       `Parse this command: "${message}"\n\nRespond with JSON: { "type": "query"|"action"|"config", "subject": string, "keywords": string[], "parameters": object, "confidence": number }`,
       {
         system: "You are a command parser for a GTM system. Extract the command type, subject, keywords, and any parameters. Confidence is 0-1. Respond with JSON only.",
-        model: "claude-haiku-4-5-20251001",
+        role: "fast",
         maxTokens: 256,
       }
     );

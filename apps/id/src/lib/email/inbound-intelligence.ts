@@ -71,7 +71,7 @@ export async function extractInboundEmailIntelligence(args: {
   });
 
   const raw = await askClaude(prompt, {
-    model: "claude-haiku-4-5-20251001",
+    role: "fast",
     maxTokens: 512,
   });
 

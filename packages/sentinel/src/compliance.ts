@@ -191,7 +191,7 @@ ${JSON.stringify(productsData, null, 2)}`;
   try {
     const response = await askClaude(prompt, {
       system: SENTINEL_COMPLIANCE_SYSTEM,
-      model: "claude-haiku-4-5-20251001",
+      role: "fast",
       maxTokens: 1024,
     });
 

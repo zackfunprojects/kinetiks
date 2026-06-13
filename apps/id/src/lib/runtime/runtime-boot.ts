@@ -71,10 +71,15 @@ import { realLLMJudge } from "@/lib/runtime/llm-judge";
 import { processApproval } from "@/lib/approvals/pipeline";
 import type { ApprovalSubmission } from "@/lib/approvals/types";
 
-/** Model ids per the task-registry convention. */
-const JUDGMENT_MODEL_IDS = {
-  haiku: "claude-haiku-4-5-20251001",
-  sonnet: "claude-sonnet-4-20250514",
+/**
+ * An action class declares its judgment model as a family tier
+ * (`haiku`/`sonnet`); map that to the platform model ROLE so the prompt
+ * task resolves to the current model id like every other task — no
+ * concrete model id is pinned here.
+ */
+const JUDGMENT_ROLE = {
+  haiku: "fast",
+  sonnet: "balanced",
 } as const;
 
 /**
@@ -92,7 +97,7 @@ function registerJudgmentPromptTasks(): void {
     registerPromptTask({
       task: `authority.llm_judged.${descriptor.action_class}`,
       version: "v1-2026-06",
-      defaultModel: JUDGMENT_MODEL_IDS[budget.model],
+      role: JUDGMENT_ROLE[budget.model],
     });
   }
 }
