@@ -20,6 +20,7 @@ import { serverEnv } from "@kinetiks/lib/env";
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { captureException } from "@/lib/observability/sentry";
 
 export type AdminRole = "admin" | "superuser";
 
@@ -92,8 +93,11 @@ export async function bootstrapAdmins(): Promise<void> {
         { onConflict: "user_id", ignoreDuplicates: true },
       );
     if (error) {
-      // eslint-disable-next-line no-console
-      console.warn(`[admin-bootstrap] could not seed ${userId}: ${error.message}`);
+      await captureException(new Error(`admin bootstrap seed failed: ${error.message}`), {
+        tags: { route: "boot", action: "admin_bootstrap", stage: "upsert", app: "id" },
+        user: { id: userId },
+        extra: {},
+      });
     }
   }
 }

@@ -116,8 +116,23 @@ export const kinetiksServerEnvSchema = z.object({
   // Admin panel: comma-separated auth.users ids that boot seeds into
   // kinetiks_admins as superusers (the bootstrap for the first admin(s);
   // the table is the source of truth thereafter). Optional — unset means
-  // no bootstrap, and admins are managed entirely in-table.
-  ADMIN_BOOTSTRAP_USER_IDS: z.string().optional(),
+  // no bootstrap. Validated as a UUID CSV at parse time so a malformed
+  // value fails fast at boot rather than silently no-op'ing the seed.
+  ADMIN_BOOTSTRAP_USER_IDS: z
+    .string()
+    .optional()
+    .refine(
+      (v) =>
+        v === undefined ||
+        v
+          .split(",")
+          .map((s) => s.trim())
+          .filter((s) => s.length > 0)
+          .every((s) =>
+            /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s),
+          ),
+      { message: "ADMIN_BOOTSTRAP_USER_IDS must be a comma-separated list of UUIDs" },
+    ),
 
   // Internal service-to-service auth (Edge Functions → Node API routes).
   // Optional locally; required in production for the metric-cache-cron and

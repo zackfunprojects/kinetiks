@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn() }));
+vi.mock("@/lib/observability/sentry", () => ({
+  captureException: vi.fn(async () => undefined),
+  USER_SAFE: { GENERIC_ERROR: "Something went wrong. Try again in a moment." },
+}));
 const { refreshMock } = vi.hoisted(() => ({ refreshMock: vi.fn(async () => undefined) }));
 vi.mock("../model-assignment-reader", () => ({ refreshModelAssignments: refreshMock }));
 
@@ -47,9 +51,10 @@ beforeEach(() => {
 });
 
 describe("applyModelFlip", () => {
-  it("applies a pending flip: updates the assignment + marks the proposal + refreshes", async () => {
+  it("claims the proposal then updates the assignment + refreshes", async () => {
     stub({
-      kinetiks_model_flip_proposals: { single: { data: PROPOSAL, error: null }, write: { error: null } },
+      // read → pending; claim (.select('id')) → one row claimed.
+      kinetiks_model_flip_proposals: { single: { data: PROPOSAL, error: null }, write: { data: [{ id: "p1" }], error: null } },
       kinetiks_model_assignments: { write: { error: null } },
     });
     const res = await applyModelFlip("p1", "admin-user-1");
@@ -73,13 +78,26 @@ describe("applyModelFlip", () => {
     expect(res.error).toMatch(/already approved/);
   });
 
-  it("surfaces an assignment write error without refreshing", async () => {
+  it("aborts (no assignment touch) when a concurrent decision claims the proposal first", async () => {
     stub({
-      kinetiks_model_flip_proposals: { single: { data: PROPOSAL, error: null } },
-      kinetiks_model_assignments: { write: { error: { message: "db down" } } },
+      // read → still pending, but the guarded claim returns zero rows.
+      kinetiks_model_flip_proposals: { single: { data: PROPOSAL, error: null }, write: { data: [], error: null } },
+      kinetiks_model_assignments: { write: { error: null } },
     });
     const res = await applyModelFlip("p1", "admin-user-1");
     expect(res.ok).toBe(false);
+    expect(res.error).toMatch(/someone else/);
+    expect(refreshMock).not.toHaveBeenCalled();
+  });
+
+  it("returns a safe error (not raw DB text) and does not refresh on an assignment write failure", async () => {
+    stub({
+      kinetiks_model_flip_proposals: { single: { data: PROPOSAL, error: null }, write: { data: [{ id: "p1" }], error: null } },
+      kinetiks_model_assignments: { write: { error: { message: "raw pg detail" } } },
+    });
+    const res = await applyModelFlip("p1", "admin-user-1");
+    expect(res.ok).toBe(false);
+    expect(res.error).not.toContain("raw pg detail");
     expect(refreshMock).not.toHaveBeenCalled();
   });
 });

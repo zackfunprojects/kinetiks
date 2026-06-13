@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Card, Button, Badge, Pill, EmptyState } from "@kinetiks/ui";
+import { Card, Button, Badge, Pill, EmptyState, Input } from "@kinetiks/ui";
 import type { ModelRole, ModelFamily } from "@kinetiks/ai";
+
+import { captureException, USER_SAFE } from "@/lib/observability/sentry";
 
 import {
   approveFlipAction,
@@ -63,13 +65,26 @@ export function ModelManager({ assignments, pending, history, loadError }: Props
   function run(fn: () => Promise<{ ok: boolean; error?: string }>, okText: string) {
     setMessage(null);
     startTransition(async () => {
-      const r = await fn();
-      setMessage(r.ok ? { tone: "ok", text: okText } : { tone: "error", text: r.error ?? "Action failed" });
-      if (r.ok) {
-        setRejecting(null);
-        setRejectReason("");
-        setOverriding(null);
-        setOverrideId("");
+      try {
+        const r = await fn();
+        setMessage(
+          r.ok
+            ? { tone: "ok", text: okText }
+            : { tone: "error", text: r.error ?? USER_SAFE.GENERIC_ERROR },
+        );
+        if (r.ok) {
+          setRejecting(null);
+          setRejectReason("");
+          setOverriding(null);
+          setOverrideId("");
+        }
+      } catch (err) {
+        // A thrown server action / network failure skips the {ok} path.
+        void captureException(err, {
+          tags: { route: "admin/models", action: "model_action", stage: "client", app: "id" },
+          extra: {},
+        });
+        setMessage({ tone: "error", text: USER_SAFE.GENERIC_ERROR });
       }
     });
   }
@@ -154,15 +169,16 @@ export function ModelManager({ assignments, pending, history, loadError }: Props
               </div>
             </div>
             {overriding === a.role && (
-              <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                <input
-                  className="kt-field"
-                  style={{ flex: 1, fontFamily: "var(--font-mono), monospace" }}
-                  value={overrideId}
-                  onChange={(e) => setOverrideId(e.target.value)}
-                  placeholder={`${a.family} model id`}
-                  aria-label={`Override model for ${a.role}`}
-                />
+              <div style={{ display: "flex", gap: 8, marginTop: 12, alignItems: "flex-start" }}>
+                <div style={{ flex: 1 }}>
+                  <Input
+                    style={{ width: "100%", fontFamily: "var(--font-mono), monospace" }}
+                    value={overrideId}
+                    onChange={(e) => setOverrideId(e.target.value)}
+                    placeholder={`${a.family} model id`}
+                    aria-label={`Override model for ${a.role}`}
+                  />
+                </div>
                 <Button
                   variant="accent"
                   size="sm"
@@ -226,15 +242,16 @@ export function ModelManager({ assignments, pending, history, loadError }: Props
                 </div>
               </div>
               {rejecting === p.id && (
-                <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                  <input
-                    className="kt-field"
-                    style={{ flex: 1 }}
-                    value={rejectReason}
-                    onChange={(e) => setRejectReason(e.target.value)}
-                    placeholder="Reason (optional) — recorded + 14-day cooldown"
-                    aria-label="Rejection reason"
-                  />
+                <div style={{ display: "flex", gap: 8, marginTop: 12, alignItems: "flex-start" }}>
+                  <div style={{ flex: 1 }}>
+                    <Input
+                      style={{ width: "100%" }}
+                      value={rejectReason}
+                      onChange={(e) => setRejectReason(e.target.value)}
+                      placeholder="Reason (optional) — recorded + 14-day cooldown"
+                      aria-label="Rejection reason"
+                    />
+                  </div>
                   <Button
                     variant="danger"
                     size="sm"

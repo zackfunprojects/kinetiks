@@ -41,7 +41,9 @@ export function AdminNav() {
         Admin
       </h2>
       {NAV_ITEMS.map((item) => {
-        const active = pathname.startsWith(item.href);
+        // Exact or subpath only — `/admin/models` must not light up for
+        // `/admin/models-legacy`.
+        const active = pathname === item.href || pathname.startsWith(item.href + "/");
         const muted = item.comingSoon && !active;
         const inner = (
           <>

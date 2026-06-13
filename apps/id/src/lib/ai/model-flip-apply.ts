@@ -1,21 +1,21 @@
 /**
  * Apply changes to the live role→model mapping (kinetiks_model_assignments)
  * and record proposal decisions. The execute side of the adaptive model
- * loop, now driven by the admin panel rather than the customer Approval
- * queue.
+ * loop, driven by the admin panel.
  *
  * Authorization is the caller's responsibility (the admin server actions
- * call requireAdmin first); these functions assume an authorized admin
- * and just do the data work. They take the admin's auth.users id for the
- * assignment's `approved_by` provenance.
+ * call requireAdmin first); these functions assume an authorized admin and
+ * take the admin's auth.users id for the assignment's `approved_by`.
  *
  * Audit trail is the dedicated platform tables — kinetiks_model_flip_proposals
  * (status, decided_at, reject_reason) and kinetiks_model_assignments
  * (approved_by, source, updated_at) — NOT the account-scoped customer
  * Learning Ledger, which a deployment-wide model change doesn't belong in.
  *
- * On a successful assignment change the in-memory resolver snapshot is
- * refreshed so the new model takes effect on the next Claude call.
+ * Errors: raw PostgREST messages never reach the caller (they would surface
+ * in the admin UI). DB failures are captured to Sentry and returned as a
+ * generic user-safe message; user-meaningful states (not-found,
+ * already-decided, family-mismatch) are returned as plain sentences.
  */
 
 import "server-only";
@@ -24,6 +24,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { ROLE_FAMILY, type ModelRole, type ModelFamily } from "@kinetiks/ai";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { captureException, USER_SAFE } from "@/lib/observability/sentry";
 import { refreshModelAssignments } from "./model-assignment-reader";
 
 export interface FlipApplyResult {
@@ -40,8 +41,17 @@ interface PendingProposal {
   status: string;
 }
 
-function admin(): SupabaseClient {
+function db(): SupabaseClient {
   return createAdminClient() as unknown as SupabaseClient;
+}
+
+/** Capture a DB failure (raw detail to Sentry) and return a safe message. */
+async function dbFailure(stage: string, message: string): Promise<FlipApplyResult> {
+  await captureException(new Error(`model-flip-apply ${stage}: ${message}`), {
+    tags: { route: "admin/models", action: "model_flip_apply", stage, app: "id" },
+    extra: {},
+  });
+  return { ok: false, error: USER_SAFE.GENERIC_ERROR };
 }
 
 /** Approve a pending flip: point the role at the proposal's to_model. */
@@ -49,19 +59,38 @@ export async function applyModelFlip(
   proposalId: string,
   adminUserId: string,
 ): Promise<FlipApplyResult> {
-  const db = admin();
-  const { data, error } = await db
+  const client = db();
+  const { data, error } = await client
     .from("kinetiks_model_flip_proposals")
     .select("id, role, to_model, family, released_at, status")
     .eq("id", proposalId)
     .maybeSingle();
-  if (error) return { ok: false, error: error.message };
+  if (error) return dbFailure("read", error.message);
   const p = data as PendingProposal | null;
-  if (!p) return { ok: false, error: "proposal not found" };
-  if (p.status !== "pending") return { ok: false, error: `proposal already ${p.status}` };
+  if (!p) return { ok: false, error: "Proposal not found." };
+  if (p.status !== "pending") return { ok: false, error: `This proposal was already ${p.status}.` };
 
   const now = new Date().toISOString();
-  const { error: assignErr } = await db
+
+  // Claim the proposal FIRST as the atomic gate: the guarded transition
+  // (only WHERE status='pending') means a concurrent reject can't slip in
+  // between the assignment write and the status change. Only the decision
+  // that claims the row proceeds to touch the mapping.
+  const { data: claimed, error: claimErr } = await client
+    .from("kinetiks_model_flip_proposals")
+    .update({ status: "approved", decided_at: now })
+    .eq("id", proposalId)
+    .eq("status", "pending")
+    .select("id");
+  if (claimErr) return dbFailure("claim", claimErr.message);
+  if (!claimed || (claimed as unknown[]).length === 0) {
+    return { ok: false, error: "This proposal was just decided by someone else." };
+  }
+
+  // Apply the assignment. If this fails after the claim, the proposal is
+  // 'approved' but the mapping is unchanged — recoverable via Override, and
+  // far safer than flipping the model under a concurrently-rejected proposal.
+  const { error: assignErr } = await client
     .from("kinetiks_model_assignments")
     .update({
       assigned_model_id: p.to_model,
@@ -72,14 +101,7 @@ export async function applyModelFlip(
       updated_at: now,
     })
     .eq("role", p.role);
-  if (assignErr) return { ok: false, error: `assignment update failed: ${assignErr.message}` };
-
-  const { error: propErr } = await db
-    .from("kinetiks_model_flip_proposals")
-    .update({ status: "approved", decided_at: now })
-    .eq("id", proposalId)
-    .eq("status", "pending"); // concurrency guard: only the first decision wins
-  if (propErr) return { ok: false, error: `proposal update failed: ${propErr.message}` };
+  if (assignErr) return dbFailure("assignment", assignErr.message);
 
   await refreshModelAssignments();
   return { ok: true };
@@ -90,13 +112,12 @@ export async function recordFlipRejection(
   proposalId: string,
   reason: string | null,
 ): Promise<FlipApplyResult> {
-  const db = admin();
-  const { error } = await db
+  const { error } = await db()
     .from("kinetiks_model_flip_proposals")
     .update({ status: "rejected", decided_at: new Date().toISOString(), reject_reason: reason })
     .eq("id", proposalId)
     .eq("status", "pending");
-  if (error) return { ok: false, error: error.message };
+  if (error) return dbFailure("reject", error.message);
   return { ok: true };
 }
 
@@ -108,10 +129,9 @@ export async function overrideRoleModel(
   adminUserId: string,
 ): Promise<FlipApplyResult> {
   if (ROLE_FAMILY[role] !== family) {
-    return { ok: false, error: `family ${family} does not match role ${role}` };
+    return { ok: false, error: `Family ${family} does not match role ${role}.` };
   }
-  const db = admin();
-  const { error } = await db
+  const { error } = await db()
     .from("kinetiks_model_assignments")
     .update({
       assigned_model_id: modelId,
@@ -122,7 +142,7 @@ export async function overrideRoleModel(
       updated_at: new Date().toISOString(),
     })
     .eq("role", role);
-  if (error) return { ok: false, error: error.message };
+  if (error) return dbFailure("override", error.message);
   await refreshModelAssignments();
   return { ok: true };
 }
@@ -132,11 +152,10 @@ export async function setRoleFrozen(
   role: ModelRole,
   frozen: boolean,
 ): Promise<FlipApplyResult> {
-  const db = admin();
-  const { error } = await db
+  const { error } = await db()
     .from("kinetiks_model_assignments")
     .update({ frozen, updated_at: new Date().toISOString() })
     .eq("role", role);
-  if (error) return { ok: false, error: error.message };
+  if (error) return dbFailure("freeze", error.message);
   return { ok: true };
 }
