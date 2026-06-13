@@ -356,12 +356,25 @@ function normalizedFieldDistance(
 // ============================================================
 
 /**
- * v1: query the metric cache directly, compute z-score against the
- * cached mean/stddev, trigger if |z| > zscore_threshold. Full Oracle
- * integration is deferred to a later phase.
+ * Query the metric cache, compute the z-score against the baseline
+ * mean/stddev, trigger if |z| > zscore_threshold.
  *
- * Returns not-fired if the metric is not cached on the account (no
- * basis for anomaly judgment).
+ * Fail-closed semantics (E3): the customer approved anomaly
+ * protection on this grant; when the protection cannot evaluate, the
+ * action escalates rather than executing unprotected.
+ *
+ *   - Reader CONFIGURED but stats null (unregistered metric key, no
+ *     cached series, baseline too short) → FIRED with an honest
+ *     reason. Pre-E3 this silently never fired — the audit's "a
+ *     customer approving an anomaly trigger has no anomaly
+ *     protection". Proposal-time validation now rejects unknown
+ *     metric keys, so this branch covers data gaps, not typos.
+ *   - stddev === 0 (flat baseline): latest equal to the baseline is
+ *     no anomaly; ANY deviation from a perfectly flat baseline is
+ *     (the z-score is unbounded).
+ *   - Reader UNCONFIGURED → not-fired (graceful degradation for
+ *     environments without the adapter; production boot always wires
+ *     it).
  */
 async function evaluateAnomaly(
   condition: AnomalyCondition,
@@ -374,7 +387,23 @@ async function evaluateAnomaly(
     account_id: ctx.account_id,
     metric: condition.metric,
   });
-  if (!stats || stats.stddev === 0) return { triggered: false };
+  if (!stats) {
+    return {
+      triggered: true,
+      type: "anomaly",
+      trigger_index,
+      reason: `Anomaly protection on metric '${condition.metric}' cannot evaluate (no usable metric history); routing to per-action approval (fail closed)`,
+    };
+  }
+  if (stats.stddev === 0) {
+    if (stats.latest === stats.mean) return { triggered: false };
+    return {
+      triggered: true,
+      type: "anomaly",
+      trigger_index,
+      reason: `Anomaly on metric '${condition.metric}': latest=${stats.latest.toFixed(3)} deviates from a flat baseline (${stats.mean.toFixed(3)})`,
+    };
+  }
   const z = (stats.latest - stats.mean) / stats.stddev;
   if (Math.abs(z) > condition.zscore_threshold) {
     return {

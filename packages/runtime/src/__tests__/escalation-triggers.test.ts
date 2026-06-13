@@ -205,7 +205,7 @@ describe("anomaly trigger", () => {
     if (result.triggered) expect(result.type).toBe("anomaly");
   });
 
-  it("does not fire when metric is not cached", async () => {
+  it("FIRES (fail closed) when the reader is configured but the metric has no usable history", async () => {
     configureMetricCacheReader({
       async fetchMetricStats() {
         return null;
@@ -219,7 +219,47 @@ describe("anomaly trigger", () => {
       },
     ];
     const result = await evaluateEscalationTriggers(triggers, ctx);
+    expect(result.triggered).toBe(true);
+    if (result.triggered) {
+      expect(result.type).toBe("anomaly");
+      expect(result.reason).toContain("fail closed");
+    }
+  });
+
+  it("does not fire when the reader itself is unconfigured (graceful degradation)", async () => {
+    const triggers: EscalationTrigger[] = [
+      {
+        type: "anomaly",
+        description: "no-op",
+        condition: { metric: "ga4_sessions", zscore_threshold: 3 },
+      },
+    ];
+    const result = await evaluateEscalationTriggers(triggers, ctx);
     expect(result.triggered).toBe(false);
+  });
+
+  it("flat baseline: equal latest passes, any deviation fires", async () => {
+    configureMetricCacheReader({
+      async fetchMetricStats() {
+        return { mean: 50, stddev: 0, latest: 50 };
+      },
+    });
+    const triggers: EscalationTrigger[] = [
+      {
+        type: "anomaly",
+        description: "flat",
+        condition: { metric: "ga4_sessions", zscore_threshold: 3 },
+      },
+    ];
+    expect((await evaluateEscalationTriggers(triggers, ctx)).triggered).toBe(false);
+
+    configureMetricCacheReader({
+      async fetchMetricStats() {
+        return { mean: 50, stddev: 0, latest: 51 };
+      },
+    });
+    const fired = await evaluateEscalationTriggers(triggers, ctx);
+    expect(fired.triggered).toBe(true);
   });
 });
 
