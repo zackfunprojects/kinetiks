@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { BillingRecord } from "@kinetiks/types";
-import { BillingPage } from "@/components/billing/BillingPage";
+import { BillingPage, type BillingConfig } from "@/components/billing/BillingPage";
 
 const LOAD_ERROR_MESSAGE = "We couldn't load your billing details. Try again.";
 
@@ -12,9 +12,14 @@ const LOAD_ERROR_MESSAGE = "We couldn't load your billing details. Try again.";
  * (the legacy (dashboard)/billing surface) with the modal supplying
  * the section heading; data comes from GET /api/billing because the
  * modal is a client surface.
+ *
+ * E1 — the response now also carries the deployment's Stripe
+ * configuration (which plans are purchasable, whether the portal is
+ * available) so the plan-picker renders honest states.
  */
 export function BillingSettings() {
   const [billing, setBilling] = useState<BillingRecord | null>(null);
+  const [config, setConfig] = useState<BillingConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -26,7 +31,10 @@ export function BillingSettings() {
         if (!res.ok) throw new Error(`status ${res.status}`);
         const json = await res.json();
         const envelope = json.data ?? json;
-        if (!cancelled) setBilling((envelope.billing ?? null) as BillingRecord | null);
+        if (!cancelled) {
+          setBilling((envelope.billing ?? null) as BillingRecord | null);
+          setConfig((envelope.config ?? null) as BillingConfig | null);
+        }
       } catch {
         if (!cancelled) setError(LOAD_ERROR_MESSAGE);
       } finally {
@@ -72,7 +80,7 @@ export function BillingSettings() {
           {error}
         </p>
       ) : (
-        <BillingPage billing={billing} hideHeader />
+        <BillingPage billing={billing} config={config} hideHeader />
       )}
     </div>
   );
