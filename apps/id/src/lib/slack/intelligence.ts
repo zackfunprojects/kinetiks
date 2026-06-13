@@ -21,7 +21,7 @@ export async function extractSlackIntelligence(
       `Channel: ${channel}\nAuthor: ${author}\nMessage: ${message.slice(0, 2000)}`,
       {
         system: `You extract GTM intelligence from Slack messages. Only flag messages with actual business intelligence - ignore casual chat. Respond with JSON: { "relevance": "high"|"medium"|"low"|"none", "category": "deal_discussion"|"content_idea"|"competitive_mention"|"customer_feedback"|"general", "summary": string, "entities": [{ "name": string, "type": string }], "proposal_target": string|null }`,
-        model: "claude-haiku-4-5-20251001",
+        role: "fast",
         maxTokens: 256,
       }
     );

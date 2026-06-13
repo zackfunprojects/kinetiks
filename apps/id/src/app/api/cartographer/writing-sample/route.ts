@@ -142,7 +142,7 @@ export async function POST(request: Request) {
     const userPrompt = buildWritingSamplePrompt(text.trim(), voiceSummary);
     const response = await askClaude(userPrompt, {
       system: WRITING_SAMPLE_ANALYSIS_PROMPT,
-      model: "claude-haiku-4-5-20251001",
+      role: "fast",
       maxTokens: 1024,
     });
 

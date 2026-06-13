@@ -1,5 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 
+import { resolveModel, type ModelId, type ModelRole } from "./models";
+
 /**
  * Cached client for the shared env key only.
  * BYOK (user-supplied) keys are never cached to avoid unbounded memory
@@ -29,7 +31,11 @@ export function createClaudeClient(apiKey?: string): Anthropic {
 
 interface AskClaudeOptions {
   system?: string;
-  model?: "claude-sonnet-4-20250514" | "claude-haiku-4-5-20251001";
+  /** Model ROLE to run at (resolves to the current model id). Defaults
+   *  to `balanced`. Prefer this over pinning a concrete `model`. */
+  role?: ModelRole;
+  /** Escape hatch: pin a concrete model id, overriding `role`. */
+  model?: ModelId;
   maxTokens?: number;
   apiKey?: string;
 }
@@ -40,7 +46,8 @@ export async function askClaude(
 ): Promise<string> {
   const {
     system,
-    model = "claude-sonnet-4-20250514",
+    role = "balanced",
+    model = resolveModel(role),
     maxTokens = 4096,
     apiKey,
   } = options;
@@ -73,7 +80,8 @@ interface ConversationMessage {
 
 interface AskClaudeMultiTurnOptions {
   system?: string;
-  model?: "claude-sonnet-4-20250514" | "claude-haiku-4-5-20251001";
+  role?: ModelRole;
+  model?: ModelId;
   maxTokens?: number;
   apiKey?: string;
 }
@@ -84,7 +92,8 @@ export async function askClaudeMultiTurn(
 ): Promise<string> {
   const {
     system,
-    model = "claude-sonnet-4-20250514",
+    role = "balanced",
+    model = resolveModel(role),
     maxTokens = 4096,
     apiKey,
   } = options;
@@ -112,7 +121,8 @@ export async function askClaudeMultiTurn(
 
 interface StreamClaudeOptions {
   system?: string;
-  model?: "claude-sonnet-4-20250514" | "claude-haiku-4-5-20251001";
+  role?: ModelRole;
+  model?: ModelId;
   maxTokens?: number;
   apiKey?: string;
 }
@@ -123,7 +133,8 @@ export function streamClaude(
 ) {
   const {
     system,
-    model = "claude-sonnet-4-20250514",
+    role = "balanced",
+    model = resolveModel(role),
     maxTokens = 4096,
     apiKey,
   } = options;

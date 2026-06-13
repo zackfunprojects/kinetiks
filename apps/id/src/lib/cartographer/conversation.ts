@@ -207,7 +207,10 @@ export async function generateNextQuestion(
     "cartographer.conversation",
     userPrompt,
     CONVERSATION_QUESTION_PROMPT,
-    { model: "claude-haiku-4-5-20251001", maxTokens: 512, context: { accountId } },
+    // No model override: the task is registered at role `fast`, which
+    // resolves to the current Haiku. (Previously pinned Haiku here while
+    // the task mis-declared Sonnet; the role now reflects reality.)
+    { maxTokens: 512, context: { accountId } },
   );
 
   const parsed = parseJSON<ConversationQuestion>(response);

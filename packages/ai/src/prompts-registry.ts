@@ -11,14 +11,20 @@
  */
 
 import { AITaskError } from "./errors";
+import type { ModelRole } from "./models";
 
 export interface PromptTaskDescriptor {
   /** Globally unique task identifier, e.g. "marcus.pre_analysis". */
   task: string;
   /** Pinned prompt version string committed alongside the prompt code. */
   version: string;
-  /** Default model for this task. Callers may still override. */
-  defaultModel: "claude-sonnet-4-20250514" | "claude-haiku-4-5-20251001";
+  /**
+   * The model ROLE this task runs at (the stable use-case dimension).
+   * Resolved to a concrete model id at call time via `resolveModel(role)`,
+   * so a new Anthropic model upgrades every task at once with no code
+   * change. Callers may still pin a concrete model via `options.model`.
+   */
+  role: ModelRole;
   /** Optional list of required template placeholders. */
   required?: readonly string[];
   /** Whitelist of allowed placeholders (superset of required). */
@@ -31,7 +37,7 @@ export function registerPromptTask(d: PromptTaskDescriptor): void {
   if (registry.has(d.task)) {
     // Re-registration is allowed only with identical descriptor (hot reload).
     const prev = registry.get(d.task);
-    if (prev && prev.version === d.version && prev.defaultModel === d.defaultModel) return;
+    if (prev && prev.version === d.version && prev.role === d.role) return;
     throw new Error(`[prompts-registry] duplicate task with conflicting descriptor: ${d.task}`);
   }
   registry.set(d.task, d);

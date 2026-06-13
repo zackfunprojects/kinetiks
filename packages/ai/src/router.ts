@@ -18,13 +18,19 @@
 import { createClaudeClient } from "./claude";
 import { AITaskError, classifyError, type AIErrorClass } from "./errors";
 import { assertPromptTask } from "./prompts-registry";
+import { resolveModel, type ModelId, type ModelRole } from "./models";
 
 export interface ConversationMessage {
   role: "user" | "assistant";
   content: string;
 }
 
-export type AIModel = "claude-sonnet-4-20250514" | "claude-haiku-4-5-20251001";
+/**
+ * A concrete Anthropic model id. Dynamic now (roles resolve to whatever
+ * is current), so a string rather than a closed union. Retained as a
+ * named export for back-compat; new code should reason in `ModelRole`.
+ */
+export type AIModel = ModelId;
 
 /** Correlation envelope: ids only, no payloads, no PII. */
 export interface AICallContext {
@@ -104,12 +110,25 @@ async function emitLog(payload: AICallLogPayload): Promise<void> {
 interface RouteOptions {
   context?: AICallContext;
   metadata?: AICallMetadata;
-  /** Override the registered default model for this task. */
+  /** Pin a concrete model, overriding the task's role resolution. Escape
+   *  hatch only — prefer letting the role resolve to the current model. */
   model?: AIModel;
   maxTokens?: number;
   apiKey?: string;
   /** Retry on transient/timeout once. Default true. */
   retry?: boolean;
+}
+
+/**
+ * Stamp the resolved model role into the call's metadata so every
+ * ai_calls row records which role drove the model choice — the audit
+ * trail for "which role used which model when" once models start flipping.
+ */
+function withModelRole(options: RouteOptions, role: ModelRole): RouteOptions {
+  return {
+    ...options,
+    metadata: { ...(options.metadata ?? {}), model_role: role },
+  };
 }
 
 /**
@@ -122,8 +141,9 @@ export async function routeAskClaude(
   options: RouteOptions = {},
 ): Promise<string> {
   const descriptor = assertPromptTask(task);
-  const model = options.model ?? descriptor.defaultModel;
-  return runWithRetry(task, model, descriptor.version, options, async (attempt) => {
+  const model = options.model ?? resolveModel(descriptor.role);
+  const opts = withModelRole(options, descriptor.role);
+  return runWithRetry(task, model, descriptor.version, opts, async (attempt) => {
     const anthropic = createClaudeClient(options.apiKey);
     const response = await anthropic.messages.create({
       model,
@@ -159,8 +179,9 @@ export async function routeAskClaudeMultiTurn(
   options: RouteOptions = {},
 ): Promise<string> {
   const descriptor = assertPromptTask(task);
-  const model = options.model ?? descriptor.defaultModel;
-  return runWithRetry(task, model, descriptor.version, options, async (attempt) => {
+  const model = options.model ?? resolveModel(descriptor.role);
+  const opts = withModelRole(options, descriptor.role);
+  return runWithRetry(task, model, descriptor.version, opts, async (attempt) => {
     const anthropic = createClaudeClient(options.apiKey);
     const response = await anthropic.messages.create({
       model,
@@ -293,8 +314,12 @@ export function routeStreamClaude(
   options: Omit<RouteOptions, "retry"> = {},
 ) {
   const descriptor = assertPromptTask(task);
-  const model = options.model ?? descriptor.defaultModel;
+  const model = options.model ?? resolveModel(descriptor.role);
   const promptVersion = descriptor.version;
+  const metadata: AICallMetadata = {
+    ...(options.metadata ?? {}),
+    model_role: descriptor.role,
+  };
   const anthropic = createClaudeClient(options.apiKey);
   const startedAt = new Date();
   const startMs = performance.now();
@@ -319,7 +344,7 @@ export function routeStreamClaude(
       startedAt: startedAt.toISOString(),
       completedAt: completedAt.toISOString(),
       context: options.context ?? {},
-      metadata: options.metadata ?? {},
+      metadata,
       inputTokens: msg.usage?.input_tokens,
       outputTokens: msg.usage?.output_tokens,
       cacheReadTokens: msg.usage?.cache_read_input_tokens ?? undefined,
@@ -343,7 +368,7 @@ export function routeStreamClaude(
       startedAt: startedAt.toISOString(),
       completedAt: completedAt.toISOString(),
       context: options.context ?? {},
-      metadata: options.metadata ?? {},
+      metadata,
     });
   });
 

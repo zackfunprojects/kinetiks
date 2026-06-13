@@ -30,25 +30,25 @@ export function registerKinetiksPromptTasks(): void {
   registerPromptTask({
     task: "marcus.persona_stream",
     version: "v2-2026-05",
-    defaultModel: "claude-sonnet-4-20250514",
+    role: "balanced",
   });
   // Non-streaming persona response (legacy + cron paths).
   registerPromptTask({
     task: "marcus.persona_response",
     version: "v2-2026-05",
-    defaultModel: "claude-sonnet-4-20250514",
+    role: "balanced",
   });
   // Pre-analysis evidence brief.
   registerPromptTask({
     task: "marcus.pre_analysis",
     version: "v2-2026-05",
-    defaultModel: "claude-haiku-4-5-20251001",
+    role: "fast",
   });
   // Intent classification.
   registerPromptTask({
     task: "marcus.intent",
     version: "v2-2026-05",
-    defaultModel: "claude-haiku-4-5-20251001",
+    role: "fast",
   });
   // Tool decision — D1's step 7.5. Picks which (single) tool best
   // answers the user question, then the Runtime invokes it before Sonnet
@@ -56,87 +56,89 @@ export function registerKinetiksPromptTasks(): void {
   registerPromptTask({
     task: "marcus.tool_decision",
     version: "v2-2026-05",
-    defaultModel: "claude-haiku-4-5-20251001",
+    role: "fast",
   });
   // Action generation (v2 — separate Haiku pass, output schema is constrained).
   registerPromptTask({
     task: "marcus.action_generate",
     version: "v2-2026-05",
-    defaultModel: "claude-haiku-4-5-20251001",
+    role: "fast",
   });
   // Action extraction (legacy v1 path; remains while v1 callers exist).
   registerPromptTask({
     task: "marcus.action_extract",
     version: "v1-legacy",
-    defaultModel: "claude-haiku-4-5-20251001",
+    role: "fast",
   });
   // Thread memory write-back.
   registerPromptTask({
     task: "marcus.memory_extract",
     version: "v2-2026-05",
-    defaultModel: "claude-haiku-4-5-20251001",
+    role: "fast",
   });
   // Auto-title for new threads.
   registerPromptTask({
     task: "marcus.thread_title",
     version: "v2-2026-05",
-    defaultModel: "claude-haiku-4-5-20251001",
+    role: "fast",
   });
   // Command translation (intent → structured Synapse command).
   registerPromptTask({
     task: "marcus.command_translate",
     version: "v2-2026-05",
-    defaultModel: "claude-sonnet-4-20250514",
+    role: "balanced",
   });
 
   // ── Cartographer onboarding ──────────────────────────────
-  // Adaptive conversation (followups, voice probes).
+  // Adaptive conversation (followups, voice probes). Runs at `fast`: the
+  // sole call site always overrode the registered model to Haiku, so the
+  // role now reflects reality (the override is dropped at the call site).
   registerPromptTask({
     task: "cartographer.conversation",
     version: "v1-2026-05",
-    defaultModel: "claude-sonnet-4-20250514",
+    role: "fast",
   });
   // Voice calibration (writing-sample analysis).
   registerPromptTask({
     task: "cartographer.calibrate",
     version: "v1-2026-05",
-    defaultModel: "claude-sonnet-4-20250514",
+    role: "balanced",
   });
   // Voice extraction (from crawled site copy).
   registerPromptTask({
     task: "cartographer.extract_voice",
     version: "v1-2026-05",
-    defaultModel: "claude-sonnet-4-20250514",
+    role: "balanced",
   });
   // Brand extraction.
   registerPromptTask({
     task: "cartographer.extract_brand",
     version: "v1-2026-05",
-    defaultModel: "claude-sonnet-4-20250514",
+    role: "balanced",
   });
   // Brand extraction — subjective fields second-pass.
   registerPromptTask({
     task: "cartographer.extract_brand_subjective",
     version: "v1-2026-05",
-    defaultModel: "claude-sonnet-4-20250514",
+    role: "balanced",
   });
   // Org extraction.
   registerPromptTask({
     task: "cartographer.extract_org",
     version: "v1-2026-05",
-    defaultModel: "claude-sonnet-4-20250514",
+    role: "balanced",
   });
   // Positioning + market extraction.
   registerPromptTask({
     task: "cartographer.extract_positioning",
     version: "v1-2026-05",
-    defaultModel: "claude-sonnet-4-20250514",
+    role: "balanced",
   });
   // Social handles extraction.
   registerPromptTask({
     task: "cartographer.extract_social",
     version: "v1-2026-05",
-    defaultModel: "claude-haiku-4-5-20251001",
+    role: "fast",
   });
 
   // ── Oracle (D2 Slice 10) ──────────────────────────────────
@@ -147,7 +149,7 @@ export function registerKinetiksPromptTasks(): void {
   registerPromptTask({
     task: "oracle.signal_polish",
     version: "v1-2026-05",
-    defaultModel: "claude-haiku-4-5-20251001",
+    role: "fast",
   });
 
   // ── Cortex Identity ───────────────────────────────────────
@@ -158,7 +160,7 @@ export function registerKinetiksPromptTasks(): void {
   registerPromptTask({
     task: "cortex.layer_reflection",
     version: "v1-2026-05",
-    defaultModel: "claude-haiku-4-5-20251001",
+    role: "fast",
   });
 
   // ── Authority Agent (Phase 4 — Kinetiks Contract Addendum §2.5) ──
@@ -170,7 +172,7 @@ export function registerKinetiksPromptTasks(): void {
   registerPromptTask({
     task: "authority_agent.evidence_summarize",
     version: "v1-2026-05",
-    defaultModel: "claude-haiku-4-5-20251001",
+    role: "fast",
   });
   // Proposal generator: the structured Sonnet call that produces the
   // GrantProposalEnvelope. Forced JSON output via prompt rules + a
@@ -180,6 +182,6 @@ export function registerKinetiksPromptTasks(): void {
   registerPromptTask({
     task: "authority_agent.propose",
     version: "v1-2026-05",
-    defaultModel: "claude-sonnet-4-20250514",
+    role: "balanced",
   });
 }

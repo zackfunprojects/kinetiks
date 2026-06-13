@@ -116,7 +116,7 @@ export async function POST(request: Request) {
 
   // Generate brief
   const content = await askClaude(prompt, {
-    model: "claude-sonnet-4-20250514",
+    role: "balanced",
     maxTokens: type === "monthly_review" ? 4096 : 2048,
   });
 

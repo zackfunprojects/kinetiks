@@ -38,6 +38,25 @@ export {
 } from "./prompts-registry";
 export type { PromptTaskDescriptor } from "./prompts-registry";
 
+// Model roles + resolution — tasks declare a role; the resolver maps it
+// to the current model id (live-discovery-backed in apps/id, seed fallback).
+export {
+  MODEL_ROLES,
+  ROLE_FAMILY,
+  SEED_MODELS,
+  resolveModel,
+  familyOf,
+  configureModelAssignmentReader,
+  getModelAssignmentReader,
+  _resetModelAssignmentReaderForTests,
+} from "./models";
+export type {
+  ModelRole,
+  ModelId,
+  ModelFamily,
+  ModelAssignmentReader,
+} from "./models";
+
 // Knowledge module system — marketing methodology for agent operators.
 //
 // The loader uses Node-only `fs/promises` and `path`, so the runtime

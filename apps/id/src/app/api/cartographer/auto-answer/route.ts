@@ -42,7 +42,7 @@ export async function POST(request: Request) {
     const prompt = buildAutoAnswerPrompt(question, businessContext);
     const answer = await askClaude(prompt, {
       system: AUTO_ANSWER_GENERATION_PROMPT,
-      model: "claude-sonnet-4-20250514",
+      role: "balanced",
       maxTokens: 1024,
     });
 

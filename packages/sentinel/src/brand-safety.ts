@@ -82,7 +82,7 @@ ${JSON.stringify(context.customers, null, 2)}`;
   try {
     const response = await askClaude(prompt, {
       system: SENTINEL_BRAND_SAFETY_SYSTEM,
-      model: "claude-sonnet-4-20250514",
+      role: "balanced",
       maxTokens: 2048,
     });
 
