@@ -215,6 +215,16 @@ export interface AuthorityGrant {
   max_unapproved_spend_per_action: number | null;
   /** ISO 4217 currency code, e.g. "USD". */
   spending_currency: string;
+  /**
+   * E2 — the Budget allocation category this grant's envelope operates
+   * inside (per addendum §2.11 "the envelope itself cannot exceed the
+   * approved Budget for the relevant category" and the Action Class
+   * Registry's `always_requires_budget_attachment`). Required (enforced
+   * at proposal validation AND at authority resolution) whenever any
+   * granted capability's action class is spend-bearing; null otherwise.
+   * Matches `kinetiks_budget_allocations.category`.
+   */
+  budget_category: string | null;
 
   // Lifecycle
   status: AuthorityGrantStatus;

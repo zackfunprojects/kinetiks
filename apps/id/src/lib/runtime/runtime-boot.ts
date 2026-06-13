@@ -40,6 +40,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@kinetiks/supabase";
 import {
   configureAuthorityResolver,
+  configureDailySpendCounter,
   configureEscalationHandler,
   configureGrantReader,
   configureJudgmentBudgetAdapter,
@@ -51,6 +52,7 @@ import {
   configureRecentActionCounter,
   configureUsageSummaryReader,
   defaultAuthorityResolver,
+  type DailySpendCounter,
   type EscalationHandler,
   type JudgmentBudgetAdapter,
   type LedgerAppender,
@@ -110,6 +112,7 @@ export function bootRuntimeAdapters(): void {
   configureJudgmentBudgetAdapter(judgmentBudgetAdapter);
   configureLedgerAppender(ledgerAppender);
   configureEscalationHandler(escalationHandler);
+  configureDailySpendCounter(dailySpendCounter);
   configurePerActionApprovalHandler(perActionApprovalHandler);
 
   configureAuthorityResolver(defaultAuthorityResolver);
@@ -221,6 +224,58 @@ const judgmentBudgetAdapter: JudgmentBudgetAdapter = {
       (sum, r) => sum + (Number(r.cost_usd) || 0),
       0,
     );
+  },
+};
+
+// E2: the atomic daily-window counter behind the grant spend envelope
+// (and the system-email cap in lib/email/sender.ts). One RPC round
+// trip per reserve — the cap check and the increment are a single
+// conditional statement, so concurrent spend-bearing actions cannot
+// both pass a read-then-write check (the D2 TOCTOU class). Fail-loud:
+// an RPC error throws; the resolver translates the throw into an
+// `escalated` outcome (fail closed), never a permissive default.
+const dailySpendCounter: DailySpendCounter = {
+  async reserve({ account_id, counter_key, day_utc, amount, cap }) {
+    const admin = createAdminClient() as unknown as SupabaseClient;
+    const { data, error } = await admin.rpc("_kt_reserve_daily_counter", {
+      p_account_id: account_id,
+      p_counter_key: counter_key,
+      p_day: day_utc,
+      p_amount: amount,
+      p_cap: cap,
+    });
+    if (error) {
+      throw new Error(
+        `[runtime-boot] dailySpendCounter reserve failed: ${error.message}`,
+      );
+    }
+    // NULL from the RPC = the conditional increment refused (over cap).
+    // Treat the result as nullable explicitly: the SQL RETURNs NULL on
+    // cap-exceed (migration 00080), but a future `pnpm db:types` regen
+    // could re-narrow the generated type to non-null `number` and make
+    // this refusal path statically dead. The cast keeps the money path
+    // honest regardless of what the generator emits.
+    const total = data as number | null;
+    return total === null
+      ? { reserved: false, total_after: null }
+      : { reserved: true, total_after: Number(total) };
+  },
+  async release({ account_id, counter_key, day_utc, amount }) {
+    const admin = createAdminClient() as unknown as SupabaseClient;
+    const { error } = await admin.rpc("_kt_release_daily_counter", {
+      p_account_id: account_id,
+      p_counter_key: counter_key,
+      p_day: day_utc,
+      p_amount: amount,
+    });
+    if (error) {
+      // The caller (run.ts releaseSpendReservation) logs and continues —
+      // a failed release over-counts the envelope, the conservative
+      // direction. Throwing here gives the caller the real message.
+      throw new Error(
+        `[runtime-boot] dailySpendCounter release failed: ${error.message}`,
+      );
+    }
   },
 };
 

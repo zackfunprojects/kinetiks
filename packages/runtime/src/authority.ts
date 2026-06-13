@@ -82,6 +82,22 @@ export interface MatchedCapability {
   constraints: Record<string, unknown>;
 }
 
+/**
+ * E2 — a daily spend slot atomically reserved against the grant's
+ * `max_unapproved_spend_per_day` envelope during resolution. Carried
+ * on a `grant_covers` resolution so the runtime can RELEASE it when
+ * the execution itself fails terminally (a reservation for spend that
+ * never happened must not consume the customer's envelope), and so
+ * the `authority_action_taken` Ledger entry records the spend.
+ */
+export interface SpendReservation {
+  counter_key: string;
+  /** UTC calendar day the reservation landed on (YYYY-MM-DD). */
+  day_utc: string;
+  amount: number;
+  currency: string;
+}
+
 export interface AuthorityResolution {
   outcome: AuthorityOutcome;
   grantId: string | null;
@@ -89,6 +105,8 @@ export interface AuthorityResolution {
   reason?: AuthorityReason;
   /** Populated when outcome is `grant_covers`. */
   matchedCapability?: MatchedCapability;
+  /** Populated when outcome is `grant_covers` and the action reserved daily spend. */
+  spendReservation?: SpendReservation;
 }
 
 export interface ResolveAuthorityCtx {
@@ -132,6 +150,8 @@ export interface MatchedGrant {
   max_unapproved_spend_per_day: number | null;
   max_unapproved_spend_per_action: number | null;
   spending_currency: string;
+  /** E2 — Budget allocation category the envelope operates inside; null when non-spend-bearing. */
+  budget_category: string | null;
   escalation_triggers: EscalationTrigger[];
   /** The single capability matching the requested action class. */
   matched_capability: GrantedCapability;
@@ -235,6 +255,46 @@ export interface JudgmentBudgetAdapter {
   }): Promise<number>;
 }
 
+/**
+ * E2 — atomic daily-window counter behind the spend envelope and the
+ * shared daily caps (e.g. the system-email send cap). Backed by the
+ * `_kt_reserve_daily_counter` / `_kt_release_daily_counter` RPCs over
+ * `kinetiks_daily_counters` (migration 00080): the reservation is a
+ * single conditional increment, so two concurrent spend-bearing
+ * actions can never BOTH pass a read-then-write check and overshoot
+ * the cap (the TOCTOU class the D2 email cap documented and deferred
+ * here).
+ *
+ * Semantics:
+ *   - `reserve` atomically adds `amount` to the (account, key, day)
+ *     bucket IFF the new total stays ≤ `cap`. Refusals leave the
+ *     bucket untouched.
+ *   - `release` is the compensating decrement for reservations whose
+ *     action never happened (trigger fired downstream, execution
+ *     failed). Floors at zero. A FAILED release over-counts the
+ *     bucket — conservative direction (the customer's envelope is
+ *     under-spent, never over-spent).
+ *   - Implementations FAIL LOUD on adapter errors (throw, never
+ *     return a permissive default). The resolver translates a throw
+ *     into an `escalated` outcome — same posture as the rate counter.
+ */
+export interface DailySpendCounter {
+  reserve(args: {
+    account_id: string;
+    counter_key: string;
+    /** UTC calendar day bucket (YYYY-MM-DD). */
+    day_utc: string;
+    amount: number;
+    cap: number;
+  }): Promise<{ reserved: boolean; total_after: number | null }>;
+  release(args: {
+    account_id: string;
+    counter_key: string;
+    day_utc: string;
+    amount: number;
+  }): Promise<void>;
+}
+
 export interface LedgerAppendInput {
   account_id: string;
   event_type:
@@ -293,6 +353,7 @@ let _llmJudge: LLMJudge | null = null;
 let _judgmentBudgetAdapter: JudgmentBudgetAdapter | null = null;
 let _ledgerAppender: LedgerAppender | null = null;
 let _escalationHandler: EscalationHandler | null = null;
+let _dailySpendCounter: DailySpendCounter | null = null;
 
 export function configureGrantReader(reader: GrantReader | null): void {
   _grantReader = reader;
@@ -357,6 +418,13 @@ export function configureEscalationHandler(handler: EscalationHandler | null): v
 }
 export function getEscalationHandler(): EscalationHandler | null {
   return _escalationHandler;
+}
+
+export function configureDailySpendCounter(counter: DailySpendCounter | null): void {
+  _dailySpendCounter = counter;
+}
+export function getDailySpendCounter(): DailySpendCounter | null {
+  return _dailySpendCounter;
 }
 
 // ── Per-action approval (consequential action with NO covering grant) ──
@@ -598,16 +666,33 @@ export const defaultAuthorityResolver: AuthorityResolver = async (tool, ctx) => 
     };
   }
 
-  // 5. Rate limit (recent action count).
+  // 5. Rate limit (recent action count). A counter failure escalates
+  //    rather than executing: returning 0 on an outage would falsely
+  //    report "under cap" and silently open the gate (the adapter's
+  //    documented fail-loud contract; this is where the throw is
+  //    translated into the safe outcome).
   if (grant.matched_capability.rate_limit) {
     const counter = _recentActionCounter;
     if (counter) {
       const windowMs = windowToMs(grant.matched_capability.rate_limit.window);
-      const recent = await counter.countRecent({
-        grant_id: grant.id,
-        action_class: tool.actionClass,
-        window_ms: windowMs,
-      });
+      let recent: number;
+      try {
+        recent = await counter.countRecent({
+          grant_id: grant.id,
+          action_class: tool.actionClass,
+          window_ms: windowMs,
+        });
+      } catch {
+        return {
+          outcome: "escalated",
+          grantId: grant.id,
+          reason: {
+            code: "rate_limited",
+            detail:
+              "Rate-limit counter unavailable; routing to per-action approval (fail closed)",
+          },
+        };
+      }
       if (recent >= grant.matched_capability.rate_limit.count) {
         return {
           outcome: "escalated",
@@ -621,9 +706,13 @@ export const defaultAuthorityResolver: AuthorityResolver = async (tool, ctx) => 
     }
   }
 
-  // 6. Spending envelope. v1: action classes are all non-spend-bearing
-  //    so this branch only enforces the "missing budget" denial path. A
-  //    fixture spend-bearing class exercises this path in tests.
+  // 6. Spending envelope — structural checks (per addendum §2.11 the
+  //    envelope always operates inside Budget). The action input
+  //    convention is action_input.spend_amount (numeric) when the
+  //    action is spend-bearing.
+  const spendAmountRaw = Number(actionInputObj["spend_amount"]);
+  const spendAmount =
+    Number.isFinite(spendAmountRaw) && spendAmountRaw > 0 ? spendAmountRaw : 0;
   if (descriptor.always_requires_budget_attachment) {
     if (
       grant.max_unapproved_spend_per_day === null &&
@@ -639,24 +728,34 @@ export const defaultAuthorityResolver: AuthorityResolver = async (tool, ctx) => 
         },
       };
     }
-    // Phase 4 v1 only enforces the cap on the action's own declared spend.
-    // The action input convention is action_input.spend_amount (numeric)
-    // when the action is spend-bearing. Fixture flow uses this shape.
-    const spendAmount = Number(actionInputObj["spend_amount"]);
-    if (Number.isFinite(spendAmount) && spendAmount > 0) {
-      if (
-        grant.max_unapproved_spend_per_action !== null &&
-        spendAmount > grant.max_unapproved_spend_per_action
-      ) {
-        return {
-          outcome: "escalated",
-          grantId: grant.id,
-          reason: {
-            code: "envelope_exceeded",
-            detail: `Action spend $${spendAmount} exceeds per-action cap of $${grant.max_unapproved_spend_per_action}`,
-          },
-        };
-      }
+    // E2: the envelope must be attached to a Budget category. Grants
+    // proposed after E2 carry it (proposal validation enforces);
+    // denying here is the runtime backstop for any grant that
+    // predates the rule — Budget remains non-negotiable.
+    if (!grant.budget_category) {
+      return {
+        outcome: "denied",
+        grantId: grant.id,
+        reason: {
+          code: "missing_budget",
+          detail:
+            "Spend-bearing action requires the grant's envelope to be attached to a Budget category",
+        },
+      };
+    }
+    if (
+      spendAmount > 0 &&
+      grant.max_unapproved_spend_per_action !== null &&
+      spendAmount > grant.max_unapproved_spend_per_action
+    ) {
+      return {
+        outcome: "escalated",
+        grantId: grant.id,
+        reason: {
+          code: "envelope_exceeded",
+          detail: `Action spend $${spendAmount} exceeds per-action cap of $${grant.max_unapproved_spend_per_action}`,
+        },
+      };
     }
   }
 
@@ -692,7 +791,77 @@ export const defaultAuthorityResolver: AuthorityResolver = async (tool, ctx) => 
     }
   }
 
-  // 8. All checks pass — execute under grant authority.
+  // 8. Daily spend reservation — the LAST gate, deliberately after
+  //    every read-only check, so a successful reservation is never
+  //    rolled back by a downstream resolution step (the only
+  //    remaining release path is an execution failure, handled by
+  //    the runtime). The reservation is an atomic conditional
+  //    increment: aggregation against same-day spend and the cap
+  //    check happen in one statement, so concurrent actions cannot
+  //    both pass and overshoot `max_unapproved_spend_per_day`.
+  //
+  //    Scope note: the reservation enforces the MATCHED grant's own
+  //    daily cap. Ancestor-chain aggregation (child spend counting
+  //    against a parent Program grant's envelope at resolution time)
+  //    lands with the first real spend-bearing app — nested caps are
+  //    already bounded ≤ parent at proposal time (§2.8).
+  let spendReservation: SpendReservation | undefined;
+  if (spendAmount > 0 && grant.max_unapproved_spend_per_day !== null) {
+    const spendCounter = _dailySpendCounter;
+    const dayUtc = new Date().toISOString().slice(0, 10);
+    if (!spendCounter) {
+      // Fail CLOSED: without the counter the envelope cannot be
+      // enforced; the action routes to per-action approval instead
+      // of executing unmetered.
+      return {
+        outcome: "escalated",
+        grantId: grant.id,
+        reason: {
+          code: "envelope_exceeded",
+          detail:
+            "Daily spend counter unavailable; routing to per-action approval (fail closed)",
+        },
+      };
+    }
+    let reserved: { reserved: boolean; total_after: number | null };
+    try {
+      reserved = await spendCounter.reserve({
+        account_id: ctx.accountId,
+        counter_key: `authority_spend:${grant.id}`,
+        day_utc: dayUtc,
+        amount: spendAmount,
+        cap: grant.max_unapproved_spend_per_day,
+      });
+    } catch {
+      return {
+        outcome: "escalated",
+        grantId: grant.id,
+        reason: {
+          code: "envelope_exceeded",
+          detail:
+            "Daily spend counter unavailable; routing to per-action approval (fail closed)",
+        },
+      };
+    }
+    if (!reserved.reserved) {
+      return {
+        outcome: "escalated",
+        grantId: grant.id,
+        reason: {
+          code: "envelope_exceeded",
+          detail: `Action spend $${spendAmount} would exceed the $${grant.max_unapproved_spend_per_day}/day envelope`,
+        },
+      };
+    }
+    spendReservation = {
+      counter_key: `authority_spend:${grant.id}`,
+      day_utc: dayUtc,
+      amount: spendAmount,
+      currency: grant.spending_currency,
+    };
+  }
+
+  // 9. All checks pass — execute under grant authority.
   return {
     outcome: "grant_covers",
     grantId: grant.id,
@@ -700,6 +869,7 @@ export const defaultAuthorityResolver: AuthorityResolver = async (tool, ctx) => 
       action_class: tool.actionClass,
       constraints: grant.matched_capability.constraints,
     },
+    ...(spendReservation ? { spendReservation } : {}),
   };
 };
 
@@ -742,6 +912,7 @@ export function _resetAuthorityAdaptersForTests(): void {
   _judgmentBudgetAdapter = null;
   _ledgerAppender = null;
   _escalationHandler = null;
+  _dailySpendCounter = null;
   _perActionApprovalHandler = null;
   _resolver = f2StubAuthorityResolver;
 }

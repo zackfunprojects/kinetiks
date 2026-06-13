@@ -131,6 +131,7 @@ export function buildProposeDefaultPayload(args: {
     max_unapproved_spend_per_day: null;
     max_unapproved_spend_per_action: null;
     spending_currency: "USD";
+    budget_category: null;
     expires_at: null;
   };
   reasoning: string;
@@ -171,6 +172,9 @@ export function buildProposeDefaultPayload(args: {
       max_unapproved_spend_per_day: null,
       max_unapproved_spend_per_action: null,
       spending_currency: "USD",
+      // Defaults are never spend-bearing (eligibility excludes spend
+      // classes), so no Budget attachment.
+      budget_category: null,
       expires_at: null,
     },
     reasoning: args.reasoning,

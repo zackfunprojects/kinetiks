@@ -20,10 +20,21 @@
  *  5. Parent subset rules (§2.8): when a member references a
  *     parent_grant_id in the same bundle, the child's capabilities are
  *     ⊆ the parent's; numeric constraints are at least as tight;
- *     spend caps ≤ parent's; expiry ≤ parent's.
- *  6. Spend envelope ≤ Budget category remaining. v1 no-op: Budget
- *     integration ships later; the resolver/RPC enforce the per-grant
- *     envelope at execution time.
+ *     spend caps ≤ parent's; expiry ≤ parent's; spend-bearing children
+ *     operate inside the parent's Budget category.
+ *  6. Spend envelope ≤ Budget category (E2, addendum §2.11 "the
+ *     envelope itself cannot exceed the approved Budget for the
+ *     relevant category"). Spend-bearing grants (any capability whose
+ *     action class declares `always_requires_budget_attachment`) must:
+ *     attach a `budget_category`; carry an envelope (at least one cap);
+ *     keep per-action ≤ per-day when both are set; and — when the
+ *     caller supplies a `BudgetValidationContext` — fit both caps
+ *     inside the named category's remaining allocation on the
+ *     account's active Budget. No active Budget = no spend authority
+ *     ("Budget remains non-negotiable"). Callers that deliberately
+ *     skip the Budget read (the narrow path, which only ever TIGHTENS
+ *     an envelope the customer already approved against a Budget)
+ *     omit the context and get the structural checks only.
  *  7. Customer template placeholder coverage: every `{key}` placeholder
  *     in the action class's `customer_template` has a matching field in
  *     the proposed `constraints`. Without this, the customer-facing
@@ -48,7 +59,23 @@ export interface ValidateResult {
   errors: string[];
 }
 
-export function validateEnvelope(envelope: GrantProposalEnvelope): ValidateResult {
+/**
+ * Snapshot of the account's active Budget for the §2.11 envelope ≤
+ * Budget-category check. `remaining_by_category` maps each
+ * kinetiks_budget_allocations.category to `allocated_amount -
+ * spent_amount` on the budget with approval_status='active';
+ * null means the account has NO active Budget (spend authority is
+ * then unproposable). Built by loadBudgetValidationContext in the
+ * Authority Agent executor.
+ */
+export interface BudgetValidationContext {
+  remaining_by_category: Record<string, number> | null;
+}
+
+export function validateEnvelope(
+  envelope: GrantProposalEnvelope,
+  budget?: BudgetValidationContext,
+): ValidateResult {
   const errors: string[] = [];
 
   // Convenience: build a parent_grant_id → member map for §2.8 nesting checks.
@@ -160,12 +187,84 @@ export function validateEnvelope(envelope: GrantProposalEnvelope): ValidateResul
       }
     }
 
-    // 6. Spend envelope vs Budget category: v1 no-op (no Budget read here).
-    //    The per-grant envelope itself is enforced at resolution time
-    //    by packages/runtime/src/authority.ts (envelope_exceeded outcome).
+    // 6. Spend envelope ≤ Budget category (E2). The per-grant envelope
+    //    is additionally enforced at resolution time by
+    //    packages/runtime/src/authority.ts (envelope_exceeded /
+    //    missing_budget outcomes) — this check catches a malformed
+    //    proposal before it ever reaches the customer.
+    errors.push(...validateSpendEnvelope(path, member.grant, budget));
   }
 
   return { ok: errors.length === 0, errors };
+}
+
+/**
+ * Check 6 — the §2.11 rules for a single proposed grant. Spend-bearing
+ * means at least one capability's action class declares
+ * `always_requires_budget_attachment`. Unregistered action classes are
+ * skipped here (check 1 already reported them).
+ */
+function validateSpendEnvelope(
+  path: string,
+  grant: GrantProposalEnvelopeMember["grant"],
+  budget?: BudgetValidationContext,
+): string[] {
+  const errors: string[] = [];
+
+  const spendBearing = grant.granted_capabilities.some(
+    (cap) => getActionClass(cap.action_class)?.always_requires_budget_attachment === true,
+  );
+
+  const perDay = grant.max_unapproved_spend_per_day;
+  const perAction = grant.max_unapproved_spend_per_action;
+
+  // Envelope coherence applies whenever both caps are set, spend-bearing or not.
+  if (perDay !== null && perAction !== null && perAction > perDay) {
+    errors.push(
+      `${path}.grant.max_unapproved_spend_per_action (${perAction}) exceeds max_unapproved_spend_per_day (${perDay}); a single action could never legally spend more than the day allows`,
+    );
+  }
+
+  if (!spendBearing) return errors;
+
+  if (!grant.budget_category) {
+    errors.push(
+      `${path}.grant.budget_category is required: the bundle grants a spend-bearing action class (always_requires_budget_attachment) and the envelope must operate inside a Budget category (addendum §2.11)`,
+    );
+  }
+  if (perDay === null && perAction === null) {
+    errors.push(
+      `${path}.grant must declare a spending envelope (max_unapproved_spend_per_day and/or max_unapproved_spend_per_action) because it grants a spend-bearing action class`,
+    );
+  }
+
+  if (budget === undefined || !grant.budget_category) return errors;
+
+  if (budget.remaining_by_category === null) {
+    errors.push(
+      `${path}.grant proposes spend authority but the account has no active Budget; Budget approval is non-negotiable and must come first`,
+    );
+    return errors;
+  }
+  const remaining = budget.remaining_by_category[grant.budget_category];
+  if (remaining === undefined) {
+    const known = Object.keys(budget.remaining_by_category);
+    errors.push(
+      `${path}.grant.budget_category "${grant.budget_category}" does not match any allocation on the active Budget (categories: ${known.length > 0 ? known.join(", ") : "none"})`,
+    );
+    return errors;
+  }
+  if (perDay !== null && perDay > remaining) {
+    errors.push(
+      `${path}.grant.max_unapproved_spend_per_day (${perDay}) exceeds the remaining allocation (${remaining}) for Budget category "${grant.budget_category}"`,
+    );
+  }
+  if (perAction !== null && perAction > remaining) {
+    errors.push(
+      `${path}.grant.max_unapproved_spend_per_action (${perAction}) exceeds the remaining allocation (${remaining}) for Budget category "${grant.budget_category}"`,
+    );
+  }
+  return errors;
 }
 
 interface ParentSubsetArgs {
@@ -290,6 +389,20 @@ function validateParentSubset(args: ParentSubsetArgs): string[] {
   ) {
     errors.push(
       `${args.childPath}.grant.max_unapproved_spend_per_action must be ≤ parent's (${args.parent.max_unapproved_spend_per_action})`,
+    );
+  }
+
+  // Budget category: a child operating inside a parent envelope spends
+  // from the parent's category — a different category would let nested
+  // spend escape the allocation the customer approved the parent
+  // against (§2.11 nesting).
+  if (
+    args.parent.budget_category !== null &&
+    args.child.budget_category !== null &&
+    args.child.budget_category !== args.parent.budget_category
+  ) {
+    errors.push(
+      `${args.childPath}.grant.budget_category ("${args.child.budget_category}") must match the parent's ("${args.parent.budget_category}")`,
     );
   }
 

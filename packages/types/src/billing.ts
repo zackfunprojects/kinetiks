@@ -20,6 +20,8 @@ export interface BillingRecord {
   id: string;
   account_id: string;
   stripe_customer_id: string | null;
+  /** E1: the live Stripe subscription backing a paid plan; null on free. */
+  stripe_subscription_id: string | null;
   plan: BillingPlan;
   plan_status: BillingPlanStatus;
   current_period_end: string | null;
@@ -614,6 +616,30 @@ export interface LedgerEventDetailMap {
     caller_app: string;
     denied_pattern_types: string[];
     denied_count: number;
+  };
+  /**
+   * E1 — subscription lifecycle, written by the Stripe webhook handler
+   * (lib/billing/sync.ts). Stripe object ids are opaque references,
+   * not PII; amounts/emails never appear here.
+   */
+  billing_subscription_started: {
+    plan: BillingPlan;
+    stripe_subscription_id: string;
+  };
+  billing_plan_changed: {
+    previous_plan: BillingPlan;
+    plan: BillingPlan;
+    stripe_subscription_id: string;
+  };
+  billing_subscription_canceled: {
+    previous_plan: BillingPlan;
+    stripe_subscription_id: string;
+  };
+  billing_payment_failed: {
+    plan: BillingPlan;
+    stripe_subscription_id: string | null;
+    /** Stripe's retry counter for the failing invoice, when present. */
+    attempt_count: number | null;
   };
 }
 

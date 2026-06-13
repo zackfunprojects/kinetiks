@@ -34,6 +34,7 @@ import {
 } from "@kinetiks/tools";
 import {
   getAuthorityResolver,
+  getDailySpendCounter,
   getEscalationHandler,
   getLedgerAppender,
   getPerActionApprovalHandler,
@@ -254,7 +255,15 @@ export class AgentRun {
 
     let attempt = 0;
     let lastError: ToolError | null = null;
+    // E2: when resolution reserved daily spend (grant_covers on a
+    // spend-bearing action), a terminal execution failure must release
+    // the reservation — spend that never happened must not consume the
+    // customer's envelope. Tracked via `executed` + finally so EVERY
+    // terminal exit path (retry exhaustion, non-retryable error, abort,
+    // internal error) releases exactly once.
+    let executed = false;
 
+    try {
     while (attempt < retry.maxAttempts) {
       attempt += 1;
       const t0 = performance.now();
@@ -281,6 +290,7 @@ export class AgentRun {
           authorityOutcomeOverride: authority.outcome,
         });
         const latencyMs = Math.round(performance.now() - t0);
+        executed = true;
         this.trace.push({
           toolName: tool.name,
           status: "success",
@@ -374,6 +384,11 @@ export class AgentRun {
     throw lastError ?? new ToolError("internal_error", "Exhausted retries", {
       context: { tool: tool.name },
     });
+    } finally {
+      if (!executed && authority.spendReservation) {
+        await this.releaseSpendReservation(tool.name, authority.spendReservation);
+      }
+    }
   }
 
   /** End the run and produce its summary. Safe to call multiple times. */
@@ -560,6 +575,9 @@ export class AgentRun {
    * after a `grant_covers` execution succeeds. The detail summary is
    * PII-safe: action class string, tool name, input field counts +
    * lengths, and an optional output ref if the tool returned one.
+   * E2: spend-bearing actions also record `spend_amount` +
+   * `spend_currency` (the reserved daily-envelope slot), which the
+   * usage-summary rollup aggregates into `total_spend_under_grant`.
    *
    * The customer-visible audit trail uses this entry, NOT the
    * operational `tool_calls` row.
@@ -584,8 +602,49 @@ export class AgentRun {
         tool_name: tool.name,
         action_input_summary: summarizeForLedger(input),
         outcome_ref: extractOutcomeRef(output),
+        ...(authority.spendReservation
+          ? {
+              spend_amount: authority.spendReservation.amount,
+              spend_currency: authority.spendReservation.currency,
+            }
+          : {}),
       },
     });
+  }
+
+  /**
+   * E2: compensating decrement for a daily-spend reservation whose
+   * action terminally failed. Best-effort by design: a failed release
+   * leaves the envelope OVER-counted (conservative — the customer's
+   * cap under-spends, never over-spends), so the failure is logged
+   * loudly for ops rather than propagated onto the already-failing
+   * action.
+   */
+  private async releaseSpendReservation(
+    toolName: string,
+    reservation: NonNullable<AuthorityResolution["spendReservation"]>,
+  ): Promise<void> {
+    const counter = getDailySpendCounter();
+    if (!counter) {
+      // eslint-disable-next-line no-console
+      console.error(
+        `[runtime/run] Daily spend counter not configured; cannot release $${reservation.amount} reservation for tool=${toolName} key=${reservation.counter_key}`,
+      );
+      return;
+    }
+    try {
+      await counter.release({
+        account_id: this.accountId,
+        counter_key: reservation.counter_key,
+        day_utc: reservation.day_utc,
+        amount: reservation.amount,
+      });
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error(
+        `[runtime/run] Daily spend release failed for tool=${toolName} key=${reservation.counter_key} amount=${reservation.amount}: ${(err as Error)?.message ?? "unknown"}`,
+      );
+    }
   }
 }
 

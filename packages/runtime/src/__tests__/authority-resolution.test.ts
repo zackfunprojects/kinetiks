@@ -11,6 +11,7 @@ import {
 import type { EscalationTrigger, GrantedCapability } from "@kinetiks/types";
 import {
   _resetAuthorityAdaptersForTests,
+  configureDailySpendCounter,
   configureGrantReader,
   configureLedgerHistoryReader,
   configureMetricCacheReader,
@@ -104,6 +105,7 @@ function makeGrant(over: Partial<MatchedGrant> = {}): MatchedGrant {
     max_unapproved_spend_per_day: null,
     max_unapproved_spend_per_action: null,
     spending_currency: "USD",
+    budget_category: null,
     escalation_triggers: [],
     matched_capability: capability,
     ...over,
@@ -346,6 +348,7 @@ describe("defaultAuthorityResolver", () => {
           }),
           max_unapproved_spend_per_action: 5,
           max_unapproved_spend_per_day: 100,
+          budget_category: "advertising",
         };
       },
     });
@@ -399,5 +402,208 @@ describe("validateActionAgainstConstraints (indirect via resolver)", () => {
     });
     const result = await defaultAuthorityResolver(tool, makeCtx());
     expect(result.outcome).toBe("grant_covers");
+  });
+});
+
+
+// ─────────────────────────────────────────────
+// E2 — daily spend reservation + fail-closed adapters
+// ─────────────────────────────────────────────
+
+function registerSpendFixture() {
+  registerActionClass({
+    action_class: "kinetiks_id.fixture_spend",
+    source_app: "kinetiks_id",
+    description: "Test fixture: a spend-bearing action class",
+    constraint_schema: z.object({}),
+    rate_limit_default: null,
+    customer_template: "Spend funds on your behalf.",
+    available_in_default_standing_grants: false,
+    always_requires_budget_attachment: true,
+  });
+  const spendTool = defineTool({
+    name: "fixture_spend",
+    description: "Spend test fixture",
+    inputSchema: z.object({ spend_amount: z.number() }),
+    outputSchema: z.object({}),
+    isConsequential: true,
+    actionClass: "kinetiks_id.fixture_spend",
+    autoApproveThreshold: null,
+    availability: { kind: "always" },
+    idempotencyKeyFrom: (input: { spend_amount: number }) => String(input.spend_amount),
+    execute: async () => ({}),
+  });
+  registerTool(spendTool);
+  return spendTool;
+}
+
+function spendGrant(over: Partial<MatchedGrant> = {}): MatchedGrant {
+  return {
+    ...makeGrant({
+      matched_capability: {
+        action_class: "kinetiks_id.fixture_spend",
+        description: "Fixture spend cap",
+        constraints: {},
+        rate_limit: null,
+      },
+    }),
+    max_unapproved_spend_per_day: 100,
+    max_unapproved_spend_per_action: 50,
+    budget_category: "advertising",
+    ...over,
+  };
+}
+
+describe("E2 spend envelope", () => {
+  it("denies missing_budget when a spend-bearing grant has no budget_category", async () => {
+    const tool = registerSpendFixture();
+    configureGrantReader({
+      async findCoveringGrant() {
+        return spendGrant({ budget_category: null });
+      },
+    });
+    const result = await defaultAuthorityResolver(
+      tool,
+      makeCtx({ actionInput: { spend_amount: 10 } }),
+    );
+    expect(result.outcome).toBe("denied");
+    expect(result.reason?.code).toBe("missing_budget");
+    expect(result.reason?.detail).toContain("Budget category");
+  });
+
+  it("reserves the daily envelope atomically and carries the reservation on grant_covers", async () => {
+    const tool = registerSpendFixture();
+    configureGrantReader({
+      async findCoveringGrant() {
+        return spendGrant();
+      },
+    });
+    const reserveCalls: Array<Record<string, unknown>> = [];
+    configureDailySpendCounter({
+      async reserve(args) {
+        reserveCalls.push({ ...args });
+        return { reserved: true, total_after: args.amount };
+      },
+      async release() {
+        throw new Error("release must not be called on the success path");
+      },
+    });
+    const result = await defaultAuthorityResolver(
+      tool,
+      makeCtx({ actionInput: { spend_amount: 30 } }),
+    );
+    expect(result.outcome).toBe("grant_covers");
+    expect(result.spendReservation).toEqual({
+      counter_key: "authority_spend:g_1",
+      day_utc: new Date().toISOString().slice(0, 10),
+      amount: 30,
+      currency: "USD",
+    });
+    expect(reserveCalls).toHaveLength(1);
+    expect(reserveCalls[0]).toMatchObject({
+      account_id: "acc_1",
+      counter_key: "authority_spend:g_1",
+      amount: 30,
+      cap: 100,
+    });
+  });
+
+  it("escalates envelope_exceeded when the atomic reservation is refused", async () => {
+    const tool = registerSpendFixture();
+    configureGrantReader({
+      async findCoveringGrant() {
+        return spendGrant();
+      },
+    });
+    configureDailySpendCounter({
+      async reserve() {
+        return { reserved: false, total_after: null };
+      },
+      async release() {},
+    });
+    const result = await defaultAuthorityResolver(
+      tool,
+      makeCtx({ actionInput: { spend_amount: 30 } }),
+    );
+    expect(result.outcome).toBe("escalated");
+    expect(result.reason?.code).toBe("envelope_exceeded");
+    expect(result.spendReservation).toBeUndefined();
+  });
+
+  it("fails CLOSED when a daily cap exists but the counter is unconfigured", async () => {
+    const tool = registerSpendFixture();
+    configureGrantReader({
+      async findCoveringGrant() {
+        return spendGrant();
+      },
+    });
+    const result = await defaultAuthorityResolver(
+      tool,
+      makeCtx({ actionInput: { spend_amount: 30 } }),
+    );
+    expect(result.outcome).toBe("escalated");
+    expect(result.reason?.code).toBe("envelope_exceeded");
+    expect(result.reason?.detail).toContain("fail closed");
+  });
+
+  it("fails CLOSED when the counter adapter throws", async () => {
+    const tool = registerSpendFixture();
+    configureGrantReader({
+      async findCoveringGrant() {
+        return spendGrant();
+      },
+    });
+    configureDailySpendCounter({
+      async reserve() {
+        throw new Error("supabase outage");
+      },
+      async release() {},
+    });
+    const result = await defaultAuthorityResolver(
+      tool,
+      makeCtx({ actionInput: { spend_amount: 30 } }),
+    );
+    expect(result.outcome).toBe("escalated");
+    expect(result.reason?.code).toBe("envelope_exceeded");
+  });
+
+  it("skips the reservation when the action declares no spend", async () => {
+    const tool = registerSpendFixture();
+    configureGrantReader({
+      async findCoveringGrant() {
+        return spendGrant();
+      },
+    });
+    configureDailySpendCounter({
+      async reserve() {
+        throw new Error("reserve must not be called without spend");
+      },
+      async release() {},
+    });
+    const result = await defaultAuthorityResolver(
+      tool,
+      makeCtx({ actionInput: {} }),
+    );
+    expect(result.outcome).toBe("grant_covers");
+    expect(result.spendReservation).toBeUndefined();
+  });
+
+  it("escalates rate_limited (fail closed) when the rate counter throws", async () => {
+    registerSlackActionClass();
+    const tool = makeSlackTool();
+    configureGrantReader({
+      async findCoveringGrant() {
+        return makeGrant();
+      },
+    });
+    configureRecentActionCounter({
+      async countRecent() {
+        throw new Error("ledger unreachable");
+      },
+    });
+    const result = await defaultAuthorityResolver(tool, makeCtx());
+    expect(result.outcome).toBe("escalated");
+    expect(result.reason?.code).toBe("rate_limited");
+    expect(result.reason?.detail).toContain("fail closed");
   });
 });

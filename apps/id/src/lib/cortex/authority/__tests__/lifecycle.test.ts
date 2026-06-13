@@ -453,6 +453,7 @@ const VALID_SUCCESSOR_PAYLOAD = {
   max_unapproved_spend_per_day: null,
   max_unapproved_spend_per_action: null,
   spending_currency: "USD" as const,
+  budget_category: null,
   expires_at: null,
 };
 

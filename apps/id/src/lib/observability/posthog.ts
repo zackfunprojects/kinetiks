@@ -62,6 +62,10 @@ export type KineticsEventName =
   | "connection.removed"
   | "extractor.first_sync"
   | "extractor.sync_error"
+  // Billing (E1)
+  | "billing.checkout_started"
+  | "billing.checkout_returned"
+  | "billing.portal_opened"
   // Theme
   | "theme.toggled";
 

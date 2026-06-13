@@ -228,6 +228,11 @@ export const proposedGrantPayloadSchema = z.object({
   max_unapproved_spend_per_day: z.number().nullable(),
   max_unapproved_spend_per_action: z.number().nullable(),
   spending_currency: z.literal("USD"),
+  // E2 — the Budget allocation category the envelope operates inside
+  // (addendum §2.11). Required by the structural validator whenever a
+  // capability's action class is spend-bearing; defaulted so pre-E2
+  // callers (and non-spend proposals) parse unchanged.
+  budget_category: z.string().min(1).nullable().default(null),
   expires_at: z.string().datetime().nullable(),
 });
 

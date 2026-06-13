@@ -60,7 +60,7 @@ async function fetchCandidateGrants(args: {
   let query = admin
     .from("kinetiks_authority_grants")
     .select(
-      "id, account_id, scope_type, scope_id, parent_grant_id, granted_at, expires_at, max_unapproved_spend_per_day, max_unapproved_spend_per_action, spending_currency, escalation_triggers, granted_capabilities",
+      "id, account_id, scope_type, scope_id, parent_grant_id, granted_at, expires_at, max_unapproved_spend_per_day, max_unapproved_spend_per_action, spending_currency, budget_category, escalation_triggers, granted_capabilities",
     )
     .eq("account_id", args.account_id)
     .eq("status", "active")
@@ -97,6 +97,7 @@ interface RawGrantRow {
   max_unapproved_spend_per_day: number | null;
   max_unapproved_spend_per_action: number | null;
   spending_currency: string;
+  budget_category: string | null;
   escalation_triggers: EscalationTrigger[];
   granted_capabilities: GrantedCapability[];
 }
@@ -150,6 +151,7 @@ export const supabaseGrantReader: GrantReader = {
       max_unapproved_spend_per_action:
         picked.grant.max_unapproved_spend_per_action,
       spending_currency: picked.grant.spending_currency,
+      budget_category: picked.grant.budget_category,
       escalation_triggers: picked.grant.escalation_triggers,
       matched_capability: picked.capability,
     } satisfies MatchedGrant;

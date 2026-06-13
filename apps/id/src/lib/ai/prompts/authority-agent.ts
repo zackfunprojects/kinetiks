@@ -152,6 +152,9 @@ ${args.anomaly_metric_catalog}
 - Default rate limits: cap at the action class's rate_limit_default. Tighten further on first three grants per account.
 - Lean conservative on a customer's first three grants. Loosen only when ledger summary approval_rate > 0.8 and most_common_edit_type is null.
 - For Phase 4 v1, max 3 envelope members (1 root + up to 2 nested children). If the brief truly needs more, return fewer than 3 and explain in reasoning that nesting is deferred.
+- Spending envelopes operate inside the customer's approved Budget. When any proposed capability's class has "Always requires budget attachment: true", you MUST set "budget_category" to one of the categories in the Active Budget section of the request, set at least one spend cap, keep max_unapproved_spend_per_action <= max_unapproved_spend_per_day when both are set, and keep both caps <= that category's remaining allocation. If the Active Budget section says none exists, do NOT propose spend-bearing capabilities; explain in reasoning that a Budget must be approved first.
+- Non-spend proposals set "budget_category": null.
+- Nested members spending inside a parent use the parent's budget_category.
 
 # Output format
 
@@ -187,6 +190,7 @@ Return ONE JSON object, no markdown, no code fences, no surrounding prose. The s
         "max_unapproved_spend_per_day": <number> | null,
         "max_unapproved_spend_per_action": <number> | null,
         "spending_currency": "USD",
+        "budget_category": "<Active Budget category name, required for spend-bearing capabilities>" | null,
         "expires_at": "<ISO 8601 datetime or null>"
       },
       "reasoning": "<short explanation of why this shape, ≤2000 chars>",
@@ -234,6 +238,12 @@ export function buildAuthorityProposeUserPrompt(args: {
     };
     identity_signals: string[];
   };
+  /**
+   * E2 — remaining allocation per category on the account's active
+   * Budget; null when no active Budget exists (spend-bearing
+   * capabilities are then unproposable).
+   */
+  budget_remaining_by_category: Record<string, number> | null;
   /** Validation errors from the previous attempt; empty on first call. */
   prior_attempt_errors: string[];
 }): string {
@@ -284,6 +294,15 @@ export function buildAuthorityProposeUserPrompt(args: {
     args.evidence_brief.identity_signals.length > 0
       ? args.evidence_brief.identity_signals.map((s) => `- ${s}`).join("\n")
       : "- none",
+    "",
+    "## Active Budget (remaining allocation per category)",
+    args.budget_remaining_by_category === null
+      ? "- none. The account has no active Budget; do not propose spend-bearing capabilities."
+      : Object.keys(args.budget_remaining_by_category).length > 0
+        ? Object.entries(args.budget_remaining_by_category)
+            .map(([category, remaining]) => `- ${category}: $${remaining}`)
+            .join("\n")
+        : "- the active Budget has no allocations; do not propose spend-bearing capabilities.",
     errorsBlock,
   ].join("\n");
 }
