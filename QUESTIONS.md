@@ -42,18 +42,39 @@ inbound pipeline:
    replies classify as `reply_to_system` and surface as chat-channel
    insights, which is honest but not thread-continuous.
 
-### System-email daily cap: exact concurrent enforcement — FOLLOW-UP (D2, 2026-06-11)
+### System-email daily cap: exact concurrent enforcement — RESOLVED (E2, 2026-06-12)
 
-The 20-sends/24h cap in `lib/email/sender.ts` counts `system_email_sent`
-Ledger rows before sending. Under concurrency, two parallel sends can
-both pass the check (TOCTOU) and overshoot by the in-flight count -
-bounded by realistic callers (user actions + 15-minute crons) to ~1-2.
-Exact enforcement needs an atomic reservation; the Ledger cannot serve
-(append-only - a pre-insert that then fails to send would be a false
-"sent" record), and an advisory lock held across an external API call
-is its own hazard. Phase E2's spend-envelope daily aggregation faces
-the identical atomicity problem; land the shared atomic counter there
-and point the email cap at it.
+E2 landed the shared atomic counter (`kinetiks_daily_counters` +
+`_kt_reserve_daily_counter` / `_kt_release_daily_counter`, migration
+00080) and pointed the email cap at it: `lib/email/sender.ts` now
+reserves a slot in one conditional increment before sending and
+releases it if the provider call fails. Two deliberate semantic notes:
+
+1. The window changed from rolling-24h to UTC calendar day (a single
+   counter row per day; rolling windows cannot be enforced atomically
+   with one bucket). The cap is a safety valve, not a precision SLA;
+   20/UTC-day matches the spend envelope's "per UTC day" semantics.
+2. A send that fails AFTER reserving releases its slot best-effort; a
+   failed release over-counts (under-sends) - the conservative
+   direction.
+
+The grant spending envelope (`max_unapproved_spend_per_day`) enforces
+through the same RPC at authority resolution (counter key
+`authority_spend:<grant_id>`).
+
+### Nested-grant spend aggregation at resolution time — FOLLOW-UP (E2, 2026-06-12)
+
+E2 enforces the MATCHED grant's own daily envelope atomically. Spend
+under a child grant does not also decrement its parent's daily bucket
+at resolution time - nested caps are bounded ≤ parent at proposal time
+(addendum §2.8), so a child can never out-spend the cap the customer
+approved on the parent shape, but several children of one parent could
+together exceed the parent's per-day number. v1 has zero real
+spend-bearing action classes (fixture only); ancestor-chain
+reservation (reserve child, then each ancestor, releasing on partial
+refusal) should land with the first real spend-bearing app
+(Implosion), alongside action-time Budget-overage approvals
+(analytics-goals-engine-spec).
 
 ### Microsoft 365 system connection — DEFERRED (D1, 2026-06-11)
 

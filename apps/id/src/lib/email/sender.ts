@@ -20,9 +20,12 @@
  *     login email (v1; designated team addresses arrive with
  *     multi-user). Anything else throws invalid_input — there is no
  *     bypass parameter.
- *   - RATE LIMITED: max 20 sends per rolling 24h per account, counted
- *     from `system_email_sent` Ledger entries. Exceeding throws
- *     rate_limited.
+ *   - RATE LIMITED: max 20 sends per UTC day per account, enforced by
+ *     an atomic reservation on the shared daily counter
+ *     (`_kt_reserve_daily_counter`, migration 00080) — the E2 fix for
+ *     the D2 TOCTOU follow-up (two concurrent sends could both pass a
+ *     read-then-write Ledger count). Exceeding throws rate_limited; a
+ *     send that fails after reserving releases its slot.
  *   - Every send writes a `system_email_sent` Ledger entry with
  *     PII-free detail (kind, provider, lengths — never addresses or
  *     content).
@@ -51,6 +54,9 @@ const RESEND_SEND_URL = "https://api.resend.com/emails";
 
 /** Spec §2.4: the system identity is not a bulk sender. */
 export const SYSTEM_EMAIL_DAILY_CAP = 20;
+
+/** Counter key on kinetiks_daily_counters shared with the E2 reserve/release RPCs. */
+export const SYSTEM_EMAIL_COUNTER_KEY = "system_email";
 
 export type SystemEmailKind = "brief" | "alert" | "summary";
 
@@ -117,26 +123,70 @@ async function allowedRecipients(accountId: string): Promise<string[]> {
   return [await resolveOwnerEmail(accountId)];
 }
 
-/** Rolling 24h count of system sends, from the Ledger. */
-async function sentInLast24h(accountId: string): Promise<number> {
+/** Today's UTC calendar day, the counter bucket key. */
+function todayUtc(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+/**
+ * Atomically reserve one send slot against the daily cap. The cap
+ * check and the increment are one conditional statement in the RPC,
+ * so concurrent sends cannot both pass (the D2 TOCTOU follow-up).
+ * Fail closed: an unreachable counter must not become an uncapped
+ * sender.
+ */
+async function reserveSendSlot(accountId: string, day: string): Promise<void> {
   const admin = createAdminClient();
-  const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-  const { count, error } = await admin
-    .from("kinetiks_ledger")
-    .select("id", { count: "exact", head: true })
-    .eq("account_id", accountId)
-    .eq("event_type", "system_email_sent")
-    .gte("created_at", since);
+  const { data, error } = await admin.rpc("_kt_reserve_daily_counter", {
+    p_account_id: accountId,
+    p_counter_key: SYSTEM_EMAIL_COUNTER_KEY,
+    p_day: day,
+    p_amount: 1,
+    p_cap: SYSTEM_EMAIL_DAILY_CAP,
+  });
   if (error) {
-    // Fail closed: an uncountable window must not become an uncapped
-    // sender (same fail-loud posture as the runtime's rate counter).
     throw new ToolError(
       "transient",
-      `send-count read failed: ${error.message}`,
+      `send-slot reservation failed: ${error.message}`,
       { context: { tool: "send_system_email", account_id: accountId } },
     );
   }
-  return count ?? 0;
+  if (data === null) {
+    throw new ToolError(
+      "rate_limited",
+      `system email daily cap reached (${SYSTEM_EMAIL_DAILY_CAP}/day)`,
+      {
+        context: {
+          tool: "send_system_email",
+          account_id: accountId,
+          daily_cap: SYSTEM_EMAIL_DAILY_CAP,
+        },
+      },
+    );
+  }
+}
+
+/**
+ * Compensating decrement when the send failed after reserving. Best
+ * effort: a failed release leaves the day's counter over-counted —
+ * the conservative direction (we under-send, never over-send).
+ */
+async function releaseSendSlot(accountId: string, day: string): Promise<void> {
+  const admin = createAdminClient();
+  const { error } = await admin.rpc("_kt_release_daily_counter", {
+    p_account_id: accountId,
+    p_counter_key: SYSTEM_EMAIL_COUNTER_KEY,
+    p_day: day,
+    p_amount: 1,
+  });
+  if (error) {
+    // Reported via the Sentry-wired caller paths that observe the
+    // original send failure; the counter drift is conservative.
+    // eslint-disable-next-line no-console
+    console.error(
+      `[email/sender] send-slot release failed for account ${accountId}: ${error.message}`,
+    );
+  }
 }
 
 export async function sendSystemEmail(
@@ -165,34 +215,30 @@ export async function sendSystemEmail(
     );
   }
 
-  // Daily cap.
-  const sent = await sentInLast24h(input.account_id);
-  if (sent >= SYSTEM_EMAIL_DAILY_CAP) {
-    throw new ToolError(
-      "rate_limited",
-      `system email daily cap reached (${SYSTEM_EMAIL_DAILY_CAP}/24h)`,
-      {
-        context: {
-          tool: "send_system_email",
-          account_id: input.account_id,
-          sent_in_window: sent,
-        },
-      },
-    );
-  }
+  // Daily cap: atomic slot reservation (throws rate_limited on refusal).
+  const day = todayUtc();
+  await reserveSendSlot(input.account_id, day);
 
   const systemName = await loadSystemName(input.account_id);
 
   let output: SendSystemEmailOutput;
-  if (await hasLiveGoogleWorkspace(input.account_id)) {
-    output = await sendViaGmail(input, systemName);
-  } else {
-    output = await sendViaResend(input, systemName);
+  try {
+    if (await hasLiveGoogleWorkspace(input.account_id)) {
+      output = await sendViaGmail(input, systemName);
+    } else {
+      output = await sendViaResend(input, systemName);
+    }
+  } catch (sendErr) {
+    // The reserved slot was never used — give it back so a failed
+    // provider call doesn't burn the day's quota.
+    await releaseSendSlot(input.account_id, day);
+    throw sendErr;
   }
 
-  // Ledger entry — PII-free detail. Failure is loud (the cap counts
-  // these rows; a silent miss would under-count and overshoot the
-  // cap), but the email has already left: report and continue.
+  // Ledger entry — PII-free detail. E2 moved cap enforcement to the
+  // atomic daily counter, so this row is pure audit trail now; the
+  // failure stays loud because a silent audit miss is exactly the
+  // drift class Lesson 8/10 exist for. The email has already left.
   const admin = createAdminClient();
   const { error: ledgerError } = await admin.from("kinetiks_ledger").insert({
     account_id: input.account_id,

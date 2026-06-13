@@ -37,7 +37,8 @@ function jsonResponse(body: unknown, status = 200): Response {
 
 interface AdminStubOptions {
   ownerEmail?: string;
-  sentInWindow?: number;
+  /** E2: the atomic daily counter refuses the reservation (cap reached). */
+  capReached?: boolean;
   workspaceStatus?: string | null;
   systemName?: string | null;
   ledgerError?: { message: string } | null;
@@ -45,6 +46,19 @@ interface AdminStubOptions {
 
 function stubAdmin(options: AdminStubOptions = {}) {
   const ledger: Array<Record<string, unknown>> = [];
+  const rpcCalls: Array<{ fn: string; args: Record<string, unknown> }> = [];
+  const rpc = vi.fn(async (fn: string, args: Record<string, unknown>) => {
+    rpcCalls.push({ fn, args });
+    if (fn === "_kt_reserve_daily_counter") {
+      return options.capReached
+        ? { data: null, error: null }
+        : { data: 1, error: null };
+    }
+    if (fn === "_kt_release_daily_counter") {
+      return { data: 0, error: null };
+    }
+    throw new Error(`unexpected rpc ${fn}`);
+  });
   const from = vi.fn((table: string) => {
     if (table === "kinetiks_accounts") {
       const maybeSingle = vi.fn(async () => ({
@@ -56,15 +70,6 @@ function stubAdmin(options: AdminStubOptions = {}) {
     }
     if (table === "kinetiks_ledger") {
       return {
-        select: vi.fn(() => {
-          const gte = vi.fn(async () => ({
-            count: options.sentInWindow ?? 0,
-            error: null,
-          }));
-          const eqType = vi.fn(() => ({ gte }));
-          const eqAccount = vi.fn(() => ({ eq: eqType }));
-          return { eq: eqAccount };
-        }),
         insert: vi.fn((row: Record<string, unknown>) => {
           ledger.push(row);
           return Promise.resolve({ error: options.ledgerError ?? null });
@@ -96,8 +101,8 @@ function stubAdmin(options: AdminStubOptions = {}) {
     },
   };
 
-  mockCreateAdmin.mockReturnValue({ from, auth } as never);
-  return { ledger };
+  mockCreateAdmin.mockReturnValue({ from, auth, rpc } as never);
+  return { ledger, rpcCalls };
 }
 
 const BASE_INPUT = {
@@ -140,12 +145,33 @@ describe("sendSystemEmail — safeguards", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("enforces the 20-per-24h cap from ledger counts", async () => {
-    stubAdmin({ sentInWindow: SYSTEM_EMAIL_DAILY_CAP });
+  it("enforces the daily cap via the atomic counter reservation", async () => {
+    const { rpcCalls } = stubAdmin({ capReached: true });
     await expect(sendSystemEmail(BASE_INPUT)).rejects.toMatchObject({
       errorClass: "rate_limited",
     });
     expect(fetchMock).not.toHaveBeenCalled();
+    expect(rpcCalls).toHaveLength(1);
+    expect(rpcCalls[0]).toMatchObject({
+      fn: "_kt_reserve_daily_counter",
+      args: {
+        p_counter_key: "system_email",
+        p_amount: 1,
+        p_cap: SYSTEM_EMAIL_DAILY_CAP,
+      },
+    });
+  });
+
+  it("releases the reserved slot when the provider send fails", async () => {
+    const { rpcCalls } = stubAdmin({});
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ error: { message: "boom" } }), { status: 400 }),
+    );
+    await expect(sendSystemEmail(BASE_INPUT)).rejects.toMatchObject({
+      errorClass: expect.any(String),
+    });
+    const fns = rpcCalls.map((c) => c.fn);
+    expect(fns).toEqual(["_kt_reserve_daily_counter", "_kt_release_daily_counter"]);
   });
 
   it("accepts the owner address case-insensitively", async () => {
