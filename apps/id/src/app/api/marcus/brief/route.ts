@@ -350,7 +350,7 @@ async function getRecentActivity(
   // and the judgment-budget pressure callout. Null when the account
   // has no authority surface; a failed read degrades to absent.
   const authorityBlock = await buildAuthorityActivitySummary(
-    admin as never,
+    admin,
     accountId,
     since,
   );
