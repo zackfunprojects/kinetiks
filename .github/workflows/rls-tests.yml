@@ -34,7 +34,18 @@ jobs:
       - name: Install Supabase CLI
         uses: supabase/setup-cli@v1
         with:
-          version: latest
+          # PINNED, not `latest`. On 2026-06-11 the v2.106.0 release
+          # changed the local stack's default privileges: tables created
+          # by migrations stopped receiving the hosted-platform grants
+          # for anon/authenticated, so every pgTAP suite failed with
+          # "permission denied for table ..." (42501) before any RLS
+          # logic ran — main went red on a scripts-only commit.
+          # supabase/tests/_setup.sql now re-asserts production-parity
+          # table grants (so a future image change in this class cannot
+          # silently redden the gate), and the version is pinned so the
+          # environment only changes when a human bumps this line and
+          # watches the run.
+          version: 2.105.0
 
       - name: Install pg_prove
         run: |
