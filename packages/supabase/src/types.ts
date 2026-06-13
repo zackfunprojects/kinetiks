@@ -4778,7 +4778,11 @@ export type Database = {
           p_amount: number
           p_cap: number
         }
-        Returns: number
+        // RETURNS numeric, but the function RETURNs NULL when the
+        // reservation would exceed p_cap (migration 00080). The Supabase
+        // generator can't infer that from the signature; this is a
+        // surgical correction so the cap-refusal path stays type-visible.
+        Returns: number | null
       }
       _kt_try_advisory_lock: { Args: { p_key: string }; Returns: boolean }
       accept_default_standing_grants: {

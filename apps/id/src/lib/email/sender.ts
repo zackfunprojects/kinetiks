@@ -47,6 +47,7 @@ import { serverEnv } from "@kinetiks/lib/env";
 import { getGoogleWorkspaceAccessToken } from "@/lib/connections/google-workspace-token";
 import { buildMimeMessage, sanitizeHeaderValue } from "@/lib/email/mime";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { captureException } from "@/lib/observability/sentry";
 
 const GMAIL_SEND_URL =
   "https://gmail.googleapis.com/gmail/v1/users/me/messages/send";
@@ -180,11 +181,21 @@ async function releaseSendSlot(accountId: string, day: string): Promise<void> {
     p_amount: 1,
   });
   if (error) {
-    // Reported via the Sentry-wired caller paths that observe the
-    // original send failure; the counter drift is conservative.
-    // eslint-disable-next-line no-console
-    console.error(
-      `[email/sender] send-slot release failed for account ${accountId}: ${error.message}`,
+    // Best-effort, non-throwing: a failed release over-counts the day
+    // (conservative — we under-send, never over-send). But the drift is
+    // real, so report it structured rather than log-only, per CLAUDE.md.
+    await captureException(
+      new Error(`send-slot release failed: ${error.message}`),
+      {
+        tags: {
+          route: "lib/email/sender",
+          action: "send_system_email.release",
+          stage: "release",
+          app: "id",
+        },
+        user: { id: accountId },
+        extra: { counter_key: SYSTEM_EMAIL_COUNTER_KEY, day },
+      },
     );
   }
 }

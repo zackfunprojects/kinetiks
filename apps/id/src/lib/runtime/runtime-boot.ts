@@ -243,9 +243,15 @@ const dailySpendCounter: DailySpendCounter = {
       );
     }
     // NULL from the RPC = the conditional increment refused (over cap).
-    return data === null
+    // Treat the result as nullable explicitly: the SQL RETURNs NULL on
+    // cap-exceed (migration 00080), but a future `pnpm db:types` regen
+    // could re-narrow the generated type to non-null `number` and make
+    // this refusal path statically dead. The cast keeps the money path
+    // honest regardless of what the generator emits.
+    const total = data as number | null;
+    return total === null
       ? { reserved: false, total_after: null }
-      : { reserved: true, total_after: Number(data) };
+      : { reserved: true, total_after: Number(total) };
   },
   async release({ account_id, counter_key, day_utc, amount }) {
     const admin = createAdminClient() as unknown as SupabaseClient;

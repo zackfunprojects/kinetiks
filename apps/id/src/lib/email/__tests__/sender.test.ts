@@ -42,6 +42,8 @@ interface AdminStubOptions {
   workspaceStatus?: string | null;
   systemName?: string | null;
   ledgerError?: { message: string } | null;
+  /** E2: the reserve RPC itself errors (DB unreachable) — fail closed. */
+  reserveRpcError?: { message: string } | null;
 }
 
 function stubAdmin(options: AdminStubOptions = {}) {
@@ -50,6 +52,9 @@ function stubAdmin(options: AdminStubOptions = {}) {
   const rpc = vi.fn(async (fn: string, args: Record<string, unknown>) => {
     rpcCalls.push({ fn, args });
     if (fn === "_kt_reserve_daily_counter") {
+      if (options.reserveRpcError) {
+        return { data: null, error: options.reserveRpcError };
+      }
       return options.capReached
         ? { data: null, error: null }
         : { data: 1, error: null };
@@ -160,6 +165,19 @@ describe("sendSystemEmail — safeguards", () => {
         p_cap: SYSTEM_EMAIL_DAILY_CAP,
       },
     });
+  });
+
+  it("fails closed (transient) and never sends when the reserve RPC errors", async () => {
+    const { rpcCalls } = stubAdmin({
+      reserveRpcError: { message: "counter table unreachable" },
+    });
+    await expect(sendSystemEmail(BASE_INPUT)).rejects.toMatchObject({
+      errorClass: "transient",
+    });
+    // An uncountable reservation must not become an uncapped sender.
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(rpcCalls).toHaveLength(1);
+    expect(rpcCalls[0].fn).toBe("_kt_reserve_daily_counter");
   });
 
   it("releases the reserved slot when the provider send fails", async () => {
