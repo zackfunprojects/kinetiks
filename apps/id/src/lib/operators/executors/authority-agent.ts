@@ -50,6 +50,7 @@ import {
 import { buildEvidenceBrief } from "./authority-agent/evidence";
 import { persistProposals } from "./authority-agent/persist";
 import { validateEnvelope } from "./authority-agent/validate";
+import { METRIC_REGISTRY } from "@/lib/oracle/metric-schema";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { captureException } from "@/lib/observability/sentry";
 
@@ -95,7 +96,10 @@ export const authorityAgentExecute: OperatorExecutor = async (rawInput) => {
   const action_class_catalog = renderActionClassCatalog(
     buildCatalog(listActionClasses()),
   );
-  const system = buildAuthorityProposeSystemPrompt({ action_class_catalog });
+  const system = buildAuthorityProposeSystemPrompt({
+    action_class_catalog,
+    anomaly_metric_catalog: renderAnomalyMetricCatalog(),
+  });
 
   let lastErrors: string[] = [];
   let envelope: ReturnType<typeof grantProposalEnvelopeSchema.parse> | null = null;
@@ -234,6 +238,17 @@ export const authorityAgentExecute: OperatorExecutor = async (rawInput) => {
 // ─────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────
+
+/**
+ * E3 — the registered metric keys an anomaly trigger may reference,
+ * rendered for the system prompt. Pulled from the Oracle metric
+ * registry (the same source the runtime MetricCacheReader resolves
+ * against), so the prompt, the validator, and the evaluator agree.
+ */
+function renderAnomalyMetricCatalog(): string {
+  const lines = METRIC_REGISTRY.map((m) => `- ${m.key}: ${m.name} (${m.source_app})`);
+  return lines.length > 0 ? lines.join("\n") : "(no metrics registered)";
+}
 
 function buildCatalog(
   descriptors: ReadonlyArray<ActionClassDescriptor>,
