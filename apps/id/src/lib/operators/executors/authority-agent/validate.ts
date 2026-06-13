@@ -42,6 +42,7 @@
  */
 
 import { getActionClass } from "@kinetiks/tools";
+import { getMetricDefinition } from "@/lib/oracle/metric-schema";
 import type {
   EscalationTrigger,
   GrantProposalEnvelope,
@@ -149,6 +150,20 @@ export function validateEnvelope(
             .map((iss) => `${iss.path.join(".") || "(root)"}: ${iss.message}`)
             .join("; ")}`,
         );
+        continue;
+      }
+      // 3b (E3). Anomaly triggers must reference a registered metric
+      // key — an unknown key can never evaluate, and the runtime now
+      // fails CLOSED on unevaluable anomaly protection, which would
+      // escalate every action under the grant forever. Catch the typo
+      // at proposal time instead.
+      if (trigger.type === "anomaly") {
+        const metric = (parsed.data as { metric: string }).metric;
+        if (!getMetricDefinition(metric)) {
+          errors.push(
+            `${triggerPath}.condition.metric "${metric}" is not a registered metric key; anomaly protection on it could never evaluate`,
+          );
+        }
       }
     }
 

@@ -54,6 +54,17 @@ const {
   })),
 }));
 
+const { rollUpUsageSummariesMock } = vi.hoisted(() => ({
+  rollUpUsageSummariesMock: vi.fn(async () => ({
+    grants_updated: 1,
+    events_rolled: 3,
+    errors: 0,
+  })),
+}));
+vi.mock("@/lib/cortex/authority/usage-summary-rollup", () => ({
+  rollUpUsageSummaries: rollUpUsageSummariesMock,
+}));
+
 vi.mock("@/lib/archivist/run-clean", () => ({ runArchivistCleanForAccount }));
 vi.mock("@/lib/archivist/run-pattern-sweep", () => ({
   runArchivistPatternSweepForAccount,
@@ -143,7 +154,7 @@ afterEach(() => {
 // ============================================================
 
 describe("archivist-maintenance workflow", () => {
-  it("dispatches the four steps in order, passing the same account batch into each", async () => {
+  it("dispatches the five steps in order, passing the same account batch into each", async () => {
     const harness = makeHarness();
     const accountIds = [
       "11111111-1111-1111-1111-111111111111",
@@ -168,6 +179,7 @@ describe("archivist-maintenance workflow", () => {
       "sweep",
       "sweep_deferred",
       "calibrate",
+      "usage_rollup",
     ]);
 
     // Each helper was called once per account, twice total.
@@ -187,6 +199,12 @@ describe("archivist-maintenance workflow", () => {
     expect(runArchivistCalibrateForAccount.mock.calls.map((c) => c[1])).toEqual(
       accountIds,
     );
+
+    // E3: the usage rollup runs once per batch, scoped to the batch.
+    expect(rollUpUsageSummariesMock).toHaveBeenCalledTimes(1);
+    expect(rollUpUsageSummariesMock).toHaveBeenCalledWith({
+      account_ids: accountIds,
+    });
   });
 
   it("writes a workflow_task_dispatched + workflow_task_completed pair per task; correlation_id threads through every entry", async () => {
@@ -206,8 +224,10 @@ describe("archivist-maintenance workflow", () => {
     expect(summary.ok).toBe(true);
 
     const eventTypes = harness.ledger.map((e) => e.event_type);
-    // 4 steps × 2 entries each = 8 entries, alternating.
+    // 5 steps × 2 entries each = 10 entries, alternating.
     expect(eventTypes).toEqual([
+      "workflow_task_dispatched",
+      "workflow_task_completed",
       "workflow_task_dispatched",
       "workflow_task_completed",
       "workflow_task_dispatched",

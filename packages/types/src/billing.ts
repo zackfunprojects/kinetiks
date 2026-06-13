@@ -608,6 +608,16 @@ export interface LedgerEventDetailMap {
     body_length: number;
   };
   /**
+   * E3 — an agent caller explicitly requested pattern types its
+   * read_apps allowlist does not permit (lib/cortex/patterns/list.ts).
+   * Registry keys only, never pattern content.
+   */
+  pattern_read_denied: {
+    caller_app: string;
+    denied_pattern_types: string[];
+    denied_count: number;
+  };
+  /**
    * E1 — subscription lifecycle, written by the Stripe webhook handler
    * (lib/billing/sync.ts). Stripe object ids are opaque references,
    * not PII; amounts/emails never appear here.

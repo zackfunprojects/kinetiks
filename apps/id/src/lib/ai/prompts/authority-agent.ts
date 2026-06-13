@@ -115,6 +115,14 @@ export function buildAuthorityEvidenceUserPrompt(args: {
 export function buildAuthorityProposeSystemPrompt(args: {
   /** Pre-rendered catalog of registered action classes. */
   action_class_catalog: string;
+  /**
+   * E3 — registered metric keys an anomaly trigger may reference
+   * (rendered "key: name" lines). The structural validator rejects
+   * unknown keys, and the runtime fails closed on unevaluable anomaly
+   * protection, so the model must pick from this list or skip the
+   * trigger type.
+   */
+  anomaly_metric_catalog: string;
 }): string {
   return `${AUTHORITY_AGENT_PERSONA}
 
@@ -128,9 +136,16 @@ You may only reference action classes listed here. Constraints you propose must 
 
 ${args.action_class_catalog}
 
+# Anomaly trigger metrics
+
+An "anomaly" escalation trigger may ONLY reference one of these registered metric keys (condition.metric). If none fits the activity, do not propose an anomaly trigger.
+
+${args.anomaly_metric_catalog}
+
 # Hard rules
 
 - Never propose an action_class not in the catalog above.
+- Anomaly triggers must use a metric key from the Anomaly trigger metrics list, exactly as written.
 - The literal phrase "Authority Grant" must NOT appear anywhere in your output. Use "permission" or "authority" if you need to.
 - If parent_grant_id is set on any proposed member, that member's capabilities must be a strict subset of the parent's, with each constraint at least as tight (numeric caps not larger, rate limits not looser, spend caps not larger, expiry not later).
 - Default expiry: 30 days for campaign scope, 7 days for workflow scope. Never propose null expiry except for first_connect.

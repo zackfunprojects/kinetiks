@@ -7,6 +7,7 @@ import { runArchivistCleanForAccount } from "@/lib/archivist/run-clean";
 import { runArchivistPatternSweepForAccount } from "@/lib/archivist/run-pattern-sweep";
 import { runArchivistDeferredSweepForAccount } from "@/lib/archivist/run-deferred-sweep";
 import { runArchivistCalibrateForAccount } from "@/lib/archivist/run-calibrate";
+import { rollUpUsageSummaries } from "@/lib/cortex/authority/usage-summary-rollup";
 import { captureException } from "@/lib/observability/sentry";
 import {
   ARCHIVIST_STEP_VALUES,
@@ -190,6 +191,42 @@ export const archivistExecute: OperatorExecutor = async (rawInput) => {
           patterns_raced: patternsRaced,
         },
       } satisfies ArchivistOutput;
+    }
+
+    case "usage_rollup": {
+      // E3: roll authority_action_taken / _escalated Ledger events into
+      // each grant's usage_summary (action counts, spend, escalations)
+      // for the batch's accounts. The Archivist is the canonical
+      // writer for rolled-up Cortex state, same as patterns.
+      try {
+        const result = await rollUpUsageSummaries({
+          account_ids: input.account_ids,
+        });
+        return {
+          step: "usage_rollup",
+          accounts_processed: input.account_ids.length,
+          errors: result.errors,
+          step_metrics: {
+            grants_updated: result.grants_updated,
+            events_rolled: result.events_rolled,
+          },
+        } satisfies ArchivistOutput;
+      } catch (err) {
+        await captureException(err, {
+          tags: {
+            route: "operator/archivist",
+            action: "usage_rollup",
+            stage: "execute",
+            app: "id",
+          },
+          extra: { account_count: input.account_ids.length },
+        });
+        return {
+          step: "usage_rollup",
+          accounts_processed: 0,
+          errors: 1,
+        } satisfies ArchivistOutput;
+      }
     }
 
     default: {

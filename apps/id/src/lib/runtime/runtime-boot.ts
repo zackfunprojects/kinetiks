@@ -16,21 +16,22 @@
  * (always returns `auto_threshold`). After this function runs, the
  * default resolver is in effect.
  *
- * Adapter coverage in Phase 4:
+ * Adapter coverage (E3 — every adapter is real; no stubs remain):
  *   ✓ GrantReader          (apps/id/src/lib/cortex/authority/resolve.ts)
  *   ✓ RecentActionCounter  (live ledger query)
  *   ✓ UsageSummaryReader   (rolled-up jsonb on the grant row)
  *   ✓ LedgerHistoryReader  (action_input_summary from ledger detail)
+ *   ✓ MetricCacheReader    (Oracle metric-cache daily series; lib/runtime/metric-stats.ts)
+ *   ✓ LLMJudge             (router-backed judge; lib/runtime/llm-judge.ts)
  *   ✓ JudgmentBudgetAdapter (kinetiks_ai_calls cost aggregator)
  *   ✓ LedgerAppender       (append-only ledger inserts)
  *   ✓ EscalationHandler    (insert standard approval row)
- *   ☐ MetricCacheReader    (stub returns null until Oracle integration lands)
- *   ☐ LLMJudge             (stub throws until Authority Agent prompts land in Chunk 5)
  *
- * Adapters left as stubs degrade gracefully: the trigger evaluator
- * treats `null` returns as "not enough information; trigger not
- * fired", which is the correct safety stance. Production callers
- * should replace the stubs when their dependencies are available.
+ * Boot also registers one `authority.llm_judged.<action_class>` prompt
+ * task per action class that declares an llm_judgment_budget, with the
+ * model the class declares — the router refuses unregistered tasks, so
+ * a judge call on a budget-less class fails loudly instead of
+ * inventing a model.
  */
 
 import "server-only";
@@ -56,16 +57,45 @@ import {
   type JudgmentBudgetAdapter,
   type LedgerAppender,
   type LedgerHistoryReader,
-  type LLMJudge,
-  type MetricCacheReader,
   type PerActionApprovalHandler,
   type RecentActionCounter,
   type UsageSummaryReader,
 } from "@kinetiks/runtime";
 
+import { listActionClasses } from "@kinetiks/tools";
+import { registerPromptTask } from "@kinetiks/ai";
+
 import { supabaseGrantReader } from "@/lib/cortex/authority/resolve";
+import { supabaseMetricCacheReader } from "@/lib/runtime/metric-stats";
+import { realLLMJudge } from "@/lib/runtime/llm-judge";
 import { processApproval } from "@/lib/approvals/pipeline";
 import type { ApprovalSubmission } from "@/lib/approvals/types";
+
+/** Model ids per the task-registry convention. */
+const JUDGMENT_MODEL_IDS = {
+  haiku: "claude-haiku-4-5-20251001",
+  sonnet: "claude-sonnet-4-20250514",
+} as const;
+
+/**
+ * E3: one prompt task per budget-declaring action class, named
+ * `authority.llm_judged.<action_class>` — the exact task string the
+ * JudgmentBudgetAdapter aggregates ai_calls spend by, closing the
+ * §2.10 loop (judge call -> ai_calls row -> budget window).
+ * registerPromptTask is idempotent for identical descriptors, so
+ * re-boot (hot reload) is safe.
+ */
+function registerJudgmentPromptTasks(): void {
+  for (const descriptor of listActionClasses()) {
+    const budget = descriptor.llm_judgment_budget;
+    if (!budget) continue;
+    registerPromptTask({
+      task: `authority.llm_judged.${descriptor.action_class}`,
+      version: "v1-2026-06",
+      defaultModel: JUDGMENT_MODEL_IDS[budget.model],
+    });
+  }
+}
 
 let _booted = false;
 
@@ -76,8 +106,9 @@ export function bootRuntimeAdapters(): void {
   configureRecentActionCounter(recentActionCounter);
   configureUsageSummaryReader(usageSummaryReader);
   configureLedgerHistoryReader(ledgerHistoryReader);
-  configureMetricCacheReader(metricCacheReader);
-  configureLLMJudge(llmJudgeStub);
+  configureMetricCacheReader(supabaseMetricCacheReader);
+  configureLLMJudge(realLLMJudge);
+  registerJudgmentPromptTasks();
   configureJudgmentBudgetAdapter(judgmentBudgetAdapter);
   configureLedgerAppender(ledgerAppender);
   configureEscalationHandler(escalationHandler);
@@ -174,30 +205,6 @@ const ledgerHistoryReader: LedgerHistoryReader = {
         {},
       created_at: r.created_at,
     }));
-  },
-};
-
-const metricCacheReader: MetricCacheReader = {
-  async fetchMetricStats() {
-    // v1 stub: anomaly trigger gracefully degrades to not-fired when
-    // stats are null. Full Oracle anomaly integration is a later phase.
-    return null;
-  },
-};
-
-const llmJudgeStub: LLMJudge = {
-  async judge() {
-    // TODO(Phase 4 — Chunk 5): replace this stub with the real judge
-    // that calls @kinetiks/ai/router with `authority.llm_judged.<action_class>`
-    // prompts. Until then, fail CLOSED: return confidence 0 so any
-    // grant whose escalation_triggers includes `llm_judged` lands the
-    // action in per-action approval instead of silently executing.
-    //
-    // Failing open (confidence 1.0) is the wrong v1 default — a grant
-    // explicitly opted into LLM judgment by including the trigger;
-    // bypassing the judgment because we haven't built it yet would
-    // violate the customer's stated intent.
-    return { confidence: 0.0 };
   },
 };
 

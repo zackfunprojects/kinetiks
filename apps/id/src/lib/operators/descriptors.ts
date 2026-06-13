@@ -46,6 +46,7 @@ export const ARCHIVIST_STEP_VALUES = [
   "sweep",
   "sweep_deferred",
   "calibrate",
+  "usage_rollup",
 ] as const;
 export type ArchivistStep = (typeof ARCHIVIST_STEP_VALUES)[number];
 
