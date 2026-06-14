@@ -7,6 +7,12 @@ vi.mock("@/lib/auth/require-auth", () => ({
 vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn(),
 }));
+const { captureExceptionMock } = vi.hoisted(() => ({
+  captureExceptionMock: vi.fn(async () => undefined),
+}));
+vi.mock("@/lib/observability/sentry", () => ({
+  captureException: captureExceptionMock,
+}));
 
 import { requireAuth } from "@/lib/auth/require-auth";
 import { createClient } from "@/lib/supabase/server";
@@ -98,6 +104,17 @@ describe("GET /api/health — JWT account_id claim assertion", () => {
     expect(res.status).toBe(200);
     const jwt = await jwtBlock(res);
     expect(jwt).toEqual({ applicable: true, claim_present: false, claim_matches_db: false });
+    expect(captureExceptionMock).toHaveBeenCalledOnce();
+    expect(captureExceptionMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        tags: expect.objectContaining({
+          route: "/api/health",
+          action: "account_claim_check",
+          app: "id",
+        }),
+      })
+    );
   });
 
   it("non-session auth (api_key) → not applicable, no token inspected", async () => {

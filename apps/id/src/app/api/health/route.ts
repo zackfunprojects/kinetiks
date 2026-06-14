@@ -1,6 +1,7 @@
 import { apiSuccess } from "@/lib/utils/api-response";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { createClient } from "@/lib/supabase/server";
+import { captureException } from "@/lib/observability/sentry";
 
 /**
  * GET /api/health
@@ -60,9 +61,15 @@ async function checkAccountClaim(
       claim_present,
       claim_matches_db: claim_present && claimAccountId === dbAccountId,
     };
-  } catch {
-    // Diagnostic endpoint: a claim-read failure is reported as "not present",
-    // never thrown — the env block must always return.
+  } catch (error) {
+    // A claim-read failure can mask a real auth/config regression, so report
+    // it — but never throw: the env block must always return. The result
+    // degrades to "claim not present" for the caller.
+    await captureException(error, {
+      tags: { route: "/api/health", action: "account_claim_check", stage: "jwt_read", app: "id" },
+      user: { id: dbAccountId },
+      extra: {},
+    });
     return { applicable: true, claim_present: false, claim_matches_db: false };
   }
 }
