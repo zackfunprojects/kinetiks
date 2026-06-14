@@ -22,6 +22,7 @@ on:
     paths:
       - "supabase/migrations/**"
       - "supabase/tests/**"
+      - "supabase/config.toml"
       - "scripts/test-rls.sh"
       - ".github/workflows/rls-tests.yml"
 
