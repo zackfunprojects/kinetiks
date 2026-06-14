@@ -8,13 +8,17 @@
 -- ============================================================
 
 BEGIN;
-SELECT plan(5);
+SELECT plan(6);
 
 DO $$
 DECLARE
   alice_user uuid := '11111111-1111-1111-1111-111111111111';
+  bob_user   uuid := '22222222-2222-2222-2222-222222222222';
 BEGIN
+  -- Two accounts in the table (different users) so the hook's WHERE +
+  -- ORDER BY are proven to select the CALLER's account, not just any.
   PERFORM _kt_test_seed_account(alice_user, 'cf-hook');
+  PERFORM _kt_test_seed_account(bob_user, 'cf-hook-bob');
 END $$;
 
 -- ── Injects the caller's account_id ─────────────────────────
@@ -29,6 +33,23 @@ SELECT is(
   ),
   (SELECT id::text FROM kinetiks_accounts WHERE user_id = '11111111-1111-1111-1111-111111111111'),
   'hook injects the caller''s account_id into claims'
+);
+
+-- ── Selects the CALLER's account when several accounts exist ─
+-- With both Alice and Bob seeded, the hook must inject Bob's account_id
+-- for Bob's event — guarding the user_id filter + deterministic ordering
+-- (forward-compat for v2 multi-account; today UNIQUE(user_id) holds).
+SELECT is(
+  (
+    public.custom_access_token_hook(
+      jsonb_build_object(
+        'user_id', '22222222-2222-2222-2222-222222222222',
+        'claims', jsonb_build_object('sub', '22222222-2222-2222-2222-222222222222')
+      )
+    ) -> 'claims' ->> 'account_id'
+  ),
+  (SELECT id::text FROM kinetiks_accounts WHERE user_id = '22222222-2222-2222-2222-222222222222'),
+  'hook injects the caller''s own account_id when multiple accounts exist'
 );
 
 -- ── Preserves existing claims ───────────────────────────────
