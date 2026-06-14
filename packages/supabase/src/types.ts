@@ -1615,6 +1615,33 @@ export type Database = {
         }
         Relationships: []
       }
+      kinetiks_admins: {
+        Row: {
+          granted_at: string
+          granted_by: string | null
+          id: string
+          revoked_at: string | null
+          role: string
+          user_id: string
+        }
+        Insert: {
+          granted_at?: string
+          granted_by?: string | null
+          id?: string
+          revoked_at?: string | null
+          role?: string
+          user_id: string
+        }
+        Update: {
+          granted_at?: string
+          granted_by?: string | null
+          id?: string
+          revoked_at?: string | null
+          role?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       kinetiks_ai_calls: {
         Row: {
           account_id: string | null
@@ -3646,15 +3673,7 @@ export type Database = {
           source?: string
           updated_at?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "kinetiks_model_assignments_approved_by_fkey"
-            columns: ["approved_by"]
-            isOneToOne: false
-            referencedRelation: "kinetiks_accounts"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       kinetiks_model_flip_proposals: {
         Row: {

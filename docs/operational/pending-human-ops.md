@@ -4,7 +4,7 @@ Owner-run steps that can't be done from a code change (production env vars,
 dashboard config, doc fixes). Each is independent and non-blocking — the
 shipped features are live and safe without them; these activate or tidy.
 
-Last updated: 2026-06-13 (after the adaptive-model-selection + E-phase prod activation).
+Last updated: 2026-06-13 (after the admin-panel prod activation).
 
 Legend: **[P1]** do soon · **[P2]** when convenient · **[info]** awareness, no action.
 
@@ -27,6 +27,12 @@ run logs in the Supabase dashboard for a 200 (not the env-guard 500).
 ---
 
 ## 2. [P1] Set `ADMIN_BOOTSTRAP_USER_IDS` on Vercel (project: kinetiks-id)
+
+**This is the ONLY remaining step to open the admin panel.** Everything else
+is already done: migration 00083 is applied to prod (`kinetiks_admins` exists,
+verified), the `/admin` routes are deployed and gated (unauth → `/login`,
+non-admin → 404), and the generated types are in PR #107. Until this var is
+set, nobody is an admin, so `/admin` 404s for everyone (the safe default).
 
 The admin panel (`/admin`) gates on membership in `kinetiks_admins`. Boot
 seeds the first admin(s) from this env var so you can reach the panel without
