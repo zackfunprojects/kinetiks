@@ -262,6 +262,31 @@ importers:
         specifier: ^2.1.0
         version: 2.1.9(@types/node@20.19.37)(jsdom@25.0.1)(lightningcss@1.32.0)(terser@5.47.1)
 
+  packages/collaborative:
+    dependencies:
+      '@kinetiks/types':
+        specifier: workspace:*
+        version: link:../types
+      '@kinetiks/ui':
+        specifier: workspace:*
+        version: link:../ui
+      react:
+        specifier: ^18.3.0
+        version: 18.3.1
+      react-dom:
+        specifier: ^18.3.0
+        version: 18.3.1(react@18.3.1)
+    devDependencies:
+      '@types/react':
+        specifier: ^18.3.0
+        version: 18.3.28
+      '@types/react-dom':
+        specifier: ^18.3.0
+        version: 18.3.7(@types/react@18.3.28)
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
+
   packages/cortex:
     dependencies:
       '@kinetiks/types':
