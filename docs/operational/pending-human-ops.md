@@ -4,40 +4,44 @@ Owner-run steps that can't be done from a code change (production env vars,
 dashboard config, doc fixes). Each is independent and non-blocking — the
 shipped features are live and safe without them; these activate or tidy.
 
-Last updated: 2026-06-14 (after Phase F — JWT cutover + test depth + docs).
+Last updated: 2026-06-14 (Phase F complete; JWT cutover 00084-00086 applied to
+prod + db:types regenerated this session).
+
+**Remaining human-only steps (need the Vercel/Supabase dashboard):** item 2
+(`ADMIN_BOOTSTRAP_USER_IDS` to open `/admin`), the Sentry prod config and the
+other unset prod env vars in the broader backlog below, and item 6 (GA4 OAuth).
+Everything I could do from the CLI this session is done (items 0, 1, 5).
 
 Legend: **[P1]** do soon · **[P2]** when convenient · **[info]** awareness, no action.
 
 ---
 
-## 0. [P1] Apply the JWT RLS cutover to production (migrations 00084-00086)
+## 0. [DONE 2026-06-14] Apply the JWT RLS cutover to production (00084-00086)
 
-Phase F1 migrated all 88 account-scoped RLS policies to the
-`kinetiks_account_id()` resolver (`coalesce(JWT account_id claim, the old
-subquery)`). The migrations are **merged to main but not yet `db:push`'d to
-prod** — prod is at `00083`. The new `pnpm health` step 4 (migration parity)
-is **intentionally red until this is applied** (it reports 00084/00085/00086
-as drift), and that is the correct signal.
+**Done this session.** Phase F1 migrated all 88 account-scoped RLS policies to
+the `kinetiks_account_id()` resolver (`coalesce(JWT account_id claim, the old
+subquery)`). All three migrations were applied to prod with
+`bash scripts/db-push.sh --allow-dirty` (the `--allow-dirty` is required only
+because of the owner-intentional `apps/dm` untracked drift; the migrations
+themselves were merged + pushed). Verified: `supabase migration list --linked`
+shows 00084/00085/00086 with a Remote version, and `pnpm health` step 4
+(migration parity) is now green.
 
-This is the one consequential, gated step of Phase F. The cutover is
-behavior-preserving (the coalesce fallback means a present claim resolves to
-the same account as the old subquery, and `kinetiks_accounts.user_id` is
-UNIQUE), but the spec mandates preview verification before flipping prod RLS.
+The cutover is behavior-preserving: the prod custom-access-token hook is live,
+so the migrated policies read the `account_id` claim, which equals the old
+subquery result (`kinetiks_accounts.user_id` is UNIQUE). **Rollback if ever
+needed:** disable the hook in the Supabase dashboard — every policy falls back
+to the subquery with no code change (the coalesce design). See
+`docs/operational/jwt-cutover-runbook.md`.
 
-Procedure (full detail in `docs/operational/jwt-cutover-runbook.md`):
-1. On a preview/staging Supabase project, apply the migrations and hit
-   `GET /api/health` (session cookie): expect `jwt.claim_matches_db: true`.
-2. Toggle the hook **off** there and confirm the app still works (the
-   subquery fallback) — the reversibility proof.
-3. Then apply to prod: `pnpm db:push` (the prod hook is already live, so
-   `claim_matches_db` stays true throughout; rollback = disable the hook).
+Post-cutover follow-up done same session: `pnpm db:types` regenerated (adds
+`kinetiks_account_id`; the `_kt_reserve_daily_counter` `Returns: number | null`
+surgical edit was re-applied — the generator reverts it every time).
 
-```bash
-pnpm db:push   # applies 00084-00086 after the git-sync gate passes
-```
-
-Verify: `supabase migration list --linked` shows 00084-00086 with a Remote
-version; `pnpm health` step 4 goes green.
+> Note: preview-project verification (the runbook's step 1-2) was not run —
+> there is no preview project wired up. The owner authorized the direct prod
+> push knowing the cutover is CI-proven on both the claim and fallback paths
+> and reversible via the hook toggle.
 
 ---
 
@@ -104,18 +108,14 @@ Small docs-only PR.
 
 ---
 
-## 5. [P2] Regenerate `pnpm db:types` for the two new model tables
+## 5. [DONE] `pnpm db:types` is current as of migration 00086
 
-Migration 00082 added `kinetiks_model_assignments` and
-`kinetiks_model_flip_proposals`. The feature code uses the service-role client
-(untyped), so it compiles and runs without regenerated types — but the
-generated `packages/supabase/src/types.ts` doesn't yet include the two tables.
-
-```bash
-pnpm db:types   # then commit packages/supabase/src/types.ts on a branch + PR
-```
-
-Expect the diff to add only the two table types (behavior no-op).
+The model tables (`kinetiks_model_assignments`, `kinetiks_model_flip_proposals`
+from 00082) were typed in #107, and the 2026-06-14 regen after the JWT cutover
+push added `kinetiks_account_id`. `packages/supabase/src/types.ts` now matches
+prod through 00086. Reminder for the next migration: the generator reverts the
+`_kt_reserve_daily_counter` `Returns: number | null` surgical edit on every
+run — re-apply it (it carries an inline comment saying so).
 
 ---
 
