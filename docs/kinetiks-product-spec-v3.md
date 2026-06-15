@@ -192,7 +192,7 @@ The layout mirrors Claude desktop:
 
 **Analytics tab:** Full-width analytics dashboard. No sidebar. Cross-app KPI scoreboard, goal tracking, trend visualization.
 
-**Cortex tab:** Internal sub-navigation on the left side. Sections: Identity, Goals, Integrations, Ledger. Main area shows the selected section.
+**Cortex tab:** Internal sub-navigation on the left side. Seven peer sections, in order: Identity, Goals, Budget, Patterns, Authority, Integrations, Ledger. Main area shows the selected section. (Budget, Patterns, and Authority were added by the Kinetiks Contract Addendum; see `docs/Kinetiks Contract Addendum.md` for their detail.)
 
 **Settings modal:** Triggered by the profile/avatar icon in the top bar. Opens as a modal overlay on top of whatever tab is active. Contains: Account, Organization, Billing, API Keys, Notifications, Team/Seats, Danger Zone.
 
@@ -480,10 +480,13 @@ The Cortex tab is the brain of the system. It holds everything that defines who 
 
 ### 8.1 Internal Sub-Navigation
 
-The Cortex tab has its own left-side navigation with five sections:
+The Cortex tab has its own left-side navigation with seven peer sections, in order:
 
 **Identity** — The 8-layer Context Structure. Who is this business?
 **Goals** — What is the system optimizing toward?
+**Budget** — The approved spend envelopes per category. Authority Grants and Oracle proposals cannot exceed them; budget approval is the highest-bar approval class. (Added by the Kinetiks Contract Addendum.)
+**Patterns** — The Pattern Library: empirically validated, multi-dimensional signatures with outcome data and confidence. Apps emit via Synapse; the Archivist is the canonical writer; reads go through `query_patterns`. (Kinetiks Contract Addendum §1.)
+**Authority** — Active Authority Grants: scoped, time-bounded, plain-language, revocable delegations of action authority. The customer-facing word is "Authority"; constraints render via each action class's `customer_template`. (Kinetiks Contract Addendum §2.)
 **Integrations** — Kinetiks apps, external tools, data sources, and system connections (email, Slack, calendar)
 **Ledger** — The full audit trail of everything the system has learned and done
 
