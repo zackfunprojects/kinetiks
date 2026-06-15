@@ -1,6 +1,6 @@
 "use client";
 
-import type { ExtractedAction } from "@kinetiks/types";
+import type { ExtractedAction, AppPanelOpen } from "@kinetiks/types";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@kinetiks/ui";
 import {
@@ -8,6 +8,8 @@ import {
   provenanceChipLabel,
   stripInsightCitations,
 } from "@/lib/marcus/provenance";
+import { RichResponse } from "./rich";
+import type { RichBlock } from "./rich";
 
 interface MessageBubbleProps {
   role: "user" | "marcus";
@@ -23,6 +25,15 @@ interface MessageBubbleProps {
    * before naming.
    */
   systemName?: string | null;
+  /**
+   * Rich response blocks rendered inline below the prose (chat-ux §B.5):
+   * action/app cards, tables, mini-charts, progress, expandable detail.
+   */
+  richBlocks?: RichBlock[] | null;
+  /** "Open" affordance on action cards → mount the collaborative app panel. */
+  onOpenPanel?: (panel: AppPanelOpen) => void;
+  /** "Activate" affordance on app cards → one-step activation (spec §A.5). */
+  onActivateApp?: (appName: string) => void;
 }
 
 /**
@@ -39,6 +50,9 @@ export function MessageBubble({
   timestamp,
   isStreaming,
   systemName,
+  richBlocks,
+  onOpenPanel,
+  onActivateApp,
 }: MessageBubbleProps) {
   const [showActions, setShowActions] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -185,6 +199,16 @@ export function MessageBubble({
             </span>
           ))}
         </div>
+      )}
+
+      {/* Rich response blocks (chat-ux §B.5) — action/app cards, tables,
+          charts, progress, expandable detail — rendered below the prose. */}
+      {richBlocks && richBlocks.length > 0 && !isStreaming && (
+        <RichResponse
+          blocks={richBlocks}
+          onOpenPanel={onOpenPanel}
+          onActivateApp={onActivateApp}
+        />
       )}
 
       {extractedActions && extractedActions.length > 0 && (
