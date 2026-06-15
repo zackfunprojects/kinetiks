@@ -1,4 +1,5 @@
 import type { CommandResponse } from "@kinetiks/synapse";
+import type { AppPanelOpen } from "@kinetiks/types";
 
 /**
  * Aggregate responses from multiple app commands into a unified Chat response.
@@ -61,11 +62,16 @@ export function aggregateResponses(
     }
   }
 
+  // Surface the first panel-open signal so the shell can mount the app panel
+  // (spec §4.2). An action that produces a viewable entity sets app_panel_open.
+  const panelOpen = successes.find((r) => r.app_panel_open)?.app_panel_open;
+
   return {
     text: parts.join("\n\n") || "Done.",
     has_errors: errors.length > 0 || timeouts.length > 0,
     approval_ids: approvalIds,
     data: mergedData,
+    app_panel_open: panelOpen,
   };
 }
 
@@ -106,4 +112,6 @@ export interface AggregatedResult {
   has_errors: boolean;
   approval_ids: string[];
   data: Record<string, unknown>;
+  /** Set when a result wants the shell to mount the collaborative app panel. */
+  app_panel_open?: AppPanelOpen;
 }
