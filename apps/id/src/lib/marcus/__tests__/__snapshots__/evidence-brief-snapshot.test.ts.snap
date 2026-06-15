@@ -1,0 +1,59 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`evidence brief — shape snapshot > parses a Haiku response into the canonical brief shape 1`] = `
+{
+  "action_availability": [
+    {
+      "app_name": "harvest",
+      "available": false,
+      "reason": "Not connected",
+    },
+  ],
+  "available_evidence": [
+    {
+      "citation": "Competitive layer at 97% confidence",
+      "label": "competitive",
+      "value": "97%",
+    },
+  ],
+  "memory_facts": [
+    "User targets seed stage, NOT Series A/B",
+  ],
+  "not_available": [
+    "Pipeline data",
+    "Close rate history",
+  ],
+  "response_shape": {
+    "lead_with": "Outbound strategy for seed-stage companies",
+    "max_sentences": 6,
+    "must_flag": [
+      "No pipeline data",
+    ],
+    "must_not": [
+      "Promise Harvest actions",
+    ],
+  },
+}
+`;
+
+exports[`evidence brief — shape snapshot > renders a stable evidence-brief block for Sonnet 1`] = `
+"[EVIDENCE BRIEF - use ONLY this evidence in your response]
+Available data you CAN cite:
+- Competitive layer at 97% confidence
+
+Data you DO NOT have (do not fabricate):
+- Pipeline data
+- Close rate history
+
+[CONVERSATION MEMORY - these are decisions/corrections from this thread, honor them]
+- User targets seed stage, NOT Series A/B
+
+[RESPONSE CONSTRAINTS]
+- Maximum 6 sentences
+- Lead with: Outbound strategy for seed-stage companies
+- Must flag these gaps:
+- No pipeline data
+- Must NOT:
+- Promise Harvest actions
+- Do NOT mention actions you will take, things you will queue, or follow-ups you will schedule. Your job is strategic advice only. Actions are handled separately."
+`;
