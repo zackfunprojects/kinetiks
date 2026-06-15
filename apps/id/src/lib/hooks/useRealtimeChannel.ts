@@ -116,20 +116,30 @@ export function useRealtimeChannel(options: UseRealtimeChannelOptions): void {
       }
     }
 
+    const handleReauthFailure = () => {
+      if (onReauthFailureRef.current) {
+        onReauthFailureRef.current();
+      } else {
+        const here = window.location.pathname + window.location.search;
+        router.push(`/login?redirect=${encodeURIComponent(here)}`);
+      }
+    };
+
     channel.subscribe((status) => {
       if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
         void (async () => {
-          const { data, error } = await supabase.auth.getSession();
-          if (error || !data.session) {
-            if (onReauthFailureRef.current) {
-              onReauthFailureRef.current();
-            } else {
-              const here = window.location.pathname + window.location.search;
-              router.push(`/login?redirect=${encodeURIComponent(here)}`);
+          try {
+            const { data, error } = await supabase.auth.getSession();
+            if (error || !data.session) {
+              handleReauthFailure();
+              return;
             }
-            return;
+            await supabase.realtime.setAuth(data.session.access_token);
+          } catch {
+            // getSession / setAuth threw — treat as an unrecoverable reauth
+            // failure rather than a silently dead subscription.
+            handleReauthFailure();
           }
-          await supabase.realtime.setAuth(data.session.access_token);
         })();
       }
     });

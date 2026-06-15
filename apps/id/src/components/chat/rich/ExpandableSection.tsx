@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Button } from "@kinetiks/ui";
 
 export interface ExpandableSectionProps {
   summary: string;
@@ -16,24 +17,17 @@ export function ExpandableSection({ summary, detail }: ExpandableSectionProps) {
   const [open, setOpen] = useState(false);
   return (
     <div style={{ marginTop: "var(--kt-s-3)" }}>
-      <button
+      <Button
+        variant="ghost"
+        size="sm"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        style={{
-          background: "none",
-          border: "none",
-          cursor: "pointer",
-          padding: 0,
-          fontSize: "var(--kt-fs-13)",
-          color: "var(--kt-fg-1)",
-          textAlign: "left",
-        }}
       >
         {summary}{" "}
         <span style={{ color: "var(--kt-accent)", fontSize: "var(--kt-fs-12)" }}>
           {open ? "Show less" : "Expand"}
         </span>
-      </button>
+      </Button>
       {open && (
         <p
           style={{

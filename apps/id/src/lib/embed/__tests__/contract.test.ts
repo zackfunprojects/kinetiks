@@ -32,6 +32,19 @@ describe("presenceRequestSchema", () => {
     expect(r.success).toBe(false);
   });
 
+  it("rejects a non-ISO timestamp", () => {
+    const r = presenceRequestSchema.safeParse({
+      thread_id: "thr-1",
+      event: {
+        participant: "user",
+        event_type: "focus",
+        target: { component_id: "x" },
+        timestamp: "not-a-date",
+      },
+    });
+    expect(r.success).toBe(false);
+  });
+
   it("rejects a missing thread_id", () => {
     const r = presenceRequestSchema.safeParse({
       event: {

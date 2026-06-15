@@ -1,5 +1,7 @@
 "use client";
 
+import { Button } from "@kinetiks/ui";
+
 export default function EmbedError({ reset }: { error: Error; reset: () => void }) {
   return (
     <div
@@ -16,20 +18,9 @@ export default function EmbedError({ reset }: { error: Error; reset: () => void 
       }}
     >
       <span>This workspace surface couldn&apos;t load.</span>
-      <button
-        onClick={reset}
-        style={{
-          background: "none",
-          border: "1px solid var(--kt-border-2)",
-          borderRadius: "var(--kt-radius-1)",
-          padding: "var(--kt-s-1) var(--kt-s-3)",
-          color: "var(--kt-fg-1)",
-          cursor: "pointer",
-          fontSize: "var(--kt-fs-13)",
-        }}
-      >
+      <Button variant="secondary" size="sm" onClick={reset}>
         Try again
-      </button>
+      </Button>
     </div>
   );
 }

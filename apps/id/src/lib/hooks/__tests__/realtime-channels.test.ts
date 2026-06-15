@@ -24,6 +24,8 @@ describe("collaborative realtime channel builders", () => {
     expect(channelAccountId("synapse:acc1:thr1")).toBeNull();
     expect(channelAccountId("garbage")).toBeNull();
     expect(channelAccountId("presence:")).toBeNull();
+    // Extra segments are malformed — must not yield a spurious owner.
+    expect(channelAccountId("presence:acc1:thr1:extra")).toBeNull();
   });
 });
 

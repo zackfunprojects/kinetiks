@@ -1,5 +1,8 @@
+import { z } from "zod";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { apiSuccess, apiError } from "@/lib/utils/api-response";
+
+const stateQuerySchema = z.object({ thread: z.string().min(1) });
 
 /**
  * GET /api/id/embed/state?thread=...
@@ -14,12 +17,14 @@ export async function GET(request: Request) {
   const { auth, error } = await requireAuth(request, { permissions: "read-only" });
   if (error) return error;
 
-  const threadId = new URL(request.url).searchParams.get("thread");
-  if (!threadId) return apiError("thread is required", 400);
+  const parsed = stateQuerySchema.safeParse({
+    thread: new URL(request.url).searchParams.get("thread"),
+  });
+  if (!parsed.success) return apiError("thread is required", 400);
 
   return apiSuccess({
     account_id: auth.account_id,
-    thread_id: threadId,
+    thread_id: parsed.data.thread,
     annotations: [],
     undo_stack: [],
     active_task: null,

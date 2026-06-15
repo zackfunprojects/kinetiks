@@ -43,7 +43,9 @@ export function workspaceChannel(accountId: string, threadId: string): string {
  */
 export function channelAccountId(channelName: string): string | null {
   const parts = channelName.split(":");
-  if (parts.length < 3) return null;
+  // Exactly `prefix:account:thread` — reject extra/missing segments so a
+  // malformed channel never yields a spurious owner.
+  if (parts.length !== 3) return null;
   if (!COLLABORATIVE_CHANNEL_PREFIXES.includes(parts[0] as CollaborativeChannelPrefix)) {
     return null;
   }

@@ -22,7 +22,7 @@ export const presenceEventSchema = z.object({
       typing_content: z.string().optional(),
     })
     .optional(),
-  timestamp: z.string(),
+  timestamp: z.string().datetime(),
 });
 
 export const presenceRequestSchema = z.object({

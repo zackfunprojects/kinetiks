@@ -1,6 +1,7 @@
 import { requireAuth } from "@/lib/auth/require-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { apiError } from "@/lib/utils/api-response";
+import { captureException, USER_SAFE } from "@/lib/observability/sentry";
 import { askClaude } from "@kinetiks/ai";
 import { findMatchingCapabilities, type ParsedCommandIntent } from "@/lib/marcus/command-router";
 import { translateCommand } from "@/lib/marcus/command-translator";
@@ -117,7 +118,11 @@ export async function POST(request: Request) {
           },
         });
         if (ledgerError) {
-          console.error("Failed to write command ledger entry:", ledgerError.message);
+          await captureException(ledgerError, {
+            tags: { route: "/api/marcus/command", action: "marcus.command", stage: "persist", app: "id" },
+            user: { id: accountId },
+            extra: { threadId },
+          });
         }
 
         // Mount the panel first (so it can preload while the result renders)
@@ -135,9 +140,13 @@ export async function POST(request: Request) {
         });
         controller.close();
       } catch (err) {
-        const errorMsg =
-          err instanceof Error ? err.message : "Command processing failed";
-        send({ type: "error", error: errorMsg });
+        await captureException(err, {
+          tags: { route: "/api/marcus/command", action: "marcus.command", stage: "execute", app: "id" },
+          user: { id: accountId },
+          extra: { threadId },
+        });
+        // Never stream raw exception text to the client.
+        send({ type: "error", error: USER_SAFE.GENERIC_MARCUS_FAILURE });
         controller.close();
       }
     },

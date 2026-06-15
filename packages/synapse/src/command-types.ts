@@ -65,8 +65,9 @@ export interface CommandContext {
   cortex_layers?: Record<string, unknown>;
   /**
    * Results of commands this one `depends_on`, injected by the dispatcher
-   * before a dependent command runs (spec §5.1). Keyed by the producing app's
-   * name. Absent for commands with no dependencies.
+   * before a dependent command runs (spec §5.1). Keyed by the producing
+   * command's id (so two dependencies from the same app don't collide).
+   * Absent for commands with no dependencies.
    */
   prior_results?: Record<string, unknown>;
 }

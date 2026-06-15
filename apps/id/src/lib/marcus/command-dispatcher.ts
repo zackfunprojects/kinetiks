@@ -25,7 +25,13 @@ export interface DispatchOptions {
  * plan are treated as already satisfied. Throws on a dependency cycle.
  */
 export function planDispatchOrder(commands: SynapseCommand[]): SynapseCommand[][] {
-  const byId = new Map(commands.map((c) => [c.id, c]));
+  const byId = new Map<string, SynapseCommand>();
+  for (const cmd of commands) {
+    if (byId.has(cmd.id)) {
+      throw new Error(`Duplicate command id in dispatch plan: ${cmd.id}`);
+    }
+    byId.set(cmd.id, cmd);
+  }
   const remaining = new Set(commands.map((c) => c.id));
   const done = new Set<string>();
   const steps: SynapseCommand[][] = [];
@@ -59,10 +65,12 @@ function withPriorResults(
   const deps = command.depends_on ?? [];
   if (deps.length === 0) return command;
 
+  // Keyed by the producing command's id (not app name) so two dependencies
+  // from the same app don't overwrite each other.
   const prior: Record<string, unknown> = {};
   for (const depId of deps) {
     const response = responsesById.get(depId);
-    if (response?.data) prior[response.app_name] = response.data;
+    if (response?.data) prior[depId] = response.data;
   }
   if (Object.keys(prior).length === 0) return command;
 

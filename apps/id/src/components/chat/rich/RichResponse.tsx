@@ -17,17 +17,42 @@ export interface RichResponseProps {
   onActivateApp?: (appName: string) => void;
 }
 
+/**
+ * Content-derived key so streaming inserts/reorders don't remount the wrong
+ * block (which would lose ExpandableSection's open state). Stable across
+ * position changes, unlike an array index.
+ */
+function blockKey(block: RichBlock): string {
+  switch (block.kind) {
+    case "action_card":
+      return `action:${block.panel?.entity_id ?? block.title}`;
+    case "app_card":
+      return `app:${block.appName}`;
+    case "data_table":
+      return `table:${block.caption ?? block.columns.join(",")}`;
+    case "mini_chart":
+      return `chart:${block.chart}:${block.label ?? block.values.join(",")}`;
+    case "progress_indicator":
+      return `progress:${block.label}`;
+    case "expandable":
+      return `expand:${block.summary}`;
+    default:
+      return "block";
+  }
+}
+
 /** Renders a list of rich blocks (spec-addendum-chat-ux §B.5). */
 export function RichResponse({ blocks, onOpenPanel, onActivateApp }: RichResponseProps) {
   if (blocks.length === 0) return null;
   return (
     <>
-      {blocks.map((block, i) => {
+      {blocks.map((block) => {
+        const key = blockKey(block);
         switch (block.kind) {
           case "action_card":
             return (
               <ActionCard
-                key={i}
+                key={key}
                 title={block.title}
                 summary={block.summary}
                 steps={block.steps}
@@ -39,7 +64,7 @@ export function RichResponse({ blocks, onOpenPanel, onActivateApp }: RichRespons
           case "app_card":
             return (
               <AppCard
-                key={i}
+                key={key}
                 appName={block.appName}
                 description={block.description}
                 rationale={block.rationale}
@@ -49,7 +74,7 @@ export function RichResponse({ blocks, onOpenPanel, onActivateApp }: RichRespons
           case "data_table":
             return (
               <DataTable
-                key={i}
+                key={key}
                 columns={block.columns}
                 rows={block.rows}
                 caption={block.caption}
@@ -57,19 +82,19 @@ export function RichResponse({ blocks, onOpenPanel, onActivateApp }: RichRespons
             );
           case "mini_chart":
             return (
-              <MiniChart key={i} chart={block.chart} values={block.values} label={block.label} />
+              <MiniChart key={key} chart={block.chart} values={block.values} label={block.label} />
             );
           case "progress_indicator":
             return (
               <ProgressIndicator
-                key={i}
+                key={key}
                 label={block.label}
                 progress={block.progress}
                 step={block.step}
               />
             );
           case "expandable":
-            return <ExpandableSection key={i} summary={block.summary} detail={block.detail} />;
+            return <ExpandableSection key={key} summary={block.summary} detail={block.detail} />;
           default:
             return null;
         }

@@ -73,6 +73,12 @@ describe("planDispatchOrder", () => {
       ])
     ).toThrow(/cyclic|unresolvable/i);
   });
+
+  it("throws on duplicate command ids (would otherwise silently collapse)", () => {
+    expect(() =>
+      planDispatchOrder([makeCommand("dup", "harvest"), makeCommand("dup", "dm")])
+    ).toThrow(/duplicate command id/i);
+  });
 });
 
 describe("dispatchCommands", () => {
@@ -88,9 +94,10 @@ describe("dispatchCommands", () => {
     // a (no deps) runs before b (depends on a)
     expect(order).toEqual(["a", "b"]);
 
-    // b received a's result injected into context.prior_results, keyed by app.
+    // b received a's result injected into context.prior_results, keyed by the
+    // producing command's id.
     const bReceived = received.find((c) => c.id === "b")!;
-    expect(bReceived.context.prior_results).toEqual({ dm: { value: "dm-result" } });
+    expect(bReceived.context.prior_results).toEqual({ a: { value: "dm-result" } });
 
     // a, with no deps, has no prior_results.
     const aReceived = received.find((c) => c.id === "a")!;

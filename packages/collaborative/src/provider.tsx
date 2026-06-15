@@ -76,6 +76,12 @@ export interface CollaborativeProviderProps {
   transport?: CollaborativeTransport;
   /** Initial tempo (spec §7.1): System Leads when the system initiates work. */
   initialTempo?: TempoMode;
+  /**
+   * Reports a rejected transport call so the host app can route it to Sentry.
+   * The package stays Sentry-agnostic; optimistic UI state self-corrects from
+   * the authoritative onAnnotations / onUndoStack streams.
+   */
+  onTransportError?: (err: unknown) => void;
   children: ReactNode;
 }
 
@@ -85,6 +91,7 @@ export function CollaborativeProvider({
   threadId,
   transport,
   initialTempo = "system_leads",
+  onTransportError,
   children,
 }: CollaborativeProviderProps) {
   const [agentPresence, setAgentPresence] = useState<PresenceEvent | null>(null);
@@ -92,6 +99,16 @@ export function CollaborativeProvider({
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [undoStack, setUndoStack] = useState<WorkspaceAction[]>([]);
   const [tempoMode, setTempoMode] = useState<TempoMode>(initialTempo);
+
+  // Reset collaborative state when the scope changes (thread switch, account
+  // change, or leaving collaborative mode) so stale cross-thread/account
+  // presence, annotations, and undo history never surface (spec §17.1).
+  useEffect(() => {
+    setAgentPresence(null);
+    setUserPresence(null);
+    setAnnotations([]);
+    setUndoStack([]);
+  }, [enabled, accountId, threadId]);
 
   // Subscribe to transport streams when one is present (Phase 8.3+).
   useEffect(() => {
@@ -114,28 +131,33 @@ export function CollaborativeProvider({
     [transport]
   );
 
+  const reportError = useCallback(
+    (err: unknown) => onTransportError?.(err),
+    [onTransportError]
+  );
+
   const delegate = useCallback(
     (region: DelegationRegion) => {
-      void transport?.delegate(region);
+      transport?.delegate(region).catch(reportError);
     },
-    [transport]
+    [transport, reportError]
   );
 
   const undo = useCallback(
     (actionId: string) => {
       // Optimistic local removal; authoritative state arrives via onUndoStack.
       setUndoStack((stack) => stack.filter((a) => a.id !== actionId));
-      void transport?.applyUndo(actionId);
+      transport?.applyUndo(actionId).catch(reportError);
     },
-    [transport]
+    [transport, reportError]
   );
 
   const addAnnotation = useCallback(
     (annotation: Annotation) => {
       setAnnotations((prev) => [...prev, annotation]);
-      void transport?.persistAnnotation(annotation);
+      transport?.persistAnnotation(annotation).catch(reportError);
     },
-    [transport]
+    [transport, reportError]
   );
 
   const dismissAnnotation = useCallback(
@@ -145,9 +167,9 @@ export function CollaborativeProvider({
           a.id === annotationId ? { ...a, dismissed: true } : a
         )
       );
-      void transport?.dismissAnnotation(annotationId);
+      transport?.dismissAnnotation(annotationId).catch(reportError);
     },
-    [transport]
+    [transport, reportError]
   );
 
   const value = useMemo<CollaborativeContextValue>(

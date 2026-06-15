@@ -38,11 +38,14 @@ export default async function EmbedPage({
   }
 
   const admin = createAdminClient();
-  const { data: account } = await admin
+  const { data: account, error: accountError } = await admin
     .from("kinetiks_accounts")
     .select("id, system_name")
     .eq("user_id", user.id)
-    .single();
+    .maybeSingle();
+  // A real query failure must hit the route error boundary, not look like
+  // "not signed in" (CLAUDE.md: distinguish no-row from query-failed).
+  if (accountError) throw accountError;
   if (!account) redirect("/login");
 
   return (
