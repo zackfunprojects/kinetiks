@@ -52,12 +52,9 @@ SELECT is(
   0,
   'goals(rls): cross-tenant user cannot see another account''s goal'
 );
-SELECT is(
-  (WITH u AS (
-     UPDATE kinetiks_goals SET status = 'completed'
-     WHERE id = 'c0000001-0000-0000-0000-000000000001' RETURNING 1
-   ) SELECT count(*)::int FROM u),
-  0,
+SELECT is_empty(
+  $$ UPDATE kinetiks_goals SET status = 'completed'
+     WHERE id = 'c0000001-0000-0000-0000-000000000001' RETURNING 1 $$,
   'goals(rls): cross-tenant UPDATE is an RLS no-op (0 rows affected)'
 );
 SELECT _kt_test_clear_auth();
