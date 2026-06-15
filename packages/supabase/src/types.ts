@@ -4892,6 +4892,7 @@ export type Database = {
         // reservation would exceed p_cap (migration 00080). The Supabase
         // generator can't infer that from the signature; this is a
         // surgical correction so the cap-refusal path stays type-visible.
+        // Re-apply after every `pnpm db:types` regen (see memory db-types-reads-prod).
         Returns: number | null
       }
       _kt_schedule_edge_function: {
@@ -4930,6 +4931,7 @@ export type Database = {
         }
         Returns: number
       }
+      kinetiks_account_id: { Args: never; Returns: string }
       kinetiks_erase_account_ledger: {
         Args: { p_account_id: string }
         Returns: number
