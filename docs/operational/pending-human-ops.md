@@ -4,25 +4,50 @@ Owner-run steps that can't be done from a code change (production env vars,
 dashboard config, doc fixes). Each is independent and non-blocking — the
 shipped features are live and safe without them; these activate or tidy.
 
-Last updated: 2026-06-13 (after the admin-panel prod activation).
+Last updated: 2026-06-14 (after Phase F — JWT cutover + test depth + docs).
 
 Legend: **[P1]** do soon · **[P2]** when convenient · **[info]** awareness, no action.
 
 ---
 
-## 1. [P1] Set `IDENTITY_API_URL` in Supabase Edge secrets
+## 0. [P1] Apply the JWT RLS cutover to production (migrations 00084-00086)
 
-Several Deno crons call back into apps/id via `IDENTITY_API_URL`, which is
-**not set in prod** → those crons (e.g. `oracle-analysis-cron`) fail closed
-silently. The correct value is the apps/id domain (see item 4 — it's
-`id.kinetiks.ai`, not `kinetiks.ai`).
+Phase F1 migrated all 88 account-scoped RLS policies to the
+`kinetiks_account_id()` resolver (`coalesce(JWT account_id claim, the old
+subquery)`). The migrations are **merged to main but not yet `db:push`'d to
+prod** — prod is at `00083`. The new `pnpm health` step 4 (migration parity)
+is **intentionally red until this is applied** (it reports 00084/00085/00086
+as drift), and that is the correct signal.
+
+This is the one consequential, gated step of Phase F. The cutover is
+behavior-preserving (the coalesce fallback means a present claim resolves to
+the same account as the old subquery, and `kinetiks_accounts.user_id` is
+UNIQUE), but the spec mandates preview verification before flipping prod RLS.
+
+Procedure (full detail in `docs/operational/jwt-cutover-runbook.md`):
+1. On a preview/staging Supabase project, apply the migrations and hit
+   `GET /api/health` (session cookie): expect `jwt.claim_matches_db: true`.
+2. Toggle the hook **off** there and confirm the app still works (the
+   subquery fallback) — the reversibility proof.
+3. Then apply to prod: `pnpm db:push` (the prod hook is already live, so
+   `claim_matches_db` stays true throughout; rollback = disable the hook).
 
 ```bash
-supabase secrets set IDENTITY_API_URL=https://id.kinetiks.ai
+pnpm db:push   # applies 00084-00086 after the git-sync gate passes
 ```
 
-Verify: `supabase secrets list` shows it, then check the next `oracle-analysis-cron`
-run logs in the Supabase dashboard for a 200 (not the env-guard 500).
+Verify: `supabase migration list --linked` shows 00084-00086 with a Remote
+version; `pnpm health` step 4 goes green.
+
+---
+
+## 1. [DONE 2026-06-14] Set `IDENTITY_API_URL` in Supabase Edge secrets
+
+**Done this session** (`supabase secrets set IDENTITY_API_URL=https://id.kinetiks.ai`;
+confirmed in `supabase secrets list`). Several Deno crons (e.g.
+`oracle-analysis-cron`) call back into apps/id via `IDENTITY_API_URL` and were
+failing closed silently without it. Verify on the next `oracle-analysis-cron`
+run logs in the Supabase dashboard that it returns 200 (not the env-guard 500).
 
 ---
 
