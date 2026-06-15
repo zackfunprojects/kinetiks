@@ -15,6 +15,7 @@
   "dependencies": {
     "@google-analytics/data": "^5.2.0",
     "@kinetiks/ai": "workspace:*",
+    "@kinetiks/collaborative": "workspace:*",
     "@kinetiks/cortex": "workspace:*",
     "@kinetiks/lib": "workspace:*",
     "@kinetiks/runtime": "workspace:*",

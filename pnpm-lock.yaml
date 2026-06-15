@@ -133,6 +133,9 @@ importers:
       '@kinetiks/ai':
         specifier: workspace:*
         version: link:../../packages/ai
+      '@kinetiks/collaborative':
+        specifier: workspace:*
+        version: link:../../packages/collaborative
       '@kinetiks/cortex':
         specifier: workspace:*
         version: link:../../packages/cortex
