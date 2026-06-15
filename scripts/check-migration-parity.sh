@@ -20,7 +20,9 @@
 # Vercel check in health.sh.
 #
 # Exit codes:
-#   0 — parity (or skipped); 1 — drift (repo migrations not in prod)
+#   0 — parity; 1 — drift (repo migrations not in prod);
+#   2 — skipped (unverifiable: CLI absent or remote unreadable). The caller
+#       distinguishes this from parity so a skip is not reported as green.
 #
 # Usage:
 #   bash scripts/check-migration-parity.sh
@@ -37,18 +39,21 @@ done
 
 cd "$(dirname "$0")/.."
 
-note() { [ "$QUIET" -eq 0 ] && printf '%s\n' "$1"; }
+# `if` (not `&&`) so the function always returns 0 — under `set -e` a bare
+# `[ ... ] && ...` that short-circuits when QUIET=1 would return 1 and abort
+# the script before the intended exit code.
+note() { if [ "$QUIET" -eq 0 ]; then printf '%s\n' "$1"; fi; }
 
 if ! command -v supabase >/dev/null 2>&1; then
   note "supabase CLI not installed, skipping migration-parity check"
-  exit 0
+  exit 2
 fi
 
 # Capture the table; tolerate any failure (offline / not linked / auth).
 LIST="$(supabase migration list --linked 2>/dev/null || true)"
 if [ -z "$LIST" ]; then
   note "could not read the remote migration list (offline / not linked), skipping"
-  exit 0
+  exit 2
 fi
 
 # A data row is `   <local> | <remote> | <time>`. Strip non-digits per column;

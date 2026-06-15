@@ -67,9 +67,15 @@ echo "[4/7] Migration parity (repo migrations applied to prod)..."
 if scripts/check-migration-parity.sh --quiet 2>/tmp/health-migrations.log; then
   ok "every repo migration is applied to production"
 else
-  echo "" >&2
-  cat /tmp/health-migrations.log >&2
-  fail "migration drift — run pnpm db:push (verify a preview project first for consequential RLS changes)"
+  status=$?
+  if [ "$status" -eq 2 ]; then
+    # Unverifiable (no supabase CLI / remote unreadable) — a skip, not green.
+    ok "migration parity SKIPPED (Supabase CLI unavailable or remote unreadable)"
+  else
+    echo "" >&2
+    cat /tmp/health-migrations.log >&2
+    fail "migration drift — run pnpm db:push (verify a preview project first for consequential RLS changes)"
+  fi
 fi
 
 echo "[5/7] Trust-language check (Authority Grant phrase)..."
