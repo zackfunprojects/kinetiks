@@ -6,10 +6,11 @@ This folder contains the canonical documentation for the Kinetiks platform. The 
 
 ### Root — Canonical operating documents
 
-These five documents govern current work. Read these first.
+These canonical documents govern current work. Read these first.
 
 - **`kinetiks-product-spec-v3.md`** — The definitive product specification. Supersedes all prior product specs (v1, v2, Terminal spec). When any other document conflicts with v3, v3 wins. If you think v3 is wrong, raise it in a PR — don't work around it.
 - **`platform-contract.md`** — How apps, integrations, and agents plug into Kinetiks. Read before building anything that connects to the core.
+- **`Kinetiks Contract Addendum.md`** — Part of the canonical contract. Introduces the Pattern Library, Authority Grants, Operator Workflows, and the multi-user placeholder schema. The platform-contract version bumps with its merger; read it before any work on Patterns, Authority, internal app workflows, or Implosion.
 - **`kinetiks-core-architecture-v2.md`** — Technical architecture for the agent-native platform. Tool registry, agent runtime, insight store, approval membrane.
 - **`collaborative-workspace-spec.md`** — The desktop app's defining interaction model. Split-panel collaboration, presence layer, annotations, task drawer with kill switch. This is what makes the desktop app worth installing.
 - **`kinetiks-roadmap.md`** — Strategic roadmap and priority stack.
@@ -48,14 +49,24 @@ Older iterations of the product spec (v1, v2), older versions of canonical docum
 
 ### `build-phases/built/`
 
-Implementation plans for phases 1-6, all complete per the root `CLAUDE.md`. Reference material for understanding how the existing `apps/id` surfaces were built.
+Implementation plans for phases 1 through 7 (including the sub-phases 1.5, 1.6, 1.7, 1.7.1, 4.5 and the parallel tracks at 2/3/4/5), all complete per the root `CLAUDE.md`. Reference material for understanding how the existing `apps/id` surfaces were built.
 
 - `phase-1-core-shell.md`
+- `phase-1.5-fixture-emitter.md`
+- `phase-1.6-budget-and-authority-nav.md`
+- `phase-1.7-kinetiks-internal-pattern-types.md`
+- `phase-1.7.1-connection-evidence-close-signal.md`
 - `phase-2-approval-system.md`
+- `phase-2-empirical-decay-calibration.md`
 - `phase-3-cortex-evolution.md`
+- `phase-3-operator-workflows-platform.md`
+- `phase-4-authority-grants.md`
 - `phase-4-command-router.md`
+- `phase-4.5-ledger-check-validate.md`
+- `phase-5-default-standing-grants.md`
 - `phase-5-oracle-analytics.md`
 - `phase-6-communication-layer.md`
+- `phase-7-nango-connect-end-to-end.md`
 
 ### `build-phases/upcoming/`
 

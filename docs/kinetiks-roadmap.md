@@ -1,5 +1,17 @@
 # Kinetiks AI - Strategic Roadmap
 
+> **⚠️ SUPERSEDED (2026-06-14) — historical reference only, do not build from this.**
+> This roadmap was written April 8, 2026 and predates the current architecture.
+> It references a DeskOf app and a `registerExtractor()` data layer that no
+> longer exist (DeskOf was spun out; connections run through Nango), counts 28
+> migrations (now 86) and 290 apps/id files (now ~620), and frames an A-F phase
+> scheme unrelated to today's state. **Phases 1-7 and the remediation program
+> A-F are complete**, plus adaptive model selection, the admin operator console,
+> and the JWT-claim RLS cutover. For the authoritative current state and the
+> active phase, read CLAUDE.md's "Current State" and "Current Phase" sections
+> and `docs/build-phases/built/`. This file is retained only as a snapshot of
+> April-era thinking.
+>
 > **Date:** April 8, 2026
 > **Context:** Full repo audit of zackfunprojects/kinetiks (669 files, ~85k LOC)
 > **Author:** Claude + Zack

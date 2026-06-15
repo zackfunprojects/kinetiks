@@ -58,14 +58,14 @@ Kinetiks AI is a GTM operating system. The product is the Kinetiks core app (web
 
 | Component | Files | LOC | Status |
 |-----------|-------|-----|--------|
-| **Kinetiks Core (apps/id)** | ~510 | - | Phases 1-7 complete. Chat, Analytics, Cortex (7 sub-sections), Cartographer, Archivist, Marcus v2 (with live tool invocation), Oracle, Approval System, agent comms, Nango connections |
+| **Kinetiks Core (apps/id)** | ~620 | - | Phases 1-7 complete. Chat, Analytics, Cortex (7 sub-sections), Cartographer, Archivist, Marcus v2 (with live tool invocation), Oracle, Approval System, agent comms, Nango connections, admin operator console (model management, behind `kinetiks_admins`) |
 | **Platform layer** | `packages/tools`, `packages/runtime` | - | Tool Registry (~21 tools), Agent Runtime (authority resolution, escalation triggers, `tool_calls` logging), Metric Cache, Insight Store, and the Operator / Pattern-Type / Action-Class registries - all built and cross-validated at boot |
 | **Pattern Library + Authority Grants** | core tables + registries | - | Both built end-to-end: hybrid schemas, `query_patterns` allowlist, decay calibration, authority resolution, 3-layer lifecycle state machines, export/import. Exercised today against the fixture stream (`KINETIKS_FIXTURES_ENABLED`) |
 | **Data flows (Nango)** | 10 sync handlers | - | GA4, GSC, Stripe, Google Ads, Meta, HubSpot, Twitter, LinkedIn, Instagram, TikTok handlers write to `kinetiks_metric_cache`; Marcus reads via tools |
 | **Harvest (apps/hv)** | 214 | 26k | Full UI built (Greenhouse, Field, Market). Needs end-to-end workflow fixes. Out of active build scope. |
 | **Desktop (apps/desktop)** | 4 | 200 | Electron skeleton (main, tray, notifications, preload) |
 | **Shared packages** | ~160 files | - | types, ui, supabase, synapse, ai, mcp, cortex, sentinel, lib, tools, runtime - all functional |
-| **Database** | 67 migrations | - | Core + Marcus + Harvest + Pattern Library + Authority + Metric Cache + Nango schemas with RLS. 22 pgTAP suites, 15 Edge Functions |
+| **Database** | 86 migrations | - | Core + Marcus + Harvest + Pattern Library + Authority + Metric Cache + Nango + admin/model-management + JWT-claim RLS cutover (00084-00086) schemas with RLS. ~55 pgTAP suites, 17 Edge Functions |
 
 ### Not Yet Built
 
@@ -569,7 +569,7 @@ See `docs/Kinetiks Contract Addendum.md` §2 for the canonical spec.
 See `docs/Kinetiks Contract Addendum.md` §3 for the canonical spec.
 
 - **The Workflow primitive is the canonical orchestration shape for both cross-app and intra-app coordination.** The `WorkflowTask` schema carries `target_type: 'cross_app' | 'internal_operator'` and `target_app`. Cross-app dispatch goes through Synapse Routing Event; internal dispatch goes through the executing app's own Operator registry.
-- **Programs stay cross-app.** A Program is a cross-app coordination structure that lives in `kinetiks_workflows` / `kinetiks_programs`. An app's internal Workflow is owned by the app and lives in the app's own prefixed tables (e.g. `im_workflows` for Implosion).
+- **Programs stay cross-app.** A Program is a cross-app coordination structure. **Schema deferred:** the `kinetiks_workflows` / `kinetiks_programs` tables do **not** yet exist — no migration defines them (verify: `grep -rl 'kinetiks_programs' supabase/migrations` returns nothing). The Workflow primitive runs today through the Operator-dispatch path (only the Archivist executor is wired; Cartographer/Marcus/Oracle executors are registration-only stubs — see "Deferred-by-design" under Current State), not a persisted Programs table. Treat any reference to these tables as forward-looking until the schema lands. An app's internal Workflow would be owned by the app and live in the app's own prefixed tables (e.g. `im_workflows` for Implosion).
 - **Operators are registered at app boot.** An `OperatorDescriptor` declares `key`, description, inputs/outputs schema, required tools, required pattern types, and the action classes the Operator may invoke. Unregistered Operators are not addressable from a Workflow task.
 - **The Three-Layer communication rules are preserved.** Operators in app A cannot talk to Operators in app B. An internal Workflow in Implosion cannot reference Harvest's Composer as a task target; it must go through a Synapse Routing Event. Synapses still do not talk to other Synapses.
 - **When to use a Workflow inside an app.** If the app's internal coordination has conditional branches, parallel-then-merge structure, or internal approval checkpoints, use a Workflow. Linear sequences with no branching stay on the existing scheduled-Operator pattern. Implosion needs internal Workflows; most other apps do not (yet).
@@ -905,7 +905,7 @@ All keys must be set on Vercel for every app. Missing keys cause silent failures
 Historical reference (do not build from):
 - **`docs/archive/marcus-conversation-quality-plan.md`** - Plan 1 for the Marcus engine, superseded by `marcus-engine-v2-plan.md`
 
-Per-app `CLAUDE.md` files at `apps/{code}/CLAUDE.md` document each app's internal architecture, tables, Operators, Synapse capabilities, pattern types emitted, action classes declared, and current state. Read those when working inside a specific app. Read this file for cross-cutting rules.
+Per-app `CLAUDE.md` files at `apps/{code}/CLAUDE.md` document each app's internal architecture, tables, Operators, Synapse capabilities, pattern types emitted, action classes declared, and current state. Today `apps/id/CLAUDE.md` (the active-scope core app) and `apps/dm/CLAUDE.md` (Dark Madder, mid-migration) exist; the other app directories do not have one yet. Read the per-app file when working inside that app; read this file for cross-cutting rules.
 
 ---
 
