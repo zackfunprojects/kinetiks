@@ -22,7 +22,24 @@ const isDev = !app.isPackaged;
 // marketing site and 404s the app + /api routes — loading it shipped a dead
 // window. Env override allows pointing at a preview/staging origin.
 const DEFAULT_APP_URL = isDev ? "http://localhost:3000" : "https://id.kinetiks.ai";
-const APP_URL = process.env.KINETIKS_DESKTOP_APP_URL || DEFAULT_APP_URL;
+
+// Desktop main runs in its own Electron process (not the Next app), so it
+// validates its single override locally rather than via @kinetiks/lib/env. A
+// malformed override falls back to the default instead of throwing at boot.
+function resolveAppUrl(): string {
+  const override = process.env.KINETIKS_DESKTOP_APP_URL;
+  if (override) {
+    try {
+      new URL(override);
+      return override;
+    } catch {
+      // Ignore a malformed override and use the default.
+    }
+  }
+  return DEFAULT_APP_URL;
+}
+
+const APP_URL = resolveAppUrl();
 const APP_ORIGIN = new URL(APP_URL).origin;
 
 let mainWindow: BrowserWindow | null = null;

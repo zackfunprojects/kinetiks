@@ -24,7 +24,11 @@ const PERMISSION_ALLOWLIST = new Set<string>([
 function isAllowedOrigin(url: string, allowed: string[]): boolean {
   try {
     const parsed = new URL(url);
+    // Exact allowlist (covers dev http://localhost:3000) first.
     if (allowed.includes(parsed.origin)) return true;
+    // Wildcard Kinetiks subdomains are HTTPS-only — never honor a downgraded
+    // or non-TLS scheme for the navigation boundary.
+    if (parsed.protocol !== "https:") return false;
     const host = parsed.hostname;
     return host === "kinetiks.ai" || host.endsWith(".kinetiks.ai");
   } catch {
@@ -34,12 +38,14 @@ function isAllowedOrigin(url: string, allowed: string[]): boolean {
 
 export function configureWebviewSecurity(getAllowedOrigins: () => string[]): void {
   app.on("web-contents-created", (_event, contents) => {
-    // Harden a webview's prefs before it attaches.
-    contents.on("will-attach-webview", (_e, webPreferences, params) => {
+    // Harden a webview's prefs before it attaches. partition goes on
+    // webPreferences (the authoritative session field) — setting it on the tag
+    // params is ignored, which would let a caller bypass persist:collaborative.
+    contents.on("will-attach-webview", (_e, webPreferences, _params) => {
       webPreferences.preload = path.join(__dirname, "../preload/webview.js");
       webPreferences.nodeIntegration = false;
       webPreferences.contextIsolation = true;
-      params.partition = COLLAB_PARTITION;
+      webPreferences.partition = COLLAB_PARTITION;
     });
 
     if (contents.getType() !== "webview") return;
