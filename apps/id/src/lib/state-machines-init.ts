@@ -316,6 +316,47 @@ export function registerKinetiksStateMachines(): void {
     ],
   });
 
+  // ── kinetiks_active_tasks ──────────────────────────────────
+  // Collaborative Workspace task drawer (spec §8). The command pipeline /
+  // task drawer server routes are the canonical writers. Pause/resume are
+  // customer actions (the drawer controls); kill is the customer's Kill
+  // Task button (or system, e.g. fixture cleanup); complete is the agent/
+  // system on task completion. Backstop trigger in 00090.
+  registerStateMachine({
+    entity: "kinetiks_active_tasks",
+    states: ["active", "paused", "killed", "completed"] as const,
+    initial: "active",
+    terminal: ["killed", "completed"] as const,
+    transitions: [
+      { from: "active", to: "paused", allow: (actor) => actor.kind === "user" },
+      { from: "paused", to: "active", allow: (actor) => actor.kind === "user" },
+      {
+        from: "active",
+        to: "killed",
+        allow: (actor) => actor.kind === "user" || actor.kind === "system",
+        reason: "Kill Task is a customer action (or system, e.g. fixture cleanup)",
+      },
+      {
+        from: "paused",
+        to: "killed",
+        allow: (actor) => actor.kind === "user" || actor.kind === "system",
+        reason: "Kill Task is a customer action (or system, e.g. fixture cleanup)",
+      },
+      {
+        from: "active",
+        to: "completed",
+        allow: (actor) => actor.kind === "agent" || actor.kind === "system",
+        reason: "The system marks a task completed when the work finishes",
+      },
+      {
+        from: "paused",
+        to: "completed",
+        allow: (actor) => actor.kind === "agent" || actor.kind === "system",
+        reason: "The system marks a task completed when the work finishes",
+      },
+    ],
+  });
+
   // ── kinetiks_budgets ───────────────────────────────────────
   // Budget approval lifecycle (approval_status). Approval (proposed →
   // approved) is the highest bar in the spec and is restricted to the

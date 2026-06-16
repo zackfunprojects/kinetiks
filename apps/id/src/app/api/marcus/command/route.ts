@@ -1,15 +1,32 @@
 import { requireAuth } from "@/lib/auth/require-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { apiSuccess, apiError } from "@/lib/utils/api-response";
+import { apiError } from "@/lib/utils/api-response";
+import { captureException, USER_SAFE } from "@/lib/observability/sentry";
 import { askClaude } from "@kinetiks/ai";
 import { findMatchingCapabilities, type ParsedCommandIntent } from "@/lib/marcus/command-router";
 import { translateCommand } from "@/lib/marcus/command-translator";
 import { dispatchCommands } from "@/lib/marcus/command-dispatcher";
 import { aggregateResponses } from "@/lib/marcus/command-aggregator";
+import {
+  encodeCommandEvent,
+  type CommandStreamEvent,
+} from "@/lib/marcus/command-stream";
 
 /**
  * POST /api/marcus/command
- * Full command pipeline: parse -> route -> translate -> dispatch -> aggregate
+ *
+ * Full command pipeline (parse -> route -> translate -> dispatch -> aggregate),
+ * streamed as SSE so the Chat UI can render live progress and mount the
+ * collaborative app panel as soon as the work produces a viewable entity.
+ *
+ * Body: { message: string, thread_id?: string }
+ *
+ * SSE events (see CommandStreamEvent):
+ * - command_progress  per-command dispatch progress (spec §7)
+ * - panel_open        mount the app panel (spec §4.2); emitted before the result
+ * - command_result    final aggregated response (text, approvals, data, panel)
+ * - clarification | no_match | translation_failed  early exits
+ * - error             on failure
  */
 export async function POST(request: Request) {
   const { auth, error } = await requireAuth(request, { permissions: "read-write" });
@@ -26,77 +43,122 @@ export async function POST(request: Request) {
     return apiError("Message is required", 400);
   }
 
-  try {
-    // Step 1: Parse the command intent
-    const parsedIntent = await parseCommandIntent(body.message);
+  const accountId = auth.account_id;
+  const threadId = body.thread_id ?? "";
+  const message = body.message;
+  const encoder = new TextEncoder();
 
-    if (parsedIntent.confidence < 0.5) {
-      return apiSuccess({
-        type: "clarification",
-        message: "I'm not sure what you'd like me to do. Could you be more specific?",
-      });
-    }
+  const stream = new ReadableStream({
+    async start(controller) {
+      const send = (event: CommandStreamEvent) =>
+        controller.enqueue(encoder.encode(encodeCommandEvent(event)));
 
-    // Step 2: Find matching capabilities
-    const matches = await findMatchingCapabilities(auth.account_id, parsedIntent);
+      try {
+        // Step 1: Parse the command intent
+        const parsedIntent = await parseCommandIntent(message);
+        if (parsedIntent.confidence < 0.5) {
+          send({
+            type: "clarification",
+            message:
+              "I'm not sure what you'd like me to do. Could you be more specific?",
+          });
+          controller.close();
+          return;
+        }
 
-    if (matches.length === 0) {
-      return apiSuccess({
-        type: "no_match",
-        message: "I don't have any connected apps that can handle that request. Check your integrations in Cortex.",
-      });
-    }
+        // Step 2: Find matching capabilities
+        const matches = await findMatchingCapabilities(accountId, parsedIntent);
+        if (matches.length === 0) {
+          send({
+            type: "no_match",
+            message:
+              "I don't have any connected apps that can handle that request. Check your integrations in Cortex.",
+          });
+          controller.close();
+          return;
+        }
 
-    // Step 3: Translate to structured commands
-    const commands = await translateCommand(parsedIntent, matches, {
-      account_id: auth.account_id,
-      thread_id: body.thread_id ?? "",
-    });
+        // Step 3: Translate to structured commands
+        const commands = await translateCommand(parsedIntent, matches, {
+          account_id: accountId,
+          thread_id: threadId,
+        });
+        if (commands.length === 0) {
+          send({
+            type: "translation_failed",
+            message:
+              "I understood the request but couldn't translate it into an app command. Try rephrasing.",
+          });
+          controller.close();
+          return;
+        }
 
-    if (commands.length === 0) {
-      return apiSuccess({
-        type: "translation_failed",
-        message: "I understood the request but couldn't translate it into an app command. Try rephrasing.",
-      });
-    }
+        // Step 4: Dispatch (sequential where dependencies exist), streaming progress
+        const responses = await dispatchCommands(commands, {
+          onProgress: (progress) => send({ type: "command_progress", progress }),
+        });
 
-    // Step 4: Dispatch
-    const responses = await dispatchCommands(commands);
+        // Step 5: Aggregate
+        const result = aggregateResponses(responses, message);
 
-    // Step 5: Aggregate
-    const result = aggregateResponses(responses, body.message);
+        // Log to Ledger
+        const admin = createAdminClient();
+        const { error: ledgerError } = await admin.from("kinetiks_ledger").insert({
+          account_id: accountId,
+          event_type: "command_executed",
+          source_app: "marcus",
+          source_operator: "command-router",
+          target_layer: null,
+          detail: {
+            message,
+            intent: parsedIntent,
+            commands_dispatched: commands.length,
+            successes: responses.filter((r) => r.status === "success").length,
+            errors: responses.filter((r) => r.status !== "success").length,
+          },
+        });
+        if (ledgerError) {
+          await captureException(ledgerError, {
+            tags: { route: "/api/marcus/command", action: "marcus.command", stage: "persist", app: "id" },
+            user: { id: accountId },
+            extra: { threadId },
+          });
+        }
 
-    // Log to Ledger
-    const admin = createAdminClient();
-    const { error: ledgerError } = await admin.from("kinetiks_ledger").insert({
-      account_id: auth.account_id,
-      event_type: "command_executed",
-      source_app: "marcus",
-      source_operator: "command-router",
-      target_layer: null,
-      detail: {
-        message: body.message,
-        intent: parsedIntent,
-        commands_dispatched: commands.length,
-        successes: responses.filter((r) => r.status === "success").length,
-        errors: responses.filter((r) => r.status !== "success").length,
-      },
-    });
-    if (ledgerError) {
-      console.error("Failed to write command ledger entry:", ledgerError.message);
-    }
+        // Mount the panel first (so it can preload while the result renders)
+        if (result.app_panel_open) {
+          send({ type: "panel_open", panel: result.app_panel_open });
+        }
 
-    return apiSuccess({
-      type: "command_result",
-      message: result.text,
-      has_errors: result.has_errors,
-      approval_ids: result.approval_ids,
-      data: result.data,
-    });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Command processing failed";
-    return apiError(message, 500);
-  }
+        send({
+          type: "command_result",
+          text: result.text,
+          has_errors: result.has_errors,
+          approval_ids: result.approval_ids,
+          data: result.data,
+          app_panel_open: result.app_panel_open,
+        });
+        controller.close();
+      } catch (err) {
+        await captureException(err, {
+          tags: { route: "/api/marcus/command", action: "marcus.command", stage: "execute", app: "id" },
+          user: { id: accountId },
+          extra: { threadId },
+        });
+        // Never stream raw exception text to the client.
+        send({ type: "error", error: USER_SAFE.GENERIC_MARCUS_FAILURE });
+        controller.close();
+      }
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+    },
+  });
 }
 
 async function parseCommandIntent(message: string): Promise<ParsedCommandIntent> {

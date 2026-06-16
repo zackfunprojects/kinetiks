@@ -33,3 +33,6 @@ export type {
   CommandProgress,
 } from "./command-types";
 export { BaseCommandHandler } from "./command-handler";
+
+// Collaborative workspace (spec §11.1)
+export type { CollaborativeSynapse } from "./collaborative";

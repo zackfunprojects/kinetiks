@@ -25,6 +25,13 @@ import { apiError } from "@/lib/utils/api-response";
  * - { type: "done" } - response complete
  * - { type: "extraction", disclosure: string, actions: GeneratedAction[] } - post-response action execution
  * - { type: "error", error: string } - on failure
+ *
+ * When a message is classified as a command (Phase 8.2+ inline command
+ * routing), the stream additionally carries the command-pipeline events from
+ * `CommandStreamEvent` (@/lib/marcus/command-stream): `command_progress`
+ * (live dispatch progress), `panel_open` (mount the collaborative app panel,
+ * spec §4.2), and `command_result` (final aggregated response). These are the
+ * same events `/api/marcus/command` emits today.
  */
 export async function POST(request: Request) {
   const { auth, error } = await requireAuth(request, { permissions: "read-write" });

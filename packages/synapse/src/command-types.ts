@@ -3,6 +3,8 @@
  * Apps register capabilities and receive commands from Marcus.
  */
 
+import type { AppPanelOpen } from "@kinetiks/types";
+
 export type CommandType = "query" | "action" | "config";
 
 export interface CapabilityDefinition {
@@ -13,6 +15,12 @@ export interface CapabilityDefinition {
   examples: string[];
   requires_approval: boolean;
   timeout_ms: number;
+  /**
+   * Optional JSON Schema describing the shape of this capability's result
+   * `data`. When present, the aggregator can validate and pick a structured
+   * renderer (Phase 8.0). Absent → plain-text aggregation, as today.
+   */
+  result_schema?: Record<string, unknown>;
 }
 
 export interface ParameterSchema {
@@ -41,6 +49,12 @@ export interface SynapseCommand {
   context: CommandContext;
   timeout_ms: number;
   created_at: string;
+  /**
+   * IDs of commands (within the same dispatch plan) that must complete before
+   * this one runs. The dispatcher passes their results into this command's
+   * context. Empty/absent → no dependency (parallel-eligible). Spec §3.4.
+   */
+  depends_on?: string[];
 }
 
 export interface CommandContext {
@@ -49,6 +63,13 @@ export interface CommandContext {
   conversation_summary?: string;
   relevant_goals?: string[];
   cortex_layers?: Record<string, unknown>;
+  /**
+   * Results of commands this one `depends_on`, injected by the dispatcher
+   * before a dependent command runs (spec §5.1). Keyed by the producing
+   * command's id (so two dependencies from the same app don't collide).
+   * Absent for commands with no dependencies.
+   */
+  prior_results?: Record<string, unknown>;
 }
 
 export interface CommandResponse {
@@ -59,6 +80,12 @@ export interface CommandResponse {
   error?: string;
   approval_id?: string;
   duration_ms: number;
+  /**
+   * When set, instructs the shell to mount the collaborative app panel for this
+   * result (spec §4.2). Set by action capabilities that produce a viewable
+   * entity; consumed by the Chat SSE layer to emit a `panel_open` event.
+   */
+  app_panel_open?: AppPanelOpen;
 }
 
 export interface CommandProgress {
