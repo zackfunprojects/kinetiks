@@ -11,6 +11,7 @@ import {
 } from "./protocol";
 import { initObservability } from "./observability";
 import { buildAppMenu } from "./menu";
+import { configureWebviewSecurity } from "./webview";
 
 // Crash reporting first, before any app setup, so startup faults are captured.
 initObservability();
@@ -51,6 +52,10 @@ function createWindow() {
       preload: path.join(__dirname, "../preload/index.js"),
       contextIsolation: true,
       nodeIntegration: false,
+      // Enable embedded app panels (collaborative workspace). Every attached
+      // webview is hardened in configureWebviewSecurity (forced preload,
+      // locked partition, navigation + permission guards).
+      webviewTag: true,
     },
   });
 
@@ -128,6 +133,7 @@ if (!gotTheLock) {
   });
 
   app.whenReady().then(() => {
+    configureWebviewSecurity(() => [APP_ORIGIN]);
     createWindow();
     createTray(mainWindow!);
     buildAppMenu();
