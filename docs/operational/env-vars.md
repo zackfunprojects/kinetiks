@@ -138,3 +138,25 @@ supabase secrets list --project-ref ioptgqtzykqwnebwkioo
 If you add a new env-var consumer in code (`process.env.X` via
 `@kinetiks/lib/env`), this file must be updated in the same PR. The
 pre-merge runbook (CLAUDE.md Definition of Done) calls this out.
+
+## Desktop (Electron) — Phase 8.1
+
+The desktop shell (`apps/desktop`) is built + distributed outside Vercel, so
+these are **build/release-time** env (in CI or the maintainer's shell), not
+Vercel/Supabase secrets. All are optional locally: without them the shell runs
+unsigned, with auto-update + crash reporting disabled (no-ops).
+
+| Var | Where | Purpose |
+|-----|-------|---------|
+| `KINETIKS_DESKTOP_APP_URL` | desktop runtime | Override the loaded origin (default `https://id.kinetiks.ai`; `http://localhost:3000` in dev). |
+| `SENTRY_DSN` (or `NEXT_PUBLIC_SENTRY_DSN`) | desktop runtime | Main-process crash reporting. No-op when unset. |
+| `GH_TOKEN` | build/publish | `electron-builder --publish` uploads artifacts + `latest*.yml` to GitHub Releases (`zackfunprojects/kinetiks`), the auto-update feed. |
+| `CSC_LINK` / `CSC_KEY_PASSWORD` | build (macOS + Windows) | Code-signing cert (base64/path) + password. macOS needs a Developer ID Application cert. |
+| `APPLE_ID` / `APPLE_APP_SPECIFIC_PASSWORD` / `APPLE_TEAM_ID` | build (macOS) | notarytool notarization creds. Required for a notarized (Gatekeeper-clean) macOS build. |
+
+**Verify:** a notarized + signed build requires all of `CSC_LINK`,
+`CSC_KEY_PASSWORD`, `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`
+present at `electron-builder` time. Auto-update requires `GH_TOKEN` + at least
+one published GitHub Release. Until these are configured, `pnpm --filter
+@kinetiks/desktop package` produces an unsigned local artifact (fine for dev,
+not for distribution).
