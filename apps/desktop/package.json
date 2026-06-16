@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "tsc && electron dist/main/index.js",
     "build": "tsc",
+    "type-check": "tsc --noEmit",
     "package": "electron-builder",
     "package:mac": "electron-builder --mac",
     "package:win": "electron-builder --win",

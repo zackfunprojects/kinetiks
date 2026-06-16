@@ -5,7 +5,11 @@ import { setupNotifications } from "./notifications";
 import { loadWindowState, trackWindowState } from "./window-state";
 
 const isDev = !app.isPackaged;
-const APP_URL = isDev ? "http://localhost:3000" : "https://kinetiks.ai";
+// The Core app is served from id.kinetiks.ai. The apex kinetiks.ai is the
+// marketing site and 404s the app + /api routes — loading it shipped a dead
+// window. Env override allows pointing at a preview/staging origin.
+const DEFAULT_APP_URL = isDev ? "http://localhost:3000" : "https://id.kinetiks.ai";
+const APP_URL = process.env.KINETIKS_DESKTOP_APP_URL || DEFAULT_APP_URL;
 const APP_ORIGIN = new URL(APP_URL).origin;
 
 let mainWindow: BrowserWindow | null = null;
