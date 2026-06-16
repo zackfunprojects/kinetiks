@@ -9,6 +9,10 @@ import {
   flushPendingDeepLink,
   deepLinkFromArgv,
 } from "./protocol";
+import { initObservability } from "./observability";
+
+// Crash reporting first, before any app setup, so startup faults are captured.
+initObservability();
 
 const isDev = !app.isPackaged;
 // The Core app is served from id.kinetiks.ai. The apex kinetiks.ai is the
