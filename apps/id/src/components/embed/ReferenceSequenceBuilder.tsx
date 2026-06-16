@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Badge, Input, Pill } from "@kinetiks/ui";
+import { Badge, Button, Input, Pill } from "@kinetiks/ui";
 
 /**
  * The minimal-but-representative reference surface (spec §13.1, fidelity:
@@ -70,15 +70,15 @@ export function ReferenceSequenceBuilder({
         <Label>Segment</Label>
         <div style={{ display: "flex", gap: "var(--kt-s-2)", flexWrap: "wrap" }}>
           {SEGMENTS.map((s) => (
-            <button
+            <Button
               key={s.id}
-              type="button"
-              onClick={() => setSegment(s.id)}
-              style={{ background: "none", border: "none", padding: 0, cursor: "pointer" }}
+              variant={segment === s.id ? "accent" : "secondary"}
+              size="sm"
               aria-pressed={segment === s.id}
+              onClick={() => setSegment(s.id)}
             >
-              <Pill tone={segment === s.id ? "accent" : "neutral"}>{s.label}</Pill>
-            </button>
+              {s.label}
+            </Button>
           ))}
         </div>
       </div>

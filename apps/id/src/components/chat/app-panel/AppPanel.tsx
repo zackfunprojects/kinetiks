@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@kinetiks/ui";
 import type { AppPanelTarget } from "./AppPanelContext";
 
@@ -27,6 +27,11 @@ export function AppPanel({ target, threadId, accountId, onClose }: AppPanelProps
     if (threadId) params.set("thread", threadId);
     return `/embed?${params.toString()}`;
   }, [target, threadId, accountId]);
+
+  // Show the skeleton again when the panel switches to a different surface.
+  useEffect(() => {
+    setLoaded(false);
+  }, [src]);
 
   const label = target.entity ? `${target.app} · ${target.entity}` : target.app;
 

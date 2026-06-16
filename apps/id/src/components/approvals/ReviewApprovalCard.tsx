@@ -57,14 +57,11 @@ export function ReviewApprovalCard({ approval, onApprove, onReject }: ReviewAppr
       </div>
 
       {embedTarget && panel ? (
-        <button
-          type="button"
-          onClick={() => panel.openPanel(embedTarget)}
-          className="kt-link"
-          style={{ display: "block", marginBottom: "var(--kt-s-3)", fontSize: "var(--kt-fs-12)", background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left" }}
-        >
-          Open in {approval.source_app} &rarr;
-        </button>
+        <div style={{ marginBottom: "var(--kt-s-3)" }}>
+          <Button variant="ghost" size="sm" onClick={() => panel.openPanel(embedTarget)}>
+            Open in {approval.source_app} &rarr;
+          </Button>
+        </div>
       ) : approval.deep_link && /^https?:\/\//.test(approval.deep_link) ? (
         <a href={approval.deep_link} target="_blank" rel="noopener noreferrer" className="kt-link" style={{ display: "block", marginBottom: "var(--kt-s-3)", fontSize: "var(--kt-fs-12)" }}>
           View in {approval.source_app} &rarr;

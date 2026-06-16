@@ -20,7 +20,7 @@
 ### Slice 1 — Panel infrastructure (context + AppPanel + responsive layout)
 - [ ] `AppPanelContext` (provider in ChatLayout): `{ panel, openPanel(target), openFromSignal(AppPanelOpen), closePanel }`. `useAppPanel()` returns null outside a panel-capable layout (no-op).
 - [ ] `AppPanel.tsx`: same-origin iframe to `/embed?app=&entity=&mode=collaborative&thread=&account=`; skeleton while loading; parent-side `postMessage` handshake (listen for the embed `ready`); close button + breadcrumb scaffold (single app now). Entity prefetch/preload (§14.2, interactive <2s).
-- [ ] `useMediaQuery` hook (if absent). Three-column responsive ChatLayout: ≥1280px → `[sidebar | chat flex | panel ~45%]` with a resizable divider; <1280px → panel is a toggleable slide-over (fixed, right, max 600px, z-index above chat).
+- [ ] `useMediaQuery` hook (if absent). Three-column responsive ChatLayout: ≥1280px → `[sidebar | chat flex | panel ~45%]` (fixed split; **resizable divider is a deferred refinement**); <1280px → panel is a toggleable slide-over (fixed, right, max 600px, z-index above chat).
 - [ ] Open/close + **thread-scope reset** (close panel on thread switch / new thread; spec §17.1). Tab switch (Analytics/Cortex) also closes (panel lives in Chat).
 - [ ] Commit: `feat(panel): split-panel infra — context, AppPanel, responsive ChatLayout`.
 
@@ -41,7 +41,7 @@
 ## Phase 8.2 Definition of Done
 - Dispatching/opening mounts the panel with the entity; clicking an approval embed deep_link mounts it in-panel; an action card "Open" mounts it.
 - Switching threads / tabs resets the panel; close button + "close" rules all work.
-- ≥1280px split with resizable divider; <1280px slide-over toggle. Panel interactive <2s with a skeleton.
+- ≥1280px fixed 45% split (resizable divider deferred); <1280px slide-over toggle. Panel interactive <2s with a skeleton.
 - Reference surface renders a believable editable entity, fixture-labeled.
 - `pnpm type-check --filter @kinetiks/id` clean; loading/error/empty + light/dark; tokens only.
 - No `apps/dm` paths staged.
