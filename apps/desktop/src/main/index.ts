@@ -3,6 +3,12 @@ import path from "node:path";
 import { createTray } from "./tray";
 import { setupNotifications } from "./notifications";
 import { loadWindowState, trackWindowState } from "./window-state";
+import {
+  registerProtocol,
+  routeDeepLink,
+  flushPendingDeepLink,
+  deepLinkFromArgv,
+} from "./protocol";
 
 const isDev = !app.isPackaged;
 // The Core app is served from id.kinetiks.ai. The apex kinetiks.ai is the
@@ -44,6 +50,11 @@ function createWindow() {
   });
 
   mainWindow.loadURL(APP_URL);
+
+  // Deliver any deep link that arrived before the renderer was ready.
+  mainWindow.webContents.on("did-finish-load", () => {
+    if (mainWindow) flushPendingDeepLink(mainWindow);
+  });
 
   mainWindow.once("ready-to-show", () => {
     mainWindow?.show();
@@ -91,27 +102,52 @@ function createWindow() {
   });
 }
 
-app.whenReady().then(() => {
-  createWindow();
-  createTray(mainWindow!);
-  setupNotifications();
+// Single-instance: a second launch (incl. an OS protocol activation on
+// Windows/Linux) focuses the existing window and routes its deep link instead
+// of spawning a second app.
+const gotTheLock = app.requestSingleInstanceLock();
 
-  app.on("activate", () => {
-    if (mainWindow === null) {
-      createWindow();
-    } else {
+if (!gotTheLock) {
+  app.quit();
+} else {
+  registerProtocol(() => mainWindow);
+
+  app.on("second-instance", (_event, argv) => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.show();
+      mainWindow.focus();
+    }
+    const link = deepLinkFromArgv(argv);
+    if (link) routeDeepLink(mainWindow, link);
+  });
+
+  app.whenReady().then(() => {
+    createWindow();
+    createTray(mainWindow!);
+    setupNotifications(() => mainWindow);
+
+    // Cold start via protocol (Windows/Linux deliver the link in argv).
+    const coldLink = deepLinkFromArgv(process.argv);
+    if (coldLink) routeDeepLink(mainWindow, coldLink);
+
+    app.on("activate", () => {
+      if (mainWindow === null) {
+        createWindow();
+      } else {
+        mainWindow.show();
+      }
+    });
+  });
+
+  app.on("window-all-closed", () => {
+    if (process.platform !== "darwin") {
+      app.quit();
     }
   });
-});
 
-app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") {
-    app.quit();
-  }
-});
-
-// Allow app.quit() to actually quit (used by tray).
-app.on("before-quit", () => {
-  isQuitting = true;
-});
+  // Allow app.quit() to actually quit (used by tray).
+  app.on("before-quit", () => {
+    isQuitting = true;
+  });
+}

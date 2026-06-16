@@ -26,4 +26,11 @@ export interface KinetiksDesktopBridge {
   readonly platform: DesktopPlatform;
   /** Fire a native OS notification. */
   showNotification: (notification: DesktopNotification) => void;
+  /**
+   * Subscribe to `kinetiks://` deep links routed from the OS (notification
+   * clicks, protocol activations). The callback receives an in-app path (e.g.
+   * `/chat?approval=…`, `/chat/{id}`, `/embed?…`) to client-side navigate to.
+   * Returns an unsubscribe function.
+   */
+  onDeepLink: (callback: (path: string) => void) => () => void;
 }

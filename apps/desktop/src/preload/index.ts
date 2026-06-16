@@ -9,6 +9,13 @@ const bridge: KinetiksDesktopBridge = {
   showNotification: (notification: DesktopNotification) => {
     ipcRenderer.send("show-notification", notification);
   },
+  onDeepLink: (callback: (path: string) => void) => {
+    const handler = (_event: unknown, path: string) => callback(path);
+    ipcRenderer.on("kinetiks:deep-link", handler);
+    return () => {
+      ipcRenderer.removeListener("kinetiks:deep-link", handler);
+    };
+  },
 };
 
 contextBridge.exposeInMainWorld("electron", bridge);
