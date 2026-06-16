@@ -1615,6 +1615,77 @@ export type Database = {
         }
         Relationships: []
       }
+      kinetiks_active_tasks: {
+        Row: {
+          account_id: string
+          app_name: string
+          command_id: string | null
+          current_step_index: number
+          description: string | null
+          ended_at: string | null
+          id: string
+          kill_feedback: string | null
+          kill_reason_code: string | null
+          name: string
+          progress: number
+          source_app: string
+          started_at: string
+          status: string
+          steps: Json
+          team_scope_id: string | null
+          thread_id: string
+          updated_at: string
+        }
+        Insert: {
+          account_id: string
+          app_name: string
+          command_id?: string | null
+          current_step_index?: number
+          description?: string | null
+          ended_at?: string | null
+          id?: string
+          kill_feedback?: string | null
+          kill_reason_code?: string | null
+          name: string
+          progress?: number
+          source_app?: string
+          started_at?: string
+          status?: string
+          steps?: Json
+          team_scope_id?: string | null
+          thread_id: string
+          updated_at?: string
+        }
+        Update: {
+          account_id?: string
+          app_name?: string
+          command_id?: string | null
+          current_step_index?: number
+          description?: string | null
+          ended_at?: string | null
+          id?: string
+          kill_feedback?: string | null
+          kill_reason_code?: string | null
+          name?: string
+          progress?: number
+          source_app?: string
+          started_at?: string
+          status?: string
+          steps?: Json
+          team_scope_id?: string | null
+          thread_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kinetiks_active_tasks_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "kinetiks_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       kinetiks_admins: {
         Row: {
           granted_at: string
@@ -1790,6 +1861,77 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "kinetiks_analytics_metrics_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "kinetiks_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      kinetiks_annotations: {
+        Row: {
+          account_id: string
+          body: string
+          component_id: string
+          created_at: string
+          dismissed: boolean
+          evidence_refs: Json
+          field_name: string
+          id: string
+          kind: string
+          max_width: number
+          pinned: boolean
+          position: string
+          replies: Json
+          source_app: string
+          summary: string
+          team_scope_id: string | null
+          thread_id: string
+          updated_at: string
+        }
+        Insert: {
+          account_id: string
+          body: string
+          component_id: string
+          created_at?: string
+          dismissed?: boolean
+          evidence_refs?: Json
+          field_name: string
+          id?: string
+          kind: string
+          max_width?: number
+          pinned?: boolean
+          position?: string
+          replies?: Json
+          source_app?: string
+          summary: string
+          team_scope_id?: string | null
+          thread_id: string
+          updated_at?: string
+        }
+        Update: {
+          account_id?: string
+          body?: string
+          component_id?: string
+          created_at?: string
+          dismissed?: boolean
+          evidence_refs?: Json
+          field_name?: string
+          id?: string
+          kind?: string
+          max_width?: number
+          pinned?: boolean
+          position?: string
+          replies?: Json
+          source_app?: string
+          summary?: string
+          team_scope_id?: string | null
+          thread_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kinetiks_annotations_account_id_fkey"
             columns: ["account_id"]
             isOneToOne: false
             referencedRelation: "kinetiks_accounts"
@@ -3307,6 +3449,7 @@ export type Database = {
           source_app: string | null
           source_operator: string | null
           target_layer: string | null
+          team_scope_id: string | null
         }
         Insert: {
           account_id: string
@@ -3318,6 +3461,7 @@ export type Database = {
           source_app?: string | null
           source_operator?: string | null
           target_layer?: string | null
+          team_scope_id?: string | null
         }
         Update: {
           account_id?: string
@@ -3329,6 +3473,7 @@ export type Database = {
           source_app?: string | null
           source_operator?: string | null
           target_layer?: string | null
+          team_scope_id?: string | null
         }
         Relationships: [
           {
@@ -4853,6 +4998,72 @@ export type Database = {
           },
         ]
       }
+      kinetiks_workspace_actions: {
+        Row: {
+          account_id: string
+          action_type: string
+          annotation_id: string | null
+          created_at: string
+          id: string
+          new_value: Json | null
+          participant: string
+          previous_value: Json | null
+          sequence_index: number
+          source_app: string
+          target: string
+          team_scope_id: string | null
+          thread_id: string
+          undone: boolean
+        }
+        Insert: {
+          account_id: string
+          action_type: string
+          annotation_id?: string | null
+          created_at?: string
+          id?: string
+          new_value?: Json | null
+          participant: string
+          previous_value?: Json | null
+          sequence_index: number
+          source_app?: string
+          target: string
+          team_scope_id?: string | null
+          thread_id: string
+          undone?: boolean
+        }
+        Update: {
+          account_id?: string
+          action_type?: string
+          annotation_id?: string | null
+          created_at?: string
+          id?: string
+          new_value?: Json | null
+          participant?: string
+          previous_value?: Json | null
+          sequence_index?: number
+          source_app?: string
+          target?: string
+          team_scope_id?: string | null
+          thread_id?: string
+          undone?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kinetiks_workspace_actions_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "kinetiks_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "kinetiks_workspace_actions_annotation_id_fkey"
+            columns: ["annotation_id"]
+            isOneToOne: false
+            referencedRelation: "kinetiks_annotations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -4888,12 +5099,7 @@ export type Database = {
           p_counter_key: string
           p_day: string
         }
-        // RETURNS numeric, but the function RETURNs NULL when the
-        // reservation would exceed p_cap (migration 00080). The Supabase
-        // generator can't infer that from the signature; this is a
-        // surgical correction so the cap-refusal path stays type-visible.
-        // Re-apply after every `pnpm db:types` regen (see memory db-types-reads-prod).
-        Returns: number | null
+        Returns: number
       }
       _kt_schedule_edge_function: {
         Args: { p_cron: string; p_function_slug: string; p_name: string }
