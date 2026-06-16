@@ -5,6 +5,7 @@ import { TabBar } from "./TabBar";
 import { SettingsModal } from "./SettingsModal";
 import { CommandPalette } from "@/components/command/CommandPalette";
 import { useGlobalShortcuts } from "@/hooks/useGlobalShortcuts";
+import { useDesktopBridge } from "@/lib/desktop/useDesktopBridge";
 
 export interface AppAccount {
   id: string;
@@ -26,6 +27,12 @@ export function AppShell({ account, userEmail, children }: AppShellProps) {
 
   const togglePalette = useCallback(() => setPaletteOpen((o) => !o), []);
   useGlobalShortcuts({ onTogglePalette: togglePalette });
+
+  // Desktop shell: route deep links + native-menu accelerators to shell actions.
+  useDesktopBridge({
+    onPalette: () => setPaletteOpen(true),
+    onSettings: () => setSettingsOpen(true),
+  });
 
   return (
     <div
