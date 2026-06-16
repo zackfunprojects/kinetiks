@@ -16,6 +16,14 @@ const bridge: KinetiksDesktopBridge = {
       ipcRenderer.removeListener("kinetiks:deep-link", handler);
     };
   },
+  onMenuAction: (callback) => {
+    const handler = (_event: unknown, action: Parameters<typeof callback>[0]) =>
+      callback(action);
+    ipcRenderer.on("kinetiks:menu", handler);
+    return () => {
+      ipcRenderer.removeListener("kinetiks:menu", handler);
+    };
+  },
 };
 
 contextBridge.exposeInMainWorld("electron", bridge);

@@ -10,6 +10,7 @@ import {
   deepLinkFromArgv,
 } from "./protocol";
 import { initObservability } from "./observability";
+import { buildAppMenu } from "./menu";
 
 // Crash reporting first, before any app setup, so startup faults are captured.
 initObservability();
@@ -129,6 +130,7 @@ if (!gotTheLock) {
   app.whenReady().then(() => {
     createWindow();
     createTray(mainWindow!);
+    buildAppMenu();
     setupNotifications(() => mainWindow);
 
     // Cold start via protocol (Windows/Linux deliver the link in argv).

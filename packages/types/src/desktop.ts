@@ -8,6 +8,20 @@
 
 export type DesktopPlatform = "darwin" | "win32" | "linux";
 
+/**
+ * Actions emitted by the native menu / keyboard accelerators
+ * (spec-addendum-chat-ux §B.4). The renderer maps these to shell actions
+ * (tab navigation, command palette, etc.).
+ */
+export type DesktopMenuAction =
+  | "tab:chat"
+  | "tab:analytics"
+  | "tab:cortex"
+  | "palette"
+  | "new-thread"
+  | "approvals"
+  | "settings";
+
 export interface DesktopNotification {
   title: string;
   body: string;
@@ -33,4 +47,9 @@ export interface KinetiksDesktopBridge {
    * Returns an unsubscribe function.
    */
   onDeepLink: (callback: (path: string) => void) => () => void;
+  /**
+   * Subscribe to native-menu / keyboard-accelerator actions (Cmd+1/2/3, Cmd+K,
+   * etc.). Returns an unsubscribe function.
+   */
+  onMenuAction: (callback: (action: DesktopMenuAction) => void) => () => void;
 }
