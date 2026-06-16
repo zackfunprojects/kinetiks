@@ -9,6 +9,32 @@ const bridge: KinetiksDesktopBridge = {
   showNotification: (notification: DesktopNotification) => {
     ipcRenderer.send("show-notification", notification);
   },
+  onDeepLink: (callback: (path: string) => void) => {
+    const handler = (_event: unknown, path: string) => callback(path);
+    ipcRenderer.on("kinetiks:deep-link", handler);
+    return () => {
+      ipcRenderer.removeListener("kinetiks:deep-link", handler);
+    };
+  },
+  onMenuAction: (callback) => {
+    const handler = (_event: unknown, action: Parameters<typeof callback>[0]) =>
+      callback(action);
+    ipcRenderer.on("kinetiks:menu", handler);
+    return () => {
+      ipcRenderer.removeListener("kinetiks:menu", handler);
+    };
+  },
+  onUpdateStatus: (callback) => {
+    const handler = (_event: unknown, status: Parameters<typeof callback>[0]) =>
+      callback(status);
+    ipcRenderer.on("kinetiks:update", handler);
+    return () => {
+      ipcRenderer.removeListener("kinetiks:update", handler);
+    };
+  },
+  applyUpdate: () => {
+    ipcRenderer.send("kinetiks:apply-update");
+  },
 };
 
 contextBridge.exposeInMainWorld("electron", bridge);

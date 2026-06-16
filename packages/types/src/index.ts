@@ -201,6 +201,8 @@ export type {
   KinetiksDesktopBridge,
   DesktopPlatform,
   DesktopNotification,
+  DesktopMenuAction,
+  DesktopUpdateStatus,
 } from "./desktop";
 export type {
   CollaborativeParticipant,

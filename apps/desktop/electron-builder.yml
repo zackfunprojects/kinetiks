@@ -5,8 +5,24 @@ directories:
 files:
   - dist/**/*
   - package.json
+# Auto-update feed (electron-updater reads latest.yml from here). HUMAN SETUP:
+# requires GH_TOKEN at publish time and GitHub Releases hosting the signed
+# artifacts + latest{,-mac,-linux}.yml. See docs/operational/env-vars.md.
+publish:
+  provider: github
+  owner: zackfunprojects
+  repo: kinetiks
 mac:
   category: public.app-category.business
+  # Code signing + notarization. HUMAN SETUP: a Developer ID Application cert
+  # (CSC_LINK / CSC_KEY_PASSWORD) + notarytool creds (APPLE_ID /
+  # APPLE_APP_SPECIFIC_PASSWORD / APPLE_TEAM_ID). When absent (local dev),
+  # electron-builder skips signing + notarization and emits an unsigned build.
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  notarize: true
   target:
     - dmg
     - zip

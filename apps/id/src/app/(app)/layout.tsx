@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { AppShell } from "@/components/app-shell/AppShell";
 import { DesktopNotificationBridge } from "@/components/app-shell/DesktopNotificationBridge";
 import { CheckoutReturnToast } from "@/components/app-shell/CheckoutReturnToast";
+import { DesktopUpdateToast } from "@/components/app-shell/DesktopUpdateToast";
 
 export default async function AppLayout({
   children,
@@ -62,6 +63,7 @@ export default async function AppLayout({
     >
       <DesktopNotificationBridge systemName={systemName} accountId={account.id} />
       <CheckoutReturnToast />
+      <DesktopUpdateToast />
       {children}
     </AppShell>
   );

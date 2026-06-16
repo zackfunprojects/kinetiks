@@ -3,9 +3,43 @@ import path from "node:path";
 import { createTray } from "./tray";
 import { setupNotifications } from "./notifications";
 import { loadWindowState, trackWindowState } from "./window-state";
+import {
+  registerProtocol,
+  routeDeepLink,
+  flushPendingDeepLink,
+  deepLinkFromArgv,
+} from "./protocol";
+import { initObservability } from "./observability";
+import { buildAppMenu } from "./menu";
+import { configureWebviewSecurity } from "./webview";
+import { initAutoUpdater } from "./updater";
+
+// Crash reporting first, before any app setup, so startup faults are captured.
+initObservability();
 
 const isDev = !app.isPackaged;
-const APP_URL = isDev ? "http://localhost:3000" : "https://kinetiks.ai";
+// The Core app is served from id.kinetiks.ai. The apex kinetiks.ai is the
+// marketing site and 404s the app + /api routes — loading it shipped a dead
+// window. Env override allows pointing at a preview/staging origin.
+const DEFAULT_APP_URL = isDev ? "http://localhost:3000" : "https://id.kinetiks.ai";
+
+// Desktop main runs in its own Electron process (not the Next app), so it
+// validates its single override locally rather than via @kinetiks/lib/env. A
+// malformed override falls back to the default instead of throwing at boot.
+function resolveAppUrl(): string {
+  const override = process.env.KINETIKS_DESKTOP_APP_URL;
+  if (override) {
+    try {
+      new URL(override);
+      return override;
+    } catch {
+      // Ignore a malformed override and use the default.
+    }
+  }
+  return DEFAULT_APP_URL;
+}
+
+const APP_URL = resolveAppUrl();
 const APP_ORIGIN = new URL(APP_URL).origin;
 
 let mainWindow: BrowserWindow | null = null;
@@ -36,10 +70,19 @@ function createWindow() {
       preload: path.join(__dirname, "../preload/index.js"),
       contextIsolation: true,
       nodeIntegration: false,
+      // Enable embedded app panels (collaborative workspace). Every attached
+      // webview is hardened in configureWebviewSecurity (forced preload,
+      // locked partition, navigation + permission guards).
+      webviewTag: true,
     },
   });
 
   mainWindow.loadURL(APP_URL);
+
+  // Deliver any deep link that arrived before the renderer was ready.
+  mainWindow.webContents.on("did-finish-load", () => {
+    if (mainWindow) flushPendingDeepLink(mainWindow);
+  });
 
   mainWindow.once("ready-to-show", () => {
     mainWindow?.show();
@@ -87,27 +130,55 @@ function createWindow() {
   });
 }
 
-app.whenReady().then(() => {
-  createWindow();
-  createTray(mainWindow!);
-  setupNotifications();
+// Single-instance: a second launch (incl. an OS protocol activation on
+// Windows/Linux) focuses the existing window and routes its deep link instead
+// of spawning a second app.
+const gotTheLock = app.requestSingleInstanceLock();
 
-  app.on("activate", () => {
-    if (mainWindow === null) {
-      createWindow();
-    } else {
+if (!gotTheLock) {
+  app.quit();
+} else {
+  registerProtocol(() => mainWindow);
+
+  app.on("second-instance", (_event, argv) => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.show();
+      mainWindow.focus();
+    }
+    const link = deepLinkFromArgv(argv);
+    if (link) routeDeepLink(mainWindow, link);
+  });
+
+  app.whenReady().then(() => {
+    configureWebviewSecurity(() => [APP_ORIGIN]);
+    createWindow();
+    createTray(mainWindow!);
+    buildAppMenu();
+    setupNotifications(() => mainWindow);
+    initAutoUpdater(() => mainWindow);
+
+    // Cold start via protocol (Windows/Linux deliver the link in argv).
+    const coldLink = deepLinkFromArgv(process.argv);
+    if (coldLink) routeDeepLink(mainWindow, coldLink);
+
+    app.on("activate", () => {
+      if (mainWindow === null) {
+        createWindow();
+      } else {
+        mainWindow.show();
+      }
+    });
+  });
+
+  app.on("window-all-closed", () => {
+    if (process.platform !== "darwin") {
+      app.quit();
     }
   });
-});
 
-app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") {
-    app.quit();
-  }
-});
-
-// Allow app.quit() to actually quit (used by tray).
-app.on("before-quit", () => {
-  isQuitting = true;
-});
+  // Allow app.quit() to actually quit (used by tray).
+  app.on("before-quit", () => {
+    isQuitting = true;
+  });
+}
