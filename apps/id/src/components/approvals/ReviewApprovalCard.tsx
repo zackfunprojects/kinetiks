@@ -3,6 +3,8 @@
 import { Card, Button, StatusPill, ConfidenceRing } from "@kinetiks/ui";
 import type { ApprovalRecord } from "@/lib/approvals/types";
 import { categoryThreshold, confidenceFraction } from "./confidence";
+import { useAppPanel } from "@/components/chat/app-panel/AppPanelContext";
+import { parseEmbedDeepLink } from "@/components/chat/app-panel/parse-deep-link";
 
 interface ReviewApprovalCardProps {
   approval: ApprovalRecord;
@@ -12,6 +14,8 @@ interface ReviewApprovalCardProps {
 
 export function ReviewApprovalCard({ approval, onApprove, onReject }: ReviewApprovalCardProps) {
   const threshold = categoryThreshold(approval.action_category);
+  const panel = useAppPanel();
+  const embedTarget = approval.deep_link ? parseEmbedDeepLink(approval.deep_link) : null;
   return (
     <Card style={{ marginBottom: "var(--kt-s-2)" }}>
       <div style={{ display: "flex", alignItems: "center", gap: "var(--kt-s-2)", marginBottom: "var(--kt-s-2)" }}>
@@ -52,7 +56,16 @@ export function ReviewApprovalCard({ approval, onApprove, onReject }: ReviewAppr
         {formatPreview(approval.preview.content)}
       </div>
 
-      {approval.deep_link && /^https?:\/\//.test(approval.deep_link) ? (
+      {embedTarget && panel ? (
+        <button
+          type="button"
+          onClick={() => panel.openPanel(embedTarget)}
+          className="kt-link"
+          style={{ display: "block", marginBottom: "var(--kt-s-3)", fontSize: "var(--kt-fs-12)", background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left" }}
+        >
+          Open in {approval.source_app} &rarr;
+        </button>
+      ) : approval.deep_link && /^https?:\/\//.test(approval.deep_link) ? (
         <a href={approval.deep_link} target="_blank" rel="noopener noreferrer" className="kt-link" style={{ display: "block", marginBottom: "var(--kt-s-3)", fontSize: "var(--kt-fs-12)" }}>
           View in {approval.source_app} &rarr;
         </a>
