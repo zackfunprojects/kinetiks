@@ -202,6 +202,7 @@ export type {
   DesktopPlatform,
   DesktopNotification,
   DesktopMenuAction,
+  DesktopUpdateStatus,
 } from "./desktop";
 export type {
   CollaborativeParticipant,

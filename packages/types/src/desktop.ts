@@ -22,6 +22,12 @@ export type DesktopMenuAction =
   | "approvals"
   | "settings";
 
+/** Auto-update lifecycle the main process forwards to the renderer. */
+export type DesktopUpdateStatus =
+  | { phase: "available"; version: string }
+  | { phase: "downloaded"; version: string }
+  | { phase: "error"; message: string };
+
 export interface DesktopNotification {
   title: string;
   body: string;
@@ -52,4 +58,8 @@ export interface KinetiksDesktopBridge {
    * etc.). Returns an unsubscribe function.
    */
   onMenuAction: (callback: (action: DesktopMenuAction) => void) => () => void;
+  /** Subscribe to auto-update status (available / downloaded / error). */
+  onUpdateStatus: (callback: (status: DesktopUpdateStatus) => void) => () => void;
+  /** Quit and install a downloaded update now (spec §16.2 "Restart to update"). */
+  applyUpdate: () => void;
 }

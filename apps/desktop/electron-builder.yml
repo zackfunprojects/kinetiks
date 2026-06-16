@@ -5,6 +5,13 @@ directories:
 files:
   - dist/**/*
   - package.json
+# Auto-update feed (electron-updater reads latest.yml from here). HUMAN SETUP:
+# requires GH_TOKEN at publish time and GitHub Releases hosting the signed
+# artifacts + latest{,-mac,-linux}.yml. See docs/operational/env-vars.md.
+publish:
+  provider: github
+  owner: zackfunprojects
+  repo: kinetiks
 mac:
   category: public.app-category.business
   target:

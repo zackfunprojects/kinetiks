@@ -24,6 +24,17 @@ const bridge: KinetiksDesktopBridge = {
       ipcRenderer.removeListener("kinetiks:menu", handler);
     };
   },
+  onUpdateStatus: (callback) => {
+    const handler = (_event: unknown, status: Parameters<typeof callback>[0]) =>
+      callback(status);
+    ipcRenderer.on("kinetiks:update", handler);
+    return () => {
+      ipcRenderer.removeListener("kinetiks:update", handler);
+    };
+  },
+  applyUpdate: () => {
+    ipcRenderer.send("kinetiks:apply-update");
+  },
 };
 
 contextBridge.exposeInMainWorld("electron", bridge);

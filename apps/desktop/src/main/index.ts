@@ -12,6 +12,7 @@ import {
 import { initObservability } from "./observability";
 import { buildAppMenu } from "./menu";
 import { configureWebviewSecurity } from "./webview";
+import { initAutoUpdater } from "./updater";
 
 // Crash reporting first, before any app setup, so startup faults are captured.
 initObservability();
@@ -138,6 +139,7 @@ if (!gotTheLock) {
     createTray(mainWindow!);
     buildAppMenu();
     setupNotifications(() => mainWindow);
+    initAutoUpdater(() => mainWindow);
 
     // Cold start via protocol (Windows/Linux deliver the link in argv).
     const coldLink = deepLinkFromArgv(process.argv);
