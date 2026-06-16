@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { MarcusMessage } from "@kinetiks/types";
 import { MessageBubble } from "./MessageBubble";
+import { useAppPanel } from "./app-panel/AppPanelContext";
 import { filterSlashCommands, type AppCommand } from "@/lib/commands/registry";
 import { buildFirstRunGreeting } from "@/lib/marcus/greeting-copy";
 
@@ -37,6 +38,7 @@ export function ChatArea({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const appPanel = useAppPanel();
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingText, setStreamingText] = useState("");
@@ -284,6 +286,7 @@ export function ChatArea({
               contextUsed={msg.context_used}
               timestamp={msg.created_at}
               systemName={systemName}
+              onOpenPanel={appPanel ? appPanel.openFromSignal : undefined}
             />
           ))}
 

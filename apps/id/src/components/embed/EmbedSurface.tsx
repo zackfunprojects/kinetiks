@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { CollaborativeProvider } from "@kinetiks/collaborative";
-import { Badge } from "@kinetiks/ui";
+import { ReferenceSequenceBuilder } from "./ReferenceSequenceBuilder";
 
 export interface EmbedSurfaceProps {
   accountId: string;
@@ -20,13 +20,12 @@ export interface EmbedSurfaceProps {
 const EMBED_SOURCE = "kinetiks-embed" as const;
 
 /**
- * The reference collaborative surface (Phase 8.0 scaffold).
+ * The reference collaborative surface.
  *
- * Wraps content in CollaborativeProvider when in collaborative mode and
- * performs the postMessage handshake with the shell. The minimal-but-
- * representative editable surface (fields, step list, selectable entities)
- * lands in Phase 8.2; this slice proves the mount, auth, provider wiring, and
- * the handshake.
+ * Wraps the minimal-but-representative ReferenceSequenceBuilder in
+ * CollaborativeProvider when in collaborative mode and performs the same-origin
+ * postMessage handshake with the shell. Presence (8.3) and annotations (8.4)
+ * anchor to the builder's `data-component-id` / `data-field-name` elements.
  */
 export function EmbedSurface({
   accountId,
@@ -56,44 +55,7 @@ export function EmbedSurface({
   }, [entityId, threadId]);
 
   const surface = (
-    <div style={{ padding: "var(--kt-s-6)" }}>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "var(--kt-s-2)",
-          marginBottom: "var(--kt-s-3)",
-        }}
-      >
-        <span style={{ fontFamily: "var(--kt-font-serif)", fontSize: "var(--kt-fs-17)" }}>
-          Reference workspace
-        </span>
-        <Badge label="fixture" variant="warning" />
-      </div>
-      <p style={{ fontSize: "var(--kt-fs-14)", color: "var(--kt-fg-2)", margin: 0 }}>
-        {collaborative
-          ? `${systemName ?? "Kinetiks"} can work here alongside you.`
-          : "Standalone preview."}
-      </p>
-      <dl
-        style={{
-          marginTop: "var(--kt-s-4)",
-          fontSize: "var(--kt-fs-13)",
-          color: "var(--kt-fg-3)",
-          display: "grid",
-          gridTemplateColumns: "max-content 1fr",
-          gap: "var(--kt-s-1) var(--kt-s-3)",
-        }}
-      >
-        <dt>Entity</dt>
-        <dd style={{ margin: 0, fontFamily: "var(--kt-font-mono)" }}>{entityId ?? "—"}</dd>
-        <dt>Thread</dt>
-        <dd style={{ margin: 0, fontFamily: "var(--kt-font-mono)" }}>{threadId ?? "—"}</dd>
-      </dl>
-      <p style={{ marginTop: "var(--kt-s-4)", fontSize: "var(--kt-fs-12)", color: "var(--kt-fg-3)" }}>
-        The interactive surface (presence, annotations, undo) is wired in Phases 8.2–8.5.
-      </p>
-    </div>
+    <ReferenceSequenceBuilder systemName={systemName} entityId={entityId} />
   );
 
   return (
