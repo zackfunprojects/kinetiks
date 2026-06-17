@@ -34,4 +34,11 @@ describe("applySkipStep (skip current step, §8.4)", () => {
     applySkipStep(STEPS, 1, 1);
     expect(STEPS).toEqual(copy);
   });
+
+  it("only skips the current step — a non-current skipIndex is a no-op", () => {
+    const out = applySkipStep(STEPS, 1, 2); // current=1, attempt to skip step 2
+    expect(out.steps).toBe(STEPS); // unchanged reference
+    expect(out.currentStepIndex).toBe(1);
+    out.steps.forEach((s, i) => expect(s.status).toBe(STEPS[i].status));
+  });
 });

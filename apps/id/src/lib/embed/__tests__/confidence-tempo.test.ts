@@ -53,4 +53,17 @@ describe("tempoForConfidence (trust through tempo, §9.2)", () => {
     expect(tempoForConfidence(-10).band).toBe("low");
     expect(tempoForConfidence(150, 100).band).toBe("auto");
   });
+
+  it("classifies the exact band boundaries (off-by-one guard)", () => {
+    expect(tempoForConfidence(50).band).toBe("medium");
+    expect(tempoForConfidence(49).band).toBe("low");
+    expect(tempoForConfidence(80).band).toBe("high");
+    expect(tempoForConfidence(79).band).toBe("medium");
+  });
+
+  it("respects the passed threshold for the high-vs-auto cutoff (not a hardcoded 80)", () => {
+    // Above 80 but below a sub-100 threshold stays 'high', not 'auto'.
+    expect(tempoForConfidence(90, 95).band).toBe("high");
+    expect(tempoForConfidence(95, 95).band).toBe("auto");
+  });
 });
