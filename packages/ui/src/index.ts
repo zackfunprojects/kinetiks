@@ -43,6 +43,13 @@ export type { ConfidenceRingProps, ConfidenceRingSize } from "./confidence-ring"
 export { AgentCursor } from "./agent-cursor";
 export type { AgentCursorProps, AgentCursorState } from "./agent-cursor";
 
+export { AnnotationChip } from "./annotation-chip";
+export type {
+  AnnotationChipProps,
+  AnnotationChipKind,
+  AnnotationChipReply,
+} from "./annotation-chip";
+
 export { EmptyState } from "./empty-state";
 export type { EmptyStateProps } from "./empty-state";
 
