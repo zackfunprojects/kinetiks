@@ -1,5 +1,5 @@
 import type { SupabaseClient, RealtimeChannel } from "@supabase/supabase-js";
-import { presenceChannel, channelAccountId } from "@kinetiks/supabase";
+import { presenceChannel } from "@kinetiks/supabase";
 import type { PresenceEvent } from "@kinetiks/types";
 import type { CollaborativeTransport } from "./transport";
 
@@ -23,9 +23,11 @@ export interface RealtimePresenceTransport extends CollaborativeTransport {
  * beats round-trip back to this client. With a real server-side agent, beats
  * arrive from the other process.
  *
- * SECURITY (plan D4): broadcast channels have no RLS — every send is guarded by
- * `channelAccountId(channel) === accountId` before it leaves, so this client
- * can never publish onto another account's presence channel.
+ * SECURITY: presence is scoped by the channel name (`presence:{account}:{thread}`)
+ * and this client only ever uses its own account's channel. Broadcast channels
+ * have NO built-in RLS, so the channel name is not an authorization boundary on
+ * its own — full Realtime Authorization (RLS on `realtime.messages`) is the 8.8
+ * hardening item.
  *
  * Annotations + undo transport methods are no-ops here; they land in 8.4/8.5.
  */
@@ -33,8 +35,10 @@ export function createRealtimePresenceTransport(opts: {
   client: SupabaseClient;
   accountId: string;
   threadId: string;
+  /** Reports a failed broadcast/teardown so the host can route it to Sentry. */
+  onError?: (err: unknown) => void;
 }): RealtimePresenceTransport {
-  const { client, accountId, threadId } = opts;
+  const { client, accountId, threadId, onError } = opts;
   const channelName = presenceChannel(accountId, threadId);
   const agentCallbacks = new Set<(event: PresenceEvent) => void>();
 
@@ -51,15 +55,15 @@ export function createRealtimePresenceTransport(opts: {
     })
     .subscribe();
 
-  // Account-scope guard before any send — broadcast has no built-in RLS.
-  const guardedSend = (event: PresenceEvent) => {
-    if (channelAccountId(channelName) !== accountId) return;
-    void channel.send({ type: "broadcast", event: PRESENCE_EVENT, payload: event });
+  const send = (event: PresenceEvent) => {
+    void Promise.resolve(
+      channel.send({ type: "broadcast", event: PRESENCE_EVENT, payload: event })
+    ).catch((err) => onError?.(err));
   };
 
   return {
-    publishUserPresence: (event) => guardedSend(event),
-    publishAgentPresence: (event) => guardedSend(event),
+    publishUserPresence: (event) => send(event),
+    publishAgentPresence: (event) => send(event),
     onAgentPresence: (callback) => {
       agentCallbacks.add(callback);
       return () => agentCallbacks.delete(callback);
@@ -72,7 +76,9 @@ export function createRealtimePresenceTransport(opts: {
     applyUndo: async () => {},
     delegate: async () => {},
     dispose: () => {
-      void client.removeChannel(channel);
+      void Promise.resolve(client.removeChannel(channel)).catch((err) =>
+        onError?.(err)
+      );
     },
   };
 }
