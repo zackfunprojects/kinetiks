@@ -6,6 +6,7 @@ import {
   getContextFillStatus,
 } from "@/lib/cartographer/conversation";
 import { apiSuccess, apiError } from "@/lib/utils/api-response";
+import { captureException } from "@/lib/observability/sentry";
 
 /**
  * POST /api/cartographer/conversation
@@ -62,8 +63,16 @@ export async function POST(request: Request) {
 
       return apiSuccess({ question });
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Unknown error";
-      console.error("Question generation failed:", message);
+      await captureException(err, {
+        tags: {
+          route: "/api/cartographer/conversation",
+          action: "cartographer.next_question",
+          stage: "execute",
+          app: "id",
+        },
+        user: accountId ? { id: accountId } : undefined,
+        extra: { fromApp, questionHistoryCount: questionHistory.length },
+      });
       return apiError("Failed to generate question", 500);
     }
   }
@@ -83,8 +92,16 @@ export async function POST(request: Request) {
       const result = await processAnswer(admin, accountId, question, answer);
       return apiSuccess({ result });
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Unknown error";
-      console.error("Answer processing failed:", message);
+      await captureException(err, {
+        tags: {
+          route: "/api/cartographer/conversation",
+          action: "cartographer.submit_answer",
+          stage: "execute",
+          app: "id",
+        },
+        user: accountId ? { id: accountId } : undefined,
+        extra: {},
+      });
       return apiError("Failed to process answer", 500);
     }
   }
@@ -94,8 +111,16 @@ export async function POST(request: Request) {
       const fillStatus = await getContextFillStatus(admin, accountId);
       return apiSuccess({ fillStatus });
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Unknown error";
-      console.error("Fill status failed:", message);
+      await captureException(err, {
+        tags: {
+          route: "/api/cartographer/conversation",
+          action: "cartographer.fill_status",
+          stage: "query",
+          app: "id",
+        },
+        user: accountId ? { id: accountId } : undefined,
+        extra: {},
+      });
       return apiError("Failed to get fill status", 500);
     }
   }

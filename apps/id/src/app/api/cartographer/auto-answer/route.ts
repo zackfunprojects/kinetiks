@@ -5,6 +5,7 @@ import {
   buildAutoAnswerPrompt,
 } from "@/lib/ai/prompts/cartographer";
 import { apiSuccess, apiError } from "@/lib/utils/api-response";
+import { captureException } from "@/lib/observability/sentry";
 
 /**
  * POST /api/cartographer/auto-answer
@@ -48,8 +49,15 @@ export async function POST(request: Request) {
 
     return apiSuccess({ answer: answer.trim() });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    console.error("Auto-answer generation failed:", message);
+    await captureException(err, {
+      tags: {
+        route: "/api/cartographer/auto-answer",
+        action: "cartographer.auto_answer",
+        stage: "execute",
+        app: "id",
+      },
+      extra: {},
+    });
     return apiError("Failed to generate answer", 500);
   }
 }

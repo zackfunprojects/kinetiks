@@ -1,6 +1,7 @@
 import { requireAuth } from "@/lib/auth/require-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { apiSuccess, apiError } from "@/lib/utils/api-response";
+import { captureException } from "@/lib/observability/sentry";
 import { randomBytes } from "node:crypto";
 import type { WebhookEventType } from "@kinetiks/types";
 
@@ -102,7 +103,11 @@ export async function POST(request: Request) {
     .single();
 
   if (insertError) {
-    console.error("Failed to create webhook:", insertError.message);
+    await captureException(insertError, {
+      tags: { route: "/api/webhooks", action: "webhook.create", stage: "persist", app: "id" },
+      user: auth.account_id ? { id: auth.account_id } : undefined,
+      extra: { eventCount: events.length },
+    });
     return apiError("Failed to create webhook", 500);
   }
 

@@ -26,6 +26,7 @@ import "server-only";
 import { NextResponse } from "next/server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { captureException } from "@/lib/observability/sentry";
 import {
   NANGO_SIGNATURE_HEADER,
   payloadSha256,
@@ -191,7 +192,20 @@ export async function POST(request: Request) {
         duration_ms: 0,
       },
     }).then(() => {}, (err) => {
-      console.error(`[nango/webhook] ledger emit (sync_failed) failed: ${err instanceof Error ? err.message : String(err)}`);
+      void captureException(err, {
+        tags: {
+          route: "/api/integrations/nango/webhook",
+          action: "ledger.emit",
+          stage: "persist",
+          app: "id",
+        },
+        user: { id: connection.account_id },
+        extra: {
+          connectionId: connection.id,
+          provider: connection.provider,
+          ledgerEvent: "connection_sync_failed",
+        },
+      });
     });
     return NextResponse.json({ ok: true, status: "processed" });
   }
@@ -258,7 +272,21 @@ export async function POST(request: Request) {
             duration_ms: durationMs,
           },
     }).then(() => {}, (err) => {
-      console.error(`[nango/webhook] ledger emit (sync_${isFailure ? "failed" : "completed"}) failed: ${err instanceof Error ? err.message : String(err)}`);
+      void captureException(err, {
+        tags: {
+          route: "/api/integrations/nango/webhook",
+          action: "ledger.emit",
+          stage: "persist",
+          app: "id",
+        },
+        user: { id: connection.account_id },
+        extra: {
+          connectionId: connection.id,
+          provider: connection.provider,
+          ledgerEvent: isFailure ? "connection_sync_failed" : "connection_sync_completed",
+          durationMs,
+        },
+      });
     });
   }
 

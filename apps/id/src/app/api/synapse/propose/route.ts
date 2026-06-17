@@ -3,6 +3,7 @@ import { requireAuth } from "@/lib/auth/require-auth";
 import { evaluateProposal } from "@/lib/cortex";
 import { recalculateConfidence } from "@/lib/cortex";
 import { apiSuccess, apiError } from "@/lib/utils/api-response";
+import { captureException } from "@/lib/observability/sentry";
 import type {
   ContextLayer,
   Proposal,
@@ -188,7 +189,16 @@ export async function POST(request: Request) {
     .single();
 
   if (insertError || !inserted) {
-    console.error("Failed to insert proposal:", insertError?.message);
+    await captureException(insertError ?? new Error("Proposal insert returned no row"), {
+      tags: {
+        route: "/api/synapse/propose",
+        action: "proposal.insert",
+        stage: "persist",
+        app: "id",
+      },
+      user: { id: account_id },
+      extra: { source_app, target_layer, action, confidence },
+    });
     return apiError("Failed to create proposal", 500);
   }
 
@@ -203,11 +213,16 @@ export async function POST(request: Request) {
       try {
         await recalculateConfidence(admin, account_id);
       } catch (err) {
-        const message = err instanceof Error ? err.message : "Unknown error";
-        console.error(
-          `Confidence recalculation failed for account ${account_id}:`,
-          message
-        );
+        await captureException(err, {
+          tags: {
+            route: "/api/synapse/propose",
+            action: "confidence.recalculate",
+            stage: "execute",
+            app: "id",
+          },
+          user: { id: account_id },
+          extra: { proposalId: proposal.id },
+        });
       }
     }
 
@@ -221,10 +236,16 @@ export async function POST(request: Request) {
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
-    console.error(
-      `Evaluation failed for proposal ${proposal.id}:`,
-      message
-    );
+    await captureException(err, {
+      tags: {
+        route: "/api/synapse/propose",
+        action: "proposal.evaluate",
+        stage: "execute",
+        app: "id",
+      },
+      user: { id: account_id },
+      extra: { proposalId: proposal.id },
+    });
 
     return apiSuccess({
       proposal_id: proposal.id,

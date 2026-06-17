@@ -1,6 +1,7 @@
 import { requireAuth } from "@/lib/auth/require-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { apiSuccess, apiError } from "@/lib/utils/api-response";
+import { captureException } from "@/lib/observability/sentry";
 
 /**
  * GET /api/approvals/summary
@@ -20,7 +21,15 @@ export async function GET(request: Request) {
     .order("submitted_at", { ascending: true });
 
   if (fetchError) {
-    console.error("Failed to fetch approval summary:", fetchError.message);
+    await captureException(fetchError, {
+      tags: {
+        route: "/api/approvals/summary",
+        action: "approvals.summary",
+        stage: "query",
+        app: "id",
+      },
+      user: { id: auth.account_id },
+    });
     return apiError("Failed to fetch approval summary", 500);
   }
 

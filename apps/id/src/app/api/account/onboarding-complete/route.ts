@@ -1,6 +1,7 @@
 import { requireAuth } from "@/lib/auth/require-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { apiSuccess, apiError } from "@/lib/utils/api-response";
+import { captureException } from "@/lib/observability/sentry";
 
 /**
  * PATCH /api/account/onboarding-complete
@@ -23,7 +24,16 @@ export async function PATCH(request: Request): Promise<Response> {
     .select("id");
 
   if (updateError) {
-    console.error("Failed to mark onboarding complete:", updateError.message);
+    await captureException(updateError, {
+      tags: {
+        route: "/api/account/onboarding-complete",
+        action: "account.onboarding_complete",
+        stage: "persist",
+        app: "id",
+      },
+      user: auth.account_id ? { id: auth.account_id } : undefined,
+      extra: {},
+    });
     return apiError("Failed to update account", 500);
   }
 

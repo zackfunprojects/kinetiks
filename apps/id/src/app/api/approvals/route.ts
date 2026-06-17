@@ -2,6 +2,7 @@ import { requireAuth } from "@/lib/auth/require-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveProposal } from "@/lib/cortex";
 import { apiSuccess, apiError, apiPaginated } from "@/lib/utils/api-response";
+import { captureException } from "@/lib/observability/sentry";
 import { NextRequest } from "next/server";
 
 /**
@@ -45,7 +46,11 @@ export async function GET(request: NextRequest) {
   const { data: proposals, count, error: fetchError } = await query;
 
   if (fetchError) {
-    console.error("Failed to fetch approvals:", fetchError.message);
+    await captureException(fetchError, {
+      tags: { route: "/api/approvals", action: "approvals.list", stage: "query", app: "id" },
+      user: auth.account_id ? { id: auth.account_id } : undefined,
+      extra: { status, page, perPage },
+    });
     return apiError("Failed to fetch approvals", 500);
   }
 

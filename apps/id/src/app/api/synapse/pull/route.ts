@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { apiSuccess, apiError } from "@/lib/utils/api-response";
+import { captureException } from "@/lib/observability/sentry";
 import type { ContextLayer } from "@kinetiks/types";
 
 const VALID_LAYERS: ContextLayer[] = [
@@ -120,10 +121,16 @@ export async function POST(request: Request) {
       .maybeSingle();
 
     if (fetchError) {
-      console.error(
-        `Failed to fetch ${tableName} for account ${account_id}:`,
-        fetchError.message
-      );
+      await captureException(fetchError, {
+        tags: {
+          route: "/api/synapse/pull",
+          action: "synapse.pull_layer",
+          stage: "query",
+          app: "id",
+        },
+        user: { id: account_id },
+        extra: { layer, app_name },
+      });
       result[layer] = {};
       continue;
     }
@@ -152,9 +159,16 @@ export async function POST(request: Request) {
   });
 
   if (ledgerError) {
-    console.error(
-      `Failed to log synapse_pull to ledger: ${ledgerError.message}`
-    );
+    await captureException(ledgerError, {
+      tags: {
+        route: "/api/synapse/pull",
+        action: "synapse.pull_ledger_log",
+        stage: "persist",
+        app: "id",
+      },
+      user: { id: account_id },
+      extra: { app_name },
+    });
   }
 
   return apiSuccess({ layers: result });
