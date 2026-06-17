@@ -291,6 +291,14 @@ The absolute communication rules from the original Three-Layer system remain in 
 - Never force-push a shared branch after review starts. New commits, squash on merge.
 - Do not merge your own PRs without approval unless explicitly told otherwise.
 
+### Review depth (tiered)
+
+CodeRabbit runs on every PR; address its findings automatically (fix legit ones, resolve false positives with a rationale reply), then re-trigger and poll to a clean state before merge.
+
+For higher-risk changes, ALSO run an adversarial multi-agent review before merge: parallel finders across correctness / security / design / tests, then a per-finding verification pass that filters out the over-reporting. Gate it on risk, not on every diff. Run it when the change includes new stateful / effect / concurrency logic, auth or security paths, anything touching Cortex / Approval / Marcus / Authority / state machines, diffs over ~500 real lines, or any explicit "audit this" request. Skip it for docs, renames, config, and small mechanical fixes.
+
+The two are complementary, not redundant. CodeRabbit is strong on mechanical findings (unchecked errors, accessibility, missing guards); the adversarial pass is strong on traced lifecycle and architectural correctness that pattern reviewers miss. Run both on a qualifying PR, reconcile their findings into one fix batch, and always keep the verification pass - raw finders over-report.
+
 ---
 
 ## Code Quality
