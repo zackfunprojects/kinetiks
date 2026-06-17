@@ -1,7 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { AgentCursor, TempoControl, type AgentCursorState } from "@kinetiks/ui";
+import {
+  AgentCursor,
+  Button,
+  TempoControl,
+  ThreadSwitchWarning,
+  useToast,
+  type AgentCursorState,
+} from "@kinetiks/ui";
 import {
   useAgentPresence,
   useCollaborative,
@@ -80,8 +87,12 @@ export function PresenceSurface({
   const containerRef = useRef<HTMLDivElement>(null);
   const agentPresence = useAgentPresence();
   const { emitUserPresence } = useCollaborative();
+  const { push } = useToast();
   const [tempoMode, setTempoMode] = useTempoMode();
+  const [showLeaveWarning, setShowLeaveWarning] = useState(false);
   const delegate = useDelegateRegion();
+  // Push the uncertainty warning toast only once per mount (the playback loops).
+  const warnedRef = useRef(false);
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
   // Review phase (§9.1): the system finished work and is presenting it for
   // approval. Set by the task drawer when its work completes; cleared on kill.
@@ -146,6 +157,12 @@ export function PresenceSurface({
           metadata: reason ? { uncertainty_reason: reason } : undefined,
           timestamp: new Date().toISOString(),
         });
+        // §16.2 warning toast — the uncertainty pulse surfaces as a dismissible
+        // amber notice (once).
+        if (reason && !warnedRef.current) {
+          warnedRef.current = true;
+          push({ tone: "warning", title: `${systemName ?? "Kinetiks"} is uncertain`, body: reason });
+        }
       }
       index += 1;
       // Higher confidence → faster cadence (shorter holds).
@@ -157,7 +174,7 @@ export function PresenceSurface({
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [collaborative, transport]);
+  }, [collaborative, transport, push, systemName]);
 
   // Drag-to-delegate (§7.2), keyboard variant: Cmd/Ctrl+D hands the focused
   // field to the agent, which visibly picks it up (cursor moves there).
@@ -224,7 +241,8 @@ export function PresenceSurface({
         <div
           style={{
             display: "flex",
-            justifyContent: "flex-end",
+            justifyContent: "space-between",
+            alignItems: "center",
             padding: "var(--kt-s-2) var(--kt-s-3)",
             borderBottom: "1px solid var(--kt-border-2)",
             position: "sticky",
@@ -233,7 +251,31 @@ export function PresenceSurface({
             zIndex: 20,
           }}
         >
+          <Button variant="ghost" size="sm" onClick={() => setShowLeaveWarning(true)}>
+            Close panel
+          </Button>
           <TempoControl value={tempoMode} onChange={setTempoMode} />
+        </div>
+      )}
+      {collaborative && showLeaveWarning && (
+        <div
+          style={{
+            position: "absolute",
+            left: "50%",
+            top: "56px",
+            transform: "translateX(-50%)",
+            zIndex: 23,
+            width: "min(480px, calc(100% - var(--kt-s-6)))",
+          }}
+        >
+          <ThreadSwitchWarning
+            message={`${systemName ?? "Kinetiks"} is still working on the fintech sequence — leave anyway?`}
+            onStay={() => setShowLeaveWarning(false)}
+            onLeave={() => {
+              setShowLeaveWarning(false);
+              push({ tone: "neutral", title: "Left the panel", body: "The system keeps working in the background." });
+            }}
+          />
         </div>
       )}
       <ReferenceSequenceBuilder

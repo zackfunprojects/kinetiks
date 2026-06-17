@@ -29,7 +29,7 @@ export { Dialog, DialogHeader, DialogBody, DialogFooter } from "./dialog";
 export type { DialogProps } from "./dialog";
 
 export { ToastProvider, useToast } from "./toast";
-export type { ToastInput, ToastTone } from "./toast";
+export type { ToastInput, ToastTone, ToastAction } from "./toast";
 
 export { Tabs, TabList, TabTrigger, TabPanel } from "./tabs";
 export type { TabsProps, TabTriggerProps, TabPanelProps } from "./tabs";
@@ -65,6 +65,12 @@ export type {
 
 export { ApprovalOverlayBar } from "./approval-overlay-bar";
 export type { ApprovalOverlayBarProps } from "./approval-overlay-bar";
+
+export { ThreadSwitchWarning } from "./thread-switch-warning";
+export type { ThreadSwitchWarningProps } from "./thread-switch-warning";
+
+export { BulkActionBar } from "./bulk-action-bar";
+export type { BulkActionBarProps, BulkAction } from "./bulk-action-bar";
 
 export { EmptyState } from "./empty-state";
 export type { EmptyStateProps } from "./empty-state";

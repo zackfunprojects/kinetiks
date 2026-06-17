@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Button, UndoTimeline } from "@kinetiks/ui";
+import { Button, UndoTimeline, useToast } from "@kinetiks/ui";
 import {
   useWorkspaceActions,
   type RecordActionInput,
@@ -35,8 +35,12 @@ export function UndoStackPanel({
   enabled: boolean;
 }) {
   const { actions, record, undo, undoLast } = useWorkspaceActions(accountId, threadId);
+  const { push } = useToast();
   const seeded = useRef(false);
   const [open, setOpen] = useState(false);
+  // Always call the latest undoLast so the success toast's Undo isn't stale.
+  const undoLastRef = useRef(undoLast);
+  undoLastRef.current = undoLast;
 
   useEffect(() => {
     seeded.current = false;
@@ -55,10 +59,19 @@ export function UndoStackPanel({
       // inserts would collide on the unique (account, thread, sequence_index).
       void (async () => {
         for (const a of SEED) await record(a);
+        // §16.2: after the system fills fields, a success toast is the primary
+        // undo affordance — a visible Undo button, not just a shortcut.
+        push({
+          tone: "success",
+          title: "Sequence fields drafted",
+          body: `${SEED.length} fields filled`,
+          action: { label: "Undo", onClick: () => undoLastRef.current("agent") },
+          duration: 6000,
+        });
       })();
     }, 800);
     return () => clearTimeout(t);
-  }, [enabled, threadId, actions.length, record]);
+  }, [enabled, threadId, actions.length, record, push]);
 
   useEffect(() => {
     if (!enabled) return;

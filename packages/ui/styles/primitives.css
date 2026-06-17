@@ -215,6 +215,12 @@
 .kt-toast--danger  { border-left: 3px solid var(--kt-danger); }
 .kt-toast__title { font-family: var(--kt-font-sans); font-size: var(--kt-fs-14); font-weight: var(--kt-fw-med); color: var(--kt-fg-1); }
 .kt-toast__body  { font-family: var(--kt-font-sans); font-size: var(--kt-fs-13); color: var(--kt-fg-2); margin-top: 2px; }
+/* Icon (§16.5 anatomy) — colored per tone (§16.6). */
+.kt-toast__icon { flex-shrink: 0; display: inline-flex; margin-top: 1px; color: var(--kt-fg-3); }
+.kt-toast--success .kt-toast__icon { color: var(--kt-success); }
+.kt-toast--warning .kt-toast__icon { color: var(--kt-warning); }
+.kt-toast--danger  .kt-toast__icon { color: var(--kt-danger); }
+.kt-toast__action { flex-shrink: 0; }
 
 /* ─── Tabs ──────────────────────────────────────────────────── */
 

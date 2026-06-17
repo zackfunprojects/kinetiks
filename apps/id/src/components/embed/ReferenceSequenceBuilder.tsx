@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Badge, Button, Input, Pill } from "@kinetiks/ui";
+import { Badge, BulkActionBar, Button, Input, Pill } from "@kinetiks/ui";
 
 /**
  * The minimal-but-representative reference surface (spec §13.1, fidelity:
@@ -46,12 +46,44 @@ export function ReferenceSequenceBuilder({
     { id: "step-2", channel: "LinkedIn", label: "Value follow-up" },
     { id: "step-3", channel: "Email", label: "Case-study close" },
   ]);
+  // Multi-select drives the bulk action bar (§16.4) — togglable by the user or
+  // triggerable by the system ("Kit selected N").
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const updateStep = (id: string, label: string) =>
     setSteps((prev) => prev.map((s) => (s.id === id ? { ...s, label } : s)));
 
+  const toggleSelected = (id: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
   return (
     <div style={{ padding: "var(--kt-s-6)", maxWidth: 560 }}>
+      {selected.size > 0 ? (
+        <div style={{ marginBottom: "var(--kt-s-4)" }}>
+          <BulkActionBar
+            count={selected.size}
+            total={steps.length}
+            onSelectAll={() => setSelected(new Set(steps.map((s) => s.id)))}
+            onClear={() => setSelected(new Set())}
+            actions={[
+              { label: "Duplicate", onClick: () => setSelected(new Set()) },
+              {
+                label: "Delete",
+                destructive: true,
+                onClick: () => {
+                  setSteps((prev) => prev.filter((s) => !selected.has(s.id)));
+                  setSelected(new Set());
+                },
+              },
+            ]}
+          />
+        </div>
+      ) : null}
       <div
         style={{
           display: "flex",
@@ -113,7 +145,16 @@ export function ReferenceSequenceBuilder({
       </div>
 
       {/* Steps */}
-      <Label>Steps</Label>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <Label>Steps</Label>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setSelected(new Set(steps.map((s) => s.id)))}
+        >
+          {systemName ?? "Kinetiks"}: select all
+        </Button>
+      </div>
       <ol style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: "var(--kt-s-2)" }}>
         {steps.map((step) => (
           <li
@@ -122,6 +163,13 @@ export function ReferenceSequenceBuilder({
             data-field-name="label"
             style={{ display: "flex", alignItems: "center", gap: "var(--kt-s-2)" }}
           >
+            <input
+              type="checkbox"
+              checked={selected.has(step.id)}
+              onChange={() => toggleSelected(step.id)}
+              aria-label={`Select ${step.channel} step`}
+              style={{ flexShrink: 0, accentColor: "var(--kt-accent)" }}
+            />
             <span style={{ flexShrink: 0, width: 72 }}>
               <Pill tone="neutral">{step.channel}</Pill>
             </span>
