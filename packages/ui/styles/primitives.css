@@ -508,3 +508,37 @@
   gap: var(--kt-s-1);
   align-items: flex-start;
 }
+
+/* ─── Undo timeline (shared undo stack, spec §7.3) ───────────── */
+.kt-undo-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--kt-s-1);
+}
+.kt-undo-timeline__item {
+  display: flex;
+  align-items: center;
+  gap: var(--kt-s-2);
+  font-size: var(--kt-fs-12);
+  color: var(--kt-fg-1);
+}
+.kt-undo-timeline__label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--kt-fg-2);
+}
+.kt-undo-timeline__item--undone .kt-undo-timeline__label {
+  text-decoration: line-through;
+  color: var(--kt-fg-3);
+}
+.kt-undo-timeline__undone {
+  font-size: var(--kt-fs-11);
+  color: var(--kt-fg-3);
+  font-style: italic;
+}

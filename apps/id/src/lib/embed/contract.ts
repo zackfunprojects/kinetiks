@@ -56,6 +56,30 @@ export const undoRequestSchema = z.object({
   action_id: z.string().uuid(),
 });
 
+export const workspaceActionSchema = z.discriminatedUnion("op", [
+  z.object({
+    op: z.literal("record"),
+    thread_id: z.string().min(1),
+    participant: z.enum(["agent", "user"]),
+    action_type: z.enum([
+      "field_update",
+      "entity_create",
+      "entity_delete",
+      "reorder",
+      "configuration",
+    ]),
+    target: z.string().min(1),
+    previous_value: z.unknown().optional(),
+    new_value: z.unknown().optional(),
+  }),
+  z.object({
+    op: z.literal("undo"),
+    thread_id: z.string().min(1),
+    action_id: z.string().uuid(),
+  }),
+]);
+
 export type PresenceRequest = z.infer<typeof presenceRequestSchema>;
 export type AnnotationIntent = z.infer<typeof annotationIntentSchema>;
 export type UndoRequest = z.infer<typeof undoRequestSchema>;
+export type WorkspaceActionRequest = z.infer<typeof workspaceActionSchema>;
