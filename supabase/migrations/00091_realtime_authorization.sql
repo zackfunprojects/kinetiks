@@ -18,10 +18,13 @@
 -- zero policies), which means private channels are currently fully default-denied
 -- and there is no private-channel usage to regress. These two policies are
 -- therefore purely additive: they OPEN private collaborative topics to their
--- owning account and nothing else. The presence/workspace channels opt into
--- `private: true` in the client wiring that ships with this migration; all other
--- realtime usage (the postgres_changes channels for annotations/approvals/etc.,
--- and any remaining public broadcast) is untouched.
+-- owning account and nothing else. The presence channel opts into
+-- `private: true` in the client wiring that ships with this migration;
+-- annotations/workspace data sync via postgres_changes under table RLS (not
+-- private broadcast). The parser accepts all three prefixes for forward-compat
+-- with future private annotation/workspace channels. All other realtime usage
+-- (the postgres_changes channels for annotations/approvals/etc., and any
+-- remaining public broadcast) is untouched.
 --
 -- TESTABILITY: the ownership decision lives in a public-schema SQL function the
 -- policy wraps, so pgTAP exercises the exact predicate (supabase/tests/

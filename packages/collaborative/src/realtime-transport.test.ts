@@ -94,6 +94,24 @@ describe("createRealtimePresenceTransport — Realtime Authorization wiring", ()
     expect(h.removeChannel).toHaveBeenCalledTimes(1);
   });
 
+  it("routes a setAuth() rejection to onError (not silently swallowed)", async () => {
+    const boom = new Error("token refresh failed");
+    const h = makeClient({ setAuth: () => Promise.reject(boom) });
+    const onError = vi.fn();
+    createRealtimePresenceTransport({
+      client: h.client,
+      accountId: "acc",
+      threadId: "thr",
+      onError,
+    });
+
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(onError).toHaveBeenCalledWith(boom);
+    // A failed authorization join must NOT leave a half-subscribed channel.
+    expect(h.subscribe).not.toHaveBeenCalled();
+  });
+
   it("publishes user + agent presence as broadcast sends", () => {
     const h = makeClient();
     const t = createRealtimePresenceTransport({ client: h.client, accountId: "acc", threadId: "thr" });

@@ -59,7 +59,12 @@ jobs:
 
       - name: Export Supabase env
         run: |
-          supabase status -o env | sed -E 's/^/SB_/' >> "$GITHUB_ENV"
+          # `supabase status -o env` quotes every value (e.g. API_URL="http://...").
+          # GitHub's $GITHUB_ENV parser copies the value verbatim (it does NOT strip
+          # quotes), so prefix with SB_ *and* unwrap the surrounding quotes — otherwise
+          # NEXT_PUBLIC_SUPABASE_URL would carry literal quotes and fail z.string().url()
+          # at boot, reddening the lane before any test runs.
+          supabase status -o env | sed -E 's/^([A-Z0-9_]+)="?(.*[^"])"?$/SB_\1=\2/' >> "$GITHUB_ENV"
 
       - name: Assemble app env
         run: |

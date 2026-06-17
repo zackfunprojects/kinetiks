@@ -11,10 +11,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 /**
  * THE must-never-break flow (program DoD): cross-account isolation for the
  * collaborative workspace, exercised end-to-end over real HTTP with two seeded
- * tenants and kntk_ API keys. This is the browser/HTTP-level mirror of the
- * pgTAP cross-tenant suites (annotations / workspace_actions / active_tasks)
- * plus the Realtime channel-boundary suite — if a tenant boundary regresses in
- * the route layer, this fails loudly.
+ * tenants and kntk_ API keys. This is the route-layer / table-RLS mirror of the
+ * pgTAP cross-tenant suites (annotations / workspace_actions / active_tasks) — if
+ * a tenant boundary regresses in the route layer, this fails loudly. The Realtime
+ * channel boundary (migration 00091) is covered separately by the
+ * `realtime_channel_boundary.sql` pgTAP predicate suite; this HTTP spec opens no
+ * Realtime channel.
  */
 
 const THREAD = "e2e-iso-thread";
@@ -110,7 +112,15 @@ test("a tenant cannot mutate another tenant's annotation (404, no write)", async
   expect(data?.dismissed).toBe(false);
 });
 
-test("state route binds account_id to the caller, never the other tenant", async ({ request }) => {
+test("state route binds account_id to the calling key (not a data-isolation proof yet)", async ({
+  request,
+}) => {
+  // The state route is still a Phase-8.0 scaffold: it echoes the JWT-resolved
+  // account and returns empty hydration. This case proves the account *binding*
+  // (the route never reflects another tenant's id), NOT isolation of hydrated
+  // rows — there are none to leak. When the route gains live per-tenant reads,
+  // convert this to seed-Alice / assert-Bob-can't-see-it. Live data isolation is
+  // covered today by the annotation-scoping + dismiss-404 cases above and pgTAP.
   const aState = await request.get(`/api/id/embed/state?thread=${THREAD}`, authed(alice.apiKey));
   expect(aState.ok()).toBeTruthy();
   expect((await aState.json()).data.account_id).toBe(alice.accountId);

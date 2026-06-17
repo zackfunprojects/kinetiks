@@ -11,10 +11,18 @@ import { readFileSync } from "node:fs";
  * before it gates). The API lane carries the must-never-break isolation flow.
  */
 
-const { accountId } = JSON.parse(readFileSync("e2e/.auth/account.json", "utf8")) as {
-  accountId: string;
-};
 const THREAD = "e2e-browser-thread";
+let accountId: string;
+
+test.beforeAll(() => {
+  // Read at execution time, NOT module scope: Playwright collects (imports) every
+  // matched spec file before any project — including the `setup` project that
+  // writes this file — executes. A top-level read therefore crashes the whole run
+  // during collection on a cold checkout. beforeAll runs after setup's dependency.
+  accountId = (
+    JSON.parse(readFileSync("e2e/.auth/account.json", "utf8")) as { accountId: string }
+  ).accountId;
+});
 
 test.beforeEach(async ({ page }) => {
   await page.goto(

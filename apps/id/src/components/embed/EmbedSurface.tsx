@@ -9,6 +9,7 @@ import { ToastProvider } from "@kinetiks/ui";
 import { PANEL_MESSAGE_SOURCE } from "@kinetiks/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
+import { captureException } from "@/lib/observability/sentry";
 import { PresenceSurface } from "./PresenceSurface";
 import { usePanelBridge } from "./usePanelBridge";
 
@@ -62,6 +63,11 @@ export function EmbedSurface({
     accountId,
     threadId,
     enabled: collaborative,
+    onError: (err) =>
+      void captureException(err, {
+        tags: { route: "/embed", action: "presence.transport", stage: "subscribe", app: "id" },
+        user: { id: accountId },
+      }),
   });
 
   return (

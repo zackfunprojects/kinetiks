@@ -890,7 +890,7 @@ The collaborative workspace (`docs/collaborative-workspace-spec.md` §16) introd
 
 ### 16.1 D7 — resolved color note (agent-action "success")
 
-`collaborative-workspace-spec.md` §16.6 names teal `#00CEC9` as the agent-success icon color. **That hex is superseded.** The canonical success token is **`--kt-success`** (the teal palette was retired per §14 of this spec), and the agent-success toast — like every floating element — references `--kt-*` tokens only. There are **no hardcoded hex values** in the floating-bar system; the spec's `#00CEC9` is an aspirational reference, and the token system wins. (Program decision D7.)
+`collaborative-workspace-spec.md` §16.6 names teal `#00CEC9` as the agent-success icon color. **That hex is superseded.** The canonical success token is **`--kt-success`** (the teal palette was retired per §13 Anti-patterns of this spec), and the agent-success toast — like every floating element — references `--kt-*` tokens only. There are **no hardcoded hex values** in the floating-bar system; the spec's `#00CEC9` is an aspirational reference, and the token system wins. (Program decision D7.)
 
 ---
 

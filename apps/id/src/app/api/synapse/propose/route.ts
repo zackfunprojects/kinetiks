@@ -12,6 +12,9 @@ import type {
   Evidence,
 } from "@kinetiks/types";
 
+/** User-safe evaluation-failure message — the raw error goes to Sentry, not the response. */
+const GENERIC_EVALUATION_ERROR = "We couldn't evaluate that proposal. Try again.";
+
 const VALID_LAYERS: ContextLayer[] = [
   "org",
   "products",
@@ -235,7 +238,6 @@ export async function POST(request: Request) {
       },
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
     await captureException(err, {
       tags: {
         route: "/api/synapse/propose",
@@ -253,7 +255,8 @@ export async function POST(request: Request) {
         status: "error",
         decline_reason: null,
         routed: false,
-        error: message,
+        // User-safe constant only — the raw error detail is in Sentry above.
+        error: GENERIC_EVALUATION_ERROR,
       },
     });
   }
