@@ -4,6 +4,9 @@ directories:
   output: release
 files:
   - dist/**/*
+  # Unit tests are type-checked + compiled but never shipped in the app bundle.
+  - "!dist/**/*.test.js"
+  - "!dist/**/*.test.js.map"
   - package.json
 # Auto-update feed (electron-updater reads latest.yml from here). HUMAN SETUP:
 # requires GH_TOKEN at publish time and GitHub Releases hosting the signed

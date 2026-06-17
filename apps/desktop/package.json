@@ -8,6 +8,7 @@
     "dev": "tsc && electron dist/main/index.js",
     "build": "tsc",
     "type-check": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests",
     "package": "electron-builder",
     "package:mac": "electron-builder --mac",
     "package:win": "electron-builder --win",
@@ -21,6 +22,7 @@
     "@kinetiks/types": "workspace:*",
     "electron": "^28.1.0",
     "electron-builder": "^24.9.1",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "vitest": "^2.1.0"
   }
 }
