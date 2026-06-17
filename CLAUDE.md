@@ -627,6 +627,19 @@ Two connection families share `kinetiks_connections`, with disjoint provider set
 
 ---
 
+## Collaborative Workspace Patterns
+
+The split-panel shared-surface workspace (`docs/collaborative-workspace-spec.md`, Phase 8). The `CollaborativeSynapse` contract + `packages/collaborative` are app-agnostic; `apps/id/src/app/embed` is the fixture-driven reference surface that real suite apps replace additively. See `docs/platform-contract.md` §2.6.
+
+- **Collaborative tables are RLS-read-only; writes are service-role only.** `kinetiks_annotations`, `kinetiks_workspace_actions`, `kinetiks_active_tasks` each carry a single `SELECT` policy (`account_id = (select public.kinetiks_account_id())`) and **no** INSERT/UPDATE/DELETE policy — the embed API routes (`apps/id/src/app/api/id/embed/*`) write under the admin client after validating account ownership, mirroring `kinetiks_authority_grants`. Feature/client code never writes these tables directly, and never raw-selects them.
+- **`team_scope_id` is `null` in v1** on every collaborative table (and `kinetiks_ledger`). Never defaulted to anything else.
+- **Realtime channels are a convention, not a boundary.** The three channels are `presence|annotations|workspace:{account}:{thread}`. Two enforcement layers protect them: `publishAccountScoped()` (`packages/supabase/src/realtime.ts`) refuses to broadcast on a channel the caller's account does not own (send side), and the `realtime.messages` RLS policy (migration 00091, via `public.kinetiks_realtime_topic_owned()`) authorizes **private** channels (subscribe side). The presence transport sets `config.private:true` + `realtime.setAuth()` before subscribe so the join carries the JWT. Cross-account presence/annotation bleed is a critical bug — the pgTAP `realtime_channel_boundary` + the Playwright `cross-account-isolation.api` specs are the must-never-break guards.
+- **Kill + intervention signals are Learning Ledger entries, not a new table** (event types added in migration 00087): `task_killed` (a 2× negative confidence signal vs a standard reject, §8.3), `intervention_undo` (weak reject), `intervention_grab` (field-level penalty). The kill record's "what went wrong" prompt persists on `kinetiks_active_tasks` (`kill_reason_code`/`kill_feedback`); the weighted *signal* is the Ledger entry. Attach `grant_id`/`pattern_id` where applicable. All reference-surface rows are `source_app='kinetiks_fixtures'` / Ledger `is_fixture:true`.
+- **`kinetiks_active_tasks` is a status-bearing entity** — three-layer enforcement (server-action `assertTransition` + the `_kt_active_tasks_check_transition` trigger + RLS), `active↔paused`, `→killed|completed` terminal (auto-stamps `ended_at`), one active/paused task per thread (partial unique index).
+- **Floating-bar UI lives in `@kinetiks/ui`** on the `.kt-floating-bar` base (task drawer, agent-action toasts, thread-switch warning, bulk-action bar, approval overlay). Tokens only; the §16.6 agent-success color resolves to `--kt-success` (design-spec §16.1 / D7), not the spec's aspirational `#00CEC9`.
+
+---
+
 ## Slack Integration Patterns
 
 - Slack is **never critical path.** Every Server Action completes its DB work first, acks to the user, then enqueues the Slack send.
@@ -760,6 +773,10 @@ The failure mode is the mirror of Lesson 8. There: Edge Functions in repo but no
 
 **Mnemonic:** three surfaces deploy independently — git/Vercel for app code, Supabase CLI for migrations, `functions:deploy` for Edge Functions. "Done" requires all three. Until git push + Vercel build complete, "I migrated the DB" is not "I deployed to production."
 
+### 11. A Supabase broadcast channel name is not an access boundary; `realtime.messages` RLS only governs *private* channels
+
+The collaborative presence channel (`presence:{account}:{thread}`) was created as a public broadcast channel — its account-scoped name was treated as the boundary. It is not: any authenticated client that knows (or guesses) a channel name can subscribe to a public broadcast/presence channel, because Supabase only consults `realtime.messages` RLS for channels created with `config.private = true`. Two things make the boundary real, and you need *both*: `publishAccountScoped()` asserts ownership on the **send** side, and the `realtime.messages` RLS policy (migration 00091, wrapping `public.kinetiks_realtime_topic_owned()`) authorizes the **subscribe** side — but only once the channel opts into `private: true` and the client calls `realtime.setAuth()` before subscribing so the join carries the JWT the policy reads. **Rule:** a collaborative channel carrying account-scoped data is `private`, every broadcast goes through `publishAccountScoped`, and the predicate the RLS wraps lives in a `public` SQL function so pgTAP can prove it (`supabase/tests/realtime_channel_boundary.sql`) without the Realtime server. Adding RLS to `realtime.messages` while leaving channels public is security theater — the policy never runs.
+
 (Add entries below as new scars accumulate.)
 
 ---
@@ -784,6 +801,8 @@ The failure mode is the mirror of Lesson 8. There: Edge Functions in repo but no
 - Allow a child grant whose capabilities, constraints, spend envelope, or expiry exceed its parent
 - Use the literal phrase "Authority Grant" in customer-facing copy. The customer-facing word is "Authority"; render constraints via the action class `customer_template`.
 - Default `team_scope_id` to anything other than `null` in v1
+- Write a collaborative table (`kinetiks_annotations` / `kinetiks_workspace_actions` / `kinetiks_active_tasks`) from feature or client code, or raw-select one — go through the embed API routes (service-role, account-validated); reads through the state route / `useThread*` helpers
+- Broadcast on a collaborative Realtime channel without `publishAccountScoped`, or create a presence/workspace channel that is not `private` (the `realtime.messages` RLS only governs private channels)
 - Ship a Workflow that targets a cross-app capability without going through Synapse Routing Event (use `target_type: 'cross_app'`, not a direct in-app dispatch)
 - Hardcode a metric list when an agent with tools should reason about what to query
 - Ship a static CRON pipeline when an agent with tools would be more flexible
