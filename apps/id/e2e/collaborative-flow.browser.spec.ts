@@ -49,3 +49,13 @@ test("closing the panel mid-task warns before leaving (§16.3)", async ({ page }
   // The thread-switch warning is a floating alert with Stay / Leave.
   await expect(page.getByText(/still working|leave anyway/i)).toBeVisible();
 });
+
+test("the panel reaches interactive within the §14.2 budget (<2s)", async ({ page }) => {
+  // beforeEach already navigated; measure a fresh activation against the budget.
+  const start = Date.now();
+  await page.goto(
+    `/embed?mode=collaborative&account=${accountId}&app=harvest&thread=${THREAD}`
+  );
+  await page.getByText("Sequence", { exact: false }).first().waitFor({ state: "visible" });
+  expect(Date.now() - start).toBeLessThan(2000);
+});
