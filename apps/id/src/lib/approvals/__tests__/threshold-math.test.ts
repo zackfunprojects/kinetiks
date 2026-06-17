@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeThresholdUpdate } from "../threshold-math";
+import { computeThresholdUpdate, computeInterventionUpdate } from "../threshold-math";
 
 function startingThreshold(overrides: Partial<{
   auto_approve_threshold: number;
@@ -178,5 +178,74 @@ describe("trust contraction is one-way at the rejection layer", () => {
     const after20 = computeThresholdUpdate({ existing: state, event: "approved_clean" });
     expect(after20.auto_approve_threshold).toBe(80);
     expect(after20.consecutive_approvals).toBe(20);
+  });
+});
+
+describe("intervention signals (computeInterventionUpdate)", () => {
+  it("kill is 2x a rejection: +20 to threshold, resets streak, counts a rejection", () => {
+    const out = computeInterventionUpdate({
+      existing: startingThreshold({ auto_approve_threshold: 60, consecutive_approvals: 9, total_approvals: 9 }),
+      signal: "kill",
+    });
+    expect(out.auto_approve_threshold).toBe(80); // 60 + 20
+    expect(out.consecutive_approvals).toBe(0);
+    expect(out.total_rejections).toBe(1);
+    expect(out.last_rejection_at).toBeDefined();
+  });
+
+  it("undo is a weak rejection: +5, rejection-class", () => {
+    const out = computeInterventionUpdate({
+      existing: startingThreshold({ auto_approve_threshold: 50 }),
+      signal: "undo",
+    });
+    expect(out.auto_approve_threshold).toBe(55);
+    expect(out.total_rejections).toBe(1);
+    expect(out.last_rejection_at).toBeDefined();
+  });
+
+  it("grab is a field-level penalty: +3, NOT a category rejection", () => {
+    const out = computeInterventionUpdate({
+      existing: startingThreshold({ auto_approve_threshold: 50, total_rejections: 2 }),
+      signal: "grab",
+    });
+    expect(out.auto_approve_threshold).toBe(53);
+    expect(out.consecutive_approvals).toBe(0);
+    expect(out.total_rejections).toBe(2); // unchanged
+    expect(out.last_rejection_at).toBeUndefined();
+  });
+
+  it("edit moves the threshold 0 but resets the streak (training signal)", () => {
+    const out = computeInterventionUpdate({
+      existing: startingThreshold({ auto_approve_threshold: 70, consecutive_approvals: 5 }),
+      signal: "edit",
+    });
+    expect(out.auto_approve_threshold).toBe(70);
+    expect(out.consecutive_approvals).toBe(0);
+    expect(out.total_rejections).toBe(0);
+  });
+
+  it("non_intervention is a trust boost: -2, keeps the streak", () => {
+    const out = computeInterventionUpdate({
+      existing: startingThreshold({ auto_approve_threshold: 70, consecutive_approvals: 5 }),
+      signal: "non_intervention",
+    });
+    expect(out.auto_approve_threshold).toBe(68);
+    expect(out.consecutive_approvals).toBe(5); // preserved
+    expect(out.last_rejection_at).toBeUndefined();
+  });
+
+  it("clamps to [0, 100]", () => {
+    expect(
+      computeInterventionUpdate({
+        existing: startingThreshold({ auto_approve_threshold: 90 }),
+        signal: "kill",
+      }).auto_approve_threshold,
+    ).toBe(100);
+    expect(
+      computeInterventionUpdate({
+        existing: startingThreshold({ auto_approve_threshold: 1 }),
+        signal: "non_intervention",
+      }).auto_approve_threshold,
+    ).toBe(0);
   });
 });

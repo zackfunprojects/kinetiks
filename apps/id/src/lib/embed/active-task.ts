@@ -49,3 +49,22 @@ export function parseSteps(steps: ActiveTaskRow["steps"]): ActiveTaskStep[] {
   if (!Array.isArray(steps)) return [];
   return steps as unknown as ActiveTaskStep[];
 }
+
+/**
+ * Skip the current step (§8.4): mark it `skipped`, advance the next queued step
+ * to `working`, and bump the current index when there is a next step. Pure, so
+ * the advance logic is unit-tested without a DB.
+ */
+export function applySkipStep(
+  steps: ActiveTaskStep[],
+  currentStepIndex: number,
+  skipIndex: number,
+): { steps: ActiveTaskStep[]; currentStepIndex: number } {
+  const nextSteps = steps.map((s) => {
+    if (s.index === skipIndex) return { ...s, status: "skipped" as const };
+    if (s.index === skipIndex + 1 && s.status === "queued") return { ...s, status: "working" as const };
+    return s;
+  });
+  const hasNext = steps.some((s) => s.index === skipIndex + 1);
+  return { steps: nextSteps, currentStepIndex: hasNext ? skipIndex + 1 : currentStepIndex };
+}

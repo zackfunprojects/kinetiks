@@ -23,6 +23,14 @@ describe("SIGNAL_WEIGHTS", () => {
     expect(SIGNAL_WEIGHTS.non_intervention.resetsStreak).toBe(false);
   });
 
+  it("treats only kill + undo as category rejections (grab is a field-level penalty)", () => {
+    expect(SIGNAL_WEIGHTS.kill.isRejectionClass).toBe(true);
+    expect(SIGNAL_WEIGHTS.undo.isRejectionClass).toBe(true);
+    expect(SIGNAL_WEIGHTS.grab.isRejectionClass).toBe(false);
+    expect(SIGNAL_WEIGHTS.edit.isRejectionClass).toBe(false);
+    expect(SIGNAL_WEIGHTS.non_intervention.isRejectionClass).toBe(false);
+  });
+
   it("only kill/undo/grab carry a dedicated ledger event type", () => {
     expect(SIGNAL_WEIGHTS.kill.ledgerEventType).toBe("task_killed");
     expect(SIGNAL_WEIGHTS.undo.ledgerEventType).toBe("intervention_undo");

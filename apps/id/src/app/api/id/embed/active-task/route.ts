@@ -4,7 +4,7 @@ import { apiSuccess, apiError } from "@/lib/utils/api-response";
 import { captureException, USER_SAFE } from "@/lib/observability/sentry";
 import { assertTransition } from "@kinetiks/lib/state-machines";
 import { activeTaskSchema } from "@/lib/embed/contract";
-import { loadOpenTaskForThread, loadTaskById, parseSteps } from "@/lib/embed/active-task";
+import { loadOpenTaskForThread, loadTaskById, parseSteps, applySkipStep } from "@/lib/embed/active-task";
 import type { Json } from "@kinetiks/supabase";
 
 /**
@@ -85,21 +85,15 @@ export async function POST(request: Request) {
     }
 
     if (intent.op === "skip_step") {
-      // Skip the current step (§8.4) — not a status transition. Mark it
-      // skipped, advance the next queued step to working.
-      const steps = parseSteps(task.steps);
-      const next = steps.map((s) => {
-        if (s.index === intent.step_index) return { ...s, status: "skipped" as const };
-        if (s.index === intent.step_index + 1 && s.status === "queued")
-          return { ...s, status: "working" as const };
-        return s;
-      });
-      const nextIndex = steps.some((s) => s.index === intent.step_index + 1)
-        ? intent.step_index + 1
-        : task.current_step_index;
+      // Skip the current step (§8.4) — not a status transition.
+      const { steps, currentStepIndex } = applySkipStep(
+        parseSteps(task.steps),
+        task.current_step_index,
+        intent.step_index,
+      );
       const { data, error: updErr } = await admin
         .from("kinetiks_active_tasks")
-        .update({ steps: next as unknown as Json, current_step_index: nextIndex })
+        .update({ steps: steps as unknown as Json, current_step_index: currentStepIndex })
         .eq("id", task.id)
         .eq("account_id", accountId)
         .select("*")
