@@ -14,6 +14,7 @@ import {
   type CreateAnnotationInput,
 } from "@/lib/embed/useThreadAnnotations";
 import { selectVisibleAnnotations } from "@/lib/embed/annotation-density";
+import { capture } from "@/lib/observability/posthog";
 
 /** Fixture annotations the reference agent "leaves" while it works. A real
  *  agent would generate these (Haiku via the router). Seeded once per thread. */
@@ -115,8 +116,14 @@ export function AnnotationLayer({
                 body: r.body,
               }))}
               maxWidth={a.anchor.max_width}
-              onDismiss={() => void dismiss(a.id)}
-              onPin={() => void pin(a.id)}
+              onDismiss={() => {
+                void dismiss(a.id);
+                void capture("collab.annotation_dismissed", { kind: a.kind, is_fixture: true });
+              }}
+              onPin={() => {
+                void pin(a.id);
+                void capture("collab.annotation_pinned", { kind: a.kind, is_fixture: true });
+              }}
               onReply={(text) => void reply(a.id, text)}
             />
           </div>
