@@ -6,6 +6,7 @@ import {
   useAgentPresence,
   useCollaborative,
   useTempoMode,
+  useDelegateRegion,
   type RealtimePresenceTransport,
 } from "@kinetiks/collaborative";
 import type { PresenceEvent, PresenceEventType } from "@kinetiks/types";
@@ -71,6 +72,7 @@ export function PresenceSurface({
   const agentPresence = useAgentPresence();
   const { emitUserPresence } = useCollaborative();
   const [tempoMode, setTempoMode] = useTempoMode();
+  const delegate = useDelegateRegion();
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
   // The field the user is currently on — the agent yields it (§7.2 inverse).
   const userFieldRef = useRef<string | null>(null);
@@ -127,6 +129,29 @@ export function PresenceSurface({
       clearTimeout(timer);
     };
   }, [collaborative, transport]);
+
+  // Drag-to-delegate (§7.2), keyboard variant: Cmd/Ctrl+D hands the focused
+  // field to the agent, which visibly picks it up (cursor moves there).
+  useEffect(() => {
+    if (!collaborative) return;
+    const onKey = (e: KeyboardEvent) => {
+      const meta = e.metaKey || e.ctrlKey;
+      if (!meta || e.key.toLowerCase() !== "d") return;
+      const key = userFieldRef.current;
+      if (!key) return;
+      e.preventDefault();
+      const [componentId, fieldName] = key.split(":");
+      delegate([componentId], `Delegated ${fieldName}`);
+      transport?.publishAgentPresence({
+        participant: "agent",
+        event_type: "focus",
+        target: { component_id: componentId, field_name: fieldName },
+        timestamp: new Date().toISOString(),
+      });
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [collaborative, delegate, transport]);
 
   const handleFieldFocus = useCallback(
     (componentId: string, fieldName: string) => {
