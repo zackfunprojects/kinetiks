@@ -560,6 +560,16 @@
   font-style: italic;
 }
 
+/* ─── App panel frame fade (spec §14.2 load-in) ──────────────── */
+/* Opacity is set inline (load state); the transition lives here so it can be
+   frozen under prefers-reduced-motion. */
+.kt-panel-frame-fade {
+  transition: opacity var(--kt-dur-2) var(--kt-ease-standard);
+}
+@media (prefers-reduced-motion: reduce) {
+  .kt-panel-frame-fade { transition: none; }
+}
+
 /* ─── Floating bar (collaborative workspace §16.5) ───────────── */
 /* The shared treatment for every floating element in the collaborative
    workspace — the task drawer (§8/§16.1), thread-switch warning (§16.3),

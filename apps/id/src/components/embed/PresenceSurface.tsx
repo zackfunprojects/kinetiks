@@ -15,6 +15,7 @@ import {
   useTempoMode,
   useDelegateRegion,
   type RealtimePresenceTransport,
+  type PanelBridge,
 } from "@kinetiks/collaborative";
 import type { PresenceEvent, PresenceEventType } from "@kinetiks/types";
 import { captureException } from "@/lib/observability/sentry";
@@ -74,6 +75,10 @@ interface PresenceSurfaceProps {
   threadId: string | null;
   collaborative: boolean;
   transport: RealtimePresenceTransport | undefined;
+  /** Shell↔embed coordination bridge (focus/delegate inbound). */
+  bridge?: PanelBridge | null;
+  /** The shell hid this (cached) frame — pause the agent playback (§14.3). */
+  suspended?: boolean;
 }
 
 export function PresenceSurface({
@@ -83,6 +88,8 @@ export function PresenceSurface({
   threadId,
   collaborative,
   transport,
+  bridge,
+  suspended = false,
 }: PresenceSurfaceProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const agentPresence = useAgentPresence();
@@ -154,7 +161,8 @@ export function PresenceSurface({
   // confidence (§9.2): the agent works faster and annotates less as confidence
   // rises. The reference surface sits in the medium band.
   useEffect(() => {
-    if (!collaborative || !transport) return;
+    // Suspended (cached, off-screen) frames don't run the live playback (§14.3).
+    if (!collaborative || !transport || suspended) return;
     const tempo = tempoForConfidence(REFERENCE_CONFIDENCE);
     let index = 0;
     let cancelled = false;
@@ -191,7 +199,23 @@ export function PresenceSurface({
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [collaborative, transport, push, systemName]);
+  }, [collaborative, transport, push, systemName, suspended]);
+
+  // Shell → embed coordination (§4.4): the shell can focus a field or hand over
+  // a delegated region. The bridge is postMessage (web) or webview IPC (desktop).
+  useEffect(() => {
+    if (!bridge) return;
+    return bridge.subscribe((msg) => {
+      if (msg.type === "focus") {
+        const selector = msg.field_name
+          ? `[data-component-id="${msg.component_id}"][data-field-name="${msg.field_name}"] input`
+          : `[data-component-id="${msg.component_id}"] input`;
+        containerRef.current?.querySelector<HTMLElement>(selector)?.focus();
+      } else if (msg.type === "delegate") {
+        delegate(msg.region.component_ids, msg.region.context);
+      }
+    });
+  }, [bridge, delegate]);
 
   // Drag-to-delegate (§7.2), keyboard variant: Cmd/Ctrl+D hands the focused
   // field to the agent, which visibly picks it up (cursor moves there).

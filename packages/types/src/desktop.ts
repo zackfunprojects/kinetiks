@@ -6,6 +6,8 @@
  * preload implementation and the web consumer cannot drift.
  */
 
+import type { PanelMessage } from "./collaborative";
+
 export type DesktopPlatform = "darwin" | "win32" | "linux";
 
 /**
@@ -62,4 +64,19 @@ export interface KinetiksDesktopBridge {
   onUpdateStatus: (callback: (status: DesktopUpdateStatus) => void) => () => void;
   /** Quit and install a downloaded update now (spec §16.2 "Restart to update"). */
   applyUpdate: () => void;
+}
+
+/**
+ * Contract for the bridge the desktop webview preload exposes to the EMBED
+ * guest as `window.electronWebview` (Phase 8.7). The embed uses it for shell↔
+ * embed coordination only (per D1 it does its own Realtime + API directly).
+ * On the web this global is absent and the embed falls back to postMessage.
+ */
+export interface KinetiksWebviewBridge {
+  /** Always true inside a desktop webview; absent in a browser/iframe. */
+  readonly isWebview: true;
+  /** Send a coordination message up to the host renderer (the shell). */
+  sendToHost: (message: PanelMessage) => void;
+  /** Subscribe to coordination messages from the host. Returns an unsubscribe fn. */
+  onHostMessage: (handler: (message: PanelMessage) => void) => () => void;
 }

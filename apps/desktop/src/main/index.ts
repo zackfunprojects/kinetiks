@@ -12,6 +12,7 @@ import {
 import { initObservability } from "./observability";
 import { buildAppMenu } from "./menu";
 import { configureWebviewSecurity } from "./webview";
+import { startSessionMirror } from "./session-sync";
 import { initAutoUpdater } from "./updater";
 
 // Crash reporting first, before any app setup, so startup faults are captured.
@@ -152,6 +153,9 @@ if (!gotTheLock) {
 
   app.whenReady().then(() => {
     configureWebviewSecurity(() => [APP_ORIGIN]);
+    // Seed the collaborative webview partition with the renderer's session so
+    // embedded apps authenticate without re-login (D2), keeping 8.1 isolation.
+    startSessionMirror(APP_URL);
     createWindow();
     createTray(mainWindow!);
     buildAppMenu();

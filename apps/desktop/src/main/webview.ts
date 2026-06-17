@@ -22,15 +22,15 @@ const PERMISSION_ALLOWLIST = new Set<string>([
 ]);
 
 function isAllowedOrigin(url: string, allowed: string[]): boolean {
+  // Exact allowlist only (covers dev http://localhost:3000 and the embed
+  // origins the panel actually loads). No `*.kinetiks.ai` wildcard: once the
+  // collaborative partition holds the mirrored `.kinetiks.ai` session cookie
+  // (Phase 8.7 D2), letting a webview navigate to an arbitrary Kinetiks
+  // subdomain would expose that token to a sibling origin. The navigation
+  // boundary and the cookie-mirror scope must stay the same set — suite-app
+  // embed origins get added to `getAllowedOrigins()` (and mirrored) together.
   try {
-    const parsed = new URL(url);
-    // Exact allowlist (covers dev http://localhost:3000) first.
-    if (allowed.includes(parsed.origin)) return true;
-    // Wildcard Kinetiks subdomains are HTTPS-only — never honor a downgraded
-    // or non-TLS scheme for the navigation boundary.
-    if (parsed.protocol !== "https:") return false;
-    const host = parsed.hostname;
-    return host === "kinetiks.ai" || host.endsWith(".kinetiks.ai");
+    return allowed.includes(new URL(url).origin);
   } catch {
     return false;
   }

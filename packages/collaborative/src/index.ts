@@ -32,3 +32,30 @@ export {
   type RealtimePresenceTransport,
 } from "./realtime-transport";
 export { useRealtimePresenceTransport } from "./use-realtime-transport";
+
+// Shell ↔ embed coordination bridge (spec §4.4, §10.4) — postMessage (web)
+// and webview IPC (desktop) adapters over one PanelMessage contract.
+export {
+  PANEL_IPC_CHANNEL,
+  isPanelMessage,
+  guestBridgeKind,
+  createPostMessageBridge,
+  createWebviewHostBridge,
+  createWebviewGuestBridge,
+  type PanelBridge,
+  type GuestBridgeKind,
+  type PostMessageBridgeOptions,
+  type WebviewHostElement,
+  type WebviewGuestApi,
+} from "./panel-bridge";
+
+// The ≤3 LRU frame cache for the app panel (spec §14.3).
+export {
+  DEFAULT_FRAME_CAPACITY,
+  createFrameCache,
+  frameKey,
+  touchFrame,
+  touchFrames,
+  type FrameDescriptor,
+  type FrameCacheState,
+} from "./frame-cache";
