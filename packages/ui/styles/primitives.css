@@ -62,6 +62,17 @@
   background-color: var(--kt-bg-muted);
 }
 
+/* Outline — transparent fill with a stroke (§16.6: Undo / Retry affordances). */
+.kt-btn--outline {
+  background-color: transparent;
+  color: var(--kt-fg-1);
+  border-color: var(--kt-border-2);
+}
+.kt-btn--outline:hover:not(:disabled) {
+  background-color: var(--kt-bg-muted);
+  border-color: var(--kt-fg-3);
+}
+
 .kt-btn--ghost {
   background-color: transparent;
   color: var(--kt-fg-2);
@@ -215,6 +226,12 @@
 .kt-toast--danger  { border-left: 3px solid var(--kt-danger); }
 .kt-toast__title { font-family: var(--kt-font-sans); font-size: var(--kt-fs-14); font-weight: var(--kt-fw-med); color: var(--kt-fg-1); }
 .kt-toast__body  { font-family: var(--kt-font-sans); font-size: var(--kt-fs-13); color: var(--kt-fg-2); margin-top: 2px; }
+/* Icon (§16.5 anatomy) — colored per tone (§16.6). */
+.kt-toast__icon { flex-shrink: 0; display: inline-flex; margin-top: 1px; color: var(--kt-fg-3); }
+.kt-toast--success .kt-toast__icon { color: var(--kt-success); }
+.kt-toast--warning .kt-toast__icon { color: var(--kt-warning); }
+.kt-toast--danger  .kt-toast__icon { color: var(--kt-danger); }
+.kt-toast__action { flex-shrink: 0; }
 
 /* ─── Tabs ──────────────────────────────────────────────────── */
 
@@ -541,4 +558,196 @@
   font-size: var(--kt-fs-11);
   color: var(--kt-fg-3);
   font-style: italic;
+}
+
+/* ─── Floating bar (collaborative workspace §16.5) ───────────── */
+/* The shared treatment for every floating element in the collaborative
+   workspace — the task drawer (§8/§16.1), thread-switch warning (§16.3),
+   and bulk action bar (§16.4). Generous radius signals transience;
+   elevation via shadow, never a hard outline; anatomy is always
+   icon + label + action. */
+.kt-floating-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--kt-s-3);
+  background-color: var(--kt-bg-elevated);
+  border: 1px solid var(--kt-border-1);
+  border-radius: var(--kt-radius-3);
+  box-shadow: var(--kt-shadow-md);
+  padding: var(--kt-s-2) var(--kt-s-3);
+  font-family: var(--kt-font-sans);
+}
+.kt-floating-bar__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--kt-fg-3);
+}
+.kt-floating-bar__body {
+  flex: 1;
+  min-width: 0;
+}
+.kt-floating-bar__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--kt-s-2);
+  flex-shrink: 0;
+}
+/* Tone accents (§16.6) — colored icon, soft border, never a filled bar. */
+.kt-floating-bar--success .kt-floating-bar__icon { color: var(--kt-success); }
+.kt-floating-bar--warning {
+  border-color: var(--kt-warning-soft);
+}
+.kt-floating-bar--warning .kt-floating-bar__icon { color: var(--kt-warning); }
+.kt-floating-bar--danger {
+  border-color: var(--kt-danger-soft);
+}
+.kt-floating-bar--danger .kt-floating-bar__icon { color: var(--kt-danger); }
+
+/* ─── Task drawer (spec §8 / §16.1) ──────────────────────────── */
+/* A floating pill anchored to the bottom of the app panel. Collapsed =
+   one line (system + step + progress + kill); expanded grows vertically
+   to reveal the multi-step plan, elapsed time, and step controls. */
+.kt-task-drawer {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  width: min(560px, calc(100% - var(--kt-s-6)));
+  padding: var(--kt-s-3) var(--kt-s-4);
+}
+.kt-task-drawer__head {
+  display: flex;
+  align-items: center;
+  gap: var(--kt-s-3);
+}
+.kt-task-drawer__toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--kt-fg-3);
+  cursor: pointer;
+  border-radius: var(--kt-radius-1);
+  transition: transform var(--kt-dur-2) var(--kt-ease-standard),
+    color var(--kt-dur-1) var(--kt-ease-standard);
+}
+.kt-task-drawer__toggle:hover { color: var(--kt-fg-1); }
+.kt-task-drawer__toggle[aria-expanded="true"] { transform: rotate(90deg); }
+.kt-task-drawer__meta {
+  flex: 1;
+  min-width: 0;
+}
+.kt-task-drawer__name {
+  font-size: var(--kt-fs-14);
+  font-weight: var(--kt-fw-med);
+  color: var(--kt-fg-1);
+  display: flex;
+  align-items: center;
+  gap: var(--kt-s-2);
+}
+.kt-task-drawer__name-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kt-task-drawer__step {
+  font-size: var(--kt-fs-12);
+  color: var(--kt-fg-3);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kt-task-drawer__progress {
+  width: 96px;
+  flex-shrink: 0;
+}
+.kt-task-drawer__pct {
+  font-size: var(--kt-fs-11);
+  font-family: var(--kt-font-mono);
+  color: var(--kt-fg-3);
+  text-align: right;
+  margin-top: 2px;
+}
+/* Expanded body — animated reveal of the full plan. */
+.kt-task-drawer__body {
+  overflow: hidden;
+  max-height: 0;
+  opacity: 0;
+  transition: max-height var(--kt-dur-3) var(--kt-ease-emphasis),
+    opacity var(--kt-dur-2) var(--kt-ease-standard);
+}
+.kt-task-drawer__body--open {
+  max-height: 520px;
+  opacity: 1;
+  margin-top: var(--kt-s-3);
+  padding-top: var(--kt-s-3);
+  border-top: 1px solid var(--kt-border-1);
+}
+.kt-task-drawer__plan {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--kt-s-2);
+}
+.kt-task-drawer__plan-item {
+  display: flex;
+  align-items: center;
+  gap: var(--kt-s-2);
+  font-size: var(--kt-fs-13);
+  color: var(--kt-fg-2);
+}
+.kt-task-drawer__plan-index {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--kt-radius-full);
+  background-color: var(--kt-bg-muted);
+  color: var(--kt-fg-3);
+  font-size: var(--kt-fs-11);
+  font-family: var(--kt-font-mono);
+}
+.kt-task-drawer__plan-item--working .kt-task-drawer__plan-index {
+  background-color: var(--kt-accent-soft);
+  color: var(--kt-accent-ink);
+}
+.kt-task-drawer__plan-item--done .kt-task-drawer__plan-label {
+  color: var(--kt-fg-3);
+}
+.kt-task-drawer__plan-item--skipped .kt-task-drawer__plan-label {
+  color: var(--kt-fg-4);
+  text-decoration: line-through;
+}
+.kt-task-drawer__plan-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kt-task-drawer__elapsed {
+  font-size: var(--kt-fs-11);
+  font-family: var(--kt-font-mono);
+  color: var(--kt-fg-4);
+  margin-top: var(--kt-s-3);
+}
+.kt-task-drawer__kill-prompt {
+  margin-top: var(--kt-s-3);
+  padding-top: var(--kt-s-3);
+  border-top: 1px solid var(--kt-border-1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .kt-task-drawer__toggle,
+  .kt-task-drawer__body { transition: none; }
 }

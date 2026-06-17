@@ -1,4 +1,17 @@
-import type { ApprovalRecord, EditClassification } from "./types";
+import type { ActionCategory, EditClassification } from "./types";
+
+/**
+ * The minimal context `analyzeEdits` needs. `ApprovalRecord` satisfies it
+ * structurally (the real approval path passes one), and the collaborative
+ * in-panel approval path (§9.1) passes a lightweight object — there is no
+ * kinetiks_approvals row behind the reference surface.
+ */
+export interface EditAnalysisContext {
+  account_id: string;
+  id: string;
+  action_category: ActionCategory;
+  source_app: string;
+}
 
 /**
  * Analyze edits between original and user-modified content.
@@ -7,7 +20,7 @@ import type { ApprovalRecord, EditClassification } from "./types";
 export async function analyzeEdits(
   original: Record<string, unknown>,
   edited: Record<string, unknown>,
-  context: ApprovalRecord
+  context: EditAnalysisContext
 ): Promise<EditClassification[]> {
   const diffs = computeDiffs(original, edited);
 

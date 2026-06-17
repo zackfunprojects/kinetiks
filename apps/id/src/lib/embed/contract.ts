@@ -83,3 +83,86 @@ export type PresenceRequest = z.infer<typeof presenceRequestSchema>;
 export type AnnotationIntent = z.infer<typeof annotationIntentSchema>;
 export type UndoRequest = z.infer<typeof undoRequestSchema>;
 export type WorkspaceActionRequest = z.infer<typeof workspaceActionSchema>;
+
+/**
+ * The reference surface is a sequence builder; its intervention signals (kill,
+ * undo, grab) and in-panel approvals all calibrate one representative action
+ * category. A real suite app would carry the actual category for the work.
+ */
+export const REFERENCE_ACTION_CATEGORY = "sequence_adjustment" as const;
+
+// ── Task drawer (spec §8) — kinetiks_active_tasks lifecycle ──────────
+const taskStepSchema = z.object({
+  index: z.number().int().min(0),
+  app_name: z.string().min(1),
+  label: z.string().min(1),
+  status: z.enum(["queued", "working", "done", "skipped", "failed"]),
+});
+
+export const activeTaskSchema = z.discriminatedUnion("op", [
+  z.object({
+    op: z.literal("open"),
+    thread_id: z.string().min(1),
+    name: z.string().min(1),
+    description: z.string().optional(),
+    app_name: z.string().min(1),
+    steps: z.array(taskStepSchema).default([]),
+    current_step_index: z.number().int().min(0).default(0),
+    progress: z.number().int().min(0).max(100).default(0),
+    command_id: z.string().optional(),
+  }),
+  z.object({
+    op: z.literal("progress"),
+    thread_id: z.string().min(1),
+    task_id: z.string().uuid(),
+    progress: z.number().int().min(0).max(100).optional(),
+    current_step_index: z.number().int().min(0).optional(),
+    steps: z.array(taskStepSchema).optional(),
+  }),
+  z.object({ op: z.literal("pause"), thread_id: z.string().min(1), task_id: z.string().uuid() }),
+  z.object({ op: z.literal("resume"), thread_id: z.string().min(1), task_id: z.string().uuid() }),
+  z.object({ op: z.literal("complete"), thread_id: z.string().min(1), task_id: z.string().uuid() }),
+  z.object({
+    op: z.literal("skip_step"),
+    thread_id: z.string().min(1),
+    task_id: z.string().uuid(),
+    step_index: z.number().int().min(0),
+  }),
+]);
+
+export type ActiveTaskRequest = z.infer<typeof activeTaskSchema>;
+
+// Kill is a dedicated route (`/api/id/embed/active-task/kill`): it transitions
+// the task, reverts in-progress agent work via the undo stack, and fires the 2×
+// kill learning signal (§8.3). Distinct from the lifecycle ops above.
+export const killTaskSchema = z.object({
+  thread_id: z.string().min(1),
+  task_id: z.string().uuid(),
+  reason_code: z.enum(["wrong_tone", "wrong_data", "wrong_approach", "wrong_target", "other"]),
+  feedback: z.string().max(2000).optional(),
+});
+
+export type KillTaskRequest = z.infer<typeof killTaskSchema>;
+
+// ── Intervention signal (spec §9.3) — grab. (Undo folds into the
+//    workspace-actions route, where the undo already happens.) ─────────
+export const interventionSchema = z.object({
+  signal: z.literal("grab"),
+  component_id: z.string().min(1),
+  field_name: z.string().optional(),
+});
+
+export type InterventionRequest = z.infer<typeof interventionSchema>;
+
+// ── In-panel visual approval (spec §9.1) ────────────────────────────
+export const embedApprovalSchema = z.discriminatedUnion("decision", [
+  z.object({ decision: z.literal("approve") }),
+  z.object({
+    decision: z.literal("approve_with_edits"),
+    original: z.record(z.unknown()),
+    edited: z.record(z.unknown()),
+  }),
+  z.object({ decision: z.literal("reject"), reason: z.string().min(1).max(2000) }),
+]);
+
+export type EmbedApprovalRequest = z.infer<typeof embedApprovalSchema>;

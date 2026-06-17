@@ -2,7 +2,8 @@ import { requireAuth } from "@/lib/auth/require-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { apiSuccess, apiError } from "@/lib/utils/api-response";
 import { captureException, USER_SAFE } from "@/lib/observability/sentry";
-import { workspaceActionSchema } from "@/lib/embed/contract";
+import { workspaceActionSchema, REFERENCE_ACTION_CATEGORY } from "@/lib/embed/contract";
+import { applyInterventionSignal } from "@/lib/approvals/intervention-signals";
 import type { Json } from "@kinetiks/supabase";
 
 /**
@@ -33,15 +34,34 @@ export async function POST(request: Request) {
 
   try {
     if (intent.op === "undo") {
-      const { data, error: updErr } = await admin
+      // Read the row first so we (a) distinguish missing from already-undone
+      // and (b) only fire the learning signal on a real state change.
+      const { data: row, error: selErr } = await admin
         .from("kinetiks_workspace_actions")
-        .update({ undone: true })
+        .select("id, participant, undone")
         .eq("id", intent.action_id)
         .eq("account_id", accountId)
         .eq("thread_id", intent.thread_id)
-        .select("id");
-      if (updErr) throw updErr;
-      if (!data || data.length === 0) return apiError("Action not found", 404);
+        .maybeSingle();
+      if (selErr) throw selErr;
+      if (!row) return apiError("Action not found", 404);
+
+      if (!row.undone) {
+        const { error: updErr } = await admin
+          .from("kinetiks_workspace_actions")
+          .update({ undone: true })
+          .eq("id", intent.action_id)
+          .eq("account_id", accountId)
+          .eq("thread_id", intent.thread_id);
+        if (updErr) throw updErr;
+
+        // Undoing a system action is a weak rejection signal (§9.3).
+        if (row.participant === "agent") {
+          await applyInterventionSignal(accountId, REFERENCE_ACTION_CATEGORY, "undo", {
+            extra: { action_id: row.id },
+          });
+        }
+      }
       return apiSuccess({ accepted: true, op: "undo", id: intent.action_id });
     }
 

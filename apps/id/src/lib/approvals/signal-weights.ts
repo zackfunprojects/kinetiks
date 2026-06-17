@@ -32,6 +32,13 @@ export interface SignalWeight {
   thresholdDelta: number;
   /** Whether the signal breaks the consecutive-clean streak. */
   resetsStreak: boolean;
+  /**
+   * Whether the signal counts as a rejection for the category history
+   * (bumps `total_rejections` + stamps `last_rejection_at`). Kill and undo
+   * are rejection-class (§8.3 "treated as a rejection", §9.3 "weak rejection");
+   * grab is a field-level penalty, not a category rejection.
+   */
+  isRejectionClass: boolean;
   /** Ledger event type emitted for this signal (null = no dedicated entry). */
   ledgerEventType: "task_killed" | "intervention_undo" | "intervention_grab" | null;
   description: string;
@@ -43,6 +50,7 @@ export const SIGNAL_WEIGHTS: Record<InterventionSignal, SignalWeight> = {
   kill: {
     thresholdDelta: 20,
     resetsStreak: true,
+    isRejectionClass: true,
     ledgerEventType: "task_killed",
     description: "Killed an in-flight task — 2x a rejection",
   },
@@ -50,6 +58,7 @@ export const SIGNAL_WEIGHTS: Record<InterventionSignal, SignalWeight> = {
   undo: {
     thresholdDelta: 5,
     resetsStreak: true,
+    isRejectionClass: true,
     ledgerEventType: "intervention_undo",
     description: "Undid a system action — weak rejection",
   },
@@ -57,6 +66,7 @@ export const SIGNAL_WEIGHTS: Record<InterventionSignal, SignalWeight> = {
   grab: {
     thresholdDelta: 3,
     resetsStreak: true,
+    isRejectionClass: false,
     ledgerEventType: "intervention_grab",
     description: "Took over a field the system was about to fill",
   },
@@ -64,6 +74,7 @@ export const SIGNAL_WEIGHTS: Record<InterventionSignal, SignalWeight> = {
   edit: {
     thresholdDelta: 0,
     resetsStreak: true,
+    isRejectionClass: false,
     ledgerEventType: null,
     description: "Edited before approving — training signal",
   },
@@ -71,6 +82,7 @@ export const SIGNAL_WEIGHTS: Record<InterventionSignal, SignalWeight> = {
   non_intervention: {
     thresholdDelta: -2,
     resetsStreak: false,
+    isRejectionClass: false,
     ledgerEventType: null,
     description: "Left a system-filled field untouched — trust boost",
   },

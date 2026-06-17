@@ -29,7 +29,7 @@ export { Dialog, DialogHeader, DialogBody, DialogFooter } from "./dialog";
 export type { DialogProps } from "./dialog";
 
 export { ToastProvider, useToast } from "./toast";
-export type { ToastInput, ToastTone } from "./toast";
+export type { ToastInput, ToastTone, ToastAction } from "./toast";
 
 export { Tabs, TabList, TabTrigger, TabPanel } from "./tabs";
 export type { TabsProps, TabTriggerProps, TabPanelProps } from "./tabs";
@@ -55,6 +55,22 @@ export type { TempoControlProps, TempoModeValue } from "./tempo-control";
 
 export { UndoTimeline } from "./undo-timeline";
 export type { UndoTimelineProps, UndoTimelineItem } from "./undo-timeline";
+
+export { TaskDrawer } from "./task-drawer";
+export type {
+  TaskDrawerProps,
+  TaskDrawerStep,
+  TaskDrawerStepStatus,
+} from "./task-drawer";
+
+export { ApprovalOverlayBar } from "./approval-overlay-bar";
+export type { ApprovalOverlayBarProps } from "./approval-overlay-bar";
+
+export { ThreadSwitchWarning } from "./thread-switch-warning";
+export type { ThreadSwitchWarningProps } from "./thread-switch-warning";
+
+export { BulkActionBar } from "./bulk-action-bar";
+export type { BulkActionBarProps, BulkAction } from "./bulk-action-bar";
 
 export { EmptyState } from "./empty-state";
 export type { EmptyStateProps } from "./empty-state";

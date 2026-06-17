@@ -6,6 +6,8 @@
  * Trust contraction: 1 rejection → +10pts, 2 in 7 days → +20pts, 3 in 7 days → reset to 100
  */
 
+import { SIGNAL_WEIGHTS, type InterventionSignal } from "./signal-weights";
+
 export interface ThresholdState {
   auto_approve_threshold: number;
   consecutive_approvals: number;
@@ -79,4 +81,40 @@ export function calculateRate(approvals: number, rejections: number): number {
   const total = approvals + rejections;
   if (total === 0) return 0;
   return Math.round((approvals / total) * 10000) / 100;
+}
+
+/**
+ * Apply an implicit intervention signal (kill / undo / grab / edit /
+ * non_intervention, §8.3 + §9.3) to a threshold. Registry-driven: the weight,
+ * streak-reset, and rejection-class behaviour all come from `SIGNAL_WEIGHTS`,
+ * so adding a signal never touches this math. Pure — unit-tested without a DB.
+ *
+ * `kill` lands at +20 (2× a standard rejection); `undo` +5 (weak rejection);
+ * `grab` +3 (field-level penalty); `edit` 0 (training, streak reset only);
+ * `non_intervention` −2 (trust boost).
+ */
+export function computeInterventionUpdate(args: {
+  existing: ThresholdState;
+  signal: InterventionSignal;
+  now?: Date;
+}): ThresholdUpdate {
+  const { existing, signal } = args;
+  const now = args.now ?? new Date();
+  const weight = SIGNAL_WEIGHTS[signal];
+
+  const threshold = Math.max(
+    0,
+    Math.min(100, existing.auto_approve_threshold + weight.thresholdDelta),
+  );
+  const newRejections = existing.total_rejections + (weight.isRejectionClass ? 1 : 0);
+  const consecutive = weight.resetsStreak ? 0 : existing.consecutive_approvals;
+
+  return {
+    auto_approve_threshold: threshold,
+    consecutive_approvals: consecutive,
+    total_approvals: existing.total_approvals,
+    total_rejections: newRejections,
+    approval_rate: calculateRate(existing.total_approvals, newRejections),
+    ...(weight.isRejectionClass ? { last_rejection_at: now.toISOString() } : {}),
+  };
 }

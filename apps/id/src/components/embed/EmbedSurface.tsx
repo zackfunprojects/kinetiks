@@ -5,6 +5,7 @@ import {
   CollaborativeProvider,
   useRealtimePresenceTransport,
 } from "@kinetiks/collaborative";
+import { ToastProvider } from "@kinetiks/ui";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import { PresenceSurface } from "./PresenceSurface";
@@ -70,20 +71,22 @@ export function EmbedSurface({
   });
 
   return (
-    <CollaborativeProvider
-      enabled={collaborative}
-      accountId={accountId}
-      threadId={threadId}
-      transport={transport}
-    >
-      <PresenceSurface
-        systemName={systemName}
-        entityId={entityId}
+    <ToastProvider>
+      <CollaborativeProvider
+        enabled={collaborative}
         accountId={accountId}
         threadId={threadId}
-        collaborative={collaborative}
         transport={transport}
-      />
-    </CollaborativeProvider>
+      >
+        <PresenceSurface
+          systemName={systemName}
+          entityId={entityId}
+          accountId={accountId}
+          threadId={threadId}
+          collaborative={collaborative}
+          transport={transport}
+        />
+      </CollaborativeProvider>
+    </ToastProvider>
   );
 }
