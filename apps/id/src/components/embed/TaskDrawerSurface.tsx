@@ -59,9 +59,12 @@ export function TaskDrawerSurface({
   const [killPending, setKillPending] = useState(false);
   const [ack, setAck] = useState<string | null>(null);
   const opened = useRef(false);
+  // Stops the playback from mutating a task the user just killed.
+  const killedRef = useRef(false);
 
   useEffect(() => {
     opened.current = false;
+    killedRef.current = false;
     setKilling(false);
     setAck(null);
   }, [threadId]);
@@ -89,6 +92,7 @@ export function TaskDrawerSurface({
       PLAYBACK.forEach((beat, i) => {
         timers.push(
           setTimeout(() => {
+            if (cancelled || killedRef.current) return;
             void advance(created.id, beat);
           }, 1500 * (i + 1)),
         );
@@ -97,6 +101,7 @@ export function TaskDrawerSurface({
       timers.push(
         setTimeout(
           () => {
+            if (cancelled || killedRef.current) return;
             void (async () => {
               await advance(created.id, {
                 progress: 100,
@@ -104,7 +109,7 @@ export function TaskDrawerSurface({
                 steps: COMPLETED_STEPS,
               });
               await complete(created.id);
-              if (!cancelled) onWorkComplete?.();
+              if (!cancelled && !killedRef.current) onWorkComplete?.();
             })();
           },
           1500 * (PLAYBACK.length + 1),
@@ -146,6 +151,7 @@ export function TaskDrawerSurface({
   }));
 
   const handleConfirmKill = async (reasonCode: Parameters<typeof kill>[0]["reasonCode"], feedback: string) => {
+    killedRef.current = true; // stop the playback from touching the killed task
     setKillPending(true);
     const result = await kill({ taskId: task.id, reasonCode, feedback: feedback || undefined });
     setKillPending(false);
