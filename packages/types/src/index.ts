@@ -230,4 +230,8 @@ export type {
   KillSignal,
   AppPanelOpen,
   EmbedTarget,
+  PanelMessage,
+  PanelMessageType,
 } from "./collaborative";
+// Runtime value (not a type) — the panel-message source tag.
+export { PANEL_MESSAGE_SOURCE } from "./collaborative";

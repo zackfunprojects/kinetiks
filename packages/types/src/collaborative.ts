@@ -246,3 +246,30 @@ export interface EmbedTarget {
   account_id: string;
   mode: "collaborative" | "standalone";
 }
+
+// ---------------------------------------------------------------------------
+// Shell ↔ embed coordination (spec §4.4, §10.4) — the desktop webview and the
+// web iframe both speak this contract. Web uses parent↔iframe postMessage;
+// desktop uses <webview> host↔guest IPC. Per Phase 8.7 D1 the embed does its
+// own Realtime + API directly (authenticated by the mirrored session); these
+// messages carry COORDINATION only, never the bulk presence/annotation data.
+// ---------------------------------------------------------------------------
+
+/** Tag on every panel message; rejected if absent (origin + source double-check). */
+export const PANEL_MESSAGE_SOURCE = "kinetiks-embed" as const;
+
+export type PanelMessageType =
+  | "ready" // guest → host: the embed mounted
+  | "init" // host → guest: (re)provide context without a reload
+  | "focus" // host → guest: focus a field
+  | "delegate" // host → guest: hand over a drag-to-delegate region
+  | "visibility" // host → guest: this frame is active/suspended (§14.3)
+  | "ui_state"; // guest → host: a UI state change the shell may react to
+
+export type PanelMessage =
+  | { source: typeof PANEL_MESSAGE_SOURCE; type: "ready"; entity_id: string | null; thread_id: string | null }
+  | { source: typeof PANEL_MESSAGE_SOURCE; type: "init"; account_id: string; thread_id: string | null; entity_id: string | null }
+  | { source: typeof PANEL_MESSAGE_SOURCE; type: "focus"; component_id: string; field_name?: string }
+  | { source: typeof PANEL_MESSAGE_SOURCE; type: "delegate"; region: DelegationRegion }
+  | { source: typeof PANEL_MESSAGE_SOURCE; type: "visibility"; visible: boolean }
+  | { source: typeof PANEL_MESSAGE_SOURCE; type: "ui_state"; change: UIStateChange };

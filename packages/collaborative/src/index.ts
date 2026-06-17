@@ -32,3 +32,17 @@ export {
   type RealtimePresenceTransport,
 } from "./realtime-transport";
 export { useRealtimePresenceTransport } from "./use-realtime-transport";
+
+// Shell ↔ embed coordination bridge (spec §4.4, §10.4) — postMessage (web)
+// and webview IPC (desktop) adapters over one PanelMessage contract.
+export {
+  PANEL_IPC_CHANNEL,
+  isPanelMessage,
+  createPostMessageBridge,
+  createWebviewHostBridge,
+  createWebviewGuestBridge,
+  type PanelBridge,
+  type PostMessageBridgeOptions,
+  type WebviewHostElement,
+  type WebviewGuestApi,
+} from "./panel-bridge";
