@@ -143,3 +143,13 @@ export const killTaskSchema = z.object({
 });
 
 export type KillTaskRequest = z.infer<typeof killTaskSchema>;
+
+// ── Intervention signal (spec §9.3) — grab. (Undo folds into the
+//    workspace-actions route, where the undo already happens.) ─────────
+export const interventionSchema = z.object({
+  signal: z.literal("grab"),
+  component_id: z.string().min(1),
+  field_name: z.string().optional(),
+});
+
+export type InterventionRequest = z.infer<typeof interventionSchema>;

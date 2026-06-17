@@ -5,7 +5,12 @@ import { createClient } from "@/lib/supabase/client";
 import { useRealtimeChannel } from "@/lib/hooks/useRealtimeChannel";
 import { captureException } from "@/lib/observability/sentry";
 import type { Database } from "@kinetiks/supabase";
-import type { ActiveTask, ActiveTaskStep, ActiveTaskStatus } from "@kinetiks/types";
+import type {
+  ActiveTask,
+  ActiveTaskStep,
+  ActiveTaskStatus,
+  KillReasonCode,
+} from "@kinetiks/types";
 
 type ActiveTaskRow = Database["public"]["Tables"]["kinetiks_active_tasks"]["Row"];
 
@@ -42,6 +47,17 @@ export interface ProgressInput {
   steps?: ActiveTaskStep[];
 }
 
+export interface KillInput {
+  taskId: string;
+  reasonCode: KillReasonCode;
+  feedback?: string;
+}
+
+export interface KillResult {
+  acknowledgement: string;
+  reverted: number;
+}
+
 export interface UseActiveTask {
   /** The single active/paused task for the thread, or null. */
   task: ActiveTask | null;
@@ -51,6 +67,8 @@ export interface UseActiveTask {
   resume: (taskId: string) => Promise<void>;
   complete: (taskId: string) => Promise<void>;
   skipStep: (taskId: string, stepIndex: number) => Promise<void>;
+  /** Kill the whole task (§8.3) — returns the chat acknowledgement. */
+  kill: (input: KillInput) => Promise<KillResult | null>;
 }
 
 /**
@@ -150,6 +168,36 @@ export function useActiveTask(accountId: string, threadId: string | null): UseAc
     },
     skipStep: async (taskId, stepIndex) => {
       await post({ op: "skip_step", task_id: taskId, step_index: stepIndex });
+    },
+    kill: async (input) => {
+      if (!threadId) return null;
+      try {
+        const res = await fetch("/api/id/embed/active-task/kill", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            thread_id: threadId,
+            task_id: input.taskId,
+            reason_code: input.reasonCode,
+            feedback: input.feedback,
+          }),
+        });
+        if (!res.ok) throw new Error(`kill route returned ${res.status}`);
+        const json = (await res.json()) as {
+          data?: { acknowledgement?: string; reverted?: number };
+        };
+        void refresh();
+        return {
+          acknowledgement: json.data?.acknowledgement ?? "Task stopped.",
+          reverted: json.data?.reverted ?? 0,
+        };
+      } catch (err) {
+        void captureException(err, {
+          tags: { route: "/embed", action: "active_task.kill", stage: "persist", app: "id" },
+          user: { id: accountId },
+        });
+        return null;
+      }
     },
   };
 }

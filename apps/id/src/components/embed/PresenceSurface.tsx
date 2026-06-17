@@ -10,6 +10,7 @@ import {
   type RealtimePresenceTransport,
 } from "@kinetiks/collaborative";
 import type { PresenceEvent, PresenceEventType } from "@kinetiks/types";
+import { captureException } from "@/lib/observability/sentry";
 import { ReferenceSequenceBuilder } from "./ReferenceSequenceBuilder";
 import { AnnotationLayer } from "./AnnotationLayer";
 import { UndoStackPanel } from "./UndoStackPanel";
@@ -77,6 +78,10 @@ export function PresenceSurface({
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
   // The field the user is currently on — the agent yields it (§7.2 inverse).
   const userFieldRef = useRef<string | null>(null);
+  // The field the agent is currently targeting, and grabs already signalled —
+  // so a user focus on the agent's field fires a grab once (§9.3).
+  const agentTargetRef = useRef<string | null>(null);
+  const firedGrabRef = useRef<Set<string>>(new Set());
 
   // Position the cursor over the agent's target field, relative to the surface.
   useLayoutEffect(() => {
@@ -98,6 +103,13 @@ export function PresenceSurface({
     const r = el.getBoundingClientRect();
     // Anchor just above the field's left edge.
     setPos({ x: r.left - c.left, y: r.top - c.top - 18 });
+  }, [agentPresence]);
+
+  // Track the agent's current target so a user grab can be detected (§9.3).
+  useEffect(() => {
+    agentTargetRef.current = agentPresence
+      ? fieldKey(agentPresence.target.component_id, agentPresence.target.field_name)
+      : null;
   }, [agentPresence]);
 
   // Agent fixture playback over the Realtime channel.
@@ -156,7 +168,25 @@ export function PresenceSurface({
 
   const handleFieldFocus = useCallback(
     (componentId: string, fieldName: string) => {
-      userFieldRef.current = fieldKey(componentId, fieldName);
+      const key = fieldKey(componentId, fieldName);
+      userFieldRef.current = key;
+
+      // Grab (§9.3): the user took a field the agent was about to fill. Fire the
+      // field-level penalty once per field; the server records the signal.
+      if (agentTargetRef.current === key && !firedGrabRef.current.has(key)) {
+        firedGrabRef.current.add(key);
+        void fetch("/api/id/embed/intervention", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ signal: "grab", component_id: componentId, field_name: fieldName }),
+        }).catch((err) => {
+          void captureException(err, {
+            tags: { route: "/embed", action: "intervention.grab", stage: "persist", app: "id" },
+            user: { id: accountId },
+          });
+        });
+      }
+
       const event: PresenceEvent = {
         participant: "user",
         event_type: "focus",
@@ -165,7 +195,7 @@ export function PresenceSurface({
       };
       emitUserPresence(event);
     },
-    [emitUserPresence]
+    [emitUserPresence, accountId]
   );
 
   const handleFieldBlur = useCallback(() => {

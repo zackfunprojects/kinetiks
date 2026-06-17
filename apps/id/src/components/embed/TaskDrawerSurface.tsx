@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { TaskDrawer, type TaskDrawerStep } from "@kinetiks/ui";
+import { Button, TaskDrawer, type TaskDrawerStep } from "@kinetiks/ui";
 import { useActiveTask } from "@/lib/embed/useActiveTask";
+import { KillPrompt } from "./KillPrompt";
 import type { ActiveTaskStep } from "@kinetiks/types";
 
 /**
@@ -44,12 +45,17 @@ export function TaskDrawerSurface({
   threadId,
   enabled,
 }: TaskDrawerSurfaceProps) {
-  const { task, open, advance, skipStep } = useActiveTask(accountId, threadId);
+  const { task, open, advance, skipStep, kill } = useActiveTask(accountId, threadId);
   const [expanded, setExpanded] = useState(false);
+  const [killing, setKilling] = useState(false);
+  const [killPending, setKillPending] = useState(false);
+  const [ack, setAck] = useState<string | null>(null);
   const opened = useRef(false);
 
   useEffect(() => {
     opened.current = false;
+    setKilling(false);
+    setAck(null);
   }, [threadId]);
 
   // Open the fixture task once per thread, then play the progress beats.
@@ -86,7 +92,26 @@ export function TaskDrawerSurface({
     };
   }, [enabled, threadId, task, open, advance]);
 
-  if (!enabled || !task) return null;
+  if (!enabled) return null;
+
+  // After a kill the task is gone; show a transient acknowledgement (§8.3 step 4).
+  if (!task) {
+    if (!ack) return null;
+    return (
+      <div style={anchorStyle}>
+        <div className="kt-floating-bar kt-floating-bar--success" role="status">
+          <span className="kt-floating-bar__body" style={{ fontSize: "var(--kt-fs-13)" }}>
+            {ack}
+          </span>
+          <span className="kt-floating-bar__actions">
+            <Button variant="ghost" size="sm" onClick={() => setAck(null)} aria-label="Dismiss">
+              ×
+            </Button>
+          </span>
+        </div>
+      </div>
+    );
+  }
 
   const steps: TaskDrawerStep[] = task.steps.map((s) => ({
     index: s.index,
@@ -95,17 +120,17 @@ export function TaskDrawerSurface({
     status: s.status,
   }));
 
+  const handleConfirmKill = async (reasonCode: Parameters<typeof kill>[0]["reasonCode"], feedback: string) => {
+    setKillPending(true);
+    const result = await kill({ taskId: task.id, reasonCode, feedback: feedback || undefined });
+    setKillPending(false);
+    setKilling(false);
+    setExpanded(false);
+    if (result) setAck(result.acknowledgement);
+  };
+
   return (
-    <div
-      style={{
-        position: "absolute",
-        left: "50%",
-        bottom: "var(--kt-s-4)",
-        transform: "translateX(-50%)",
-        zIndex: 22,
-        width: "min(560px, calc(100% - var(--kt-s-6)))",
-      }}
-    >
+    <div style={anchorStyle}>
       <TaskDrawer
         systemName={systemName ?? "Kinetiks"}
         name={task.name}
@@ -115,12 +140,31 @@ export function TaskDrawerSurface({
         steps={steps}
         expanded={expanded}
         onToggle={() => setExpanded((v) => !v)}
-        // Kill prompt + kill() wiring land in Slice 2; for now Kill expands the
-        // drawer to reveal the full plan.
-        onKill={() => setExpanded(true)}
+        onKill={() => {
+          setKilling(true);
+          setExpanded(true);
+        }}
         onSkipStep={(index) => void skipStep(task.id, index)}
         fixture
+        killPrompt={
+          killing ? (
+            <KillPrompt
+              pending={killPending}
+              onConfirm={(reasonCode, feedback) => void handleConfirmKill(reasonCode, feedback)}
+              onCancel={() => setKilling(false)}
+            />
+          ) : undefined
+        }
       />
     </div>
   );
 }
+
+const anchorStyle = {
+  position: "absolute",
+  left: "50%",
+  bottom: "var(--kt-s-4)",
+  transform: "translateX(-50%)",
+  zIndex: 22,
+  width: "min(560px, calc(100% - var(--kt-s-6)))",
+} as const;
