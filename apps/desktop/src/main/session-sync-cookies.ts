@@ -52,7 +52,9 @@ export function cookieSetParamsForMirror(
   cookies: readonly Cookie[],
   appUrl: string,
 ): CookiesSetDetails[] {
-  const host = new URL(appUrl).host;
+  // hostname (no port) — a cookie domain never carries a port, so matching
+  // against `host` would drop every cookie in dev (localhost:3000).
+  const host = new URL(appUrl).hostname;
   return cookies
     .filter((c) => cookieAppliesToHost(c, host))
     .map((c) => cookieToSetDetails(c, appUrl));

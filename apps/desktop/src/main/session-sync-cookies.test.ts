@@ -89,4 +89,13 @@ describe("cookieSetParamsForMirror", () => {
     expect(out.map((c) => c.name)).toEqual(["sb-ref-auth-token.0", "host"]);
     expect(out.every((c) => c.url === "https://id.kinetiks.ai/")).toBe(true);
   });
+
+  it("matches on hostname, ignoring the port, so dev localhost works", () => {
+    const out = cookieSetParamsForMirror(
+      [cookie({ name: "x", value: "1", domain: "localhost", hostOnly: true, path: "/" })],
+      "http://localhost:3000",
+    );
+    expect(out).toHaveLength(1);
+    expect(out[0].url).toBe("http://localhost:3000/");
+  });
 });

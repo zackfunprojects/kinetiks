@@ -13,8 +13,15 @@ declare global {
 }
 
 export function getWebviewBridge(): KinetiksWebviewBridge | null {
-  if (typeof window !== "undefined" && window.electronWebview?.isWebview) {
-    return window.electronWebview;
+  const bridge = typeof window !== "undefined" ? window.electronWebview : undefined;
+  // Validate the full capability, not just the flag — a partial/skewed global
+  // would otherwise throw downstream when sendToHost/onHostMessage are missing.
+  if (
+    bridge?.isWebview === true &&
+    typeof bridge.sendToHost === "function" &&
+    typeof bridge.onHostMessage === "function"
+  ) {
+    return bridge;
   }
   return null;
 }

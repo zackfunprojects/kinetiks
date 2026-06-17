@@ -30,6 +30,14 @@ describe("isPanelMessage", () => {
     expect(isPanelMessage(null)).toBe(false);
     expect(isPanelMessage("ready")).toBe(false);
   });
+
+  it("rejects a valid type missing its required payload fields", () => {
+    expect(isPanelMessage({ source: "kinetiks-embed", type: "visibility" })).toBe(false);
+    expect(isPanelMessage({ source: "kinetiks-embed", type: "visibility", visible: "yes" })).toBe(false);
+    expect(isPanelMessage({ source: "kinetiks-embed", type: "focus" })).toBe(false);
+    expect(isPanelMessage({ source: "kinetiks-embed", type: "delegate" })).toBe(false);
+    expect(isPanelMessage({ source: "kinetiks-embed", type: "init" })).toBe(false);
+  });
 });
 
 describe("guestBridgeKind", () => {
@@ -90,6 +98,32 @@ describe("createPostMessageBridge", () => {
     const { bridge, target } = setup();
     bridge.post(FOCUS);
     expect(target.postMessage).toHaveBeenCalledWith(FOCUS, ORIGIN);
+  });
+
+  it("binds inbound messages to the expected sender window", () => {
+    const peer = {} as unknown; // stand-in for the intended peer window
+    let listener: ((e: MessageEvent) => void) | null = null;
+    const host = {
+      addEventListener: vi.fn((_t: "message", l: (e: MessageEvent) => void) => {
+        listener = l;
+      }),
+      removeEventListener: vi.fn(),
+    };
+    const bridge = createPostMessageBridge({
+      target: { postMessage: vi.fn() },
+      host,
+      origin: ORIGIN,
+      expectedSource: () => peer,
+    });
+    const handler = vi.fn();
+    bridge.subscribe(handler);
+    const send = (e: { origin: string; data: unknown; source: unknown }) =>
+      listener?.(e as unknown as MessageEvent);
+
+    send({ origin: ORIGIN, data: READY, source: {} }); // wrong sender
+    expect(handler).not.toHaveBeenCalled();
+    send({ origin: ORIGIN, data: READY, source: peer }); // right sender
+    expect(handler).toHaveBeenCalledWith(READY);
   });
 
   it("unsubscribe + dispose stop delivery", () => {

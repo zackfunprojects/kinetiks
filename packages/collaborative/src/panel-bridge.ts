@@ -33,20 +33,30 @@ export function guestBridgeKind(hasWebviewBridge: boolean, isEmbedded: boolean):
   return "none";
 }
 
-/** Validate an inbound payload before trusting it — paired with the origin
- *  check on the postMessage path, and the only gate on the IPC path. */
+/** Validate an inbound payload before trusting it — source tag, type, AND the
+ *  required fields per type. Paired with the origin + sender-window checks on
+ *  the postMessage path, and the only gate on the IPC path. */
 export function isPanelMessage(data: unknown): data is PanelMessage {
   if (typeof data !== "object" || data === null) return false;
-  const m = data as { source?: unknown; type?: unknown };
+  const m = data as Record<string, unknown>;
   if (m.source !== PANEL_MESSAGE_SOURCE) return false;
-  return (
-    m.type === "ready" ||
-    m.type === "init" ||
-    m.type === "focus" ||
-    m.type === "delegate" ||
-    m.type === "visibility" ||
-    m.type === "ui_state"
-  );
+  const nullableString = (v: unknown) => typeof v === "string" || v === null;
+  switch (m.type) {
+    case "ready":
+      return nullableString(m.entity_id) && nullableString(m.thread_id);
+    case "init":
+      return typeof m.account_id === "string" && nullableString(m.thread_id) && nullableString(m.entity_id);
+    case "focus":
+      return typeof m.component_id === "string" && (m.field_name === undefined || typeof m.field_name === "string");
+    case "delegate":
+      return typeof m.region === "object" && m.region !== null;
+    case "visibility":
+      return typeof m.visible === "boolean";
+    case "ui_state":
+      return typeof m.change === "object" && m.change !== null;
+    default:
+      return false;
+  }
 }
 
 // ── postMessage transport (web iframe ↔ shell) ──────────────────────────────
@@ -68,16 +78,27 @@ export interface PostMessageBridgeOptions {
   host: MessageListenerHost;
   /** Required inbound origin AND outbound targetOrigin (the embed is same-origin). */
   origin: string;
+  /**
+   * The expected sender window for inbound messages — read lazily because the
+   * iframe `contentWindow` changes on reload. Binding `event.source` to it stops
+   * a same-origin sibling/child frame from spoofing panel messages. A `() => null`
+   * (or omitting it) skips the check.
+   */
+  expectedSource?: () => unknown;
   onError?: (err: unknown) => void;
 }
 
 export function createPostMessageBridge(opts: PostMessageBridgeOptions): PanelBridge {
-  const { target, host, origin, onError } = opts;
+  const { target, host, origin, expectedSource, onError } = opts;
   const handlers = new Set<(m: PanelMessage) => void>();
 
   const onMessage = (e: MessageEvent) => {
     if (e.origin !== origin) return; // strict same-origin
-    if (!isPanelMessage(e.data)) return; // source + type
+    if (expectedSource) {
+      const expected = expectedSource();
+      if (expected && e.source !== expected) return; // strict peer window
+    }
+    if (!isPanelMessage(e.data)) return; // source tag + per-type payload
     handlers.forEach((h) => h(e.data as PanelMessage));
   };
   host.addEventListener("message", onMessage);

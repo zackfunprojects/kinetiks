@@ -55,7 +55,7 @@ Main renderer = **default** partition; webviews = **`persist:collaborative`** (8
 
 ### Slice 2 — Frame abstraction + LRU (§14.2/§14.3, task 1)
 - [ ] Pure LRU module (`packages/collaborative/src/frame-cache.ts`): `touch(key)`, `evictions`, `≤3`, active pinned. Unit-tested.
-- [ ] `PanelFrame` component (`apps/id`): renders `<iframe>` (web) or `<webview src partition="persist:collaborative" allowpopups=false>` (desktop, via `useIsDesktop`), same `/embed?...` URL + skeleton (§14.2). Collaborative components inside are unchanged.
+- [ ] `PanelFrame` component (`apps/id`): renders `<iframe>` (web) or `<webview src={…}>` (desktop). The renderer does NOT set `partition` or `allowpopups` — the main process forces `partition: "persist:collaborative"` (will-attach-webview) and denies `window.open`, so they are authoritative there. Same `/embed?...` URL + skeleton (§14.2); collaborative components inside are unchanged.
 - [ ] `usePanelFrameCache` + AppPanel: keep ≤3 frames mounted, active visible, others `display:none` (warm), LRU-evict the 4th. Breadcrumb switch becomes warm.
 - [ ] Commit: `feat(panel): PanelFrame (iframe/webview) + ≤3 LRU frame cache`.
 

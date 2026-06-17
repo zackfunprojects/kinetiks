@@ -20,7 +20,7 @@ import {
 export function startSessionMirror(appUrl: string): void {
   let host: string;
   try {
-    host = new URL(appUrl).host;
+    host = new URL(appUrl).hostname; // no port — cookie domains never carry one
   } catch {
     return; // a malformed app URL is handled upstream; nothing to mirror.
   }

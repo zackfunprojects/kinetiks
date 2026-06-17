@@ -134,7 +134,6 @@ const fillStyle = (loaded: boolean): CSSProperties => ({
   height: "100%",
   display: "block",
   opacity: loaded ? 1 : 0,
-  transition: "opacity var(--kt-dur-2) ease",
 });
 
 function IframeEmbed({ src, app, visible }: { src: string; app: string; visible: boolean }) {
@@ -151,6 +150,8 @@ function IframeEmbed({ src, app, visible }: { src: string; app: string; visible:
             target: { postMessage: (m, o) => ref.current?.contentWindow?.postMessage(m, o) },
             host: window,
             origin: window.location.origin,
+            // Only trust messages from THIS frame's guest window.
+            expectedSource: () => ref.current?.contentWindow ?? null,
           }),
     visible,
   );
@@ -158,7 +159,14 @@ function IframeEmbed({ src, app, visible }: { src: string; app: string; visible:
   return (
     <>
       <Skeleton shown={!loaded} />
-      <iframe ref={ref} src={src} title={`App panel — ${app}`} onLoad={() => setLoaded(true)} style={fillStyle(loaded)} />
+      <iframe
+        ref={ref}
+        src={src}
+        title={`App panel — ${app}`}
+        onLoad={() => setLoaded(true)}
+        className="kt-panel-frame-fade"
+        style={fillStyle(loaded)}
+      />
     </>
   );
 }
@@ -187,7 +195,7 @@ function WebviewEmbed({ src, app, visible }: { src: string; app: string; visible
     <>
       <Skeleton shown={!loaded} />
       {/* Popups + window.open are denied by the main process; no allowpopups. */}
-      <webview ref={ref} src={src} title={`App panel — ${app}`} style={fillStyle(loaded)} />
+      <webview ref={ref} src={src} title={`App panel — ${app}`} className="kt-panel-frame-fade" style={fillStyle(loaded)} />
     </>
   );
 }
