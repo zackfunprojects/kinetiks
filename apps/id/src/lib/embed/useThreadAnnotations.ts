@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRealtimeChannel } from "@/lib/hooks/useRealtimeChannel";
+import { captureException } from "@/lib/observability/sentry";
 import type {
   Annotation,
   AnnotationKind,
@@ -75,12 +76,19 @@ export function useThreadAnnotations(
       setAnnotations([]);
       return;
     }
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("kinetiks_annotations")
       .select("*")
       .eq("account_id", accountId)
       .eq("thread_id", threadId)
       .order("created_at", { ascending: true });
+    if (error) {
+      void captureException(error, {
+        tags: { route: "/embed", action: "annotations.fetch", stage: "execute", app: "id" },
+        user: { id: accountId },
+      });
+      return; // keep the prior list rather than blanking on a transient failure
+    }
     setAnnotations(((data ?? []) as AnnotationRow[]).map(mapRow));
   }, [supabase, accountId, threadId]);
 
@@ -96,7 +104,9 @@ export function useThreadAnnotations(
         event: "*",
         schema: "public",
         table: "kinetiks_annotations",
-        filter: `account_id=eq.${accountId}`,
+        // Thread-scoped at the source so changes in other threads don't churn a
+        // refresh (RLS still enforces the account boundary; thread_id is unique).
+        filter: threadId ? `thread_id=eq.${threadId}` : undefined,
         onChange: () => {
           void refresh();
         },
@@ -107,15 +117,23 @@ export function useThreadAnnotations(
   const post = useCallback(
     async (intent: Record<string, unknown>) => {
       if (!threadId) return;
-      await fetch("/api/id/embed/annotations", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ thread_id: threadId, ...intent }),
-      });
+      try {
+        const res = await fetch("/api/id/embed/annotations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ thread_id: threadId, ...intent }),
+        });
+        if (!res.ok) throw new Error(`annotations route returned ${res.status}`);
+      } catch (err) {
+        void captureException(err, {
+          tags: { route: "/embed", action: "annotations.persist", stage: "persist", app: "id" },
+          user: { id: accountId },
+        });
+      }
       // Optimistic refresh; postgres_changes will also fire.
       void refresh();
     },
-    [threadId, refresh]
+    [threadId, refresh, accountId]
   );
 
   return {

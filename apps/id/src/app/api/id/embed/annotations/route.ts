@@ -63,18 +63,22 @@ export async function POST(request: Request) {
         .update(patch)
         .eq("id", intent.annotation_id)
         .eq("account_id", accountId)
+        .eq("thread_id", intent.thread_id)
         .select("id");
       if (updErr) throw updErr;
       if (!data || data.length === 0) return apiError("Annotation not found", 404);
       return apiSuccess({ accepted: true, op: intent.op, id: intent.annotation_id });
     }
 
-    // reply: append to the replies jsonb (read-modify-write, account-scoped).
+    // reply: append to the replies jsonb. Read-modify-write is safe under the
+    // single-player model (§17.5) — no concurrent writers per thread. An atomic
+    // JSONB append (RPC) is a v2/multi-user (team_scope) follow-up.
     const { data: row, error: fetchErr } = await admin
       .from("kinetiks_annotations")
       .select("replies")
       .eq("id", intent.annotation_id)
       .eq("account_id", accountId)
+      .eq("thread_id", intent.thread_id)
       .maybeSingle();
     if (fetchErr) throw fetchErr;
     if (!row) return apiError("Annotation not found", 404);
@@ -90,7 +94,8 @@ export async function POST(request: Request) {
       .from("kinetiks_annotations")
       .update({ replies: [...replies, reply] })
       .eq("id", intent.annotation_id)
-      .eq("account_id", accountId);
+      .eq("account_id", accountId)
+      .eq("thread_id", intent.thread_id);
     if (replyErr) throw replyErr;
     return apiSuccess({ accepted: true, op: "reply", id: intent.annotation_id });
   } catch (err) {

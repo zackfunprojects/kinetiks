@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type RefObject,
+} from "react";
 import { AnnotationChip } from "@kinetiks/ui";
 import {
   useThreadAnnotations,
@@ -49,6 +56,11 @@ export function AnnotationLayer({
   const seeded = useRef(false);
   const [positions, setPositions] = useState<Record<string, { x: number; y: number }>>({});
 
+  // Re-arm seeding when the thread changes (annotations are thread-scoped).
+  useEffect(() => {
+    seeded.current = false;
+  }, [threadId]);
+
   // Seed the fixture annotations once per thread (only if none exist yet).
   useEffect(() => {
     if (!enabled || !threadId || seeded.current) return;
@@ -64,7 +76,8 @@ export function AnnotationLayer({
     return () => clearTimeout(t);
   }, [enabled, threadId, annotations.length, create]);
 
-  const visible = selectVisibleAnnotations(annotations);
+  // Stable reference so the positioning effect doesn't loop every render.
+  const visible = useMemo(() => selectVisibleAnnotations(annotations), [annotations]);
 
   useLayoutEffect(() => {
     const container = containerRef.current;
@@ -73,7 +86,7 @@ export function AnnotationLayer({
     const next: Record<string, { x: number; y: number }> = {};
     for (const a of visible) {
       const el = container.querySelector(
-        `[data-component-id="${a.anchor.component_id}"][data-field-name="${a.anchor.field_name}"]`
+        `[data-component-id="${CSS.escape(a.anchor.component_id)}"][data-field-name="${CSS.escape(a.anchor.field_name)}"]`
       );
       if (!el) continue;
       const r = el.getBoundingClientRect();
