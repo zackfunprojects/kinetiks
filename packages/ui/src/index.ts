@@ -50,6 +50,9 @@ export type {
   AnnotationChipReply,
 } from "./annotation-chip";
 
+export { TempoControl } from "./tempo-control";
+export type { TempoControlProps, TempoModeValue } from "./tempo-control";
+
 export { EmptyState } from "./empty-state";
 export type { EmptyStateProps } from "./empty-state";
 

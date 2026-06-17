@@ -1,10 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { AgentCursor, type AgentCursorState } from "@kinetiks/ui";
+import { AgentCursor, TempoControl, type AgentCursorState } from "@kinetiks/ui";
 import {
   useAgentPresence,
   useCollaborative,
+  useTempoMode,
   type RealtimePresenceTransport,
 } from "@kinetiks/collaborative";
 import type { PresenceEvent, PresenceEventType } from "@kinetiks/types";
@@ -68,6 +69,7 @@ export function PresenceSurface({
   const containerRef = useRef<HTMLDivElement>(null);
   const agentPresence = useAgentPresence();
   const { emitUserPresence } = useCollaborative();
+  const [tempoMode, setTempoMode] = useTempoMode();
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
   // The field the user is currently on — the agent yields it (§7.2 inverse).
   const userFieldRef = useRef<string | null>(null);
@@ -145,6 +147,22 @@ export function PresenceSurface({
 
   return (
     <div ref={containerRef} style={{ position: "relative", height: "100%", overflow: "auto" }}>
+      {collaborative && (
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "flex-end",
+            padding: "var(--kt-s-2) var(--kt-s-3)",
+            borderBottom: "1px solid var(--kt-border-2)",
+            position: "sticky",
+            top: 0,
+            backgroundColor: "var(--kt-bg-base)",
+            zIndex: 20,
+          }}
+        >
+          <TempoControl value={tempoMode} onChange={setTempoMode} />
+        </div>
+      )}
       <ReferenceSequenceBuilder
         systemName={systemName}
         entityId={entityId}
