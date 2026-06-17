@@ -26,3 +26,9 @@ export {
 } from "./hooks";
 
 export type { CollaborativeTransport } from "./transport";
+
+export {
+  createRealtimePresenceTransport,
+  type RealtimePresenceTransport,
+} from "./realtime-transport";
+export { useRealtimePresenceTransport } from "./use-realtime-transport";
