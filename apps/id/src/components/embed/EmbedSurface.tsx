@@ -1,8 +1,13 @@
 "use client";
 
-import { useEffect } from "react";
-import { CollaborativeProvider } from "@kinetiks/collaborative";
-import { ReferenceSequenceBuilder } from "./ReferenceSequenceBuilder";
+import { useEffect, useMemo } from "react";
+import {
+  CollaborativeProvider,
+  useRealtimePresenceTransport,
+} from "@kinetiks/collaborative";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { createClient } from "@/lib/supabase/client";
+import { PresenceSurface } from "./PresenceSurface";
 
 export interface EmbedSurfaceProps {
   accountId: string;
@@ -54,17 +59,29 @@ export function EmbedSurface({
     return () => window.removeEventListener("message", onMessage);
   }, [entityId, threadId]);
 
-  const surface = (
-    <ReferenceSequenceBuilder systemName={systemName} entityId={entityId} />
-  );
+  // The browser client authenticates via the shared session cookie. The
+  // transport is null until mounted / outside collaborative mode.
+  const client = useMemo(() => createClient() as unknown as SupabaseClient, []);
+  const transport = useRealtimePresenceTransport({
+    client,
+    accountId,
+    threadId,
+    enabled: collaborative,
+  });
 
   return (
     <CollaborativeProvider
       enabled={collaborative}
       accountId={accountId}
       threadId={threadId}
+      transport={transport}
     >
-      {surface}
+      <PresenceSurface
+        systemName={systemName}
+        entityId={entityId}
+        collaborative={collaborative}
+        transport={transport}
+      />
     </CollaborativeProvider>
   );
 }

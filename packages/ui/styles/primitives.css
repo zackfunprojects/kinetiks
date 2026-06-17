@@ -411,3 +411,46 @@
   background-color: var(--kt-fg-1);
   animation: kt-cursor-blink var(--kt-dur-cursor) step-end infinite;
 }
+
+/* ─── Agent cursor (collaborative presence, spec §5.1) ───────── */
+@keyframes kt-agent-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 currentcolor; }
+  50%      { box-shadow: 0 0 0 5px transparent; }
+}
+.kt-agent-cursor {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--kt-s-1);
+  pointer-events: none;
+  z-index: 10;
+  transition: transform var(--kt-dur-3) var(--kt-ease-standard);
+  will-change: transform;
+}
+.kt-agent-cursor__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: var(--kt-radius-full);
+  background-color: currentcolor;
+  flex-shrink: 0;
+}
+.kt-agent-cursor--uncertain .kt-agent-cursor__dot {
+  animation: kt-agent-pulse var(--kt-dur-cursor) ease-in-out infinite;
+}
+.kt-agent-cursor__label {
+  font-size: var(--kt-fs-11);
+  font-weight: var(--kt-fw-med);
+  color: currentcolor;
+  background-color: var(--kt-bg-elevated);
+  border: 1px solid currentcolor;
+  padding: 0 var(--kt-s-1);
+  border-radius: var(--kt-radius-1);
+  white-space: nowrap;
+  box-shadow: var(--kt-shadow-sm);
+}
+@media (prefers-reduced-motion: reduce) {
+  .kt-agent-cursor { transition: none; }
+  .kt-agent-cursor--uncertain .kt-agent-cursor__dot { animation: none; }
+}

@@ -40,6 +40,9 @@ export type { ToggleProps } from "./toggle";
 export { ConfidenceRing } from "./confidence-ring";
 export type { ConfidenceRingProps, ConfidenceRingSize } from "./confidence-ring";
 
+export { AgentCursor } from "./agent-cursor";
+export type { AgentCursorProps, AgentCursorState } from "./agent-cursor";
+
 export { EmptyState } from "./empty-state";
 export type { EmptyStateProps } from "./empty-state";
 
