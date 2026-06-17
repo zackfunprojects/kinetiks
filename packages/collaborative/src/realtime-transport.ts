@@ -23,11 +23,13 @@ export interface RealtimePresenceTransport extends CollaborativeTransport {
  * beats round-trip back to this client. With a real server-side agent, beats
  * arrive from the other process.
  *
- * SECURITY: presence is scoped by the channel name (`presence:{account}:{thread}`)
- * and this client only ever uses its own account's channel. Broadcast channels
- * have NO built-in RLS, so the channel name is not an authorization boundary on
- * its own — full Realtime Authorization (RLS on `realtime.messages`) is the 8.8
- * hardening item.
+ * SECURITY (Realtime Authorization, plan D4 + phase-8.8 D1): the channel is
+ * `private: true`, so the `realtime.messages` RLS policy (migration 00091)
+ * authorizes subscribe + broadcast — a foreign account cannot join
+ * `presence:{account}:{thread}` even if it guessed the name. `setAuth()` (no-arg)
+ * refreshes the realtime token from the browser client's current session before
+ * the channel joins, so the private join carries the account JWT the policy
+ * reads. The send-side `publishAccountScoped` guard remains belt-and-suspenders.
  *
  * Annotations + undo transport methods are no-ops here; they land in 8.4/8.5.
  */
@@ -41,19 +43,27 @@ export function createRealtimePresenceTransport(opts: {
   const { client, accountId, threadId, onError } = opts;
   const channelName = presenceChannel(accountId, threadId);
   const agentCallbacks = new Set<(event: PresenceEvent) => void>();
+  let disposed = false;
 
   const channel: RealtimeChannel = client.channel(channelName, {
-    config: { broadcast: { self: true } },
+    config: { private: true, broadcast: { self: true } },
   });
 
-  channel
-    .on("broadcast", { event: PRESENCE_EVENT }, (message) => {
-      const event = message.payload as PresenceEvent | undefined;
-      if (event?.participant === "agent") {
-        agentCallbacks.forEach((cb) => cb(event));
-      }
+  channel.on("broadcast", { event: PRESENCE_EVENT }, (message) => {
+    const event = message.payload as PresenceEvent | undefined;
+    if (event?.participant === "agent") {
+      agentCallbacks.forEach((cb) => cb(event));
+    }
+  });
+
+  // Authorize the private join, then subscribe. If the transport is disposed
+  // before setAuth resolves (fast mount/unmount), skip the join so we never
+  // re-add a channel that dispose() already removed.
+  void Promise.resolve(client.realtime.setAuth())
+    .then(() => {
+      if (!disposed) channel.subscribe();
     })
-    .subscribe();
+    .catch((err) => onError?.(err));
 
   const send = (event: PresenceEvent) => {
     void Promise.resolve(
@@ -76,6 +86,7 @@ export function createRealtimePresenceTransport(opts: {
     applyUndo: async () => {},
     delegate: async () => {},
     dispose: () => {
+      disposed = true;
       void Promise.resolve(client.removeChannel(channel)).catch((err) =>
         onError?.(err)
       );
