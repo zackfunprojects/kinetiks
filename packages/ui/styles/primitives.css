@@ -454,3 +454,57 @@
   .kt-agent-cursor { transition: none; }
   .kt-agent-cursor--uncertain .kt-agent-cursor__dot { animation: none; }
 }
+
+/* ─── Annotation chip (collaborative annotations, spec §6) ───── */
+.kt-annotation-chip {
+  background-color: var(--kt-bg-elevated);
+  border: 1px solid var(--kt-border-2);
+  border-radius: var(--kt-radius-2);
+  box-shadow: var(--kt-shadow-sm);
+  padding: var(--kt-s-1) var(--kt-s-2);
+  font-size: var(--kt-fs-12);
+}
+.kt-annotation-chip__head {
+  display: flex;
+  align-items: center;
+  gap: var(--kt-s-1);
+}
+.kt-annotation-chip__summary {
+  flex: 1;
+  min-width: 0;
+  justify-content: flex-start;
+  text-align: left;
+  color: var(--kt-fg-1);
+}
+.kt-annotation-chip__actions {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+.kt-annotation-chip__body {
+  margin-top: var(--kt-s-2);
+  padding-top: var(--kt-s-2);
+  border-top: 1px solid var(--kt-border-1);
+}
+.kt-annotation-chip__text {
+  margin: 0;
+  color: var(--kt-fg-2);
+  line-height: var(--kt-lh-body);
+}
+.kt-annotation-chip__replies {
+  margin: var(--kt-s-2) 0 0;
+  padding-left: var(--kt-s-3);
+  color: var(--kt-fg-2);
+  list-style: none;
+}
+.kt-annotation-chip__reply-author {
+  font-weight: var(--kt-fw-med);
+  color: var(--kt-fg-1);
+}
+.kt-annotation-chip__reply-form {
+  margin-top: var(--kt-s-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--kt-s-1);
+  align-items: flex-start;
+}
