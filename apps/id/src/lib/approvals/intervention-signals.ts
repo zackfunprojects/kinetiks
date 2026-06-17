@@ -46,18 +46,23 @@ export async function applyInterventionSignal(
   if (computed.last_rejection_at) updates.last_rejection_at = computed.last_rejection_at;
 
   if (existing.id) {
-    await admin.from("kinetiks_approval_thresholds").update(updates).eq("id", existing.id);
+    const { error: updErr } = await admin
+      .from("kinetiks_approval_thresholds")
+      .update(updates)
+      .eq("id", existing.id);
+    if (updErr) throw updErr;
   } else {
-    await admin.from("kinetiks_approval_thresholds").insert({
+    const { error: insErr } = await admin.from("kinetiks_approval_thresholds").insert({
       account_id: accountId,
       action_category: category,
       ...updates,
     });
+    if (insErr) throw insErr;
   }
 
   // ── Ledger entry (only for signals with a dedicated event type) ──
   if (weight.ledgerEventType) {
-    await admin.from("kinetiks_ledger").insert({
+    const { error: ledgerErr } = await admin.from("kinetiks_ledger").insert({
       account_id: accountId,
       event_type: weight.ledgerEventType,
       source_app: options.source_app ?? "kinetiks_fixtures",
@@ -71,6 +76,7 @@ export async function applyInterventionSignal(
       },
       source_operator: "approval_system",
     });
+    if (ledgerErr) throw ledgerErr;
   }
 
   return getThreshold(accountId, category);

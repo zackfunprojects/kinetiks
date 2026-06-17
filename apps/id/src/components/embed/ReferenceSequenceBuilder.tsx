@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Badge, BulkActionBar, Button, Input, Pill } from "@kinetiks/ui";
 
 /**
@@ -49,6 +49,7 @@ export function ReferenceSequenceBuilder({
   // Multi-select drives the bulk action bar (§16.4) — togglable by the user or
   // triggerable by the system ("Kit selected N").
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const dupCounter = useRef(0);
 
   const updateStep = (id: string, label: string) =>
     setSteps((prev) => prev.map((s) => (s.id === id ? { ...s, label } : s)));
@@ -71,7 +72,18 @@ export function ReferenceSequenceBuilder({
             onSelectAll={() => setSelected(new Set(steps.map((s) => s.id)))}
             onClear={() => setSelected(new Set())}
             actions={[
-              { label: "Duplicate", onClick: () => setSelected(new Set()) },
+              {
+                label: "Duplicate",
+                onClick: () => {
+                  setSteps((prev) => {
+                    const copies = prev
+                      .filter((s) => selected.has(s.id))
+                      .map((s) => ({ ...s, id: `${s.id}-copy-${dupCounter.current++}` }));
+                    return [...prev, ...copies];
+                  });
+                  setSelected(new Set());
+                },
+              },
               {
                 label: "Delete",
                 destructive: true,

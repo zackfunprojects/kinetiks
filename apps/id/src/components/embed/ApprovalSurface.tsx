@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ApprovalOverlayBar, Button, Input, Textarea } from "@kinetiks/ui";
 import { captureException } from "@/lib/observability/sentry";
+import { bottomCenterAnchor } from "./floating-anchor";
 
 /** The action the system is presenting for approval (§9.1) — an email draft. */
 const ORIGINAL = {
@@ -44,10 +45,12 @@ export function ApprovalSurface({
   const [body, setBody] = useState(ORIGINAL.body);
   const [reason, setReason] = useState("");
   const [pending, setPending] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [resolved, setResolved] = useState<Resolved | null>(null);
 
   const submit = async (payload: Record<string, unknown>): Promise<boolean> => {
     setPending(true);
+    setErrorMessage(null);
     try {
       const res = await fetch("/api/id/embed/approval", {
         method: "POST",
@@ -61,6 +64,7 @@ export function ApprovalSurface({
         tags: { route: "/embed", action: "approval.decide", stage: "persist", app: "id" },
         user: { id: accountId },
       });
+      setErrorMessage("We couldn't save that decision. Try again.");
       return false;
     } finally {
       setPending(false);
@@ -91,7 +95,7 @@ export function ApprovalSurface({
 
   if (resolved) {
     return (
-      <div style={anchorStyle}>
+      <div style={bottomCenterAnchor}>
         <div
           className={`kt-floating-bar ${resolved.kind === "approved" ? "kt-floating-bar--success" : ""}`}
           role="status"
@@ -120,7 +124,7 @@ export function ApprovalSurface({
   if (!armed) return null;
 
   return (
-    <div style={anchorStyle}>
+    <div style={bottomCenterAnchor}>
       <div
         style={{
           backgroundColor: "var(--kt-bg-elevated)",
@@ -178,6 +182,15 @@ export function ApprovalSurface({
         ) : null}
       </div>
 
+      {errorMessage ? (
+        <div
+          role="alert"
+          style={{ marginBottom: "var(--kt-s-2)", fontSize: "var(--kt-fs-12)", color: "var(--kt-danger)" }}
+        >
+          {errorMessage}
+        </div>
+      ) : null}
+
       {!rejecting ? (
         <ApprovalOverlayBar
           summary="Follow-up email to a fintech CFO"
@@ -192,12 +205,3 @@ export function ApprovalSurface({
     </div>
   );
 }
-
-const anchorStyle = {
-  position: "absolute",
-  left: "50%",
-  bottom: "var(--kt-s-4)",
-  transform: "translateX(-50%)",
-  zIndex: 22,
-  width: "min(560px, calc(100% - var(--kt-s-6)))",
-} as const;

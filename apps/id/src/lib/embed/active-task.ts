@@ -44,10 +44,23 @@ export async function loadTaskById(
   return (data as ActiveTaskRow | null) ?? null;
 }
 
-/** Narrow the jsonb `steps` column to the typed step array. */
+const STEP_STATUSES = new Set(["queued", "working", "done", "skipped", "failed"]);
+
+/** Narrow the jsonb `steps` column to the typed step array, dropping malformed
+ *  entries rather than letting them break skip/progress logic later. */
 export function parseSteps(steps: ActiveTaskRow["steps"]): ActiveTaskStep[] {
   if (!Array.isArray(steps)) return [];
-  return steps as unknown as ActiveTaskStep[];
+  return (steps as unknown[]).filter((s): s is ActiveTaskStep => {
+    if (typeof s !== "object" || s === null) return false;
+    const step = s as Record<string, unknown>;
+    return (
+      typeof step.index === "number" &&
+      typeof step.app_name === "string" &&
+      typeof step.label === "string" &&
+      typeof step.status === "string" &&
+      STEP_STATUSES.has(step.status)
+    );
+  });
 }
 
 /**
@@ -60,6 +73,11 @@ export function applySkipStep(
   currentStepIndex: number,
   skipIndex: number,
 ): { steps: ActiveTaskStep[]; currentStepIndex: number } {
+  // Only the current step may be skipped (§8.4) — guard against a stale or
+  // malicious client targeting an arbitrary step.
+  if (skipIndex !== currentStepIndex) {
+    return { steps, currentStepIndex };
+  }
   const nextSteps = steps.map((s) => {
     if (s.index === skipIndex) return { ...s, status: "skipped" as const };
     if (s.index === skipIndex + 1 && s.status === "queued") return { ...s, status: "working" as const };

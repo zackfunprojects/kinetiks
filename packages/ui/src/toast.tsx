@@ -129,7 +129,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                 {t.action ? (
                   <Button
                     className="kt-toast__action"
-                    variant={t.action.variant === "primary" ? "primary" : "secondary"}
+                    variant={t.action.variant === "primary" ? "primary" : "outline"}
                     size="sm"
                     onClick={() => {
                       t.action?.onClick();

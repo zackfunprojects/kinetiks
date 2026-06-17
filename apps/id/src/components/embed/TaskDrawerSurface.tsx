@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Button, TaskDrawer, type TaskDrawerStep } from "@kinetiks/ui";
 import { useActiveTask } from "@/lib/embed/useActiveTask";
 import { KillPrompt } from "./KillPrompt";
+import { bottomCenterAnchor } from "./floating-anchor";
 import type { ActiveTaskStep } from "@kinetiks/types";
 
 /**
@@ -57,10 +58,15 @@ export function TaskDrawerSurface({
   const [expanded, setExpanded] = useState(false);
   const [killing, setKilling] = useState(false);
   const [killPending, setKillPending] = useState(false);
+  const [killError, setKillError] = useState<string | null>(null);
   const [ack, setAck] = useState<string | null>(null);
   const opened = useRef(false);
   // Stops the playback from mutating a task the user just killed.
   const killedRef = useRef(false);
+  // Live task, read inside the playback effect without making it a dependency
+  // (which would tear down the scheduled timers on the next render).
+  const taskRef = useRef(task);
+  taskRef.current = task;
 
   useEffect(() => {
     opened.current = false;
@@ -69,14 +75,15 @@ export function TaskDrawerSurface({
     setAck(null);
   }, [threadId]);
 
-  // Open the fixture task once per thread, then play the progress beats.
+  // Open the fixture task once per thread, then play the progress beats. Deps
+  // are all stable (memoized mutators + memoized callbacks), so the scheduled
+  // timers survive incidental re-renders — only a thread change or unmount
+  // cancels them.
   useEffect(() => {
     if (!enabled || !threadId || opened.current) return;
-    if (task) {
-      opened.current = true;
-      return;
-    }
     opened.current = true;
+    // A task already exists for this thread — don't drive the fixture playback.
+    if (taskRef.current) return;
     let cancelled = false;
     const timers: Array<ReturnType<typeof setTimeout>> = [];
     void (async () => {
@@ -120,7 +127,7 @@ export function TaskDrawerSurface({
       cancelled = true;
       timers.forEach(clearTimeout);
     };
-  }, [enabled, threadId, task, open, advance, complete, onWorkComplete]);
+  }, [enabled, threadId, open, advance, complete, onWorkComplete]);
 
   if (!enabled) return null;
 
@@ -128,7 +135,7 @@ export function TaskDrawerSurface({
   if (!task) {
     if (!ack) return null;
     return (
-      <div style={anchorStyle}>
+      <div style={bottomCenterAnchor}>
         <div className="kt-floating-bar kt-floating-bar--success" role="status">
           <span className="kt-floating-bar__body" style={{ fontSize: "var(--kt-fs-13)" }}>
             {ack}
@@ -151,18 +158,25 @@ export function TaskDrawerSurface({
   }));
 
   const handleConfirmKill = async (reasonCode: Parameters<typeof kill>[0]["reasonCode"], feedback: string) => {
-    killedRef.current = true; // stop the playback from touching the killed task
     setKillPending(true);
+    setKillError(null);
     const result = await kill({ taskId: task.id, reasonCode, feedback: feedback || undefined });
     setKillPending(false);
+    if (!result) {
+      // The kill failed server-side; the task is still active — keep the prompt
+      // open and surface a user-safe error rather than faking a killed state.
+      setKillError("We couldn't stop the task. Try again.");
+      return;
+    }
+    killedRef.current = true; // now safe to stop the playback
     setKilling(false);
     setExpanded(false);
-    if (result) setAck(result.acknowledgement);
+    setAck(result.acknowledgement);
     onKilled?.();
   };
 
   return (
-    <div style={anchorStyle}>
+    <div style={bottomCenterAnchor}>
       <TaskDrawer
         systemName={systemName ?? "Kinetiks"}
         name={task.name}
@@ -173,6 +187,7 @@ export function TaskDrawerSurface({
         expanded={expanded}
         onToggle={() => setExpanded((v) => !v)}
         onKill={() => {
+          setKillError(null);
           setKilling(true);
           setExpanded(true);
         }}
@@ -182,8 +197,12 @@ export function TaskDrawerSurface({
           killing ? (
             <KillPrompt
               pending={killPending}
+              error={killError}
               onConfirm={(reasonCode, feedback) => void handleConfirmKill(reasonCode, feedback)}
-              onCancel={() => setKilling(false)}
+              onCancel={() => {
+                setKillError(null);
+                setKilling(false);
+              }}
             />
           ) : undefined
         }
@@ -191,12 +210,3 @@ export function TaskDrawerSurface({
     </div>
   );
 }
-
-const anchorStyle = {
-  position: "absolute",
-  left: "50%",
-  bottom: "var(--kt-s-4)",
-  transform: "translateX(-50%)",
-  zIndex: 22,
-  width: "min(560px, calc(100% - var(--kt-s-6)))",
-} as const;

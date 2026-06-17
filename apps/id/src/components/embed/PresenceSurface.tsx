@@ -104,6 +104,23 @@ export function PresenceSurface({
   const agentTargetRef = useRef<string | null>(null);
   const firedGrabRef = useRef<Set<string>>(new Set());
 
+  // The panel is thread-scoped (§17.1): reset per-thread review/intervention
+  // state on a thread switch so a new thread doesn't inherit stale approval
+  // state or suppressed grab/uncertainty signals from the previous one.
+  useEffect(() => {
+    setReviewArmed(false);
+    setShowLeaveWarning(false);
+    firedGrabRef.current.clear();
+    agentTargetRef.current = null;
+    userFieldRef.current = null;
+    warnedRef.current = false;
+  }, [threadId]);
+
+  // Stable callbacks for the task drawer → keep the playback effect's deps from
+  // changing identity every render (would tear down its scheduled timers).
+  const handleWorkComplete = useCallback(() => setReviewArmed(true), []);
+  const handleKilled = useCallback(() => setReviewArmed(false), []);
+
   // Position the cursor over the agent's target field, relative to the surface.
   useLayoutEffect(() => {
     const container = containerRef.current;
@@ -208,11 +225,14 @@ export function PresenceSurface({
       // field-level penalty once per field; the server records the signal.
       if (agentTargetRef.current === key && !firedGrabRef.current.has(key)) {
         firedGrabRef.current.add(key);
-        void fetch("/api/id/embed/intervention", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ signal: "grab", component_id: componentId, field_name: fieldName }),
-        }).catch((err) => {
+        void (async () => {
+          const res = await fetch("/api/id/embed/intervention", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ signal: "grab", component_id: componentId, field_name: fieldName }),
+          });
+          if (!res.ok) throw new Error(`intervention route returned ${res.status}`);
+        })().catch((err) => {
           void captureException(err, {
             tags: { route: "/embed", action: "intervention.grab", stage: "persist", app: "id" },
             user: { id: accountId },
@@ -296,8 +316,8 @@ export function PresenceSurface({
         accountId={accountId}
         threadId={threadId}
         enabled={collaborative}
-        onWorkComplete={() => setReviewArmed(true)}
-        onKilled={() => setReviewArmed(false)}
+        onWorkComplete={handleWorkComplete}
+        onKilled={handleKilled}
       />
       <ApprovalSurface
         systemName={systemName}

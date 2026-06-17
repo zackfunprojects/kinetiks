@@ -148,28 +148,48 @@ export function useActiveTask(accountId: string, threadId: string | null): UseAc
     [threadId, refresh, accountId],
   );
 
-  return {
-    task,
-    open: async (input) => {
+  // Memoize the mutators so callers (e.g. the fixture-playback effect in
+  // TaskDrawerSurface) get stable identities — otherwise an effect that depends
+  // on them re-runs on every render and tears down its own scheduled timers.
+  const open = useCallback(
+    async (input: OpenTaskInput) => {
       const row = (await post({ op: "open", ...input })) as ActiveTaskRow | null;
       return row ? mapRow(row) : null;
     },
-    advance: async (taskId, input) => {
+    [post],
+  );
+  const advance = useCallback(
+    async (taskId: string, input: ProgressInput) => {
       await post({ op: "progress", task_id: taskId, ...input });
     },
-    pause: async (taskId) => {
+    [post],
+  );
+  const pause = useCallback(
+    async (taskId: string) => {
       await post({ op: "pause", task_id: taskId });
     },
-    resume: async (taskId) => {
+    [post],
+  );
+  const resume = useCallback(
+    async (taskId: string) => {
       await post({ op: "resume", task_id: taskId });
     },
-    complete: async (taskId) => {
+    [post],
+  );
+  const complete = useCallback(
+    async (taskId: string) => {
       await post({ op: "complete", task_id: taskId });
     },
-    skipStep: async (taskId, stepIndex) => {
+    [post],
+  );
+  const skipStep = useCallback(
+    async (taskId: string, stepIndex: number) => {
       await post({ op: "skip_step", task_id: taskId, step_index: stepIndex });
     },
-    kill: async (input) => {
+    [post],
+  );
+  const kill = useCallback(
+    async (input: KillInput): Promise<KillResult | null> => {
       if (!threadId) return null;
       try {
         const res = await fetch("/api/id/embed/active-task/kill", {
@@ -199,5 +219,11 @@ export function useActiveTask(accountId: string, threadId: string | null): UseAc
         return null;
       }
     },
-  };
+    [threadId, refresh, accountId],
+  );
+
+  return useMemo(
+    () => ({ task, open, advance, pause, resume, complete, skipStep, kill }),
+    [task, open, advance, pause, resume, complete, skipStep, kill],
+  );
 }

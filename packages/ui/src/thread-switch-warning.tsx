@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { Button } from "./button";
 
 export interface ThreadSwitchWarningProps {
@@ -27,10 +28,24 @@ function WarnIcon() {
  * The thread-switch / close-panel warning (spec §16.3): an amber floating bar
  * shown when the user tries to leave while the system is mid-task. Stay is the
  * primary (dark-filled) action; Leave is secondary. Token-only; light + dark.
+ *
+ * It is a transient non-modal bar, so it uses `role="alert"` (not alertdialog,
+ * which implies a focus-trapped modal) and moves focus to the safe default
+ * (Stay) so keyboard/screen-reader users don't miss it.
  */
 export function ThreadSwitchWarning({ message, onStay, onLeave }: ThreadSwitchWarningProps) {
+  const stayRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    stayRef.current?.focus();
+  }, []);
+
   return (
-    <div className="kt-floating-bar kt-floating-bar--warning" role="alertdialog" aria-label="Leave while working?">
+    <div
+      className="kt-floating-bar kt-floating-bar--warning"
+      role="alert"
+      aria-live="assertive"
+      aria-label="Leave while working?"
+    >
       <span className="kt-floating-bar__icon">
         <WarnIcon />
       </span>
@@ -41,7 +56,7 @@ export function ThreadSwitchWarning({ message, onStay, onLeave }: ThreadSwitchWa
         <Button variant="secondary" size="sm" onClick={onLeave}>
           Leave
         </Button>
-        <Button variant="primary" size="sm" onClick={onStay}>
+        <Button ref={stayRef} variant="primary" size="sm" onClick={onStay}>
           Stay
         </Button>
       </span>

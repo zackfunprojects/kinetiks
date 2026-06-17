@@ -24,12 +24,14 @@ export async function getThreshold(
 ): Promise<ApprovalThreshold> {
   const admin = createAdminClient();
 
+  // A missing row is legitimate (first interaction) — use maybeSingle so the
+  // absence does not surface as a swallowed PGRST116 error.
   const { data } = await admin
     .from("kinetiks_approval_thresholds")
     .select("*")
     .eq("account_id", accountId)
     .eq("action_category", category)
-    .single();
+    .maybeSingle();
 
   if (data) return data as ApprovalThreshold;
 

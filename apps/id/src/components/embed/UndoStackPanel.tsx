@@ -6,6 +6,7 @@ import {
   useWorkspaceActions,
   type RecordActionInput,
 } from "@/lib/embed/useWorkspaceActions";
+import { captureException } from "@/lib/observability/sentry";
 
 /** A few agent actions the reference agent "took", so the stack has content. */
 const SEED: RecordActionInput[] = [
@@ -58,16 +59,23 @@ export function UndoStackPanel({
       // Sequential: each record reads max(sequence_index)+1, so parallel
       // inserts would collide on the unique (account, thread, sequence_index).
       void (async () => {
-        for (const a of SEED) await record(a);
-        // §16.2: after the system fills fields, a success toast is the primary
-        // undo affordance — a visible Undo button, not just a shortcut.
-        push({
-          tone: "success",
-          title: "Sequence fields drafted",
-          body: `${SEED.length} fields filled`,
-          action: { label: "Undo", onClick: () => undoLastRef.current("agent") },
-          duration: 6000,
-        });
+        try {
+          for (const a of SEED) await record(a);
+          // §16.2: after the system fills fields, a success toast is the primary
+          // undo affordance — a visible Undo button, not just a shortcut.
+          push({
+            tone: "success",
+            title: "Sequence fields drafted",
+            body: `${SEED.length} fields filled`,
+            action: { label: "Undo", onClick: () => undoLastRef.current("agent") },
+            duration: 6000,
+          });
+        } catch (err) {
+          void captureException(err, {
+            tags: { route: "/embed", action: "workspace.seed", stage: "persist", app: "id" },
+            user: { id: accountId },
+          });
+        }
       })();
     }, 800);
     return () => clearTimeout(t);

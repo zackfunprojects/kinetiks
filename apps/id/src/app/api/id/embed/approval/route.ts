@@ -38,7 +38,7 @@ export async function POST(request: Request) {
   try {
     if (intent.decision === "approve") {
       const threshold = await calibrateThreshold(accountId, REFERENCE_ACTION_CATEGORY, "approved_clean");
-      await admin.from("kinetiks_ledger").insert({
+      const { error: ledgerErr } = await admin.from("kinetiks_ledger").insert({
         account_id: accountId,
         event_type: "approval_approved",
         source_app: "kinetiks_fixtures",
@@ -46,6 +46,7 @@ export async function POST(request: Request) {
         detail: { is_fixture: true, action_category: REFERENCE_ACTION_CATEGORY, in_panel: true },
         source_operator: "approval_system",
       });
+      if (ledgerErr) throw ledgerErr;
       return apiSuccess({ decision: "approve", auto_approve_threshold: threshold.auto_approve_threshold });
     }
 
@@ -61,7 +62,7 @@ export async function POST(request: Request) {
         REFERENCE_ACTION_CATEGORY,
         "approved_with_edits",
       );
-      await admin.from("kinetiks_ledger").insert({
+      const { error: ledgerErr } = await admin.from("kinetiks_ledger").insert({
         account_id: accountId,
         event_type: "approval_approved_with_edits",
         source_app: "kinetiks_fixtures",
@@ -74,6 +75,7 @@ export async function POST(request: Request) {
         },
         source_operator: "approval_system",
       });
+      if (ledgerErr) throw ledgerErr;
       return apiSuccess({
         decision: "approve_with_edits",
         edit_classification: classifications,
@@ -83,7 +85,7 @@ export async function POST(request: Request) {
 
     // reject — trust contraction.
     const threshold = await calibrateThreshold(accountId, REFERENCE_ACTION_CATEGORY, "rejected");
-    await admin.from("kinetiks_ledger").insert({
+    const { error: ledgerErr } = await admin.from("kinetiks_ledger").insert({
       account_id: accountId,
       event_type: "approval_rejected",
       source_app: "kinetiks_fixtures",
@@ -96,6 +98,7 @@ export async function POST(request: Request) {
       },
       source_operator: "approval_system",
     });
+    if (ledgerErr) throw ledgerErr;
     return apiSuccess({ decision: "reject", auto_approve_threshold: threshold.auto_approve_threshold });
   } catch (err) {
     await captureException(err, {
