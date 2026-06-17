@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRealtimeChannel } from "@/lib/hooks/useRealtimeChannel";
 import { captureException } from "@/lib/observability/sentry";
+import { lastUndoable } from "@/lib/embed/undo-selection";
 import type { UndoTimelineItem } from "@kinetiks/ui";
 import type { Database } from "@kinetiks/supabase";
 
@@ -111,10 +112,7 @@ export function useWorkspaceActions(
 
   const undoLast = useCallback(
     (participant?: "agent" | "user") => {
-      const candidates = actions.filter(
-        (a) => !a.undone && (!participant || a.participant === participant)
-      );
-      const last = candidates[candidates.length - 1];
+      const last = lastUndoable(actions, participant);
       if (last) void post({ op: "undo", action_id: last.id });
     },
     [actions, post]
