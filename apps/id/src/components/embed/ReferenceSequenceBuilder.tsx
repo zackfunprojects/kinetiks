@@ -24,13 +24,20 @@ interface Step {
   label: string;
 }
 
+export interface ReferenceSequenceBuilderProps {
+  systemName: string | null;
+  entityId: string | null;
+  /** Fired when the user focuses a field — drives user presence + intervene. */
+  onFieldFocus?: (componentId: string, fieldName: string) => void;
+  onFieldBlur?: () => void;
+}
+
 export function ReferenceSequenceBuilder({
   systemName,
   entityId,
-}: {
-  systemName: string | null;
-  entityId: string | null;
-}) {
+  onFieldFocus,
+  onFieldBlur,
+}: ReferenceSequenceBuilderProps) {
   const [topic, setTopic] = useState("New pricing");
   const [tone, setTone] = useState("Direct, value-led");
   const [segment, setSegment] = useState("fintech");
@@ -86,11 +93,23 @@ export function ReferenceSequenceBuilder({
       {/* Topic + tone */}
       <div data-component-id="sequence" data-field-name="topic" style={{ marginBottom: "var(--kt-s-4)" }}>
         <Label>Topic</Label>
-        <Input value={topic} onChange={(e) => setTopic(e.target.value)} aria-label="Topic" />
+        <Input
+          value={topic}
+          onChange={(e) => setTopic(e.target.value)}
+          onFocus={() => onFieldFocus?.("sequence", "topic")}
+          onBlur={() => onFieldBlur?.()}
+          aria-label="Topic"
+        />
       </div>
       <div data-component-id="sequence" data-field-name="tone" style={{ marginBottom: "var(--kt-s-5)" }}>
         <Label>Tone</Label>
-        <Input value={tone} onChange={(e) => setTone(e.target.value)} aria-label="Tone" />
+        <Input
+          value={tone}
+          onChange={(e) => setTone(e.target.value)}
+          onFocus={() => onFieldFocus?.("sequence", "tone")}
+          onBlur={() => onFieldBlur?.()}
+          aria-label="Tone"
+        />
       </div>
 
       {/* Steps */}
@@ -109,6 +128,8 @@ export function ReferenceSequenceBuilder({
             <Input
               value={step.label}
               onChange={(e) => updateStep(step.id, e.target.value)}
+              onFocus={() => onFieldFocus?.(step.id, "label")}
+              onBlur={() => onFieldBlur?.()}
               aria-label={`${step.channel} step`}
             />
           </li>
