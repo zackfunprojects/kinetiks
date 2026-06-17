@@ -25,14 +25,16 @@ export async function getThreshold(
   const admin = createAdminClient();
 
   // A missing row is legitimate (first interaction) — use maybeSingle so the
-  // absence does not surface as a swallowed PGRST116 error.
-  const { data } = await admin
+  // absence does not surface as a swallowed PGRST116 error. A real query failure
+  // must still throw rather than masquerading as "no row" → virtual default.
+  const { data, error } = await admin
     .from("kinetiks_approval_thresholds")
     .select("*")
     .eq("account_id", accountId)
     .eq("action_category", category)
     .maybeSingle();
 
+  if (error) throw error;
   if (data) return data as ApprovalThreshold;
 
   // Return a virtual default (not persisted until first interaction)
