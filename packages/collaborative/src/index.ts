@@ -46,3 +46,14 @@ export {
   type WebviewHostElement,
   type WebviewGuestApi,
 } from "./panel-bridge";
+
+// The ≤3 LRU frame cache for the app panel (spec §14.3).
+export {
+  DEFAULT_FRAME_CAPACITY,
+  createFrameCache,
+  frameKey,
+  touchFrame,
+  touchFrames,
+  type FrameDescriptor,
+  type FrameCacheState,
+} from "./frame-cache";

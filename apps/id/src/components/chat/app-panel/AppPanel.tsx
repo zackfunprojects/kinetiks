@@ -2,8 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@kinetiks/ui";
+import { frameKey, type FrameDescriptor } from "@kinetiks/collaborative";
 import type { AppPanelTarget, PanelStep } from "./AppPanelContext";
 import { PanelBreadcrumb } from "./PanelBreadcrumb";
+import { PanelFrame } from "./PanelFrame";
+import { usePanelFrameCache } from "./usePanelFrameCache";
 import { useMediaQuery, WIDE_VIEWPORT_QUERY } from "@/lib/hooks/useMediaQuery";
 
 interface AppPanelProps {
@@ -13,75 +16,16 @@ interface AppPanelProps {
   onClose: () => void;
 }
 
-/** One embedded surface: same-origin `/embed` iframe + skeleton (§14.2). */
-function EmbedFrame({
-  app,
-  entity,
-  mode,
-  threadId,
-  accountId,
-}: {
-  app: string;
-  entity?: string;
-  mode: AppPanelTarget["mode"];
-  threadId?: string;
-  accountId: string;
-}) {
-  const [loaded, setLoaded] = useState(false);
-  const src = useMemo(() => {
-    const params = new URLSearchParams({ mode, account: accountId });
-    if (app) params.set("app", app);
-    if (entity) params.set("entity", entity);
-    if (threadId) params.set("thread", threadId);
-    return `/embed?${params.toString()}`;
-  }, [app, entity, mode, threadId, accountId]);
-
-  useEffect(() => {
-    setLoaded(false);
-  }, [src]);
-
-  return (
-    <div style={{ position: "relative", flex: 1, minHeight: 0, minWidth: 0 }}>
-      {!loaded && (
-        <div
-          aria-busy="true"
-          aria-live="polite"
-          aria-label="Loading workspace"
-          style={{
-            position: "absolute",
-            inset: 0,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            color: "var(--kt-fg-3)",
-            fontSize: "var(--kt-fs-13)",
-          }}
-        >
-          Loading workspace…
-        </div>
-      )}
-      <iframe
-        src={src}
-        title={`App panel — ${app}`}
-        onLoad={() => setLoaded(true)}
-        style={{
-          border: "none",
-          width: "100%",
-          height: "100%",
-          display: "block",
-          opacity: loaded ? 1 : 0,
-          transition: "opacity var(--kt-dur-2) ease",
-        }}
-      />
-    </div>
-  );
+function toDescriptor(app: string, entity?: string): FrameDescriptor {
+  return { key: frameKey(app, entity), app, entity };
 }
 
 /**
- * The app panel (spec §4 + §10.4). Mounts the reference surface as a same-origin
- * `/embed` iframe. For a multi-app orchestration the header shows a breadcrumb
- * and, on wide viewports, a side-by-side toggle; the presence layer renders
- * inside each frame (8.3+).
+ * The app panel (spec §4 + §10.4 + §14.3). Mounts each app surface via
+ * `PanelFrame` (a `<webview>` on the desktop shell, an `<iframe>` on the web),
+ * kept warm in a ≤3 LRU cache so a breadcrumb switch is instant. For a
+ * multi-app orchestration the header shows a breadcrumb and, on wide viewports,
+ * a side-by-side toggle; the presence layer renders inside each frame.
  */
 export function AppPanel({ target, threadId, accountId, onClose }: AppPanelProps) {
   const steps = target.steps ?? [];
@@ -107,6 +51,21 @@ export function AppPanel({ target, threadId, accountId, onClose }: AppPanelProps
     : undefined;
 
   const label = target.entity ? `${target.app} · ${target.entity}` : target.app;
+
+  // ── LRU frame cache (§14.3) ──
+  const activeDesc = toDescriptor(activeStep?.app ?? target.app, activeStep?.entity ?? target.entity);
+  const partnerDesc = partnerStep ? toDescriptor(partnerStep.app, partnerStep.entity) : null;
+  const visibleDescriptors = partnerDesc ? [activeDesc, partnerDesc] : [activeDesc];
+  const visibleKeys = new Set(visibleDescriptors.map((d) => d.key));
+
+  // Orchestration identity — reset the cache when the command changes.
+  const targetId = useMemo(() => {
+    const ts = target.steps ?? [];
+    return ts.length
+      ? ts.map((s) => frameKey(s.app, s.entity)).join("|")
+      : frameKey(target.app, target.entity);
+  }, [target]);
+  const cached = usePanelFrameCache(targetId, visibleDescriptors);
 
   return (
     <div
@@ -158,22 +117,18 @@ export function AppPanel({ target, threadId, accountId, onClose }: AppPanelProps
       </div>
 
       <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
-        <EmbedFrame
-          app={activeStep?.app ?? target.app}
-          entity={activeStep?.entity ?? target.entity}
-          mode={target.mode}
-          threadId={threadId}
-          accountId={accountId}
-        />
-        {partnerStep && (
-          <EmbedFrame
-            app={partnerStep.app}
-            entity={partnerStep.entity}
+        {cached.map((desc) => (
+          <PanelFrame
+            key={desc.key}
+            app={desc.app}
+            entity={desc.entity}
             mode={target.mode}
             threadId={threadId}
             accountId={accountId}
+            visible={visibleKeys.has(desc.key)}
+            order={desc.key === activeDesc.key ? 0 : desc.key === partnerDesc?.key ? 1 : 2}
           />
-        )}
+        ))}
       </div>
     </div>
   );
