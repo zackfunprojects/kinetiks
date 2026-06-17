@@ -2,13 +2,11 @@
 
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { AnnotationChip } from "@kinetiks/ui";
-import type { Annotation } from "@kinetiks/types";
 import {
   useThreadAnnotations,
   type CreateAnnotationInput,
 } from "@/lib/embed/useThreadAnnotations";
-
-const MAX_VISIBLE = 4;
+import { selectVisibleAnnotations } from "@/lib/embed/annotation-density";
 
 /** Fixture annotations the reference agent "leaves" while it works. A real
  *  agent would generate these (Haiku via the router). Seeded once per thread. */
@@ -35,14 +33,6 @@ const FIXTURE_SEED: CreateAnnotationInput[] = [
     body: "Email outperforms LinkedIn 3:1 for this persona, so the LinkedIn step stays a soft nudge.",
   },
 ];
-
-/** Density control (§6.3): drop dismissed; pinned + high-stakes first; cap the rest. */
-function selectVisible(annotations: Annotation[]): Annotation[] {
-  const live = annotations.filter((a) => !a.dismissed);
-  const priority = (a: Annotation) =>
-    a.pinned ? 0 : a.kind === "decision_note" || a.kind === "suggestion" ? 1 : 2;
-  return [...live].sort((a, b) => priority(a) - priority(b)).slice(0, MAX_VISIBLE);
-}
 
 export function AnnotationLayer({
   containerRef,
@@ -74,7 +64,7 @@ export function AnnotationLayer({
     return () => clearTimeout(t);
   }, [enabled, threadId, annotations.length, create]);
 
-  const visible = selectVisible(annotations);
+  const visible = selectVisibleAnnotations(annotations);
 
   useLayoutEffect(() => {
     const container = containerRef.current;
