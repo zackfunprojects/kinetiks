@@ -8,6 +8,7 @@ import { PanelBreadcrumb } from "./PanelBreadcrumb";
 import { PanelFrame } from "./PanelFrame";
 import { usePanelFrameCache } from "./usePanelFrameCache";
 import { useMediaQuery, WIDE_VIEWPORT_QUERY } from "@/lib/hooks/useMediaQuery";
+import { useIsDesktop } from "@/lib/desktop/useIsDesktop";
 
 interface AppPanelProps {
   target: AppPanelTarget;
@@ -30,7 +31,11 @@ function toDescriptor(app: string, entity?: string): FrameDescriptor {
 export function AppPanel({ target, threadId, accountId, onClose }: AppPanelProps) {
   const steps = target.steps ?? [];
   const multiApp = steps.length > 1;
-  const canShowBoth = useMediaQuery(WIDE_VIEWPORT_QUERY) && multiApp;
+  const desktop = useIsDesktop();
+  const wide = useMediaQuery(WIDE_VIEWPORT_QUERY);
+  // Side-by-side is desktop-only on wide viewports (§10.4). On the web the panel
+  // stays single-frame (the adapted experience, §3.2).
+  const canShowBoth = desktop && wide && multiApp;
 
   const [activeApp, setActiveApp] = useState(target.app);
   const [showBoth, setShowBoth] = useState(false);
