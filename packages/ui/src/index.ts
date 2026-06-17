@@ -56,6 +56,13 @@ export type { TempoControlProps, TempoModeValue } from "./tempo-control";
 export { UndoTimeline } from "./undo-timeline";
 export type { UndoTimelineProps, UndoTimelineItem } from "./undo-timeline";
 
+export { TaskDrawer } from "./task-drawer";
+export type {
+  TaskDrawerProps,
+  TaskDrawerStep,
+  TaskDrawerStepStatus,
+} from "./task-drawer";
+
 export { EmptyState } from "./empty-state";
 export type { EmptyStateProps } from "./empty-state";
 

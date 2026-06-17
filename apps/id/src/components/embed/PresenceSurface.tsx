@@ -13,6 +13,7 @@ import type { PresenceEvent, PresenceEventType } from "@kinetiks/types";
 import { ReferenceSequenceBuilder } from "./ReferenceSequenceBuilder";
 import { AnnotationLayer } from "./AnnotationLayer";
 import { UndoStackPanel } from "./UndoStackPanel";
+import { TaskDrawerSurface } from "./TaskDrawerSurface";
 
 /**
  * Scripted agent playback. The reference surface has no real agent, so a
@@ -202,6 +203,12 @@ export function PresenceSurface({
         enabled={collaborative}
       />
       <UndoStackPanel accountId={accountId} threadId={threadId} enabled={collaborative} />
+      <TaskDrawerSurface
+        systemName={systemName}
+        accountId={accountId}
+        threadId={threadId}
+        enabled={collaborative}
+      />
       {collaborative && agentPresence && pos && (
         <AgentCursor
           x={pos.x}
