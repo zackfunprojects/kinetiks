@@ -8,7 +8,7 @@ import {
   type WebviewHostElement,
 } from "@kinetiks/collaborative";
 import { PANEL_MESSAGE_SOURCE } from "@kinetiks/types";
-import { useIsDesktop } from "@/lib/desktop/useIsDesktop";
+import { isDesktop } from "@/lib/desktop/useIsDesktop";
 import { buildEmbedSrc } from "./embed-src";
 
 export interface PanelFrameProps {
@@ -78,7 +78,12 @@ function usePanelHostBridge(makeBridge: () => PanelBridge | null, visible: boole
  * collaborative components inside — only the host element differs (§4.4).
  */
 export function PanelFrame(props: PanelFrameProps) {
-  const desktop = useIsDesktop();
+  // Synchronous read (not the false-first useIsDesktop hook): the app panel
+  // never renders during SSR/hydration (it mounts on a user action), so reading
+  // the bridge during render is safe and yields the right element on render 1 —
+  // avoiding a transient <iframe> mount in the default partition before the
+  // <webview> swaps in.
+  const desktop = isDesktop();
   const src = useEmbedSrc(props);
 
   const wrapperStyle: CSSProperties = {
