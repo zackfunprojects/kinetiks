@@ -8,9 +8,8 @@ import {
   type RealtimePresenceTransport,
 } from "@kinetiks/collaborative";
 import type { PresenceEvent, PresenceEventType } from "@kinetiks/types";
-import {
-  ReferenceSequenceBuilder,
-} from "./ReferenceSequenceBuilder";
+import { ReferenceSequenceBuilder } from "./ReferenceSequenceBuilder";
+import { AnnotationLayer } from "./AnnotationLayer";
 
 /**
  * Scripted agent playback. The reference surface has no real agent, so a
@@ -52,6 +51,8 @@ function fieldKey(componentId: string, fieldName?: string): string {
 interface PresenceSurfaceProps {
   systemName: string | null;
   entityId: string | null;
+  accountId: string;
+  threadId: string | null;
   collaborative: boolean;
   transport: RealtimePresenceTransport | undefined;
 }
@@ -59,6 +60,8 @@ interface PresenceSurfaceProps {
 export function PresenceSurface({
   systemName,
   entityId,
+  accountId,
+  threadId,
   collaborative,
   transport,
 }: PresenceSurfaceProps) {
@@ -147,6 +150,12 @@ export function PresenceSurface({
         entityId={entityId}
         onFieldFocus={handleFieldFocus}
         onFieldBlur={handleFieldBlur}
+      />
+      <AnnotationLayer
+        containerRef={containerRef}
+        accountId={accountId}
+        threadId={threadId}
+        enabled={collaborative}
       />
       {collaborative && agentPresence && pos && (
         <AgentCursor

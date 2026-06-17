@@ -79,6 +79,8 @@ export function EmbedSurface({
       <PresenceSurface
         systemName={systemName}
         entityId={entityId}
+        accountId={accountId}
+        threadId={threadId}
         collaborative={collaborative}
         transport={transport}
       />
