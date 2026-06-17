@@ -18,12 +18,14 @@ const FIXTURE_STEPS: ActiveTaskStep[] = [
   { index: 2, app_name: "Litmus", label: "Draft PR pitch", status: "queued" },
 ];
 
-/** Progress beats — advance the build, hold (do not auto-complete, so the
- *  drawer stays visible as "actively working"). */
+const COMPLETED_STEPS: ActiveTaskStep[] = FIXTURE_STEPS.map((s) => ({ ...s, status: "done" }));
+
+/** Progress beats — advance the build, then finish (the system hands the work
+ *  off for review, §9.1). */
 const PLAYBACK: Array<{ progress: number; current_step_index: number; steps: ActiveTaskStep[] }> = [
   { progress: 35, current_step_index: 1, steps: FIXTURE_STEPS },
-  { progress: 55, current_step_index: 1, steps: FIXTURE_STEPS },
-  { progress: 70, current_step_index: 1, steps: FIXTURE_STEPS },
+  { progress: 60, current_step_index: 1, steps: FIXTURE_STEPS },
+  { progress: 85, current_step_index: 2, steps: COMPLETED_STEPS },
 ];
 
 function stepLabel(steps: TaskDrawerStep[]): string | undefined {
@@ -37,6 +39,10 @@ interface TaskDrawerSurfaceProps {
   accountId: string;
   threadId: string | null;
   enabled: boolean;
+  /** The system finished the work — hand off to the review phase (§9.1). */
+  onWorkComplete?: () => void;
+  /** The user killed the task — return to idle, no review. */
+  onKilled?: () => void;
 }
 
 export function TaskDrawerSurface({
@@ -44,8 +50,10 @@ export function TaskDrawerSurface({
   accountId,
   threadId,
   enabled,
+  onWorkComplete,
+  onKilled,
 }: TaskDrawerSurfaceProps) {
-  const { task, open, advance, skipStep, kill } = useActiveTask(accountId, threadId);
+  const { task, open, advance, complete, skipStep, kill } = useActiveTask(accountId, threadId);
   const [expanded, setExpanded] = useState(false);
   const [killing, setKilling] = useState(false);
   const [killPending, setKillPending] = useState(false);
@@ -85,12 +93,29 @@ export function TaskDrawerSurface({
           }, 1500 * (i + 1)),
         );
       });
+      // Finale: finish the work, then hand off to the review phase (§9.1).
+      timers.push(
+        setTimeout(
+          () => {
+            void (async () => {
+              await advance(created.id, {
+                progress: 100,
+                current_step_index: 2,
+                steps: COMPLETED_STEPS,
+              });
+              await complete(created.id);
+              if (!cancelled) onWorkComplete?.();
+            })();
+          },
+          1500 * (PLAYBACK.length + 1),
+        ),
+      );
     })();
     return () => {
       cancelled = true;
       timers.forEach(clearTimeout);
     };
-  }, [enabled, threadId, task, open, advance]);
+  }, [enabled, threadId, task, open, advance, complete, onWorkComplete]);
 
   if (!enabled) return null;
 
@@ -127,6 +152,7 @@ export function TaskDrawerSurface({
     setKilling(false);
     setExpanded(false);
     if (result) setAck(result.acknowledgement);
+    onKilled?.();
   };
 
   return (

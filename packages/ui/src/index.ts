@@ -63,6 +63,9 @@ export type {
   TaskDrawerStepStatus,
 } from "./task-drawer";
 
+export { ApprovalOverlayBar } from "./approval-overlay-bar";
+export type { ApprovalOverlayBarProps } from "./approval-overlay-bar";
+
 export { EmptyState } from "./empty-state";
 export type { EmptyStateProps } from "./empty-state";
 

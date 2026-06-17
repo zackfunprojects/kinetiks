@@ -153,3 +153,16 @@ export const interventionSchema = z.object({
 });
 
 export type InterventionRequest = z.infer<typeof interventionSchema>;
+
+// ── In-panel visual approval (spec §9.1) ────────────────────────────
+export const embedApprovalSchema = z.discriminatedUnion("decision", [
+  z.object({ decision: z.literal("approve") }),
+  z.object({
+    decision: z.literal("approve_with_edits"),
+    original: z.record(z.unknown()),
+    edited: z.record(z.unknown()),
+  }),
+  z.object({ decision: z.literal("reject"), reason: z.string().min(1).max(2000) }),
+]);
+
+export type EmbedApprovalRequest = z.infer<typeof embedApprovalSchema>;

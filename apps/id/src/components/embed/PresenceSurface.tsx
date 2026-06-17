@@ -15,6 +15,7 @@ import { ReferenceSequenceBuilder } from "./ReferenceSequenceBuilder";
 import { AnnotationLayer } from "./AnnotationLayer";
 import { UndoStackPanel } from "./UndoStackPanel";
 import { TaskDrawerSurface } from "./TaskDrawerSurface";
+import { ApprovalSurface } from "./ApprovalSurface";
 
 /**
  * Scripted agent playback. The reference surface has no real agent, so a
@@ -76,6 +77,9 @@ export function PresenceSurface({
   const [tempoMode, setTempoMode] = useTempoMode();
   const delegate = useDelegateRegion();
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  // Review phase (§9.1): the system finished work and is presenting it for
+  // approval. Set by the task drawer when its work completes; cleared on kill.
+  const [reviewArmed, setReviewArmed] = useState(false);
   // The field the user is currently on — the agent yields it (§7.2 inverse).
   const userFieldRef = useRef<string | null>(null);
   // The field the agent is currently targeting, and grabs already signalled —
@@ -238,6 +242,15 @@ export function PresenceSurface({
         accountId={accountId}
         threadId={threadId}
         enabled={collaborative}
+        onWorkComplete={() => setReviewArmed(true)}
+        onKilled={() => setReviewArmed(false)}
+      />
+      <ApprovalSurface
+        systemName={systemName}
+        accountId={accountId}
+        armed={reviewArmed}
+        enabled={collaborative}
+        onResolved={() => setReviewArmed(false)}
       />
       {collaborative && agentPresence && pos && (
         <AgentCursor
