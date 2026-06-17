@@ -297,3 +297,30 @@ looser thresholds.
 ### Design spec silent on desktop window chrome
 
 `design/kinetiks-design-spec.md` covers the web UI but says nothing about the desktop window shell: titlebar height/treatment, vibrancy/material, traffic-light inset, window radius. Phase 1 enabled macOS vibrancy behind opaque content (no visual change yet). The custom integrated titlebar lands in Phase 2 and needs design direction (or new `--kt-*` chrome tokens) rather than invented values.
+
+---
+
+## Phase 8.7 (desktop multi-app webview)
+
+### Webview does data directly; IPC carries coordination only (D1, 2026-06-17)
+
+The §8.7 outline says "IPC relay: main ↔ webview ↔ renderer bridge for
+presence/annotation/undo/task events." Implemented differently on purpose: the
+`/embed` surface is a full web app, so inside a `<webview>` on
+`id.kinetiks.ai` it does presence (Supabase Realtime) and data
+(`/api/id/embed/*`) DIRECTLY, authenticated by a mirrored session cookie. The
+shell↔embed IPC carries coordination only (`ready`/`init`/`focus`/`delegate`/
+`app_switch`); the main process is not in the data path. Rationale: honors the
+<150ms presence budget (§14.1), avoids re-implementing Supabase auth/Realtime in
+Node, and preserves 8.1's hardened `persist:collaborative` partition isolation.
+If a future requirement needs main-mediated data (e.g. a non-web embed, or
+shell-level inspection of embed traffic), revisit; the `PanelBridge` seam can
+carry more without changing the collaborative components.
+
+### Runtime DoD items deferred to 8.8 (2026-06-17)
+
+Live desktop launch, observed ≤3-webview LRU memory check, <150ms round-trip
+latency, real cookie-share in a running webview, and packaged-app smoke need a
+running/packaged Electron app (no display in the build env). Built and
+unit-tested for correctness in 8.7; runtime verification lands in 8.8
+(hardening + E2E), consistent with the program note that no E2E layer exists yet.
