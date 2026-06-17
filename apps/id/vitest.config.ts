@@ -1,10 +1,13 @@
-import { defineConfig } from "vitest/config";
+import { defineConfig, configDefaults } from "vitest/config";
 import path from "path";
 
 export default defineConfig({
   test: {
     globals: false,
     environment: "node",
+    // e2e/ holds Playwright specs (run by `pnpm e2e`, not vitest). Keep the
+    // vitest defaults and add the e2e dir so its *.spec.ts are not collected.
+    exclude: [...configDefaults.exclude, "e2e/**"],
   },
   resolve: {
     alias: {

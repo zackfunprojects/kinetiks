@@ -34,9 +34,11 @@ yarn-error.log*
 
 # supabase
 supabase/.temp/
+supabase/.branches/
 # Catch the same state dir wherever the CLI gets invoked from
 # (e.g. apps/id/supabase/.temp/ if a command runs in a subtree).
 **/supabase/.temp/
+**/supabase/.branches/
 
 # claude code
 .claude/
@@ -44,3 +46,9 @@ supabase/.temp/
 
 # typescript build info
 *.tsbuildinfo
+
+# playwright (e2e)
+**/e2e/.auth/
+**/playwright-report/
+**/test-results/
+**/playwright/.cache/
