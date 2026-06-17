@@ -51,7 +51,11 @@ export function UndoStackPanel({
     const t = setTimeout(() => {
       if (seeded.current || actions.length > 0) return;
       seeded.current = true;
-      SEED.forEach((a) => void record(a));
+      // Sequential: each record reads max(sequence_index)+1, so parallel
+      // inserts would collide on the unique (account, thread, sequence_index).
+      void (async () => {
+        for (const a of SEED) await record(a);
+      })();
     }, 800);
     return () => clearTimeout(t);
   }, [enabled, threadId, actions.length, record]);

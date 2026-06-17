@@ -20,6 +20,12 @@ const STATUS_MARK: Record<PanelStep["status"], string> = {
   queued: "○",
 };
 
+const STATUS_WORD: Record<PanelStep["status"], string> = {
+  done: "completed",
+  active: "in progress",
+  queued: "queued",
+};
+
 /**
  * Orchestration breadcrumb for a multi-app command (spec §10.4):
  * `[Dark Madder ✓] > [Harvest ●] > [Litmus ○]`. Click any step to view its
@@ -51,6 +57,7 @@ export function PanelBreadcrumb({
               variant={step.app === current ? "accent" : "ghost"}
               size="sm"
               aria-current={step.app === current ? "true" : undefined}
+              aria-label={`${step.app}, ${STATUS_WORD[step.status]}`}
               onClick={() => onSelect(step)}
             >
               <span style={{ textTransform: "capitalize" }}>{step.app}</span>{" "}

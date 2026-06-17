@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Button } from "@kinetiks/ui";
 import type { AppPanelTarget, PanelStep } from "./AppPanelContext";
 import { PanelBreadcrumb } from "./PanelBreadcrumb";
-import { useMediaQuery } from "@/lib/hooks/useMediaQuery";
+import { useMediaQuery, WIDE_VIEWPORT_QUERY } from "@/lib/hooks/useMediaQuery";
 
 interface AppPanelProps {
   target: AppPanelTarget;
@@ -86,10 +86,12 @@ function EmbedFrame({
 export function AppPanel({ target, threadId, accountId, onClose }: AppPanelProps) {
   const steps = target.steps ?? [];
   const multiApp = steps.length > 1;
-  const canShowBoth = useMediaQuery("(min-width: 1280px)") && multiApp;
+  const canShowBoth = useMediaQuery(WIDE_VIEWPORT_QUERY) && multiApp;
 
   const [activeApp, setActiveApp] = useState(target.app);
   const [showBoth, setShowBoth] = useState(false);
+  // Clamp: side-by-side only renders while the viewport supports it.
+  const sideBySide = showBoth && canShowBoth;
 
   // Reset the active app when the target changes.
   useEffect(() => {
@@ -100,10 +102,9 @@ export function AppPanel({ target, threadId, accountId, onClose }: AppPanelProps
   const activeStep: PanelStep | undefined = multiApp
     ? steps.find((s) => s.app === activeApp) ?? steps[0]
     : undefined;
-  const partnerStep: PanelStep | undefined =
-    showBoth && multiApp
-      ? steps.find((s) => s.app !== (activeStep?.app ?? activeApp))
-      : undefined;
+  const partnerStep: PanelStep | undefined = sideBySide
+    ? steps.find((s) => s.app !== (activeStep?.app ?? activeApp))
+    : undefined;
 
   const label = target.entity ? `${target.app} · ${target.entity}` : target.app;
 
@@ -132,7 +133,7 @@ export function AppPanel({ target, threadId, accountId, onClose }: AppPanelProps
             steps={steps}
             current={activeStep?.app ?? activeApp}
             onSelect={(s) => setActiveApp(s.app)}
-            showBoth={showBoth}
+            showBoth={sideBySide}
             onToggleBoth={() => setShowBoth((v) => !v)}
             canShowBoth={canShowBoth}
           />

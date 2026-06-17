@@ -24,7 +24,7 @@
 
 ### Slice 2 — Shared undo stack (persistence + UndoTimeline + shortcuts)
 - [ ] `UndoTimeline` primitive (`@kinetiks/ui`): bidirectional history with participant labels + per-action undo.
-- [ ] `useWorkspaceActions(account, thread)` (apps/id): fetch + postgres_changes sync of `kinetiks_workspace_actions`; record (append with next `sequence_index`) + undo (mark `undone`). `/api/id/embed/undo` persists undo; an embed actions route persists records.
+- [ ] `useWorkspaceActions(account, thread)` (apps/id): fetch + postgres_changes sync of `kinetiks_workspace_actions`; record (append with next `sequence_index`) + undo (mark `undone`). A single route — `/api/id/embed/workspace-actions` — handles both `record` and `undo` ops.
 - [ ] Keyboard shortcuts: Cmd+Z (last, either), Cmd+Shift+Z (agent-only), Cmd+Alt+Z (open timeline). (§7.3)
 - [ ] Commit: `feat(undo): shared undo stack — persistence, UndoTimeline, shortcuts`.
 
@@ -33,7 +33,7 @@
 - [ ] Commit: `feat(embed): drag-to-delegate region + delegation handling`.
 
 ### Slice 4 — Implicit trust signals → confidence
-- [ ] `SIGNAL_WEIGHTS` registry in `confidence.ts`/`threshold-math.ts`: kill 2x (already 8.6-bound), undo (weak reject), grab (field-level penalty), edit (training), non-intervention (boost). Route grab/undo signals through `learning-loop` with Ledger `intervention_grab`/`intervention_undo`. (§9.3)
+- [ ] `SIGNAL_WEIGHTS` registry (`apps/id/src/lib/approvals/signal-weights.ts`): kill 20, undo 5 (weak reject), grab 3 (field-level penalty), edit 0 (training, no threshold move), non_intervention -2 (boost). Pure, additive `applySignalToThreshold(threshold, signal)` math on the threshold scale, unit-tested. **Scope note:** the registry is a standalone module only — it is *not* yet wired into the live `learning-loop`. Routing grab/undo into `processApprovalDecision` with Ledger `intervention_grab`/`intervention_undo` writes is deferred to 8.6 (task drawer / kill switch), where the intervention signals originate. (§9.3)
 - [ ] Commit: `feat(approvals): intervention trust signals + SIGNAL_WEIGHTS registry`.
 
 ### Slice 5 — Multi-app panel transitions
