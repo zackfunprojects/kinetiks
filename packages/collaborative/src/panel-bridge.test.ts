@@ -3,6 +3,7 @@ import type { PanelMessage } from "@kinetiks/types";
 import {
   PANEL_IPC_CHANNEL,
   isPanelMessage,
+  guestBridgeKind,
   createPostMessageBridge,
   createWebviewHostBridge,
   createWebviewGuestBridge,
@@ -28,6 +29,21 @@ describe("isPanelMessage", () => {
     expect(isPanelMessage({ source: "kinetiks-embed", type: "exec" })).toBe(false);
     expect(isPanelMessage(null)).toBe(false);
     expect(isPanelMessage("ready")).toBe(false);
+  });
+});
+
+describe("guestBridgeKind", () => {
+  it("prefers the desktop webview bridge", () => {
+    expect(guestBridgeKind(true, true)).toBe("webview");
+    expect(guestBridgeKind(true, false)).toBe("webview");
+  });
+
+  it("falls back to postMessage when embedded in an iframe", () => {
+    expect(guestBridgeKind(false, true)).toBe("postmessage");
+  });
+
+  it("is none when standalone (not embedded, no webview)", () => {
+    expect(guestBridgeKind(false, false)).toBe("none");
   });
 });
 

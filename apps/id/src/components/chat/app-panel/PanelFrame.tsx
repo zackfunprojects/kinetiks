@@ -9,6 +9,7 @@ import {
 } from "@kinetiks/collaborative";
 import { PANEL_MESSAGE_SOURCE } from "@kinetiks/types";
 import { useIsDesktop } from "@/lib/desktop/useIsDesktop";
+import { buildEmbedSrc } from "./embed-src";
 
 export interface PanelFrameProps {
   app: string;
@@ -26,13 +27,10 @@ export interface PanelFrameProps {
 
 function useEmbedSrc(props: Pick<PanelFrameProps, "app" | "entity" | "mode" | "threadId" | "accountId">): string {
   const { app, entity, mode, threadId, accountId } = props;
-  return useMemo(() => {
-    const params = new URLSearchParams({ mode, account: accountId });
-    if (app) params.set("app", app);
-    if (entity) params.set("entity", entity);
-    if (threadId) params.set("thread", threadId);
-    return `/embed?${params.toString()}`;
-  }, [app, entity, mode, threadId, accountId]);
+  return useMemo(
+    () => buildEmbedSrc({ app, entity, mode, threadId, accountId }),
+    [app, entity, mode, threadId, accountId],
+  );
 }
 
 /**

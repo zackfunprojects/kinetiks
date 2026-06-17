@@ -22,6 +22,17 @@ export interface PanelBridge {
   dispose(): void;
 }
 
+export type GuestBridgeKind = "webview" | "postmessage" | "none";
+
+/** Which guest transport the embed should use: the desktop webview IPC bridge
+ *  when present, else parent↔iframe postMessage when embedded, else none
+ *  (a standalone `/embed`). Pure so the selection is unit-tested. */
+export function guestBridgeKind(hasWebviewBridge: boolean, isEmbedded: boolean): GuestBridgeKind {
+  if (hasWebviewBridge) return "webview";
+  if (isEmbedded) return "postmessage";
+  return "none";
+}
+
 /** Validate an inbound payload before trusting it — paired with the origin
  *  check on the postMessage path, and the only gate on the IPC path. */
 export function isPanelMessage(data: unknown): data is PanelMessage {

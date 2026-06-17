@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import {
   createPostMessageBridge,
   createWebviewGuestBridge,
+  guestBridgeKind,
   type PanelBridge,
 } from "@kinetiks/collaborative";
 import { getWebviewBridge } from "@/lib/desktop/webview-bridge";
@@ -19,13 +20,16 @@ export function usePanelBridge(): PanelBridge | null {
   const [bridge] = useState<PanelBridge | null>(() => {
     if (typeof window === "undefined") return null;
     const webview = getWebviewBridge();
-    if (webview) return createWebviewGuestBridge(webview);
-    if (window.parent === window) return null; // not embedded
-    return createPostMessageBridge({
-      target: window.parent,
-      host: window,
-      origin: window.location.origin,
-    });
+    const kind = guestBridgeKind(webview !== null, window.parent !== window);
+    if (kind === "webview" && webview) return createWebviewGuestBridge(webview);
+    if (kind === "postmessage") {
+      return createPostMessageBridge({
+        target: window.parent,
+        host: window,
+        origin: window.location.origin,
+      });
+    }
+    return null;
   });
 
   useEffect(() => {

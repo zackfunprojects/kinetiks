@@ -38,10 +38,12 @@ export { useRealtimePresenceTransport } from "./use-realtime-transport";
 export {
   PANEL_IPC_CHANNEL,
   isPanelMessage,
+  guestBridgeKind,
   createPostMessageBridge,
   createWebviewHostBridge,
   createWebviewGuestBridge,
   type PanelBridge,
+  type GuestBridgeKind,
   type PostMessageBridgeOptions,
   type WebviewHostElement,
   type WebviewGuestApi,
