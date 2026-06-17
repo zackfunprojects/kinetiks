@@ -199,6 +199,7 @@ export type {
 } from "./sentinel";
 export type {
   KinetiksDesktopBridge,
+  KinetiksWebviewBridge,
   DesktopPlatform,
   DesktopNotification,
   DesktopMenuAction,
@@ -233,5 +234,5 @@ export type {
   PanelMessage,
   PanelMessageType,
 } from "./collaborative";
-// Runtime value (not a type) — the panel-message source tag.
-export { PANEL_MESSAGE_SOURCE } from "./collaborative";
+// Runtime values (not types) — the panel-message source tag + IPC channel.
+export { PANEL_MESSAGE_SOURCE, PANEL_IPC_CHANNEL } from "./collaborative";

@@ -1,4 +1,4 @@
-import { PANEL_MESSAGE_SOURCE, type PanelMessage } from "@kinetiks/types";
+import { PANEL_MESSAGE_SOURCE, PANEL_IPC_CHANNEL, type PanelMessage } from "@kinetiks/types";
 
 /**
  * The shell ↔ embed coordination channel (spec §4.4, §10.4; Phase 8.7 D1).
@@ -10,8 +10,9 @@ import { PANEL_MESSAGE_SOURCE, type PanelMessage } from "@kinetiks/types";
  * Electron-free: the webview adapters take structural shapes, not Electron types.
  */
 
-/** IPC channel name for desktop `<webview>` host↔guest panel messages. */
-export const PANEL_IPC_CHANNEL = "kinetiks:panel" as const;
+// Re-export the shared IPC channel constant (defined in @kinetiks/types so the
+// desktop preload and these adapters cannot drift).
+export { PANEL_IPC_CHANNEL };
 
 /** A bidirectional coordination channel between the shell and the embed. */
 export interface PanelBridge {

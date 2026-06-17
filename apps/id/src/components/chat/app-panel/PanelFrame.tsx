@@ -1,6 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import {
+  createPostMessageBridge,
+  createWebviewHostBridge,
+  type PanelBridge,
+  type WebviewHostElement,
+} from "@kinetiks/collaborative";
+import { PANEL_MESSAGE_SOURCE } from "@kinetiks/types";
 import { useIsDesktop } from "@/lib/desktop/useIsDesktop";
 
 export interface PanelFrameProps {
@@ -29,6 +36,44 @@ function useEmbedSrc(props: Pick<PanelFrameProps, "app" | "entity" | "mode" | "t
 }
 
 /**
+ * Manage the host side of the shell↔embed coordination bridge for one frame:
+ * wait for the guest's `ready`, then push the frame's `visibility` (so a
+ * cached/off-screen frame can suspend, §14.3) and keep it in sync.
+ */
+function usePanelHostBridge(makeBridge: () => PanelBridge | null, visible: boolean): void {
+  const bridgeRef = useRef<PanelBridge | null>(null);
+  const readyRef = useRef(false);
+  const visibleRef = useRef(visible);
+  visibleRef.current = visible;
+  const makeRef = useRef(makeBridge);
+  makeRef.current = makeBridge;
+
+  useEffect(() => {
+    const bridge = makeRef.current();
+    if (!bridge) return;
+    bridgeRef.current = bridge;
+    const off = bridge.subscribe((msg) => {
+      if (msg.type === "ready") {
+        readyRef.current = true;
+        bridge.post({ source: PANEL_MESSAGE_SOURCE, type: "visibility", visible: visibleRef.current });
+      }
+    });
+    return () => {
+      off();
+      bridge.dispose();
+      bridgeRef.current = null;
+      readyRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (readyRef.current) {
+      bridgeRef.current?.post({ source: PANEL_MESSAGE_SOURCE, type: "visibility", visible });
+    }
+  }, [visible]);
+}
+
+/**
  * One embedded app surface. On the desktop shell it is an Electron `<webview>`
  * (its own warm web context, hardened + session-mirrored by the main process);
  * on the web it is a same-origin `<iframe>`. Same `/embed?…` URL, same
@@ -50,9 +95,9 @@ export function PanelFrame(props: PanelFrameProps) {
   return (
     <div style={wrapperStyle} aria-hidden={props.visible ? undefined : true}>
       {desktop ? (
-        <WebviewEmbed src={src} app={props.app} />
+        <WebviewEmbed src={src} app={props.app} visible={props.visible} />
       ) : (
-        <IframeEmbed src={src} app={props.app} />
+        <IframeEmbed src={src} app={props.app} visible={props.visible} />
       )}
     </div>
   );
@@ -89,20 +134,35 @@ const fillStyle = (loaded: boolean): CSSProperties => ({
   transition: "opacity var(--kt-dur-2) ease",
 });
 
-function IframeEmbed({ src, app }: { src: string; app: string }) {
+function IframeEmbed({ src, app, visible }: { src: string; app: string; visible: boolean }) {
+  const ref = useRef<HTMLIFrameElement>(null);
   const [loaded, setLoaded] = useState(false);
   useEffect(() => setLoaded(false), [src]);
+
+  usePanelHostBridge(
+    () =>
+      typeof window === "undefined"
+        ? null
+        : createPostMessageBridge({
+            // Read the live contentWindow so a reload (new src) still routes.
+            target: { postMessage: (m, o) => ref.current?.contentWindow?.postMessage(m, o) },
+            host: window,
+            origin: window.location.origin,
+          }),
+    visible,
+  );
+
   return (
     <>
       <Skeleton shown={!loaded} />
-      <iframe src={src} title={`App panel — ${app}`} onLoad={() => setLoaded(true)} style={fillStyle(loaded)} />
+      <iframe ref={ref} src={src} title={`App panel — ${app}`} onLoad={() => setLoaded(true)} style={fillStyle(loaded)} />
     </>
   );
 }
 
 /** A `<webview>` ready to relay coordination + report load. The `dom-ready`
  *  event is the webview equivalent of the iframe `load` event. */
-function WebviewEmbed({ src, app }: { src: string; app: string }) {
+function WebviewEmbed({ src, app, visible }: { src: string; app: string; visible: boolean }) {
   const ref = useRef<HTMLElement>(null);
   const [loaded, setLoaded] = useState(false);
 
@@ -114,6 +174,11 @@ function WebviewEmbed({ src, app }: { src: string; app: string }) {
     el.addEventListener("dom-ready", onReady);
     return () => el.removeEventListener("dom-ready", onReady);
   }, [src]);
+
+  usePanelHostBridge(
+    () => (ref.current ? createWebviewHostBridge(ref.current as unknown as WebviewHostElement) : null),
+    visible,
+  );
 
   return (
     <>

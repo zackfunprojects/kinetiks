@@ -258,6 +258,10 @@ export interface EmbedTarget {
 /** Tag on every panel message; rejected if absent (origin + source double-check). */
 export const PANEL_MESSAGE_SOURCE = "kinetiks-embed" as const;
 
+/** IPC channel for desktop `<webview>` host↔guest panel messages (shared by the
+ *  desktop preload and the @kinetiks/collaborative webview adapters). */
+export const PANEL_IPC_CHANNEL = "kinetiks:panel" as const;
+
 export type PanelMessageType =
   | "ready" // guest → host: the embed mounted
   | "init" // host → guest: (re)provide context without a reload

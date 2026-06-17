@@ -1,14 +1,16 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   CollaborativeProvider,
   useRealtimePresenceTransport,
 } from "@kinetiks/collaborative";
 import { ToastProvider } from "@kinetiks/ui";
+import { PANEL_MESSAGE_SOURCE } from "@kinetiks/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import { PresenceSurface } from "./PresenceSurface";
+import { usePanelBridge } from "./usePanelBridge";
 
 export interface EmbedSurfaceProps {
   accountId: string;
@@ -19,19 +21,13 @@ export interface EmbedSurfaceProps {
 }
 
 /**
- * Same-origin embed postMessage contract (parent shell <-> embed surface).
- * Both sides check `event.origin === window.location.origin` (same-origin)
- * and the `source: "kinetiks-embed"` tag before trusting a message.
- */
-const EMBED_SOURCE = "kinetiks-embed" as const;
-
-/**
  * The reference collaborative surface.
  *
  * Wraps the minimal-but-representative ReferenceSequenceBuilder in
- * CollaborativeProvider when in collaborative mode and performs the same-origin
- * postMessage handshake with the shell. Presence (8.3) and annotations (8.4)
- * anchor to the builder's `data-component-id` / `data-field-name` elements.
+ * CollaborativeProvider when in collaborative mode. The shell↔embed coordination
+ * handshake runs over `usePanelBridge` — postMessage in a web iframe, webview
+ * IPC in the desktop shell (Phase 8.7) — so the same surface works on both.
+ * Presence/annotations anchor to the builder's `data-component-id` elements.
  */
 export function EmbedSurface({
   accountId,
@@ -40,28 +36,26 @@ export function EmbedSurface({
   entityId,
   collaborative,
 }: EmbedSurfaceProps) {
+  const bridge = usePanelBridge();
+  // The host marks a cached-but-hidden frame suspended (§14.3) — pause the
+  // agent playback so off-screen webviews don't run live presence.
+  const [suspended, setSuspended] = useState(false);
+
   useEffect(() => {
-    if (typeof window === "undefined" || window.parent === window) return;
-
+    if (!bridge) return;
     // Announce readiness to the shell.
-    window.parent.postMessage(
-      { source: EMBED_SOURCE, type: "ready", entity: entityId, thread: threadId },
-      window.location.origin
-    );
+    bridge.post({ source: PANEL_MESSAGE_SOURCE, type: "ready", entity_id: entityId, thread_id: threadId });
+    // Visibility is the only coordination the surface root reacts to; the
+    // presence layer subscribes for focus/delegate.
+    const off = bridge.subscribe((msg) => {
+      if (msg.type === "visibility") setSuspended(!msg.visible);
+    });
+    return off;
+  }, [bridge, entityId, threadId]);
 
-    // Listen for shell -> embed messages (init, focus, delegate) — same-origin only.
-    const onMessage = (event: MessageEvent) => {
-      if (event.origin !== window.location.origin) return;
-      const data = event.data as { source?: string; type?: string } | null;
-      if (!data || data.source !== EMBED_SOURCE) return;
-      // Phase 8.2+ handles init/focus/delegate; the channel exists from here.
-    };
-    window.addEventListener("message", onMessage);
-    return () => window.removeEventListener("message", onMessage);
-  }, [entityId, threadId]);
-
-  // The browser client authenticates via the shared session cookie. The
-  // transport is null until mounted / outside collaborative mode.
+  // The browser client authenticates via the shared session cookie (mirrored
+  // into the collaborative partition on desktop). The transport is null until
+  // mounted / outside collaborative mode.
   const client = useMemo(() => createClient() as unknown as SupabaseClient, []);
   const transport = useRealtimePresenceTransport({
     client,
@@ -85,6 +79,8 @@ export function EmbedSurface({
           threadId={threadId}
           collaborative={collaborative}
           transport={transport}
+          bridge={bridge}
+          suspended={suspended}
         />
       </CollaborativeProvider>
     </ToastProvider>
