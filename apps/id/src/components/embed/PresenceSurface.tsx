@@ -11,11 +11,13 @@ import {
 } from "@kinetiks/collaborative";
 import type { PresenceEvent, PresenceEventType } from "@kinetiks/types";
 import { captureException } from "@/lib/observability/sentry";
+import { tempoForConfidence } from "@/lib/embed/confidence-tempo";
 import { ReferenceSequenceBuilder } from "./ReferenceSequenceBuilder";
 import { AnnotationLayer } from "./AnnotationLayer";
 import { UndoStackPanel } from "./UndoStackPanel";
 import { TaskDrawerSurface } from "./TaskDrawerSurface";
 import { ApprovalSurface } from "./ApprovalSurface";
+import { RetrospectiveSurface } from "./RetrospectiveSurface";
 
 /**
  * Scripted agent playback. The reference surface has no real agent, so a
@@ -42,6 +44,10 @@ const PLAYBACK: Array<{
   { component_id: "step-1", field_name: "label", event_type: "type", hold_ms: 1500 },
   { component_id: "step-2", field_name: "label", event_type: "type", hold_ms: 1500 },
 ];
+
+/** Representative confidence for the reference surface — the medium band
+ *  (§9.2): the agent works at a moderate pace and annotates key decisions. */
+const REFERENCE_CONFIDENCE = 62;
 
 function cursorState(eventType: PresenceEventType): AgentCursorState {
   if (eventType === "uncertain") return "uncertain";
@@ -116,9 +122,12 @@ export function PresenceSurface({
       : null;
   }, [agentPresence]);
 
-  // Agent fixture playback over the Realtime channel.
+  // Agent fixture playback over the Realtime channel. Tempo scales with
+  // confidence (§9.2): the agent works faster and annotates less as confidence
+  // rises. The reference surface sits in the medium band.
   useEffect(() => {
     if (!collaborative || !transport) return;
+    const tempo = tempoForConfidence(REFERENCE_CONFIDENCE);
     let index = 0;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout>;
@@ -126,18 +135,21 @@ export function PresenceSurface({
     const tick = () => {
       if (cancelled) return;
       const step = PLAYBACK[index % PLAYBACK.length];
+      // Annotation density: low/medium surface the uncertainty note, high drops it.
+      const reason = tempo.annotationDensity >= 0.5 ? step.reason : undefined;
       // Click-to-intervene: skip a field the user is actively on.
       if (userFieldRef.current !== fieldKey(step.component_id, step.field_name)) {
         transport.publishAgentPresence({
           participant: "agent",
           event_type: step.event_type,
           target: { component_id: step.component_id, field_name: step.field_name },
-          metadata: step.reason ? { uncertainty_reason: step.reason } : undefined,
+          metadata: reason ? { uncertainty_reason: reason } : undefined,
           timestamp: new Date().toISOString(),
         });
       }
       index += 1;
-      timer = setTimeout(tick, step.hold_ms);
+      // Higher confidence → faster cadence (shorter holds).
+      timer = setTimeout(tick, step.hold_ms / tempo.speedMultiplier);
     };
 
     timer = setTimeout(tick, 1200);
@@ -252,6 +264,7 @@ export function PresenceSurface({
         enabled={collaborative}
         onResolved={() => setReviewArmed(false)}
       />
+      <RetrospectiveSurface systemName={systemName} enabled={collaborative} />
       {collaborative && agentPresence && pos && (
         <AgentCursor
           x={pos.x}
