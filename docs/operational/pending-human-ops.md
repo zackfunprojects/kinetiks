@@ -4,7 +4,7 @@ The complete, current set of steps that require the Vercel dashboard, the
 Supabase dashboard, or a third-party provider console - i.e. things I cannot do
 from a code change or the Supabase CLI. Finished items are not listed here.
 
-Last updated: 2026-06-15.
+Last updated: 2026-06-22.
 
 **How to use this:** set each env var on the surface noted (Vercel project
 `kinetiks-id`, and/or Supabase Edge secrets via `supabase secrets set`).
@@ -15,10 +15,10 @@ verify with `pnpm health` and `GET https://id.kinetiks.ai/api/health`.
 - The app is served at **`https://id.kinetiks.ai`**. The apex `kinetiks.ai` is
   the marketing site and 404s `/api`. Every OAuth redirect / webhook URL below
   uses `id.kinetiks.ai`, and `NEXT_PUBLIC_APP_URL` must match it.
-- Stale docs to ignore: `docs/operational/env-vars.md` and `nango-setup.md`
-  show some URLs as `kinetiks.ai` (wrong) and label the PostHog key
-  `POSTHOG_API_KEY` (code reads `NEXT_PUBLIC_POSTHOG_KEY`). This file is correct;
-  those are queued for a cleanup pass.
+- Stale docs to partly ignore: `docs/operational/env-vars.md` and `nango-setup.md`
+  show some URLs as `kinetiks.ai` (wrong - use `id.kinetiks.ai`). The PostHog key
+  name was fixed in `env-vars.md` (now `NEXT_PUBLIC_POSTHOG_KEY`, the name the code
+  reads); the URL staleness remains queued for a cleanup pass. This file is correct.
 
 Nothing below is blocking the core app from running - it boots and is safe
 today. Each section **lights up a feature** that is built but dark in prod.
@@ -207,7 +207,71 @@ the auto-enrichment).
 
 ---
 
-## 9. [opt] Cleanup / do-not-set
+## 9. [P2] Desktop app - signing, notarization, distribution & two verifications
+
+The Electron desktop app (`apps/desktop`) is built and **verified to launch**: it
+opens, renders its window with the custom chrome + native menu, loads the prod
+shell at `https://id.kinetiks.ai`, and the single-instance lock works (confirmed
+live, 2026-06-22). What remains needs credentials/access only you have.
+
+**9a. Code signing + notarization (Apple Developer creds - I cannot do this).**
+electron-builder needs these to produce a distributable, Gatekeeper-passing
+artifact. Set as build-time env / CI secrets (also listed in `env-vars.md`
+"Desktop (Electron)"):
+
+| Env var | What |
+|---|---|
+| `CSC_LINK` | base64 (or path) of the Apple "Developer ID Application" `.p12` |
+| `CSC_KEY_PASSWORD` | password for that `.p12` |
+| `APPLE_ID` | Apple ID email used for notarization |
+| `APPLE_APP_SPECIFIC_PASSWORD` | app-specific password from appleid.apple.com |
+| `APPLE_TEAM_ID` | your Apple Developer Team ID |
+
+Then `pnpm --filter @kinetiks/desktop package:mac` produces a signed + notarized
+`.dmg`/`.zip`. (Windows: a code-signing cert via `CSC_LINK`/`CSC_KEY_PASSWORD`, or
+skip Windows for now.)
+
+**9b. Auto-update publish feed.** electron-updater needs a release host. Add a
+`publish` block to `apps/desktop/electron-builder.yml` (e.g. GitHub Releases) and
+a `GH_TOKEN` with `repo` scope in the build env; the app then checks the feed on
+launch and surfaces the §16.2 "update available" toast.
+
+**9c. [verify] Packaged-app smoke (needs 9a).** Install the signed `.dmg` on a
+clean Mac, launch it, and confirm: opens with no Gatekeeper block, loads
+`id.kinetiks.ai`, auto-update check succeeds against the feed. (The *unsigned*
+local launch is already verified; only the notarized artifact + Gatekeeper pass
+needs your signature.)
+
+**9d. [verify] Logged-in desktop collaborative flow (needs a prod login).** Launch
+the desktop app, sign in with a real account, and open a collaborative panel
+(`/embed` in a webview). Confirm: the reference surface renders inside the webview;
+the session cookie is mirrored into the `persist:collaborative` partition (no
+second login prompt); presence + annotations work; switching apps keeps ≤3
+webviews cached (watch process memory). The shell-launch + prod-URL load is
+already verified live; this authenticated webview walk is the part that needs a
+session I don't have. (The collaborative logic itself is proven by the green CI
+`e2e-browser` lane + the pgTAP realtime-channel-boundary suite.)
+
+---
+
+## 10. [opt] E2E browser lane - promote to a required check
+
+`.github/workflows/e2e.yml` runs two lanes, both green today: `e2e-api` (the
+must-never-break cross-account isolation flow) and `e2e-browser` (the collaborative
+reference-surface flow in real Chromium). Once `e2e-browser` has proven stable over
+~a week, promote it to a **required** status check in GitHub repo Settings ->
+Branches -> branch protection for `main`. Until then it runs and reports but does
+not gate merges (intentional, per the e2e plan's "non-blocking first").
+
+> Dev-env note (not a prod op): authenticated E2E (the browser lane / any login)
+> cannot run against the *local* Supabase stack on CLI 2.75 - its GoTrue rejects
+> the service key with an HS256 signing error. Run those lanes in CI (pinned
+> 2.105), or bump the local CLI to 2.105. pgTAP is unaffected. See the
+> `local-pgtap-e2e-stack` memory.
+
+---
+
+## 11. [opt] Cleanup / do-not-set
 
 - `GA4_CLIENT_ID` / `GA4_CLIENT_SECRET`: legacy per-provider GA4 OAuth,
   superseded by Nango. No code reads them - safe to **remove** from Vercel.
@@ -226,4 +290,6 @@ the auto-enrichment).
 `NEXT_PUBLIC_APP_URL` + `KINETIKS_ENCRYPTION_KEY` + `INTERNAL_SERVICE_SECRET`
 (section 0) -> Sentry (1) -> Nango (2) -> Google Cloud (3) -> Slack (4) ->
 Stripe (5) -> Resend (6) -> PostHog (7) -> Firecrawl (8) -> `ADMIN_BOOTSTRAP_USER_IDS`
-whenever you want `/admin`. Redeploy + `pnpm health` after each.
+whenever you want `/admin`. Redeploy + `pnpm health` after each. Desktop
+signing/distribution (9) is independent - do it when you're ready to ship the
+desktop app; promoting the E2E browser lane (10) is independent too.
