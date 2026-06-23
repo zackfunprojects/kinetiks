@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { adminClient } from "./db";
+import { adminClient, deleteAccount } from "./db";
 
 /**
  * Deletes the browser-lane account the `setup` project seeded — but only after
@@ -15,9 +15,7 @@ export default async function globalTeardown(): Promise<void> {
   } catch {
     return; // setup didn't run — nothing to clean up.
   }
-  const admin = adminClient();
-  await admin.from("kinetiks_accounts").delete().eq("id", account.accountId);
-  await admin.auth.admin.deleteUser(account.userId).catch(() => {
-    // Best-effort: a missing user on teardown is not a failure.
-  });
+  // Reuse the verified delete (error-checked + row-count-verified) rather than
+  // reimplementing it, so a silent teardown failure can't contaminate later runs.
+  await deleteAccount(adminClient(), account);
 }

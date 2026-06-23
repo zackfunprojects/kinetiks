@@ -88,8 +88,15 @@ export async function seedAccount(
   return { accountId, userId, email, apiKey: key, password: E2E_PASSWORD };
 }
 
-/** Tear down a seeded account (cascades to api keys, annotations, etc.). */
-export async function deleteAccount(admin: SupabaseClient, account: SeededAccount): Promise<void> {
+/**
+ * Tear down a seeded account (cascades to api keys, annotations, etc.). Accepts
+ * just the ids so both the spec (a full SeededAccount) and the global teardown
+ * (the persisted {accountId, userId}) can reuse the same verified delete.
+ */
+export async function deleteAccount(
+  admin: SupabaseClient,
+  account: Pick<SeededAccount, "accountId" | "userId">
+): Promise<void> {
   // kinetiks_accounts FK-cascades to its dependents; remove it then the auth user.
   // Verify the delete landed so a silent teardown failure can't contaminate
   // later runs (per the repo's delete-verification rule).
