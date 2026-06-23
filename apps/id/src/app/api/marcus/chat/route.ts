@@ -161,12 +161,12 @@ export async function POST(request: Request) {
       },
     });
   } catch (err) {
-    const errMsg = err instanceof Error ? err.message : String(err);
     await captureException(err, {
       tags: { route: "/api/marcus/chat", action: "marcus.chat", stage: "execute", app: "id" },
       user: accountId ? { id: accountId } : undefined,
       extra: { threadId: thread_id, channel: channel ?? "web" },
     });
-    return apiError(`Marcus pipeline failed: ${errMsg}`, 500);
+    // User-safe message only; the raw error detail is in Sentry above.
+    return apiError("Marcus request failed. Please try again.", 500);
   }
 }

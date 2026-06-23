@@ -94,6 +94,7 @@ test("a tenant cannot mutate another tenant's annotation (404, no write)", async
     ...authed(alice.apiKey),
     data: createAnnotation(THREAD, "alice private"),
   });
+  expect(aRes.ok()).toBeTruthy();
   const aId = (await aRes.json()).data.id as string;
 
   // Bob tries to dismiss Alice's annotation by id. The route scopes its UPDATE

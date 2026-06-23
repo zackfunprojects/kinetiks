@@ -62,7 +62,6 @@ export async function POST(request: Request) {
     const result = await crawlAndExtract(admin, accountId, url);
     return apiSuccess(result);
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
     await captureException(err, {
       tags: {
         route: "/api/cartographer/crawl",
@@ -73,6 +72,7 @@ export async function POST(request: Request) {
       user: accountId ? { id: accountId } : undefined,
       extra: {},
     });
-    return apiError("Crawl pipeline failed", 500, message);
+    // User-safe message only; the raw error detail is in Sentry above.
+    return apiError("Crawl pipeline failed", 500);
   }
 }

@@ -17,7 +17,7 @@ import { captureException } from "@/lib/observability/sentry";
  * Body: { question: string, businessContext: string }
  */
 export async function POST(request: Request) {
-  const { error } = await requireAuth(request, { permissions: "read-write" });
+  const { auth, error } = await requireAuth(request, { permissions: "read-write" });
   if (error) return error;
 
   let body: Record<string, unknown>;
@@ -56,6 +56,7 @@ export async function POST(request: Request) {
         stage: "execute",
         app: "id",
       },
+      user: { id: auth.account_id },
       extra: {},
     });
     return apiError("Failed to generate answer", 500);

@@ -140,7 +140,13 @@ export async function capture(
     }
     return;
   }
-  ph.capture(event, properties);
+  // Analytics is best-effort and never the caller's problem: swallow any throw
+  // so `void capture(...)` call sites can never surface an unhandled rejection.
+  try {
+    ph.capture(event, properties);
+  } catch {
+    // ignore — a failed product event must not break a user action.
+  }
 }
 
 export async function reset(): Promise<void> {

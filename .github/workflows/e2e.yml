@@ -16,6 +16,11 @@
 
 name: E2E (Playwright)
 
+# Least privilege: this lane only reads the repo + runs tests against a throwaway
+# local Supabase stack. No write scopes needed.
+permissions:
+  contents: read
+
 on:
   push:
     branches: [main]

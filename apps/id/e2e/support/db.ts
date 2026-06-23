@@ -91,7 +91,19 @@ export async function seedAccount(
 /** Tear down a seeded account (cascades to api keys, annotations, etc.). */
 export async function deleteAccount(admin: SupabaseClient, account: SeededAccount): Promise<void> {
   // kinetiks_accounts FK-cascades to its dependents; remove it then the auth user.
-  await admin.from("kinetiks_accounts").delete().eq("id", account.accountId);
+  // Verify the delete landed so a silent teardown failure can't contaminate
+  // later runs (per the repo's delete-verification rule).
+  const { data: deleted, error: deleteErr } = await admin
+    .from("kinetiks_accounts")
+    .delete()
+    .eq("id", account.accountId)
+    .select("id");
+  if (deleteErr) {
+    throw new Error(`deleteAccount: account delete failed: ${deleteErr.message}`);
+  }
+  if (!deleted || deleted.length === 0) {
+    throw new Error(`deleteAccount: account ${account.accountId} was not deleted`);
+  }
   await admin.auth.admin.deleteUser(account.userId).catch(() => {
     // Best-effort: a missing user on teardown is not a test failure.
   });

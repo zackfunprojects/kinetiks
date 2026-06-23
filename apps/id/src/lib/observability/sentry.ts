@@ -62,11 +62,17 @@ async function getSentry(): Promise<typeof import("@sentry/nextjs") | null> {
 export async function captureException(err: unknown, options: CaptureOptions): Promise<void> {
   const sentry = await getSentry();
   if (sentry) {
-    sentry.captureException(err, {
-      tags: { ...options.tags } as Record<string, string>,
-      user: options.user ? { id: options.user.id ?? undefined } : undefined,
-      extra: options.extra,
-    });
+    // An observability helper must never throw into its caller — `void
+    // captureException(...)` call sites rely on this to stay rejection-free.
+    try {
+      sentry.captureException(err, {
+        tags: { ...options.tags } as Record<string, string>,
+        user: options.user ? { id: options.user.id ?? undefined } : undefined,
+        extra: options.extra,
+      });
+    } catch {
+      // ignore — reporting failure must not break the path being reported on.
+    }
     return;
   }
   if (process.env.NODE_ENV !== "production") {
@@ -82,11 +88,15 @@ export async function captureException(err: unknown, options: CaptureOptions): P
 export async function captureMessage(message: string, options: CaptureOptions): Promise<void> {
   const sentry = await getSentry();
   if (sentry) {
-    sentry.captureMessage(message, {
-      tags: { ...options.tags } as Record<string, string>,
-      user: options.user ? { id: options.user.id ?? undefined } : undefined,
-      extra: options.extra,
-    });
+    try {
+      sentry.captureMessage(message, {
+        tags: { ...options.tags } as Record<string, string>,
+        user: options.user ? { id: options.user.id ?? undefined } : undefined,
+        extra: options.extra,
+      });
+    } catch {
+      // ignore — see captureException.
+    }
     return;
   }
   if (process.env.NODE_ENV !== "production") {

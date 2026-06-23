@@ -61,7 +61,17 @@ export function createRealtimePresenceTransport(opts: {
   // re-add a channel that dispose() already removed.
   void Promise.resolve(client.realtime.setAuth())
     .then(() => {
-      if (!disposed) channel.subscribe();
+      if (disposed) return;
+      // A status handler surfaces server-side join/auth rejections (the private
+      // channel can be denied AFTER setAuth resolves) so a dead presence
+      // transport is observable, not silent.
+      channel.subscribe((status, err) => {
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+          onError?.(
+            err ?? new Error(`presence channel "${channelName}" failed to join: ${status}`)
+          );
+        }
+      });
     })
     .catch((err) => onError?.(err));
 

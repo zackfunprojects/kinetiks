@@ -15,11 +15,19 @@ import { defineConfig, devices } from "@playwright/test";
  * Supabase stack the rls-tests workflow uses (CLI 2.105.0).
  */
 
-const PORT = Number(process.env.E2E_PORT ?? 3000);
+// Validate the port eagerly: a non-numeric E2E_PORT would otherwise become NaN
+// and Playwright would try http://127.0.0.1:NaN (an opaque boot failure).
+const rawPort = process.env.E2E_PORT;
+const PORT = rawPort ? Number.parseInt(rawPort, 10) : 3000;
+if (!Number.isInteger(PORT) || PORT <= 0) {
+  throw new Error(`Invalid E2E_PORT: ${JSON.stringify(rawPort)} — expected a positive integer.`);
+}
 const BASE_URL = process.env.E2E_BASE_URL ?? `http://127.0.0.1:${PORT}`;
 
 export default defineConfig({
   testDir: "./e2e",
+  // Cleans up the seeded browser-lane account after all projects run.
+  globalTeardown: "./e2e/support/global-teardown.ts",
   // Cross-account isolation specs share seeded accounts; keep workers serial so
   // one spec's fixture reset never races another. Fast enough (HTTP, no browser).
   workers: 1,
