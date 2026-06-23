@@ -5142,6 +5142,14 @@ export type Database = {
         Args: { p_account_id: string }
         Returns: number
       }
+      kinetiks_realtime_channel_account: {
+        Args: { p_topic: string }
+        Returns: string
+      }
+      kinetiks_realtime_topic_owned: {
+        Args: { p_topic: string }
+        Returns: boolean
+      }
       propose_authority_grants: {
         Args: {
           p_account_id: string
