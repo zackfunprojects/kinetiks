@@ -29,6 +29,9 @@ function makeMockClient() {
       return channel;
     },
     removeChannel: () => {},
+    // Private collaborative channels authorize the join via setAuth() before
+    // subscribe (Realtime Authorization, migration 00091).
+    realtime: { setAuth: async () => {} },
   };
 
   return {

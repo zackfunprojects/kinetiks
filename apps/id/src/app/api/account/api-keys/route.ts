@@ -98,7 +98,16 @@ export async function POST(request: Request) {
     .maybeSingle();
 
   if (selectError) {
-    console.error("Failed to check existing connection:", selectError.message);
+    await captureException(selectError, {
+      tags: {
+        route: "/api/account/api-keys",
+        action: "store_api_key",
+        stage: "query",
+        app: "id",
+      },
+      user: { id: auth.account_id },
+      extra: { provider },
+    });
     return apiError("Failed to save API key", 500);
   }
 
@@ -113,7 +122,16 @@ export async function POST(request: Request) {
       .eq("id", existing.id);
 
     if (updateError) {
-      console.error("Failed to update API key:", updateError.message);
+      await captureException(updateError, {
+        tags: {
+          route: "/api/account/api-keys",
+          action: "store_api_key",
+          stage: "persist",
+          app: "id",
+        },
+        user: { id: auth.account_id },
+        extra: { provider },
+      });
       return apiError("Failed to update API key", 500);
     }
   } else {
@@ -128,7 +146,16 @@ export async function POST(request: Request) {
       });
 
     if (insertError) {
-      console.error("Failed to insert API key:", insertError.message);
+      await captureException(insertError, {
+        tags: {
+          route: "/api/account/api-keys",
+          action: "store_api_key",
+          stage: "persist",
+          app: "id",
+        },
+        user: { id: auth.account_id },
+        extra: { provider },
+      });
       return apiError("Failed to save API key", 500);
     }
   }

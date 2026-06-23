@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ApprovalOverlayBar, Button, Input, Textarea } from "@kinetiks/ui";
 import { captureException } from "@/lib/observability/sentry";
+import { capture } from "@/lib/observability/posthog";
 import { bottomCenterAnchor } from "./floating-anchor";
 
 /** The action the system is presenting for approval (§9.1) — an email draft. */
@@ -79,16 +80,25 @@ export function ApprovalSurface({
         original: ORIGINAL,
         edited: { subject, body },
       });
-      if (ok) setResolved({ kind: "approved", note: `${name} sent it with your edits — I'll learn from them.` });
+      if (ok) {
+        void capture("collab.approval_decided", { decision: "approve_with_edits", is_fixture: true });
+        setResolved({ kind: "approved", note: `${name} sent it with your edits — I'll learn from them.` });
+      }
     } else {
       const ok = await submit({ decision: "approve" });
-      if (ok) setResolved({ kind: "approved", note: `${name} sent the email.` });
+      if (ok) {
+        void capture("collab.approval_decided", { decision: "approve", is_fixture: true });
+        setResolved({ kind: "approved", note: `${name} sent the email.` });
+      }
     }
   };
 
   const handleReject = async () => {
     const ok = await submit({ decision: "reject", reason: reason.trim() });
-    if (ok) setResolved({ kind: "rejected", note: "Rejected — I'll factor that in next time." });
+    if (ok) {
+      void capture("collab.approval_decided", { decision: "reject", is_fixture: true });
+      setResolved({ kind: "rejected", note: "Rejected — I'll factor that in next time." });
+    }
   };
 
   if (!enabled) return null;

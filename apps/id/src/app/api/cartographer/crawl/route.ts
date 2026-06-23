@@ -2,6 +2,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { crawlAndExtract } from "@/lib/cartographer/crawl";
 import { apiSuccess, apiError } from "@/lib/utils/api-response";
+import { captureException } from "@/lib/observability/sentry";
 
 /**
  * POST /api/cartographer/crawl
@@ -61,8 +62,17 @@ export async function POST(request: Request) {
     const result = await crawlAndExtract(admin, accountId, url);
     return apiSuccess(result);
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    console.error("Crawl pipeline error:", message);
-    return apiError("Crawl pipeline failed", 500, message);
+    await captureException(err, {
+      tags: {
+        route: "/api/cartographer/crawl",
+        action: "cartographer.crawl",
+        stage: "execute",
+        app: "id",
+      },
+      user: accountId ? { id: accountId } : undefined,
+      extra: {},
+    });
+    // User-safe message only; the raw error detail is in Sentry above.
+    return apiError("Crawl pipeline failed", 500);
   }
 }

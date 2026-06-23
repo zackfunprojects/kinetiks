@@ -3,6 +3,7 @@ import { requireAuth } from "@/lib/auth/require-auth";
 import { reviewContent } from "@kinetiks/sentinel";
 import type { ReviewRequest, SentinelContentType } from "@kinetiks/types";
 import { apiSuccess, apiError } from "@/lib/utils/api-response";
+import { captureException } from "@/lib/observability/sentry";
 
 const VALID_CONTENT_TYPES: SentinelContentType[] = [
   "cold_email",
@@ -113,7 +114,16 @@ export async function POST(request: Request) {
     const result = await reviewContent(admin, body);
     return apiSuccess(result);
   } catch (err) {
-    console.error("Sentinel review failed:", err);
+    await captureException(err, {
+      tags: {
+        route: "/api/sentinel/review",
+        action: "sentinel.review",
+        stage: "execute",
+        app: "id",
+      },
+      user: account_id ? { id: account_id } : undefined,
+      extra: { source_app, content_type, authMethod: auth.auth_method },
+    });
     return apiError("Internal server error", 500);
   }
 }

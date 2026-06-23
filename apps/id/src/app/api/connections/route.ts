@@ -21,6 +21,7 @@
  */
 
 import { requireAuth } from "@/lib/auth/require-auth";
+import { captureException } from "@/lib/observability/sentry";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { apiSuccess, apiError } from "@/lib/utils/api-response";
 import { createConnectSession } from "@/lib/integrations/nango/client";
@@ -51,9 +52,11 @@ export async function GET(request: Request): Promise<Response> {
     .order("created_at", { ascending: false });
 
   if (queryError) {
-    console.error(
-      `[api/connections] list failed for account ${auth.account_id}: ${queryError.message}`,
-    );
+    await captureException(queryError, {
+      tags: { route: "/api/connections", action: "connections.list", stage: "query", app: "id" },
+      user: { id: auth.account_id },
+      extra: {},
+    });
     return apiError("Failed to fetch connections", 500);
   }
   return apiSuccess({ connections: (data ?? []) as ConnectionListRow[] });
@@ -106,9 +109,11 @@ export async function POST(request: Request): Promise<Response> {
     .neq("status", "revoked")
     .maybeSingle();
   if (existingError) {
-    console.error(
-      `[api/connections] existing check failed: ${existingError.message}`,
-    );
+    await captureException(existingError, {
+      tags: { route: "/api/connections", action: "connections.connect", stage: "query", app: "id" },
+      user: { id: auth.account_id },
+      extra: { provider: providerKey },
+    });
     return apiError(GENERIC_CONNECT_ERROR, 500);
   }
   if (existing) {
@@ -123,9 +128,11 @@ export async function POST(request: Request): Promise<Response> {
     .eq("id", auth.account_id)
     .maybeSingle();
   if (accountError || !account) {
-    console.error(
-      `[api/connections] account lookup failed: ${accountError?.message ?? "not found"}`,
-    );
+    await captureException(accountError ?? new Error("account not found"), {
+      tags: { route: "/api/connections", action: "connections.connect", stage: "query", app: "id" },
+      user: { id: auth.account_id },
+      extra: { provider: providerKey, accountFound: Boolean(account) },
+    });
     return apiError(GENERIC_CONNECT_ERROR, 500);
   }
 
@@ -147,9 +154,16 @@ export async function POST(request: Request): Promise<Response> {
         .maybeSingle();
       endUserId = (retry?.nango_end_user_id as string | null) ?? null;
       if (!endUserId) {
-        console.error(
-          `[api/connections] failed to set nango_end_user_id: ${updateError.message}`,
-        );
+        await captureException(updateError, {
+          tags: {
+            route: "/api/connections",
+            action: "connections.set_end_user_id",
+            stage: "persist",
+            app: "id",
+          },
+          user: { id: auth.account_id },
+          extra: { provider: providerKey },
+        });
         return apiError(GENERIC_CONNECT_ERROR, 500);
       }
     }
@@ -174,10 +188,16 @@ export async function POST(request: Request): Promise<Response> {
       nango_integration_id: config.nango_integration_id,
     });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error(
-      `[api/connections] createConnectSession failed for ${providerKey}: ${msg}`,
-    );
+    await captureException(err, {
+      tags: {
+        route: "/api/connections",
+        action: "connections.create_session",
+        stage: "execute",
+        app: "id",
+      },
+      user: { id: auth.account_id },
+      extra: { provider: providerKey, nangoIntegrationId: config.nango_integration_id },
+    });
     return apiError(GENERIC_CONNECT_ERROR, 500);
   }
 }

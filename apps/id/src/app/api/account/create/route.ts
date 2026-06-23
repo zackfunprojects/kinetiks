@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { generateUniqueCodename } from "@/lib/utils/id-generator";
 import { generateApiKey } from "@/lib/auth/api-keys";
 import { apiSuccess, apiError } from "@/lib/utils/api-response";
+import { captureException } from "@/lib/observability/sentry";
 
 export async function POST() {
   const serverClient = createClient();
@@ -84,10 +85,20 @@ export async function POST() {
       .eq("id", account.id);
 
     if (rollbackError) {
-      console.error(
-        `Rollback failed for account ${account.id}: ${rollbackError.message}`,
-        { confidenceError, billingError }
-      );
+      await captureException(rollbackError, {
+        tags: {
+          route: "/api/account/create",
+          action: "account.rollback",
+          stage: "persist",
+          app: "id",
+        },
+        user: { id: account.id },
+        extra: {
+          accountId: account.id,
+          confidenceFailed: Boolean(confidenceError),
+          billingFailed: Boolean(billingError),
+        },
+      });
       return apiError("Failed to initialize account and rollback failed", 500);
     }
 
@@ -135,10 +146,20 @@ export async function POST() {
     .filter(Boolean);
 
   if (failedLayers.length > 0) {
-    console.error(
-      `Failed to initialize context layers for account ${account.id}:`,
-      failedLayers
-    );
+    await captureException(new Error("Failed to initialize context layers"), {
+      tags: {
+        route: "/api/account/create",
+        action: "account.init_context_layers",
+        stage: "persist",
+        app: "id",
+      },
+      user: { id: account.id },
+      extra: {
+        accountId: account.id,
+        failedLayers: failedLayers.filter((l): l is string => l !== null),
+        failedLayerCount: failedLayers.length,
+      },
+    });
   }
 
   // Log to ledger
@@ -165,10 +186,28 @@ export async function POST() {
     if (!keyError) {
       bootstrapKey = key;
     } else {
-      console.error(`Failed to create bootstrap key for ${account.id}:`, keyError.message);
+      await captureException(keyError, {
+        tags: {
+          route: "/api/account/create",
+          action: "account.bootstrap_key_insert",
+          stage: "persist",
+          app: "id",
+        },
+        user: { id: account.id },
+        extra: { accountId: account.id },
+      });
     }
   } catch (err) {
-    console.error(`Bootstrap key generation error for ${account.id}:`, err);
+    await captureException(err, {
+      tags: {
+        route: "/api/account/create",
+        action: "account.bootstrap_key_generate",
+        stage: "execute",
+        app: "id",
+      },
+      user: { id: account.id },
+      extra: { accountId: account.id },
+    });
   }
 
   return apiSuccess({ account, bootstrap_key: bootstrapKey });

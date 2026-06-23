@@ -62,6 +62,14 @@ export type KineticsEventName =
   | "connection.removed"
   | "extractor.first_sync"
   | "extractor.sync_error"
+  // Collaborative workspace (spec §5-§9, §16)
+  | "collab.panel_opened"
+  | "collab.annotation_pinned"
+  | "collab.annotation_dismissed"
+  | "collab.tempo_changed"
+  | "collab.intervention"
+  | "collab.task_killed"
+  | "collab.approval_decided"
   // Billing (E1)
   | "billing.checkout_started"
   | "billing.checkout_returned"
@@ -132,7 +140,13 @@ export async function capture(
     }
     return;
   }
-  ph.capture(event, properties);
+  // Analytics is best-effort and never the caller's problem: swallow any throw
+  // so `void capture(...)` call sites can never surface an unhandled rejection.
+  try {
+    ph.capture(event, properties);
+  } catch {
+    // ignore — a failed product event must not break a user action.
+  }
 }
 
 export async function reset(): Promise<void> {

@@ -884,4 +884,14 @@ A coding agent should never write a hardcoded color, font-family, or pixel spaci
 
 ---
 
+## 16. Collaborative workspace floating bars
+
+The collaborative workspace (`docs/collaborative-workspace-spec.md` §16) introduces a floating-bar visual language: the task drawer, agent-action toasts (success+Undo / warning / error+Retry / info), the thread-switch warning, the bulk-action bar, and the in-panel approval overlay. These are all `@kinetiks/ui` primitives sharing the `.kt-floating-bar` base in `packages/ui/styles/primitives.css` — pill-shaped, elevated by `--kt-shadow-md` over a hairline `--kt-border-1` (no heavy outline stroke), icon + label + action anatomy, red **text** (never a red fill) for destructive actions, dark-filled primary for Approve/Upgrade. Persistent bars dismiss with an X on the left; transient toasts with an X on the right.
+
+### 16.1 D7 — resolved color note (agent-action "success")
+
+The collaborative-workspace spec's §16.6 originally named a teal hex for the agent-success icon color. **That hex is superseded.** The canonical success token is **`--kt-success`** (the teal palette was retired per §13 Anti-patterns of this spec), and the agent-success toast — like every floating element — references `--kt-*` tokens only. There are **no hardcoded hex values** in the floating-bar system; the token system wins over any aspirational hex. (Program decision D7.)
+
+---
+
 *End of Kinetiks Design Spec v1.0.*

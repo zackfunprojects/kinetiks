@@ -6,6 +6,7 @@ import {
 } from "@/lib/cartographer/calibrate";
 import type { CalibrationExercise } from "@/lib/cartographer/calibrate";
 import { apiSuccess, apiError } from "@/lib/utils/api-response";
+import { captureException } from "@/lib/observability/sentry";
 
 /**
  * POST /api/cartographer/calibrate
@@ -53,8 +54,16 @@ export async function POST(request: Request) {
       );
       return apiSuccess({ exercises });
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Unknown error";
-      console.error("Calibration generation failed:", message);
+      await captureException(err, {
+        tags: {
+          route: "/api/cartographer/calibrate",
+          action: "calibration.generate",
+          stage: "execute",
+          app: "id",
+        },
+        user: accountId ? { id: accountId } : undefined,
+        extra: { count },
+      });
       return apiError("Failed to generate calibration exercises", 500);
     }
   }
@@ -106,8 +115,16 @@ export async function POST(request: Request) {
       );
       return apiSuccess({ result });
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Unknown error";
-      console.error("Calibration choice processing failed:", message);
+      await captureException(err, {
+        tags: {
+          route: "/api/cartographer/calibrate",
+          action: "calibration.submit_choice",
+          stage: "execute",
+          app: "id",
+        },
+        user: accountId ? { id: accountId } : undefined,
+        extra: { exerciseDimension: validatedExercise.dimension, choice },
+      });
       return apiError("Failed to process calibration choice", 500);
     }
   }

@@ -285,6 +285,28 @@ if (review.verdict === 'blocked') {
 }
 ```
 
+### 2.6 Collaborative Synapse (shared-surface workspace)
+
+An app that wants to render inside the Kinetiks split panel as a live collaborative surface (`docs/collaborative-workspace-spec.md`) implements `CollaborativeSynapse` (defined in `@kinetiks/synapse`, `packages/synapse/src/collaborative.ts`) and exposes an `/embed?entity=&mode=collaborative` route. The contract is **app-agnostic** — `packages/collaborative` (the `CollaborativeProvider`, presence/annotation/undo hooks, the `PanelMessage`/`PanelBridge` transport, the LRU frame cache) carries zero app-specific knowledge, so a real suite app adopts it with no platform change. Today the reference surface in `apps/id/src/app/embed` is the only implementation; suite apps replace it **additively**.
+
+```typescript
+interface CollaborativeSynapse {
+  subscribeToUIState(cb: (s: UIStateChange) => void): () => void; // returns unsubscribe
+  handleUserPresence(event: PresenceEvent): void;
+  getAnnotationAnchors(): AnnotationAnchor[];
+  handleDelegation(region: DelegationRegion): Promise<void>;
+  getUndoStack(): WorkspaceAction[];
+  applyUndo(actionId: string): Promise<void>;
+}
+```
+
+Conformance rules for a collaborative app:
+
+- **Three Realtime channels, account+thread scoped:** `presence:{account}:{thread}` (broadcast), `annotations:{account}:{thread}` and `workspace:{account}:{thread}`. Channel names are a **convention, not an access boundary** — every broadcast publish goes through `publishAccountScoped()` (send side), and the `realtime.messages` RLS policy (migration 00091) authorizes private channels (subscribe side). That subscribe-side policy only takes effect when the client opts the channel into private mode: create it with `config: { private: true }` **and** call `realtime.setAuth(token)` before `subscribe()` so the join carries the account JWT the policy reads — a channel left public bypasses the RLS entirely. Persisted collaborative tables (annotations, workspace actions, active tasks) get read-only RLS scoped by `kinetiks_account_id()`; **writes are service-role only**, through the app's embed API routes after they validate account ownership — apps never write `kinetiks_*` collaborative tables directly.
+- **Kill / intervention signals are Learning Ledger entries, not a new table:** a killed task writes `event_type='task_killed'` (a 2× negative confidence signal vs a standard reject); a user undo writes `intervention_undo` (weak reject); a grabbed field writes `intervention_grab` (field-level penalty). Attach `grant_id`/`pattern_id` where the action was authorized by a grant or driven by a pattern.
+- **`team_scope_id` is `null` in v1** on every collaborative table (multi-user placeholder; never defaulted otherwise).
+- **Customer-facing copy uses the floating-bar language** (design-spec §16) and the action-class `customer_template` for any authority surface; the literal phrase "Authority Grant" never appears.
+
 ---
 
 ## §3. Tools (Exposing Capabilities to Agents)

@@ -26,6 +26,7 @@
  */
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { captureException } from "@/lib/observability/sentry";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { apiSuccess, apiError } from "@/lib/utils/api-response";
 import { getPatternType } from "@kinetiks/tools";
@@ -182,9 +183,16 @@ export async function POST(request: Request) {
       .eq("app_name", sourceApp)
       .maybeSingle();
     if (synapseError) {
-      console.error(
-        `pattern emission synapse lookup failed account=${accountId} app=${sourceApp}: ${synapseError.message}`,
-      );
+      await captureException(synapseError, {
+        tags: {
+          route: "/api/synapse/patterns",
+          action: "patterns.synapse_lookup",
+          stage: "query",
+          app: "id",
+        },
+        user: { id: accountId },
+        extra: { authMethod: auth.auth_method },
+      });
       return apiError("Failed to verify synapse", 500);
     }
     if (!synapse) {
@@ -312,10 +320,16 @@ export async function POST(request: Request) {
     );
     return apiSuccess<PatternEmissionResult>(result);
   } catch (err) {
-    const message = err instanceof Error ? err.message : "unknown error";
-    console.error(
-      `pattern emission failed account=${accountId} app=${sourceApp} type=${patternType}: ${message}`,
-    );
+    await captureException(err, {
+      tags: {
+        route: "/api/synapse/patterns",
+        action: "patterns.emit",
+        stage: "persist",
+        app: "id",
+      },
+      user: { id: accountId },
+      extra: { patternType, sampleSize },
+    });
     return apiError("Failed to record pattern emission", 500);
   }
 }

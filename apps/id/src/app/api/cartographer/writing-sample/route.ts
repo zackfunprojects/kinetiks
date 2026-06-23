@@ -8,6 +8,7 @@ import {
 import { submitProposal, logToLedger } from "@/lib/cartographer/submit";
 import { apiSuccess, apiError } from "@/lib/utils/api-response";
 import { validateLayerPayload } from "@/lib/utils/context-schemas";
+import { captureException } from "@/lib/observability/sentry";
 
 const MAX_SAMPLES = 3;
 
@@ -162,7 +163,16 @@ export async function POST(request: Request) {
     // Validate the voice refinements schema before submitting
     const validationError = validateVoiceRefinements(voiceRefinements);
     if (validationError) {
-      console.error("Voice refinements validation failed:", validationError);
+      await captureException(new Error(validationError), {
+        tags: {
+          route: "/api/cartographer/writing-sample",
+          action: "writingSample.validateRefinements",
+          stage: "validate",
+          app: "id",
+        },
+        user: { id: accountId },
+        extra: { source },
+      });
       return apiError("Voice analysis produced invalid data", 500);
     }
 
@@ -180,7 +190,16 @@ export async function POST(request: Request) {
     // Validate the complete payload against the voice layer schema
     const layerValidationError = validateLayerPayload("voice", payload);
     if (layerValidationError) {
-      console.error("Voice layer payload validation failed:", layerValidationError);
+      await captureException(new Error(layerValidationError), {
+        tags: {
+          route: "/api/cartographer/writing-sample",
+          action: "writingSample.validateLayerPayload",
+          stage: "validate",
+          app: "id",
+        },
+        user: { id: accountId },
+        extra: { source },
+      });
       return apiError("Voice analysis produced invalid data", 500);
     }
 
@@ -213,8 +232,16 @@ export async function POST(request: Request) {
       result: { voiceRefinements, proposalId },
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    console.error("Writing sample analysis failed:", message);
+    await captureException(err, {
+      tags: {
+        route: "/api/cartographer/writing-sample",
+        action: "writingSample.analyze",
+        stage: "execute",
+        app: "id",
+      },
+      user: { id: accountId },
+      extra: { source },
+    });
     return apiError("Failed to analyze writing sample", 500);
   }
 }

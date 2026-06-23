@@ -3,6 +3,7 @@ import { requireAuth } from "@/lib/auth/require-auth";
 import { apiSuccess, apiError } from "@/lib/utils/api-response";
 import type { CleanPassResult } from "@/lib/archivist/types";
 import { runArchivistCleanForAccount } from "@/lib/archivist/run-clean";
+import { captureException } from "@/lib/observability/sentry";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -54,10 +55,16 @@ export async function POST(request: Request) {
       results.push(result);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown error";
-      console.error(
-        `[archivist/clean] Failed to clean account ${accountId}:`,
-        message
-      );
+      await captureException(err, {
+        tags: {
+          route: "/api/archivist/clean",
+          action: "archivist.clean",
+          stage: "execute",
+          app: "id",
+        },
+        user: { id: accountId },
+        extra: { authMethod: auth.auth_method, accountsRequested: accountIds.length },
+      });
       results.push({
         account_id: accountId,
         error: { message, type: "clean_failed" },

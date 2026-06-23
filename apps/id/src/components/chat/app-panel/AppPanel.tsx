@@ -9,6 +9,7 @@ import { PanelFrame } from "./PanelFrame";
 import { usePanelFrameCache } from "./usePanelFrameCache";
 import { useMediaQuery, WIDE_VIEWPORT_QUERY } from "@/lib/hooks/useMediaQuery";
 import { useIsDesktop } from "@/lib/desktop/useIsDesktop";
+import { capture } from "@/lib/observability/posthog";
 
 interface AppPanelProps {
   target: AppPanelTarget;
@@ -47,6 +48,13 @@ export function AppPanel({ target, threadId, accountId, onClose }: AppPanelProps
     setActiveApp(target.app);
     setShowBoth(false);
   }, [target]);
+
+  // Product event: the collaborative panel opened for this app (spec §4.2).
+  useEffect(() => {
+    void capture("collab.panel_opened", { app: target.app, multi_app: steps.length > 1 });
+    // Re-fires only when the panel opens for a different app/entity.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [target.app, target.entity]);
 
   const activeStep: PanelStep | undefined = multiApp
     ? steps.find((s) => s.app === activeApp) ?? steps[0]

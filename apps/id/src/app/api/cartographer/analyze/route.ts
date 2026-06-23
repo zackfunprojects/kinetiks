@@ -10,6 +10,7 @@ import { extractSocial } from "@/lib/cartographer/extract-social";
 import { buildProposal } from "@/lib/cartographer/crawl";
 import type { ProposalInsert } from "@/lib/cartographer/types";
 import { apiSuccess, apiError } from "@/lib/utils/api-response";
+import { captureException } from "@/lib/observability/sentry";
 
 const VALID_LAYERS: ContextLayer[] = [
   "org",
@@ -184,10 +185,16 @@ export async function POST(request: Request) {
         .single();
 
       if (error || !data) {
-        console.error(
-          `Failed to insert proposal for layer "${proposal.target_layer}" (account=${accountId}):`,
-          error?.message ?? "no data returned"
-        );
+        await captureException(error ?? new Error("Proposal insert returned no data"), {
+          tags: {
+            route: "/api/cartographer/analyze",
+            action: "proposal.insert",
+            stage: "persist",
+            app: "id",
+          },
+          user: accountId ? { id: accountId } : undefined,
+          extra: { targetLayer: proposal.target_layer },
+        });
         continue;
       }
 
@@ -196,11 +203,16 @@ export async function POST(request: Request) {
       submittedIds.push(fullProposal.id);
       evalResults.push(result);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Unknown error";
-      console.error(
-        `Proposal submission failed for layer "${proposal.target_layer}" (account=${accountId}):`,
-        message
-      );
+      await captureException(err, {
+        tags: {
+          route: "/api/cartographer/analyze",
+          action: "proposal.submit",
+          stage: "execute",
+          app: "id",
+        },
+        user: accountId ? { id: accountId } : undefined,
+        extra: { targetLayer: proposal.target_layer },
+      });
     }
   }
 
@@ -219,10 +231,16 @@ export async function POST(request: Request) {
   });
 
   if (ledgerError) {
-    console.error(
-      `Failed to log analyze event to ledger (account=${accountId}, url=${url}, content_type=${content_type}):`,
-      ledgerError.message
-    );
+    await captureException(ledgerError, {
+      tags: {
+        route: "/api/cartographer/analyze",
+        action: "ledger.log",
+        stage: "persist",
+        app: "id",
+      },
+      user: accountId ? { id: accountId } : undefined,
+      extra: { contentType: content_type, proposalsSubmitted: submittedIds.length },
+    });
   }
 
   return apiSuccess({

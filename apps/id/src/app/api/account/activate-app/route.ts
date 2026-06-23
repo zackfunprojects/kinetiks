@@ -2,6 +2,7 @@ import { requireAuth } from "@/lib/auth/require-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { APP_REGISTRY } from "@/lib/utils/app-registry";
 import { apiSuccess, apiError } from "@/lib/utils/api-response";
+import { captureException } from "@/lib/observability/sentry";
 
 export async function POST(request: Request) {
   const { auth, error } = await requireAuth(request, { permissions: "read-write" });
@@ -26,7 +27,11 @@ export async function POST(request: Request) {
     .maybeSingle();
 
   if (selectError) {
-    console.error("Failed to check activation:", selectError.message);
+    await captureException(selectError, {
+      tags: { route: "/api/account/activate-app", action: "activation.check", stage: "query", app: "id" },
+      user: auth.account_id ? { id: auth.account_id } : undefined,
+      extra: { app_name },
+    });
     return apiError("Failed to check app status", 500);
   }
 
@@ -41,7 +46,11 @@ export async function POST(request: Request) {
       .eq("id", existing.id);
 
     if (updateError) {
-      console.error("Failed to reactivate app:", updateError.message);
+      await captureException(updateError, {
+        tags: { route: "/api/account/activate-app", action: "activation.reactivate", stage: "persist", app: "id" },
+        user: auth.account_id ? { id: auth.account_id } : undefined,
+        extra: { app_name },
+      });
       return apiError("Failed to reactivate app", 500);
     }
   } else {
@@ -56,7 +65,11 @@ export async function POST(request: Request) {
       });
 
     if (insertError) {
-      console.error("Failed to activate app:", insertError.message);
+      await captureException(insertError, {
+        tags: { route: "/api/account/activate-app", action: "activation.create", stage: "persist", app: "id" },
+        user: auth.account_id ? { id: auth.account_id } : undefined,
+        extra: { app_name },
+      });
       return apiError("Failed to activate app", 500);
     }
   }
@@ -70,7 +83,11 @@ export async function POST(request: Request) {
     .maybeSingle();
 
   if (synapseSelectError) {
-    console.error("Failed to check synapse:", synapseSelectError.message);
+    await captureException(synapseSelectError, {
+      tags: { route: "/api/account/activate-app", action: "synapse.check", stage: "query", app: "id" },
+      user: auth.account_id ? { id: auth.account_id } : undefined,
+      extra: { app_name },
+    });
     return apiError("Failed to check synapse status", 500);
   }
 
@@ -87,7 +104,11 @@ export async function POST(request: Request) {
       });
 
     if (synapseInsertError) {
-      console.error("Failed to create synapse:", synapseInsertError.message);
+      await captureException(synapseInsertError, {
+        tags: { route: "/api/account/activate-app", action: "synapse.create", stage: "persist", app: "id" },
+        user: auth.account_id ? { id: auth.account_id } : undefined,
+        extra: { app_name },
+      });
       return apiError("Failed to create synapse", 500);
     }
   }
@@ -104,7 +125,11 @@ export async function POST(request: Request) {
   });
 
   if (ledgerError) {
-    console.error("Failed to log activation:", ledgerError.message);
+    await captureException(ledgerError, {
+      tags: { route: "/api/account/activate-app", action: "ledger.log", stage: "persist", app: "id" },
+      user: auth.account_id ? { id: auth.account_id } : undefined,
+      extra: { app_name },
+    });
   }
 
   return apiSuccess({ activated: true, app_name });

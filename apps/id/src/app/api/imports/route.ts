@@ -42,7 +42,11 @@ export async function GET(request: Request) {
     .order("created_at", { ascending: false });
 
   if (queryError) {
-    console.error("Failed to fetch imports:", queryError.message);
+    await captureException(queryError, {
+      tags: { route: "/api/imports", action: "imports.list", stage: "query", app: "id" },
+      user: { id: auth.account_id },
+      extra: {},
+    });
     return apiError("Failed to fetch imports", 500);
   }
 
@@ -121,7 +125,11 @@ export async function POST(request: Request) {
     });
 
   if (uploadError) {
-    console.error("Storage upload failed:", uploadError.message, uploadError.stack);
+    await captureException(uploadError, {
+      tags: { route: "/api/imports", action: "imports.upload", stage: "persist", app: "id" },
+      user: { id: auth.account_id },
+      extra: { file_size: file.size, file_extension: fileExtension },
+    });
     return apiError("File upload failed", 500);
   }
 
@@ -146,17 +154,24 @@ export async function POST(request: Request) {
         .from("imports")
         .remove([fileName]);
       if (removeError) {
-        console.error(
-          `Failed to remove orphaned file ${fileName} after insert error:`,
-          removeError.message
-        );
+        await captureException(removeError, {
+          tags: { route: "/api/imports", action: "imports.cleanup_orphan", stage: "persist", app: "id" },
+          user: { id: auth.account_id },
+          extra: {},
+        });
       }
     } catch (removeErr) {
-      console.error(
-        `Exception removing orphaned file ${fileName}:`,
-        removeErr
-      );
+      await captureException(removeErr, {
+        tags: { route: "/api/imports", action: "imports.cleanup_orphan", stage: "persist", app: "id" },
+        user: { id: auth.account_id },
+        extra: {},
+      });
     }
+    await captureException(insertError, {
+      tags: { route: "/api/imports", action: "imports.create", stage: "persist", app: "id" },
+      user: { id: auth.account_id },
+      extra: { import_type: importType },
+    });
     return apiError("Failed to create import", 500);
   }
 
@@ -222,10 +237,11 @@ export async function POST(request: Request) {
     },
   }).then(({ error: ledgerError }) => {
     if (ledgerError) {
-      console.error(
-        `Ledger insert failed for import ${importRecord.id} (account ${auth.account_id}):`,
-        ledgerError.message
-      );
+      void captureException(ledgerError, {
+        tags: { route: "/api/imports", action: "imports.ledger", stage: "persist", app: "id" },
+        user: { id: auth.account_id },
+        extra: { import_id: importRecord.id },
+      });
     }
   });
 

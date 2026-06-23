@@ -19,6 +19,7 @@ import {
 } from "@kinetiks/collaborative";
 import type { PresenceEvent, PresenceEventType } from "@kinetiks/types";
 import { captureException } from "@/lib/observability/sentry";
+import { capture } from "@/lib/observability/posthog";
 import { tempoForConfidence } from "@/lib/embed/confidence-tempo";
 import { ReferenceSequenceBuilder } from "./ReferenceSequenceBuilder";
 import { AnnotationLayer } from "./AnnotationLayer";
@@ -256,6 +257,7 @@ export function PresenceSurface({
             body: JSON.stringify({ signal: "grab", component_id: componentId, field_name: fieldName }),
           });
           if (!res.ok) throw new Error(`intervention route returned ${res.status}`);
+          void capture("collab.intervention", { signal: "grab", is_fixture: true });
         })().catch((err) => {
           void captureException(err, {
             tags: { route: "/embed", action: "intervention.grab", stage: "persist", app: "id" },
@@ -298,7 +300,13 @@ export function PresenceSurface({
           <Button variant="ghost" size="sm" onClick={() => setShowLeaveWarning(true)}>
             Close panel
           </Button>
-          <TempoControl value={tempoMode} onChange={setTempoMode} />
+          <TempoControl
+            value={tempoMode}
+            onChange={(mode) => {
+              setTempoMode(mode);
+              void capture("collab.tempo_changed", { mode, is_fixture: true });
+            }}
+          />
         </div>
       )}
       {collaborative && showLeaveWarning && (

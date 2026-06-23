@@ -6,6 +6,7 @@ import { assembleContext } from "@/lib/marcus/context-assembly";
 import { getThreadMessages } from "@/lib/marcus/thread-manager";
 import type { MarcusChannel } from "@kinetiks/types";
 import { apiError } from "@/lib/utils/api-response";
+import { captureException } from "@/lib/observability/sentry";
 
 /**
  * POST /api/marcus/chat
@@ -160,8 +161,12 @@ export async function POST(request: Request) {
       },
     });
   } catch (err) {
-    const errMsg = err instanceof Error ? err.message : String(err);
-    console.error("Marcus chat error:", errMsg, err instanceof Error ? err.stack : "");
-    return apiError(`Marcus pipeline failed: ${errMsg}`, 500);
+    await captureException(err, {
+      tags: { route: "/api/marcus/chat", action: "marcus.chat", stage: "execute", app: "id" },
+      user: accountId ? { id: accountId } : undefined,
+      extra: { threadId: thread_id, channel: channel ?? "web" },
+    });
+    // User-safe message only; the raw error detail is in Sentry above.
+    return apiError("Marcus request failed. Please try again.", 500);
   }
 }

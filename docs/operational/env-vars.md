@@ -85,13 +85,24 @@ rest of the app keeps running. Order roughly by importance.
 | Variable | Vercel | Supabase | Notes |
 | --- | --- | --- | --- |
 | `SENTRY_DSN` | yes | no | Error capture. Project: kinetiks-id. |
-| `POSTHOG_API_KEY` | yes | no | Product analytics. |
+| `NEXT_PUBLIC_POSTHOG_KEY` | yes | no | Product analytics (client). The browser PostHog client (`apps/id/src/lib/observability/posthog.ts`) reads this exact name; if unset, `capture()`/`identify()` no-op (collaborative `collab.*` events included). Previously documented as `POSTHOG_API_KEY`, which the code never read. |
+| `NEXT_PUBLIC_POSTHOG_HOST` | optional | no | PostHog ingestion host. Defaults to `https://us.i.posthog.com`. |
 
 ## Feature flags
 
 | Variable | Vercel | Supabase | Notes |
 | --- | --- | --- | --- |
 | `KINETIKS_FIXTURES_ENABLED` | yes (dev/staging only) | yes (dev/staging only) | Phase 1.5 fixture emitter switch. When `true`, `fixture-emitter-cron` runs every 2 hours and `/api/internal/fixtures/emit` POSTs Harvest-shaped pattern emissions to `/api/synapse/patterns` with `source_app: "kinetiks_fixtures"`. **Never set to `true` in production.** Both surfaces must agree; the Node route re-checks the flag so a one-sided enable still no-ops. Cleanup: POST `/api/internal/fixtures/cleanup` to archive all fixture-sourced patterns (status flips to `archived`, no DELETE). |
+
+## E2E (CI only — no production vars)
+
+The Playwright lane (`.github/workflows/e2e.yml`, Phase 8.8) introduces **no new
+production environment variables**. It boots a throwaway local Supabase stack and
+assembles an ephemeral app env for the build + `next start`: the Supabase URL +
+keys come from `supabase status -o env`; `INTERNAL_SERVICE_SECRET` and
+`KINETIKS_ENCRYPTION_KEY` are generated per-run with `openssl`; `ANTHROPIC_API_KEY`
+is a stub (the API lane hits no AI path); `KINETIKS_FIXTURES_ENABLED=true`. None of
+these are Vercel/Supabase production secrets — they live and die inside the CI job.
 
 ## How to generate values that have to be matched across both surfaces
 

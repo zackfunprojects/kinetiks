@@ -7,6 +7,15 @@ import { z } from "zod";
  * runtime validators for the wire.
  */
 
+/**
+ * A thread_id must not contain ':' — it is interpolated into the
+ * `prefix:account:thread` Realtime channel grammar (`packages/supabase/realtime.ts`),
+ * and a colon would break `kinetiks_realtime_channel_account()` ownership parsing
+ * (migration 00091), silently fail-closing the private-channel join. Constraining
+ * it here guarantees the grammar at the write boundary.
+ */
+const threadId = z.string().min(1).regex(/^[^:]+$/, "thread_id must not contain ':'");
+
 export const presenceEventSchema = z.object({
   participant: z.enum(["agent", "user"]),
   event_type: z.enum(["focus", "blur", "select", "type", "scroll", "hover", "uncertain"]),
@@ -26,14 +35,14 @@ export const presenceEventSchema = z.object({
 });
 
 export const presenceRequestSchema = z.object({
-  thread_id: z.string().min(1),
+  thread_id: threadId,
   event: presenceEventSchema,
 });
 
 export const annotationIntentSchema = z.discriminatedUnion("op", [
   z.object({
     op: z.literal("create"),
-    thread_id: z.string().min(1),
+    thread_id: threadId,
     kind: z.enum(["decision_note", "data_reference", "skip_note", "suggestion"]),
     component_id: z.string().min(1),
     field_name: z.string().min(1),
@@ -41,25 +50,25 @@ export const annotationIntentSchema = z.discriminatedUnion("op", [
     summary: z.string().min(1),
     body: z.string().min(1),
   }),
-  z.object({ op: z.literal("dismiss"), thread_id: z.string().min(1), annotation_id: z.string().uuid() }),
-  z.object({ op: z.literal("pin"), thread_id: z.string().min(1), annotation_id: z.string().uuid() }),
+  z.object({ op: z.literal("dismiss"), thread_id: threadId, annotation_id: z.string().uuid() }),
+  z.object({ op: z.literal("pin"), thread_id: threadId, annotation_id: z.string().uuid() }),
   z.object({
     op: z.literal("reply"),
-    thread_id: z.string().min(1),
+    thread_id: threadId,
     annotation_id: z.string().uuid(),
     body: z.string().min(1),
   }),
 ]);
 
 export const undoRequestSchema = z.object({
-  thread_id: z.string().min(1),
+  thread_id: threadId,
   action_id: z.string().uuid(),
 });
 
 export const workspaceActionSchema = z.discriminatedUnion("op", [
   z.object({
     op: z.literal("record"),
-    thread_id: z.string().min(1),
+    thread_id: threadId,
     participant: z.enum(["agent", "user"]),
     action_type: z.enum([
       "field_update",
@@ -74,7 +83,7 @@ export const workspaceActionSchema = z.discriminatedUnion("op", [
   }),
   z.object({
     op: z.literal("undo"),
-    thread_id: z.string().min(1),
+    thread_id: threadId,
     action_id: z.string().uuid(),
   }),
 ]);
@@ -102,7 +111,7 @@ const taskStepSchema = z.object({
 export const activeTaskSchema = z.discriminatedUnion("op", [
   z.object({
     op: z.literal("open"),
-    thread_id: z.string().min(1),
+    thread_id: threadId,
     name: z.string().min(1),
     description: z.string().optional(),
     app_name: z.string().min(1),
@@ -113,18 +122,18 @@ export const activeTaskSchema = z.discriminatedUnion("op", [
   }),
   z.object({
     op: z.literal("progress"),
-    thread_id: z.string().min(1),
+    thread_id: threadId,
     task_id: z.string().uuid(),
     progress: z.number().int().min(0).max(100).optional(),
     current_step_index: z.number().int().min(0).optional(),
     steps: z.array(taskStepSchema).optional(),
   }),
-  z.object({ op: z.literal("pause"), thread_id: z.string().min(1), task_id: z.string().uuid() }),
-  z.object({ op: z.literal("resume"), thread_id: z.string().min(1), task_id: z.string().uuid() }),
-  z.object({ op: z.literal("complete"), thread_id: z.string().min(1), task_id: z.string().uuid() }),
+  z.object({ op: z.literal("pause"), thread_id: threadId, task_id: z.string().uuid() }),
+  z.object({ op: z.literal("resume"), thread_id: threadId, task_id: z.string().uuid() }),
+  z.object({ op: z.literal("complete"), thread_id: threadId, task_id: z.string().uuid() }),
   z.object({
     op: z.literal("skip_step"),
-    thread_id: z.string().min(1),
+    thread_id: threadId,
     task_id: z.string().uuid(),
     step_index: z.number().int().min(0),
   }),
@@ -136,7 +145,7 @@ export type ActiveTaskRequest = z.infer<typeof activeTaskSchema>;
 // the task, reverts in-progress agent work via the undo stack, and fires the 2×
 // kill learning signal (§8.3). Distinct from the lifecycle ops above.
 export const killTaskSchema = z.object({
-  thread_id: z.string().min(1),
+  thread_id: threadId,
   task_id: z.string().uuid(),
   reason_code: z.enum(["wrong_tone", "wrong_data", "wrong_approach", "wrong_target", "other"]),
   feedback: z.string().max(2000).optional(),

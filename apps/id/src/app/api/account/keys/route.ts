@@ -2,6 +2,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { generateApiKey } from "@/lib/auth/api-keys";
 import { apiSuccess, apiError } from "@/lib/utils/api-response";
+import { captureException } from "@/lib/observability/sentry";
 import type { ApiKeyPermission, ApiKeyPublic } from "@kinetiks/types";
 
 const VALID_PERMISSIONS: ApiKeyPermission[] = [
@@ -42,7 +43,10 @@ export async function GET(request: Request) {
     .order("created_at", { ascending: false });
 
   if (fetchError) {
-    console.error("Failed to fetch API keys:", fetchError.message);
+    await captureException(fetchError, {
+      tags: { route: "/api/account/keys", action: "keys.list", stage: "query", app: "id" },
+      user: auth.account_id ? { id: auth.account_id } : undefined,
+    });
     return apiError("Failed to fetch API keys", 500);
   }
 
@@ -156,7 +160,10 @@ export async function POST(request: Request) {
     .single();
 
   if (insertError) {
-    console.error("Failed to create API key:", insertError.message);
+    await captureException(insertError, {
+      tags: { route: "/api/account/keys", action: "keys.create", stage: "persist", app: "id" },
+      user: auth.account_id ? { id: auth.account_id } : undefined,
+    });
     return apiError("Failed to create API key", 500);
   }
 
@@ -267,7 +274,11 @@ export async function PATCH(request: Request) {
     .single();
 
   if (updateError) {
-    console.error("Failed to update API key:", updateError.message);
+    await captureException(updateError, {
+      tags: { route: "/api/account/keys", action: "keys.update", stage: "persist", app: "id" },
+      user: auth.account_id ? { id: auth.account_id } : undefined,
+      extra: { keyId: key_id },
+    });
     return apiError("Failed to update API key", 500);
   }
 
@@ -313,7 +324,11 @@ export async function DELETE(request: Request) {
     .select("id");
 
   if (updateError) {
-    console.error("Failed to revoke API key:", updateError.message);
+    await captureException(updateError, {
+      tags: { route: "/api/account/keys", action: "keys.revoke", stage: "persist", app: "id" },
+      user: auth.account_id ? { id: auth.account_id } : undefined,
+      extra: { keyId: key_id },
+    });
     return apiError("Failed to revoke API key", 500);
   }
 

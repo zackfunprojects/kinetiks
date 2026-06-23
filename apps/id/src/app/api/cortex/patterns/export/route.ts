@@ -28,6 +28,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { apiError } from "@/lib/utils/api-response";
+import { captureException, captureMessage } from "@/lib/observability/sentry";
 import { getPatternType } from "@kinetiks/tools";
 import type {
   Pattern,
@@ -121,9 +122,15 @@ export async function GET(request: Request) {
     .gte("created_at", oneHourAgo);
 
   if (countError) {
-    console.error(
-      `pattern export rate-limit count failed account=${account.id}: ${countError.message}`,
-    );
+    await captureException(countError, {
+      tags: {
+        route: "/api/cortex/patterns/export",
+        action: "patterns.export.rate_limit_count",
+        stage: "query",
+        app: "id",
+      },
+      user: { id: account.id },
+    });
     return apiError("Could not verify rate limit", 500);
   }
 
@@ -166,9 +173,15 @@ export async function GET(request: Request) {
 
   const { data: rows, error } = await query;
   if (error) {
-    console.error(
-      `pattern export read failed account=${account.id}: ${error.message}`,
-    );
+    await captureException(error, {
+      tags: {
+        route: "/api/cortex/patterns/export",
+        action: "patterns.export.read",
+        stage: "query",
+        app: "id",
+      },
+      user: { id: account.id },
+    });
     return apiError("Could not read patterns", 500);
   }
 
@@ -206,8 +219,21 @@ export async function GET(request: Request) {
     const snap = snapshotDescriptor(t);
     if (snap) registrySnapshot.push(snap);
     else {
-      console.warn(
-        `pattern export: pattern_type '${t}' not in registry; descriptor snapshot omitted`,
+      // Expected non-fatal degradation: the export still succeeds (200) with this
+      // one registry snapshot omitted. Record as a message, not an exception, so a
+      // green export of a deprecated pattern_type does not file a Sentry error.
+      await captureMessage(
+        "pattern export: pattern_type not in registry; descriptor snapshot omitted",
+        {
+          tags: {
+            route: "/api/cortex/patterns/export",
+            action: "patterns.export.snapshot_descriptor",
+            stage: "execute",
+            app: "id",
+          },
+          user: { id: account.id },
+          extra: { pattern_type: t },
+        },
       );
     }
   }

@@ -25,6 +25,7 @@ import { serverEnv } from "@kinetiks/lib/env";
 import { isValidInternalBearer } from "@/lib/auth/internal-bearer";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { FIXTURE_SOURCE_APP } from "@/lib/fixtures";
+import { captureException } from "@/lib/observability/sentry";
 
 const Body = z
   .object({
@@ -77,9 +78,15 @@ export async function POST(request: Request) {
   }
   const { data: rows, error: selectError } = await query;
   if (selectError) {
-    console.error(
-      `[fixtures/cleanup] select failed account=${parsed.account_id ?? "all"}: ${selectError.message}`,
-    );
+    await captureException(selectError, {
+      tags: {
+        route: "/api/internal/fixtures/cleanup",
+        action: "fixtures.cleanup_select",
+        stage: "query",
+        app: "id",
+      },
+      extra: { scopedToAccount: Boolean(parsed.account_id) },
+    });
     return NextResponse.json(
       { error: "select_failed" },
       { status: 500 },
@@ -100,9 +107,15 @@ export async function POST(request: Request) {
     .update({ status: "archived" })
     .in("id", ids);
   if (updateError) {
-    console.error(
-      `[fixtures/cleanup] update failed (${ids.length} ids): ${updateError.message}`,
-    );
+    await captureException(updateError, {
+      tags: {
+        route: "/api/internal/fixtures/cleanup",
+        action: "fixtures.cleanup_archive",
+        stage: "persist",
+        app: "id",
+      },
+      extra: { idCount: ids.length },
+    });
     return NextResponse.json(
       { error: "update_failed" },
       { status: 500 },
@@ -130,9 +143,16 @@ export async function POST(request: Request) {
       },
     });
     if (ledgerError) {
-      console.error(
-        `[fixtures/cleanup] ledger insert failed account=${account_id}: ${ledgerError.message}`,
-      );
+      await captureException(ledgerError, {
+        tags: {
+          route: "/api/internal/fixtures/cleanup",
+          action: "fixtures.cleanup_ledger",
+          stage: "persist",
+          app: "id",
+        },
+        user: { id: account_id },
+        extra: { archivedCount: archived_count },
+      });
       ledgerWriteFailures++;
     }
   }

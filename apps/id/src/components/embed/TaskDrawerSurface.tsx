@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Button, TaskDrawer, type TaskDrawerStep } from "@kinetiks/ui";
 import { useActiveTask } from "@/lib/embed/useActiveTask";
+import { capture } from "@/lib/observability/posthog";
 import { KillPrompt } from "./KillPrompt";
 import { bottomCenterAnchor } from "./floating-anchor";
 import type { ActiveTaskStep } from "@kinetiks/types";
@@ -172,6 +173,7 @@ export function TaskDrawerSurface({
     setKilling(false);
     setExpanded(false);
     setAck(result.acknowledgement);
+    void capture("collab.task_killed", { reason_code: reasonCode, is_fixture: true });
     onKilled?.();
   };
 
